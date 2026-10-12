@@ -1,0 +1,49 @@
+    }
+
+    /*
+     * First test whether the method is already in the call chain. Skip over
+     * any leading filters.
+     */
+
+    for (i = cbPtr->filterLength ; i < callPtr->numChain ; i++) {
+	if (callPtr->chain[i].mPtr == mPtr &&
+		callPtr->chain[i].isFilter == (doneFilters != NULL)) {
+	    /*
+	     * Call chain semantics states that methods come as *late* in the
+	     * call chain as possible. This is done by copying down the
+	     * following methods. Note that this does not change the number of
+	     * method invocations in the call chain; it just rearranges them.
+	     */
+
+	    Class *declCls = callPtr->chain[i].filterDeclarer;
+
+	    for (; i + 1 < callPtr->numChain ; i++) {
+		callPtr->chain[i] = callPtr->chain[i + 1];
+	    }
+	    callPtr->chain[i].mPtr = mPtr;
+	    callPtr->chain[i].isFilter = (doneFilters != NULL);
+	    callPtr->chain[i].filterDeclarer = declCls;
+	    return;
+	}
+    }
+
+    /*
+     * Need to really add the method. This is made a bit more complex by the
+     * fact that we are using some "static" space initially, and only start
+     * realloc-ing if the chain gets long.
+     */
+
+    if (callPtr->numChain == CALL_CHAIN_STATIC_SIZE) {
+	callPtr->chain = (MInvoke *)
+		Tcl_Alloc(sizeof(MInvoke) * (callPtr->numChain + 1));
+	memcpy(callPtr->chain, callPtr->staticChain,
+		sizeof(MInvoke) * callPtr->numChain);
+    } else if (callPtr->numChain > CALL_CHAIN_STATIC_SIZE) {
+	callPtr->chain = (MInvoke *) Tcl_Realloc(callPtr->chain,
+		sizeof(MInvoke) * (callPtr->numChain + 1));
+    }
+    callPtr->chain[i].mPtr = mPtr;
+    callPtr->chain[i].isFilter = (doneFilters != NULL);
+    callPtr->chain[i].filterDeclarer = filterDecl;
+    callPtr->numChain++;
+}

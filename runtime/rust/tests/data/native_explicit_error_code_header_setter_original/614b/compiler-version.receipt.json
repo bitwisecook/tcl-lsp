@@ -1,0 +1,32 @@
+{
+  "provider": "compiler",
+  "channel": "compiler-version",
+  "status": "closed",
+  "command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "--version"
+  ],
+  "cwd": "/workspace/.proofs/native-explicit-error-code-header-setter614b",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821",
+  "source_sha256": "d85ae996cf65de3bf3dc7beeb522e588af03178c93e336ddfa9b6d0dcfa4c614",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.001980793022084981,
+  "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verification_scope": "Actual process/streams only. Header, link, runtime, own-executable and final input verification are separate records."
+}

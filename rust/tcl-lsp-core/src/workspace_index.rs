@@ -80,24 +80,17 @@ use crate::source_graph::RunPoint;
 use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
 };
-use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
 use tcl_compiler::ir::MethodKind;
 use tcl_lexer::Span;
 use tcl_registry::definer::DeclaredMemberVisibility;
-
-/// The class-object side's member kind — [`MethodKind::ClassMethod`]'s
-/// spelling, which the analyser records on every class-side member and this
-/// index keys the side on.
-const CLASS_METHOD: &str = MethodKind::ClassMethod.as_str();
-/// The analyser's spelling of an exported member's visibility.
-const PUBLIC: &str = DeclaredMemberVisibility::Public.as_str();
-/// The analyser's spelling of a private member's visibility.
-const PRIVATE: &str = DeclaredMemberVisibility::Private.as_str();
+use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_key};
 
 /// One proc definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceProc {
+    /// Exact original command publication receipt; report keys grant no identity.
+    pub source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Document the proc is defined in (the `analyses` map key).
     pub uri: String,
     /// Simple (tail) name, e.g. `greet`.
@@ -136,6 +129,23 @@ pub struct WorkspaceProc {
 /// One class definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceClass {
+    /// Genuine original class publication owner; metadata reports supply none.
+    pub original_declaration:
+        Option<tcl_compiler::signature_scan::original_name::SourceOriginalNameOccurrence>,
+    /// Exact original own-table member declarations and effects from that owner.
+    pub original_members: Option<tcl_compiler::analyser::types::OriginalSourceMemberLedger>,
+    /// Original relation operands and receiver-specific effects from that owner.
+    pub original_relations:
+        Option<tcl_compiler::analyser::types::OriginalSourceClassRelationLedger>,
+    /// Original object-command publication and relation lookup receipts.
+    pub source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
+    /// Whether declaration reports collide across distinct retained source slots.
+    pub source_name_ambiguous: bool,
+    /// Original caller contexts for superclass and mixin name lookups.
+    pub relation_lookups: std::collections::HashMap<
+        String,
+        Option<tcl_compiler::signature_scan::scope::SignatureSourceLookup>,
+    >,
     /// Document the class is defined in.
     pub uri: String,
     /// Simple (tail) name.
@@ -208,6 +218,9 @@ pub struct WorkspaceClass {
     /// `classmethod` / snit `typemethod` (dispatched as two bare words)
     /// without a local `ClassDef` to ask.
     pub metaclass: String,
+    /// Descriptor family selected from this record's actual analysis input and
+    /// Registry at publication. This is metadata, not native class identity.
+    definer_family: Option<tcl_registry::definer::DefinerFamily>,
     /// Whether this class's **own command** constructs an instance from a
     /// bare unrecognised word and yields its name — see
     /// [`tcl_compiler::analyser::ClassDef::class_command_fallback`] (Tk's
@@ -230,11 +243,18 @@ impl WorkspaceClass {
     /// two-word `Factory make` shape — true for [incr Tcl] only.  Registry
     /// data (`DefinerFamily`), not a hardcoded command-name check.
     #[must_use]
-    pub fn is_itcl(&self, dialect: &'static tcl_dialect::DialectProfile) -> bool {
-        crate::registry_for_dialect_profile(dialect)
-            .get(&self.metaclass)
-            .and_then(|spec| spec.definition_body)
-            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+    pub const fn is_itcl(&self, _dialect: &'static tcl_dialect::DialectProfile) -> bool {
+        matches!(
+            self.definer_family,
+            Some(tcl_registry::definer::DefinerFamily::Itcl)
+        )
+    }
+
+    /// Retained descriptor family, independently of callable class or method
+    /// identity. Unknown does not establish a different dispatch family.
+    #[must_use]
+    pub const fn definer_family(&self) -> Option<tcl_registry::definer::DefinerFamily> {
+        self.definer_family
     }
 
     /// Whether this record directly defines `name` (any receiver kind).
@@ -275,7 +295,7 @@ impl WorkspaceClass {
     pub fn instance_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind != CLASS_METHOD)
+            .find(|m| m.name == name && m.kind != MethodKind::ClassMethod.as_str())
     }
 
     /// The typed record for the *class-receiver* member `name` — a
@@ -285,7 +305,7 @@ impl WorkspaceClass {
     pub fn class_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind == CLASS_METHOD)
+            .find(|m| m.name == name && m.kind == MethodKind::ClassMethod.as_str())
     }
 }
 
@@ -294,7 +314,7 @@ impl WorkspaceClass {
 /// named once so the member fold and the tombstone lookup agree on it.
 #[must_use]
 fn method_side(m: &WorkspaceMethod) -> MemberSide {
-    if m.kind == CLASS_METHOD {
+    if m.kind == MethodKind::ClassMethod.as_str() {
         MemberSide::ClassObject
     } else {
         MemberSide::Instance
@@ -460,6 +480,14 @@ pub enum MethodAccess {
 /// / rename / call-hierarchy can walk every call site of a symbol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceInvocation {
+    /// Original naming producer. Reporting names cannot recreate its bytes,
+    /// source channel or independently selected dialect policy.
+    pub original_name_input: Option<tcl_compiler::signature_scan::scope::SignatureSourceNameInput>,
+    /// Positioned original lookup geometry, separate from declaration advice
+    /// and from a successfully selected command implementation.
+    pub original_lookup: Option<tcl_compiler::command_binding::OriginalCommandLookup>,
+    /// Lookup purpose retained independently of the source edit span.
+    pub lookup: tcl_compiler::signature_scan::types::SignatureCommandLookup,
     /// Document the call site is in.
     pub uri: String,
     /// Command head as written at the call site (no namespace
@@ -477,6 +505,12 @@ pub struct WorkspaceInvocation {
     /// live-name set, this remains true for a call which provably ran before
     /// a later load-level deletion.
     pub resolved_user_definition: Option<String>,
+    /// Actual source implementation selected at this call, independent of its
+    /// current slot and the document-final declaration inventory.
+    pub resolved_definition: Option<tcl_compiler::command_binding::SourceCommandDefinition>,
+    /// Complete called-slot navigation receipt. A known non-definition cannot
+    /// borrow a same-named procedure or class from workspace assistance.
+    pub resolved_command_reference: Option<tcl_compiler::command_binding::SourceCommandReference>,
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
     /// The span does not carry the written command name (an indirect site —
@@ -601,7 +635,7 @@ pub struct WorkspaceVariableAlias {
 
 /// One occurrence of a word naming a **namespace**, recorded workspace-wide —
 /// the cross-document half of the namespace tier, lifted verbatim from
-/// [`tcl_compiler::analyser::NamespaceRef`].
+/// [`tcl_compiler::analyser::types::NamespaceRef`].
 ///
 /// One table, not two, because a namespace's declaring site *is* one of its
 /// spellings: the `::tomato` of `namespace eval ::tomato { … }` is both the
@@ -615,6 +649,8 @@ pub struct WorkspaceVariableAlias {
 /// spellable from any document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceNamespaceRef {
+    /// Original source operand and independently retained geometry.
+    pub source: tcl_compiler::analyser::types::NamespaceRef,
     /// Document the occurrence is in.
     pub uri: String,
     /// `::`-rooted namespace the occurrence names.
@@ -647,6 +683,14 @@ fn alias_cell_is_computed(cell: &str) -> bool {
 /// rewrite the dependent's `source` literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceSource {
+    /// Sealed conditional expression selected from genuine original words.
+    /// It retains the full analysis/context and supplies no actual file load.
+    pub original_path_expression:
+        Option<tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
+    /// Retained possible child source edge and its full source/input lineage.
+    /// No actual file evaluation or completed execution is established.
+    pub original_interpreter_source_load:
+        Option<std::sync::Arc<tcl_compiler::analyser::OriginalInterpreterSourceLoad>>,
     /// Document containing the `source` statement.
     pub uri: String,
     /// Verbatim path text as written (with `${var}` / `[cmd]` markers
@@ -693,16 +737,6 @@ pub struct WorkspacePackagePrefer {
     pub enclosing_body: Option<Span>,
 }
 
-/// Whether a `package` name argument is a plain literal, so it names one
-/// package statically.
-///
-/// The segmenter reconstructs substituted words with their `${var}` / `[cmd]`
-/// markers preserved, so their absence is reliable evidence — the same test
-/// [`crate::package_resolver::package_requires_in`] applies.
-fn is_literal_name(name: &str) -> bool {
-    !name.is_empty() && !name.contains(['$', '[', '{'])
-}
-
 /// One `package require NAME` declaration recorded in the index.
 ///
 /// Lets a module inherit the requires of the entry file(s) that `source` it,
@@ -715,6 +749,16 @@ fn is_literal_name(name: &str) -> bool {
 /// fields are here and not only on the `source` record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageRequire {
+    /// Exact package-key projection; full original source ownership remains
+    /// in the analyser and does not enter the body-free settlement summary.
+    pub original_name: Option<tcl_registry::native_package::NativePackageNameKey>,
+    /// Each alternative version word retained at this requirement.
+    pub requirements: Vec<String>,
+    /// Whether this requirement selected exact version matching.
+    pub exact: bool,
+    /// Local source preference at this requirement. The host independently
+    /// supplies any interpreter or ancestor preference on entry.
+    pub prefer: crate::package_resolver::PackagePrefer,
     /// Document containing the `package require` statement.
     pub uri: String,
     /// Required package name (the `NAME` argument).
@@ -734,6 +778,32 @@ pub struct WorkspacePackageRequire {
     pub conditional: bool,
 }
 
+impl WorkspacePackageRequire {
+    /// Project advice without rebuilding a package key from its report label.
+    /// Interpreter preference is a caller fact; local `latest` is a latch.
+    #[must_use]
+    pub fn original_advice(
+        &self,
+        default: crate::package_resolver::PackagePrefer,
+    ) -> crate::package_resolver::PackageRequirementAdvice {
+        use crate::package_resolver::{
+            PackagePrefer, PackageRequirementAdvice, PackageRequirementAdviceKey,
+        };
+        let key = self
+            .original_name
+            .as_ref()
+            .map_or(PackageRequirementAdviceKey::Unknown, |name| {
+                PackageRequirementAdviceKey::Original(name.clone())
+            });
+        let prefer = if default == PackagePrefer::Latest || self.prefer == PackagePrefer::Latest {
+            PackagePrefer::Latest
+        } else {
+            PackagePrefer::Stable
+        };
+        PackageRequirementAdvice::new(key, self.requirements.clone(), self.exact, prefer)
+    }
+}
+
 /// One `package provide NAME` declaration recorded in the index.
 ///
 /// The other end of a [`WorkspacePackageRequire`]: the document that, when it
@@ -742,6 +812,8 @@ pub struct WorkspacePackageRequire {
 /// that document had run by the require.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageProvide {
+    /// Exact original package-key projection, independent of its reporting label.
+    pub original_name: Option<tcl_registry::native_package::NativePackageNameKey>,
     /// Document containing the `package provide` statement.
     pub uri: String,
     /// Provided package name (the `NAME` argument).
@@ -765,6 +837,8 @@ pub struct WorkspacePackageProvide {
 /// package edge for that name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageIfneeded {
+    /// Original registered package key; registration does not prove loading.
+    pub original_name: Option<tcl_registry::native_package::NativePackageNameKey>,
     /// Document containing the `package ifneeded` statement.
     pub uri: String,
     /// Package the load script is registered for.
@@ -789,10 +863,17 @@ pub struct WorkspaceCommandLink {
     /// Fully-qualified name the link introduces (`::`-rooted): the imported
     /// `<ns>::<tail>`, the alias name, or the `rename` `NEW`.
     pub linked_qname: String,
+    /// Exact authored alias publication slot, when supplied by its original
+    /// declaration. Its reported full name is not new lookup input.
+    pub linked_source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Fully-qualified name (`::`-rooted) the link resolves *to*: the import
     /// pattern's source, the alias `TARGET`, or the `rename` `OLD` — the
     /// command whose references a call through `linked_qname` joins.
     pub target_qname: String,
+    /// Exact authored global alias target slot. Its report need not be a
+    /// globally callable spelling; positioned source references resolve it.
+    /// Imports and renames retain their existing declaration carriers.
+    pub target_source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Byte span of the token naming the target in the declaration (import
     /// pattern, alias `TARGET`, `rename` `OLD`).  A reference to the target;
     /// rename rewrites it.  `None` when the source scan did not record a span
@@ -835,6 +916,12 @@ pub struct WorkspaceCommandLink {
 /// to be installed at all — see [`WorkspaceCommandLink::import_gate`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceImportGate {
+    /// Genuine whole original pattern and caller scope; optional display fields
+    /// do not recover this receipt when unavailable.
+    pub original_pattern:
+        Option<tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+    /// Exact original selected namespace geometry; never parsed from its display.
+    pub native_source: Option<tcl_syntax::naming::NativeNamespacePatternSource>,
     /// The pattern's source namespace, with leading `::` (`::src` for
     /// `::src::p`).
     pub source_ns: String,
@@ -864,6 +951,12 @@ pub struct WorkspaceImportGate {
 /// why an exact pattern still takes the `WorkspaceCommandLink` path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceGlobImport {
+    /// Genuine whole original pattern and caller scope; optional display fields
+    /// do not recover this receipt when unavailable.
+    pub original_pattern:
+        Option<tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+    /// Exact original selected namespace geometry; never parsed from its display.
+    pub native_source: Option<tcl_syntax::naming::NativeNamespacePatternSource>,
     /// Document the `namespace import` is in.
     pub uri: String,
     /// Importing namespace, with leading `::` — the namespace a bare call
@@ -1015,6 +1108,10 @@ impl WorkspaceImportGate {
 /// together.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceNamespaceExport {
+    /// Original counted event, retained independently of the reporting label.
+    pub original: Option<tcl_compiler::signature_scan::original_name::SourceNamespaceExport>,
+    /// Unrepresented source operand; this is a May barrier, never a name value.
+    pub unknown: bool,
     /// Document the `namespace export` is in.
     pub uri: String,
     /// Exporting namespace, with leading `::`.
@@ -1024,6 +1121,8 @@ pub struct WorkspaceNamespaceExport {
     pub pattern: String,
     /// Byte offset of the event within [`Self::uri`].
     pub at: u32,
+    /// Genuine original declaration-body geometry for source ordering.
+    pub enclosing_body: Option<Span>,
     /// `true` for a `namespace export -clear` tombstone.
     pub clears: bool,
 }
@@ -1076,6 +1175,54 @@ fn resolved_user_definition(
     }
 }
 
+/// Exact source/configuration/Registry currency and selected declaration advice.
+/// This readonly invalidation context supplies no lookup, publication, Normal
+/// completion, execution frame or native command-table capability.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceDiagnosticSourceContext {
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+    original_names: bool,
+}
+
+impl WorkspaceDiagnosticSourceContext {
+    /// Retain complete source/configuration, Registry identity and advice mode.
+    /// This readonly currency does not issue a lookup or native capability.
+    #[must_use]
+    pub fn for_analysis(analysis: &AnalysisResult) -> Option<Self> {
+        let config = analysis.body_lexer_config?;
+        let registry = analysis.resolved_registry()?.snapshot().semantic_key();
+        let image = analysis
+            .retained_command_realm()?
+            .original_source_image()?
+            .clone();
+        analysis
+            .matches_original_source_image(&image, config)
+            .then_some(Self {
+                image,
+                config,
+                registry,
+                original_names: !analysis.allows_lexical_declaration_advice(),
+            })
+    }
+    /// Complete actual source bytes and input channel retained at ingress.
+    #[must_use]
+    pub fn image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+    /// Full scanner configuration, without profile-name reconstruction.
+    #[must_use]
+    pub const fn config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+    /// Independently selected original versus logical compatibility advice.
+    #[must_use]
+    pub const fn uses_original_names(&self) -> bool {
+        self.original_names
+    }
+}
+
 /// The fourteen record tables **one document** contributes to the index.
 ///
 /// Grouping the tables per document is what makes
@@ -1091,22 +1238,41 @@ fn resolved_user_definition(
 /// which is the order the records were added in.
 #[derive(Debug, Clone, Default)]
 struct DocumentRecords {
+    /// Workspace document ownership, independent of equal source images.
+    uri: String,
     /// Index-wide mutation token for the indexed revision. The server uses it
     /// to prove that a closed file did not reindex while its source was being
     /// loaded for byte-span to LSP-range conversion.
     revision: u64,
-    /// The dialect this document was analysed under — carried straight from
-    /// [`AnalysisResult::dialect`], so the registry consulted for a decision
-    /// about this document is the one it was actually analysed with.
-    ///
-    /// A workspace is not one dialect: an iRule and a plain Tcl script can sit
-    /// in one folder, and which commands a fresh interpreter holds differs
-    /// between them (`HTTP::uri` exists for `f5-irules` and nowhere else).
-    /// Empty for a default-constructed record, which
-    /// [`WorkspaceIndex::registry_for`] reads as "no dialect known".
+    /// Descriptive analysed dialect label. Current Registry queries retain the
+    /// actual input and complete source context independently of this label.
     dialect: String,
+    diagnostic_source: Option<WorkspaceDiagnosticSourceContext>,
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
+    /// Complete original declarations, including opaque names and records
+    /// whose presentation collides. These are declaration inventories, not
+    /// claims that a command is installed or callable at a particular time.
+    original_command_world: Option<tcl_compiler::command_binding::OriginalCompletedCommandWorld>,
+    original_source_procedures:
+        Option<tcl_compiler::command_binding::OriginalSourceProcedurePublications>,
+    original_source_classes: Option<tcl_compiler::command_binding::OriginalSourceClassPublications>,
+    original_source_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    original_procs: Vec<
+        tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ProcDef,
+        >,
+    >,
+    original_classes: Vec<
+        tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ClassDef,
+        >,
+    >,
+    original_symbols: Vec<IndexedWorkspaceSymbol>,
+    original_vendor_declarations: Vec<crate::vendor_declaration::RetainedOriginalVendorDeclaration>,
+    original_method_queries: Vec<crate::method_symbol::OriginalMethodQuery>,
+    original_variables:
+        Vec<tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
     variables: Vec<WorkspaceVariable>,
     variable_refs: Vec<WorkspaceVariableRef>,
     variable_aliases: Vec<WorkspaceVariableAlias>,
@@ -1119,18 +1285,31 @@ struct DocumentRecords {
     /// own path standing in for `[info script]`) before resolving a computed
     /// `source` argument.  Raw here for the same reason as there: the fold
     /// depends on where the document lives, the index must not.
-    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
+    path_constant_assignments: tcl_compiler::auto_path_eval::PathConstantAssignments,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
     package_prefers: Vec<WorkspacePackagePrefer>,
     command_links: Vec<WorkspaceCommandLink>,
     glob_imports: Vec<WorkspaceGlobImport>,
+    original_namespace_patterns:
+        Vec<tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
     namespace_exports: Vec<WorkspaceNamespaceExport>,
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
     command_retirements: Vec<WorkspaceCommandRetirement>,
     defined_symbols: Vec<WorkspaceDefinedSymbol>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct OriginalPublicationDependency {
+    slot: tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    kind: tcl_compiler::command_binding::OriginalCommandPublicationKind,
+    definition: Option<(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )>,
 }
 
 /// The complete per-document input surface the command-settlement walk reads,
@@ -1145,6 +1324,8 @@ struct DocumentRecords {
 #[derive(Clone, PartialEq, Eq)]
 struct SettlementDependencies {
     dialect: String,
+    /// Command-store currency read by the import metadata conflict gates.
+    registry: Option<tcl_registry::RegistrySemanticKey>,
     /// Only the facts `defined_command_names` and the nested-builtin gate
     /// read.  Parameter edits and a shifted declaration span cannot change a
     /// call's target, so retaining the whole `WorkspaceProc` would turn those
@@ -1156,17 +1337,36 @@ struct SettlementDependencies {
     /// `observable_namespaces` reads declaration identity only.  References
     /// to a namespace and their spans do not affect an import gate.
     declared_namespaces: Vec<String>,
+    original_declarations: Vec<(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )>,
+    original_publications: Vec<OriginalPublicationDependency>,
+    original_world_closed: bool,
+    original_source_procedure_candidates: Vec<(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+        tcl_core_types::ByteCommandSlot,
+    )>,
+    original_source_class_candidates: Vec<(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+        tcl_core_types::ByteCommandSlot,
+        Vec<tcl_compiler::command_binding::SourceCommandTransitionObligation>,
+    )>,
     sources: Vec<WorkspaceSource>,
     /// A changed constant can change which child a computed source row
     /// resolves to, so the raw assignments are resolution-relevant exactly
     /// as the source rows themselves are.
-    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
+    path_constant_assignments: tcl_compiler::auto_path_eval::PathConstantAssignments,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
     package_prefers: Vec<WorkspacePackagePrefer>,
     command_links: Vec<WorkspaceCommandLink>,
     glob_imports: Vec<WorkspaceGlobImport>,
+    original_namespace_patterns:
+        Vec<tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
     namespace_exports: Vec<WorkspaceNamespaceExport>,
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
@@ -1174,9 +1374,22 @@ struct SettlementDependencies {
 }
 
 impl DocumentRecords {
+    /// Actual immutable command store for this indexed source revision. The
+    /// full source/configuration guard was captured at index ingress; its
+    /// exact store must still match the retained input. No Native capability
+    /// or loaded-package effect is supplied by this metadata borrow.
+    fn registry(&self) -> Option<&tcl_registry::CommandRegistry> {
+        let input = self.original_source_input.as_ref()?;
+        let source = self.diagnostic_source.as_ref()?;
+        let registry = input.borrowed_context_registry().commands().as_ref();
+        (input.lexer_config() == source.config && registry.snapshot().semantic_key() == source.registry)
+            .then_some(registry)
+    }
+
     fn settlement_dependencies(&self) -> SettlementDependencies {
         SettlementDependencies {
             dialect: self.dialect.clone(),
+            registry: self.registry().map(|registry| registry.snapshot().semantic_key()),
             procs: self
                 .procs
                 .iter()
@@ -1193,6 +1406,79 @@ impl DocumentRecords {
                 .filter(|namespace| namespace.declares)
                 .map(|namespace| namespace.qualified_name.clone())
                 .collect(),
+            original_declarations: self
+                .original_procs
+                .iter()
+                .map(|declaration| {
+                    (
+                        declaration.name().slot().clone(),
+                        declaration.name().policy(),
+                    )
+                })
+                .chain(self.original_classes.iter().map(|declaration| {
+                    (
+                        declaration.name().slot().clone(),
+                        declaration.name().policy(),
+                    )
+                }))
+                .collect(),
+            original_publications: self
+                .original_command_world
+                .iter()
+                .flat_map(|world| world.declarations())
+                .map(|publication| {
+                    let site = publication
+                        .definition()
+                        .map(|definition| &definition.allocation().site);
+                    let origin = self
+                        .original_procs
+                        .iter()
+                        .find(|declaration| Some(declaration.declaration_site()) == site)
+                        .map(|declaration| {
+                            (
+                                declaration.name().slot().clone(),
+                                declaration.name().policy(),
+                            )
+                        })
+                        .or_else(|| {
+                            self.original_classes
+                                .iter()
+                                .find(|declaration| Some(declaration.declaration_site()) == site)
+                                .map(|declaration| {
+                                    (
+                                        declaration.name().slot().clone(),
+                                        declaration.name().policy(),
+                                    )
+                                })
+                        });
+                    OriginalPublicationDependency {
+                        slot: publication.slot().clone(),
+                        policy: publication.policy(),
+                        kind: publication.kind(),
+                        definition: origin,
+                    }
+                })
+                .collect(),
+            original_world_closed: self.original_command_world.is_some(),
+            original_source_procedure_candidates: self
+                .original_procedure_source_candidates()
+                .into_iter()
+                .map(|(declaration, slot, policy)| {
+                    (slot.clone(), policy, declaration.name().slot().clone())
+                })
+                .collect(),
+            original_source_class_candidates: self
+                .original_class_source_candidates()
+                .into_iter()
+                .map(|(declaration, slot, policy, obligations)| {
+                    (
+                        slot.clone(),
+                        policy,
+                        declaration.name().slot().clone(),
+                        obligations.to_vec(),
+                    )
+                })
+                .collect(),
             sources: self.sources.clone(),
             path_constant_assignments: self.path_constant_assignments.clone(),
             package_requires: self.package_requires.clone(),
@@ -1201,10 +1487,116 @@ impl DocumentRecords {
             package_prefers: self.package_prefers.clone(),
             command_links: self.command_links.clone(),
             glob_imports: self.glob_imports.clone(),
+            original_namespace_patterns: self.original_namespace_patterns.clone(),
             namespace_exports: self.namespace_exports.clone(),
             namespace_forgets: self.namespace_forgets.clone(),
             command_deletions: self.command_deletions.clone(),
             command_retirements: self.command_retirements.clone(),
+        }
+    }
+
+    fn original_procedure_source_candidates(
+        &self,
+    ) -> Vec<(
+        &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ProcDef,
+        >,
+        &tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
+        let Some(context) = self.diagnostic_source.as_ref() else {
+            return Vec::new();
+        };
+        if let Some(world) = self.original_command_world.as_ref() {
+            world
+                .declarations()
+                .flat_map(|publication| {
+                    self.original_procs.iter().filter_map(move |declaration| {
+                        (publication.declaration_site() == declaration.declaration_site()
+                            && publication.policy() == declaration.name().policy())
+                        .then_some((declaration, publication.slot(), publication.policy()))
+                    })
+                })
+                .collect()
+        } else if let Some(inventory) = self.original_source_procedures.as_ref() {
+            inventory
+                .candidates(self.original_procs.iter())
+                .into_iter()
+                .map(|candidate| {
+                    (
+                        candidate.declaration(),
+                        candidate.source_slot(),
+                        candidate.policy(),
+                    )
+                })
+                .collect()
+        } else {
+            self.original_procs
+                .iter()
+                .filter(|declaration| {
+                    declaration.name_input().source_image() == context.image()
+                        && declaration.name_input().lexer_config() == context.config()
+                })
+                .map(|declaration| {
+                    (
+                        declaration,
+                        declaration.name().slot(),
+                        declaration.name().policy(),
+                    )
+                })
+                .collect()
+        }
+    }
+
+    fn original_class_source_candidates(
+        &self,
+    ) -> Vec<(
+        &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ClassDef,
+        >,
+        &tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+        &[tcl_compiler::command_binding::SourceCommandTransitionObligation],
+    )> {
+        if self.diagnostic_source.is_none() {
+            return Vec::new();
+        }
+        if let Some(world) = self.original_command_world.as_ref() {
+            world
+                .declarations()
+                .flat_map(|publication| {
+                    self.original_classes.iter().filter_map(move |declaration| {
+                        (publication.declaration_site() == declaration.declaration_site()
+                            && publication.policy() == declaration.name().policy())
+                        .then_some((
+                            declaration,
+                            publication.slot(),
+                            publication.policy(),
+                            &[][..],
+                        ))
+                    })
+                })
+                .collect()
+        } else {
+            self.original_source_classes
+                .as_ref()
+                .map_or_else(Vec::new, |inventory| {
+                    inventory
+                        .candidates_from_retained_records(
+                            self.original_source_input.as_ref(),
+                            self.original_classes.iter(),
+                        )
+                        .into_iter()
+                        .map(|candidate| {
+                            (
+                                candidate.declaration(),
+                                candidate.source_slot(),
+                                candidate.policy(),
+                                candidate.obligations(),
+                            )
+                        })
+                        .collect()
+                })
         }
     }
 
@@ -1219,10 +1611,22 @@ impl DocumentRecords {
     /// removals.
     fn clear(&mut self) {
         let Self {
+            uri,
             revision: _,
             dialect,
+            diagnostic_source,
             procs,
             classes,
+            original_command_world,
+            original_source_procedures,
+            original_source_classes,
+            original_source_input,
+            original_procs,
+            original_classes,
+            original_symbols,
+            original_vendor_declarations,
+            original_method_queries,
+            original_variables,
             variables,
             variable_refs,
             variable_aliases,
@@ -1236,16 +1640,29 @@ impl DocumentRecords {
             package_prefers,
             command_links,
             glob_imports,
+            original_namespace_patterns,
             namespace_exports,
             namespace_forgets,
             command_deletions,
             command_retirements,
             defined_symbols,
         } = self;
+        uri.clear();
         dialect.clear();
+        *diagnostic_source = None;
         path_constant_assignments.clear();
         procs.clear();
         classes.clear();
+        *original_command_world = None;
+        *original_source_procedures = None;
+        *original_source_classes = None;
+        *original_source_input = None;
+        original_procs.clear();
+        original_classes.clear();
+        original_symbols.clear();
+        original_vendor_declarations.clear();
+        original_method_queries.clear();
+        original_variables.clear();
         variables.clear();
         variable_refs.clear();
         variable_aliases.clear();
@@ -1258,6 +1675,7 @@ impl DocumentRecords {
         package_prefers.clear();
         command_links.clear();
         glob_imports.clear();
+        original_namespace_patterns.clear();
         namespace_exports.clear();
         namespace_forgets.clear();
         command_deletions.clear();
@@ -1279,6 +1697,24 @@ impl DocumentRecords {
         retractions: &RetractionIndex<'_>,
         out: &mut Vec<IndexedWorkspaceSymbol>,
     ) {
+        let Some(context) = self.diagnostic_source.as_ref() else {
+            return;
+        };
+        if context.uses_original_names() {
+            for symbol in &self.original_symbols {
+                if out.len() >= limit {
+                    return;
+                }
+                if matches_query(&symbol.name, lower_query)
+                    || symbol.container_name.as_ref().is_some_and(|container| {
+                        matches_query(&format!("{container}::{}", symbol.name), lower_query)
+                    })
+                {
+                    out.push(symbol.clone());
+                }
+            }
+            return;
+        }
         for proc_def in &self.procs {
             if out.len() >= limit {
                 return;
@@ -1292,6 +1728,7 @@ impl DocumentRecords {
                     container_name: namespace_of(&proc_def.qualified_name),
                     kind: WorkspaceSymbolKind::Function,
                     name_span: proc_def.name_span,
+                    original_location: None,
                 });
             }
         }
@@ -1311,6 +1748,7 @@ impl DocumentRecords {
                     container_name: namespace_of(&class_def.qualified_name),
                     kind: WorkspaceSymbolKind::Class,
                     name_span: class_def.name_span,
+                    original_location: None,
                 });
             }
             // Members carry the class's qualified name as their container, so
@@ -1337,6 +1775,7 @@ impl DocumentRecords {
                         container_name: Some(class_def.qualified_name.clone()),
                         kind: WorkspaceSymbolKind::Method,
                         name_span: em.name_span,
+                        original_location: None,
                     });
                 }
             }
@@ -1351,6 +1790,7 @@ impl DocumentRecords {
                         container_name: Some(class_def.qualified_name.clone()),
                         kind: WorkspaceSymbolKind::Constructor,
                         name_span,
+                        original_location: None,
                     });
                 }
             }
@@ -1368,6 +1808,7 @@ impl DocumentRecords {
                     container_name: namespace_of(&sym.qualified_name),
                     kind: WorkspaceSymbolKind::from(sym.kind),
                     name_span: sym.name_span,
+                    original_location: None,
                 });
             }
         }
@@ -1378,7 +1819,50 @@ impl DocumentRecords {
     /// The caller ([`WorkspaceIndex::add_document`]) has already cleared the
     /// slot, so this only ever appends.
     fn index_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        self.uri = uri.to_owned();
         self.dialect.clone_from(&analysis.dialect);
+        self.diagnostic_source = WorkspaceDiagnosticSourceContext::for_analysis(analysis);
+        self.original_command_world = analysis.original_completed_command_world().cloned();
+        self.original_source_input
+            .clone_from(&analysis.resolved_input);
+        self.original_source_classes = self
+            .diagnostic_source
+            .as_ref()
+            .and_then(|context| context.image().try_text().ok())
+            .and_then(|source| {
+                tcl_compiler::registry_invocation::source_structure::source_class_publications(
+                    source, analysis,
+                )
+            });
+        self.original_source_procedures = self
+            .diagnostic_source
+            .as_ref()
+            .and_then(|context| context.image().try_text().ok())
+            .and_then(|source| {
+                tcl_compiler::registry_invocation::source_structure::source_procedure_publications(
+                    source, analysis,
+                )
+            });
+        self.original_namespace_patterns
+            .extend(analysis.original_namespace_patterns().cloned());
+        if let Some(context) = self.diagnostic_source.as_ref() {
+            if let Ok(source) = std::str::from_utf8(context.image().bytes()) {
+                self.original_vendor_declarations.extend(
+                    crate::vendor_declaration::retained_declarations(source, analysis)
+                        .unwrap_or_default(),
+                );
+                self.original_symbols
+                    .extend(crate::workspace_symbols::original_symbols(
+                        uri, source, analysis, context,
+                    ));
+            }
+        }
+        self.original_method_queries
+            .extend(crate::method_symbol::source_queries(analysis));
+        self.original_procs
+            .extend(analysis.original_procedure_declarations().cloned());
+        self.original_classes
+            .extend(analysis.original_class_declarations().cloned());
         // `all_procs` / `all_classes` / a class's `methods` are `HashMap`s, so
         // iterating them directly would order this document's index entries by
         // the process's random hash seed — and consumers that answer with the
@@ -1388,6 +1872,7 @@ impl DocumentRecords {
         // records take effect in when the file is sourced.
         for proc_def in sorted_by_span(analysis.all_procs.values(), |p| p.name_span) {
             self.procs.push(WorkspaceProc {
+                source_name: proc_def.source_name.clone(),
                 uri: uri.to_owned(),
                 name: proc_def.name.clone(),
                 qualified_name: proc_def.qualified_name.clone(),
@@ -1407,6 +1892,13 @@ impl DocumentRecords {
                 name_span: sym.name_span,
             });
         }
+        self.original_variables.extend(
+            analysis
+                .original_variable_symbols
+                .iter()
+                .filter(|occurrence| occurrence.symbol().is_namespace())
+                .cloned(),
+        );
         self.index_variables(uri, analysis);
         self.index_namespace_refs(uri, analysis);
         let bodies = WorkspaceIndex::enclosing_body_spans(
@@ -1419,10 +1911,15 @@ impl DocumentRecords {
         );
         for (inv, enclosing_body) in analysis.command_invocations.iter().zip(bodies) {
             self.invocations.push(WorkspaceInvocation {
+                original_name_input: inv.original_name_input.clone(),
+                original_lookup: inv.original_lookup.clone(),
+                lookup: inv.lookup,
                 uri: uri.to_owned(),
                 name: inv.name.clone(),
                 resolution_candidates: inv.resolution_candidates.clone(),
                 resolved_user_definition: resolved_user_definition(inv),
+                resolved_definition: inv.resolved_definition.clone(),
+                resolved_command_reference: inv.resolved_command_reference.clone(),
                 range: inv.range,
                 indirect: inv.indirect,
                 rename_safe: inv.rename_safe,
@@ -1433,6 +1930,14 @@ impl DocumentRecords {
         self.index_sources(uri, analysis);
         for pr in &analysis.package_requires {
             self.package_requires.push(WorkspacePackageRequire {
+                original_name: pr.original_name.as_ref().map(|name| name.key().clone()),
+                requirements: pr.requirements.clone(),
+                exact: pr.exact,
+                prefer: crate::package_resolver::package_prefer_at(
+                    analysis,
+                    pr.range.start(),
+                    crate::package_resolver::PackagePrefer::default(),
+                ),
                 uri: uri.to_owned(),
                 name: pr.name.clone(),
                 at: pr.range.start(),
@@ -1442,6 +1947,7 @@ impl DocumentRecords {
         }
         for pp in &analysis.package_provides {
             self.package_provides.push(WorkspacePackageProvide {
+                original_name: pp.original_name.as_ref().map(|name| name.key().clone()),
                 uri: uri.to_owned(),
                 name: pp.name.clone(),
                 at: pp.range.start(),
@@ -1450,6 +1956,7 @@ impl DocumentRecords {
         }
         for pi in &analysis.package_ifneededs {
             self.package_ifneededs.push(WorkspacePackageIfneeded {
+                original_name: pi.original_name.as_ref().map(|name| name.key().clone()),
                 uri: uri.to_owned(),
                 name: pi.name.clone(),
             });
@@ -1469,14 +1976,45 @@ impl DocumentRecords {
                 enclosing_body: analysis.innermost_definition_body_span(prefer.range.start()),
             });
         }
-        for exp in &analysis.namespace_exports {
+        for exp in analysis.original_namespace_exports() {
             self.namespace_exports.push(WorkspaceNamespaceExport {
+                original: Some(exp.clone()),
+                unknown: false,
                 uri: uri.to_owned(),
-                ns: exp.ns.clone(),
-                pattern: exp.pattern.clone(),
-                at: exp.range.start(),
-                clears: exp.clears,
+                ns: exp.context().reporting_label(),
+                pattern: exp
+                    .pattern()
+                    .map_or_else(String::new, tcl_syntax::native_string::resident_name_label),
+                at: exp.span().start(),
+                enclosing_body: analysis.original_definition_body_span(exp.span().start()),
+                clears: exp.clears(),
             });
+        }
+        for span in analysis.original_namespace_export_unknowns() {
+            self.namespace_exports.push(WorkspaceNamespaceExport {
+                original: None,
+                unknown: true,
+                uri: uri.to_owned(),
+                ns: String::new(),
+                pattern: String::new(),
+                at: span.start(),
+                enclosing_body: analysis.original_definition_body_span(span.start()),
+                clears: false,
+            });
+        }
+        if analysis.allows_lexical_declaration_advice() {
+            for exp in &analysis.namespace_exports {
+                self.namespace_exports.push(WorkspaceNamespaceExport {
+                    original: None,
+                    unknown: false,
+                    uri: uri.to_owned(),
+                    ns: exp.ns.clone(),
+                    pattern: exp.pattern.clone(),
+                    at: exp.range.start(),
+                    enclosing_body: analysis.innermost_definition_body_span(exp.range.start()),
+                    clears: exp.clears,
+                });
+            }
         }
         self.index_import_lifecycle(uri, analysis);
         self.index_command_links(uri, analysis);
@@ -1488,7 +2026,17 @@ impl DocumentRecords {
     /// unresolvable, constants without rows are inert).
     fn index_sources(&mut self, uri: &str, analysis: &AnalysisResult) {
         for target in &analysis.source_targets {
+            if let Some(original) = &target.original_interpreter_source_load
+                && !original.matches_analysis(analysis)
+            {
+                continue;
+            }
             self.sources.push(WorkspaceSource {
+                original_path_expression:
+                    tcl_compiler::auto_path_eval::capture_source_target_path_expression(
+                        analysis, target,
+                    ),
+                original_interpreter_source_load: target.original_interpreter_source_load.clone(),
                 uri: uri.to_owned(),
                 raw_path: target.raw_path.clone(),
                 site_namespace: target.site_namespace.clone(),
@@ -1508,15 +2056,39 @@ impl DocumentRecords {
     /// Split out of [`Self::index_document`] only for size; the source-order
     /// rule that walk applies here unchanged.
     fn index_classes(&mut self, uri: &str, analysis: &AnalysisResult) {
-        for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
+        let mut classes: Vec<_> = analysis
+            .all_classes
+            .values()
+            .map(|class_def| {
+                let mut originals = analysis.original_class_declarations().filter(|original| {
+                    !class_def.source_name_ambiguous.is_observed()
+                        && class_def.source_name.as_ref() == Some(original.name())
+                        && class_def.name_span == original.metadata().name_span
+                });
+                let original = originals.next().filter(|_| originals.next().is_none());
+                (class_def, original)
+            })
+            .collect();
+        for original in analysis.original_class_declarations() {
+            if !classes.iter().any(|(_, candidate)| {
+                candidate.is_some_and(|candidate| {
+                    candidate.original_occurrence() == original.original_occurrence()
+                })
+            }) {
+                classes.push((original.metadata(), Some(original)));
+            }
+        }
+        classes
+            .sort_by_key(|(class_def, _)| (class_def.name_span.start(), class_def.name_span.end()));
+        for (class_def, original) in classes {
             let methods: Vec<WorkspaceMethod> =
                 sorted_by_span(class_def.methods.values(), |m| m.name_span)
                     .into_iter()
                     .map(|m| WorkspaceMethod {
                         name: m.name.clone(),
                         kind: m.kind.clone(),
-                        exported: m.visibility == PUBLIC,
-                        private: m.visibility == PRIVATE,
+                        exported: m.visibility == DeclaredMemberVisibility::Public.as_str(),
+                        private: m.visibility == DeclaredMemberVisibility::Private.as_str(),
                         is_self_method: m.is_self_method,
                         name_span: m.name_span,
                     })
@@ -1525,15 +2097,24 @@ impl DocumentRecords {
                             .into_iter()
                             .map(|m| WorkspaceMethod {
                                 name: m.name.clone(),
-                                kind: CLASS_METHOD.to_string(),
-                                exported: m.visibility == PUBLIC,
-                                private: m.visibility == PRIVATE,
+                                kind: MethodKind::ClassMethod.as_str().to_string(),
+                                exported: m.visibility == DeclaredMemberVisibility::Public.as_str(),
+                                private: m.visibility == DeclaredMemberVisibility::Private.as_str(),
                                 is_self_method: m.is_self_method,
                                 name_span: m.name_span,
                             }),
                     )
                     .collect();
             self.classes.push(WorkspaceClass {
+                original_declaration: original
+                    .map(|original| original.original_occurrence().clone()),
+                original_members: original
+                    .map(|original| original.metadata().original_members.clone()),
+                original_relations: original
+                    .map(|original| original.metadata().original_relations.clone()),
+                source_name: class_def.source_name.clone(),
+                source_name_ambiguous: class_def.source_name_ambiguous.is_observed(),
+                relation_lookups: class_def.relation_lookups.clone(),
                 uri: uri.to_owned(),
                 name: class_def.name.clone(),
                 qualified_name: class_def.qualified_name.clone(),
@@ -1548,6 +2129,7 @@ impl DocumentRecords {
                 retracted_members: class_def.retracted_members.clone(),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
+                definer_family: crate::definition::class_definer_family(analysis, class_def),
                 bare_word_construction: class_def
                     .class_command_fallback
                     .constructs_named_instance(),
@@ -1580,7 +2162,7 @@ impl DocumentRecords {
         let mut destroyed: Vec<(&String, &u32)> = analysis.destroyed_commands.iter().collect();
         destroyed.sort_unstable_by(|a, b| a.1.cmp(b.1).then_with(|| a.0.cmp(b.0)));
         for (name, at) in destroyed {
-            let qualified_name = tcl_syntax::naming::normalise_qualified_name(name);
+            let qualified_name = name.clone();
             self.command_deletions.push(WorkspaceCommandDeletion {
                 uri: uri.to_owned(),
                 qualified_name: qualified_name.clone(),
@@ -1618,7 +2200,7 @@ impl DocumentRecords {
         // the rename visit this document", not "where in it".
         let mut aliased: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for link in tcl_compiler::analyser::variable_alias_links(&analysis.global_scope) {
-            aliased.insert(tcl_syntax::naming::normalise_qualified_name(link.cell));
+            aliased.insert(link.cell.to_owned());
         }
         for qualified_name in aliased {
             self.variable_aliases.push(WorkspaceVariableAlias {
@@ -1629,7 +2211,7 @@ impl DocumentRecords {
         for vref in &analysis.qualified_var_refs {
             self.variable_refs.push(WorkspaceVariableRef {
                 uri: uri.to_owned(),
-                qualified_name: tcl_syntax::naming::normalise_qualified_name(&vref.qualified_name),
+                qualified_name: vref.qualified_name.clone(),
                 span: vref.span,
             });
         }
@@ -1646,8 +2228,9 @@ impl DocumentRecords {
     fn index_namespace_refs(&mut self, uri: &str, analysis: &AnalysisResult) {
         for nref in &analysis.namespace_refs {
             self.namespace_refs.push(WorkspaceNamespaceRef {
+                source: nref.clone(),
                 uri: uri.to_owned(),
-                qualified_name: tcl_syntax::naming::normalise_qualified_name(&nref.qualified_name),
+                qualified_name: nref.qualified_name.clone(),
                 span: nref.span,
                 declares: nref.declares,
             });
@@ -1659,7 +2242,6 @@ impl DocumentRecords {
     /// reference walk can follow.  Each becomes `linked_qname → target_qname`:
     /// the new callable name and the command it ultimately runs.
     fn index_command_links(&mut self, uri: &str, analysis: &AnalysisResult) {
-        use tcl_syntax::naming::normalise_qualified_name;
         // `namespace import ::mod::helper` inside `::app` binds `::app::helper`
         // to the exporting `::mod::helper`.  A glob pattern names no single
         // command, so it introduces no fixed `WorkspaceCommandLink` — instead
@@ -1667,23 +2249,32 @@ impl DocumentRecords {
         // [`Self::resolve_wildcard_import`] against whichever bare name the
         // invocation actually writes.
         for imp in &analysis.namespace_imports {
-            if imp.pattern.contains(['*', '?', '[']) {
-                if let Some((source_ns, tail_pattern)) = import_pattern_parts(&imp.pattern) {
-                    self.glob_imports.push(WorkspaceGlobImport {
-                        uri: uri.to_owned(),
-                        ns: imp.ns.clone(),
-                        source_ns: global_rooted(&source_ns).to_owned(),
-                        tail_pattern: tail_pattern.clone(),
-                        at: imp.range.start(),
-                        enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
-                        forced: imp.forced,
-                    });
-                }
-                continue;
-            }
-            let Some((source_ns, tail)) = import_pattern_parts(&imp.pattern) else {
+            let Some(source) = &imp.source else {
                 continue;
             };
+            if source.tail_pattern.contains(['*', '?', '[']) {
+                self.glob_imports.push(WorkspaceGlobImport {
+                    original_pattern: analysis
+                        .original_namespace_patterns()
+                        .find(|pattern| {
+                            pattern.span() == imp.range
+                                && pattern.purpose()
+                                    == tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern
+                        })
+                        .cloned(),
+                    native_source: source.native_source.clone(),
+                    uri: uri.to_owned(),
+                    ns: imp.ns.clone(),
+                    source_ns: source.namespace.clone(),
+                    tail_pattern: source.tail_pattern.clone(),
+                    at: imp.range.start(),
+                    enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
+                    forced: imp.forced,
+                });
+                continue;
+            }
+            let source_ns = &source.namespace;
+            let tail = &source.tail_pattern;
             // An exact import is export-gated exactly like a glob one — real
             // Tcl silently installs nothing when the name is not exported at
             // the import's own position (oracle on
@@ -1704,7 +2295,16 @@ impl DocumentRecords {
                 (!imp.conjectured)
                     .then_some(source_ns)
                     .map(|source_ns| WorkspaceImportGate {
-                        source_ns: global_rooted(&source_ns).to_owned(),
+                        original_pattern: analysis
+                            .original_namespace_patterns()
+                            .find(|pattern| {
+                                pattern.span() == imp.range
+                                && pattern.purpose()
+                                    == tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern
+                            })
+                            .cloned(),
+                        native_source: source.native_source.clone(),
+                        source_ns: global_rooted(source_ns).to_owned(),
                         name: tail.clone(),
                         at: imp.range.start(),
                         enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
@@ -1712,8 +2312,10 @@ impl DocumentRecords {
                     });
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: tcl_syntax::naming::qualify(&imp.ns, &tail),
-                target_qname: normalise_qualified_name(&imp.pattern),
+                linked_qname: tcl_syntax::naming::qualify(&imp.ns, tail),
+                linked_source_name: None,
+                target_qname: source.constructed_pattern(),
+                target_source_name: None,
                 target_span: Some(imp.range),
                 nested: analysis.offset_is_inside_any_definition_body(imp.range.start()),
                 import_gate,
@@ -1726,17 +2328,25 @@ impl DocumentRecords {
         // `target_span` here — the ordinary reference/rename path covers it;
         // this link only lets a call through the *alias name* resolve.
         for alias in analysis.command_aliases.values() {
-            if alias.target.is_empty() {
+            if alias.target.as_str().is_empty() {
                 continue;
             }
             let nested = analysis
                 .alias_offsets
                 .get(&alias.qualified_name)
                 .is_some_and(|&off| analysis.offset_is_inside_any_definition_body(off));
+            let policy = analysis.resolved_profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+            });
+            let Some(target) = alias.target.reported_global_key(policy) else {
+                continue;
+            };
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: normalise_qualified_name(&alias.qualified_name),
-                target_qname: normalise_qualified_name(&alias.target),
+                linked_qname: alias.qualified_name.clone(),
+                linked_source_name: alias.source_name.clone(),
+                target_qname: target.into_owned(),
+                target_source_name: alias.target.selected_global_name(policy),
                 target_span: None,
                 nested,
                 import_gate: None,
@@ -1755,8 +2365,10 @@ impl DocumentRecords {
             let nested = analysis.offset_is_inside_any_definition_body(at);
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: normalise_qualified_name(new),
-                target_qname: normalise_qualified_name(old),
+                linked_qname: new.clone(),
+                linked_source_name: None,
+                target_qname: old.clone(),
+                target_source_name: None,
                 target_span: None,
                 nested,
                 import_gate: None,
@@ -1767,7 +2379,7 @@ impl DocumentRecords {
             if !nested {
                 self.command_retirements.push(WorkspaceCommandRetirement {
                     uri: uri.to_owned(),
-                    qualified_name: normalise_qualified_name(old),
+                    qualified_name: old.clone(),
                     at,
                 });
             }
@@ -1831,7 +2443,7 @@ pub struct WorkspaceIndex {
     /// Per-document **imported** path constants — values source-graph
     /// ancestors establish before the document runs — see
     /// [`WorkspaceIndex::imported_constants`].
-    imported_constants: Derived<HashMap<String, HashMap<String, String>>>,
+    imported_constants: Derived<HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants>>,
 }
 
 /// The host's `source`-path → document-URI resolver: `(sourcing document's
@@ -1843,21 +2455,19 @@ pub struct WorkspaceIndex {
 /// [`WorkspaceIndex::set_source_resolver`].  The signature is
 /// [`WorkspaceIndex::source_seed_map`]'s, so one host resolver serves both.
 ///
-/// The fourth argument is the parent document's raw single-assignment
-/// path-constant candidates ([`WorkspaceIndex::path_constant_assignments`]) —
-/// supplied by the index, which carries them, and folded by the host, which
-/// knows the parent's filesystem path; that split is why the argument is the
-/// raw pairs rather than a folded map.
-/// The fifth argument is the document's **imported** constants — values its
-/// source-graph ancestors establish before it runs
-/// ([`WorkspaceIndex::imported_constants`]); empty until the
-/// import fixpoint has something to say.
+/// The third argument is the sealed original source expression. Missing or
+/// foreign lineage declines; reported path text is not a selection input.
+/// The fourth argument is the original source-site byte offset. The fifth
+/// argument is the parent's retained path inventory; the sixth contains
+/// position-gated source-ancestor constants. The host supplies only document
+/// filenames and URI/path mapping, without reconstructing Tcl operations.
 pub type SourceResolver = fn(
     &str,
     &str,
-    bool,
-    &[tcl_compiler::auto_path_eval::PathConstantWrite],
-    &HashMap<String, String>,
+    Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
+    u32,
+    &tcl_compiler::auto_path_eval::PathConstantAssignments,
+    &tcl_compiler::auto_path_eval::FoldedPathConstants,
 ) -> Option<String>;
 
 /// The host's constant folder: `(document URI, raw write facts, imported
@@ -1868,9 +2478,9 @@ pub type SourceResolver = fn(
 /// what one document *provides* to the documents it sources.
 pub type ConstantFolder = fn(
     &str,
-    &[tcl_compiler::auto_path_eval::PathConstantWrite],
-    &HashMap<String, String>,
-) -> HashMap<String, String>;
+    &tcl_compiler::auto_path_eval::PathConstantAssignments,
+    &tcl_compiler::auto_path_eval::FoldedPathConstants,
+) -> tcl_compiler::auto_path_eval::FoldedPathConstants;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -1920,7 +2530,16 @@ impl<T> Derived<T> {
 /// `index_document`), never reordered in place, and any mutation that could
 /// invalidate a stored `(slot, index)` pair also bumps the generation and
 /// drops the [`Derived`] view holding it.
-type DocumentSettledTargets = Vec<(String, usize)>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum SettledCommandTarget {
+    Authored(String),
+    OriginalSlot(
+        tcl_core_types::ByteCommandSlot,
+        tcl_syntax::naming::NamePolicyProtocol,
+    ),
+}
+
+type DocumentSettledTargets = Vec<(SettledCommandTarget, usize)>;
 
 /// The workspace-wide reverse index used by find-references and code lenses:
 /// every invocation's settled target, grouped by that target's `::`-stripped
@@ -1930,7 +2549,7 @@ type DocumentSettledTargets = Vec<(String, usize)>;
 /// A `BTreeSet` permits removal of the old contribution from one changed
 /// document without scanning every caller of a popular command, while keeping
 /// a stable document-slot / source-order answer.
-type SettledTargets = std::collections::HashMap<String, BTreeSet<(usize, usize)>>;
+type SettledTargets = std::collections::HashMap<SettledCommandTarget, BTreeSet<(usize, usize)>>;
 
 /// Incremental storage for one of the direct or link-following settlement
 /// modes.  It is deliberately separate from [`Derived`]: an edit in a proc
@@ -2030,9 +2649,8 @@ impl ClassEdges {
 
     /// The spines `TclOO`'s call-chain builder walks for a receiver of class
     /// `class_q`, in the order it walks them: every reachable `mixin` branch,
-    /// then the receiver's own spine — the cross-file twin of
-    /// `tcl_lsp_core::oo_dispatch`'s `dispatch_branch_spines`, and the same
-    /// rule, since C enters each mixin with a **fresh copy** of the dispatch
+    /// then the receiver's own spine. C enters each mixin with a fresh copy
+    /// of the dispatch
     /// flags and so lets a branch's `export` / `unexport` govern that branch
     /// alone.
     fn branch_spines(&self, class_q: &str, linearisation: &[String]) -> Vec<Vec<String>> {
@@ -2112,6 +2730,70 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.glob_imports.iter())
     }
 
+    /// All genuine original namespace patterns, including opaque operands with
+    /// no reporting import row. This retains source geometry, not live aliases.
+    pub fn original_namespace_patterns(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::signature_scan::original_name::SourceNamespacePattern,
+        ),
+    > {
+        self.docs.iter().flat_map(|doc| {
+            doc.original_namespace_patterns
+                .iter()
+                .map(move |pattern| (doc.uri.as_str(), pattern))
+        })
+    }
+
+    /// Source candidate export advice for a genuine import pattern and genuine
+    /// source publication name. It grants no import completion or table entry.
+    #[must_use]
+    pub fn original_import_export_verdict(
+        &self,
+        pattern: &tcl_compiler::signature_scan::original_name::SourceNamespacePattern,
+        name: &tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        import_uri: &str,
+    ) -> ExportVerdict {
+        if !self
+            .original_namespace_patterns()
+            .any(|(uri, retained)| uri == import_uri && retained == pattern)
+            || pattern.matches_imported_command(name.slot(), name.policy()) != Some(true)
+        {
+            return ExportVerdict::Unknown;
+        }
+        let body = self
+            .docs
+            .iter()
+            .find(|doc| doc.uri == import_uri)
+            .and_then(|doc| {
+                doc.original_procs
+                    .iter()
+                    .map(|record| record.metadata().body_span)
+                    .chain(
+                        doc.original_classes
+                            .iter()
+                            .map(|record| record.metadata().body_span),
+                    )
+                    .filter(|span| {
+                        span.start() <= pattern.span().start()
+                            && pattern.span().start() < span.end()
+                    })
+                    .min_by_key(|span| span.len())
+            });
+        crate::namespace_import::NamespaceExportOracle::exported_at_original(
+            self.export_snapshot().as_ref(),
+            name.slot(),
+            name.policy(),
+            RunPoint {
+                uri: import_uri,
+                at: pattern.span().start(),
+                enclosing_body: body,
+            },
+        )
+    }
+
     /// Every indexed `namespace export` declaration.
     fn namespace_exports(&self) -> impl Iterator<Item = &WorkspaceNamespaceExport> {
         self.docs
@@ -2143,13 +2825,15 @@ impl WorkspaceIndex {
     /// static Tcl fact; a lifecycle record therefore only retires a
     /// definition from the same URI.
     fn definition_name_is_live(&self, uri: &str, qualified_name: &str, at: u32) -> bool {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.slots.get(uri).is_none_or(|&slot| {
             !self.docs[slot]
                 .command_retirements
                 .iter()
                 .any(|retirement| {
-                    retirement.qualified_name.trim_start_matches("::") == target
+                    unroot_rooted_key(&retirement.qualified_name)
+                        .unwrap_or(&retirement.qualified_name)
+                        == target
                         && retirement.at > at
                 })
         })
@@ -2257,11 +2941,26 @@ impl WorkspaceIndex {
             > = std::collections::HashMap::new();
             for exp in self.namespace_exports() {
                 exports_by_ns
-                    .entry(exp.ns.trim_start_matches("::").to_owned())
+                    .entry(unroot_rooted_key(&exp.ns).unwrap_or(&exp.ns).to_owned())
                     .or_default()
                     .push(exp.clone());
             }
             NamespaceExportSnapshot {
+                original_exports: self.namespace_exports().cloned().collect(),
+                original_declarations: self
+                    .docs
+                    .iter()
+                    .flat_map(|doc| {
+                        doc.original_procs
+                            .iter()
+                            .map(|record| record.name().clone())
+                            .chain(
+                                doc.original_classes
+                                    .iter()
+                                    .map(|record| record.name().clone()),
+                            )
+                    })
+                    .collect(),
                 exports_by_ns,
                 observable: self
                     .observable_namespaces()
@@ -2273,15 +2972,15 @@ impl WorkspaceIndex {
         })
     }
 
-    /// Install the host's literal-`source`-path → document-URI resolver, so
+    /// Install the host's retained-source-expression → document-URI resolver, so
     /// the index can build the [`crate::source_graph::RunOrder`] the
     /// import-lifecycle gates rank cross-document events with.
     ///
     /// The index deliberately holds no URI ↔ filesystem-path mapping of its
     /// own — that is the host's knowledge, and every other `source`-graph
-    /// consumer already takes the same closure per call
-    /// ([`Self::source_ancestor_package_requires`],
-    /// [`Self::source_ancestor_prefers_latest`], [`Self::source_seed_map`]).
+    /// consumer reads the same selected candidate edges
+    /// ([`Self::source_ancestor_package_requires_from_resolved`],
+    /// [`Self::source_ancestor_prefers_latest_from_resolved`], [`Self::source_seed_map`]).
     /// The order, though, is consulted *inside* the per-call import walk,
     /// where a per-call resolver argument would have to be threaded through
     /// every caller of `resolve_wildcard_import` and every derived view that
@@ -2290,7 +2989,7 @@ impl WorkspaceIndex {
     /// [`Self::generation`].
     ///
     /// A plain `fn` pointer rather than a boxed closure: the resolver is a
-    /// pure function of `(parent uri, raw path, is_literal)` in every host, and
+    /// pure function of the explicit filename and retained source inputs, and
     /// a `fn` keeps the index `Debug + Clone + Default` with no manual impls.
     /// The signature is [`Self::source_seed_map`]'s, so one host resolver
     /// serves both — including its statically-foldable computed-path tier
@@ -2309,6 +3008,83 @@ impl WorkspaceIndex {
         self.export_snapshot = Derived::default();
     }
 
+    /// Candidate source edges using the same genuine expression plans and
+    /// retained inventories as import folding, namespace seeds and run order.
+    /// These are conditional source routes, not completed file evaluation.
+    #[must_use]
+    pub fn resolved_source_edges(&self) -> Vec<crate::source_graph::RunEdge> {
+        let imports = self.imported_constants();
+        let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
+        self.source_resolver
+            .into_iter()
+            .flat_map(|resolve| {
+                self.sources()
+                    .filter_map(|source| {
+                        resolve(
+                            &source.uri,
+                            &source.raw_path,
+                            source.original_path_expression.as_ref(),
+                            source.range.start(),
+                            self.path_constant_assignments(&source.uri),
+                            imports.get(&source.uri).unwrap_or(&empty),
+                        )
+                        .map(|child| crate::source_graph::RunEdge {
+                            parent: source.uri.clone(),
+                            child,
+                            at: source.range.start(),
+                            enclosing_body: source.enclosing_body,
+                            kind: crate::source_graph::RunEdgeKind::Source,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Package names available through the installed conditional source edge
+    /// resolver. No raw reported path or dialect label selects an operation.
+    #[must_use]
+    pub fn source_ancestor_package_requires_from_resolved(&self, target_uri: &str) -> Vec<String> {
+        let edges = self
+            .resolved_source_edges()
+            .into_iter()
+            .map(|edge| (edge.parent, edge.child))
+            .collect::<Vec<_>>();
+        let mut requires = std::collections::HashMap::<String, Vec<String>>::new();
+        for required in self.package_requires() {
+            requires
+                .entry(required.uri.clone())
+                .or_default()
+                .push(required.name.clone());
+        }
+        crate::source_graph::ancestor_requires(target_uri, &edges, &requires)
+    }
+
+    /// Source-order package preference advice over the installed, selected
+    /// source edges, independently of actual interpreter package state.
+    #[must_use]
+    pub fn source_ancestor_prefers_latest_from_resolved(&self, target_uri: &str) -> bool {
+        if self.package_prefers().next().is_none() {
+            return false;
+        }
+        self.source_ancestor_prefers_latest_for_edges(target_uri, &self.resolved_source_edges())
+    }
+
+    fn source_ancestor_prefers_latest_for_edges(
+        &self,
+        target_uri: &str,
+        edges: &[crate::source_graph::RunEdge],
+    ) -> bool {
+        let mut raises = std::collections::HashMap::<String, Vec<u32>>::new();
+        for prefer in self.package_prefers() {
+            raises
+                .entry(prefer.uri.clone())
+                .or_default()
+                .push(prefer.at);
+        }
+        crate::source_graph::ancestor_prefer_latest_raised(target_uri, edges, &raises)
+    }
+
     /// The load order over this workspace's documents, built at most once per
     /// [`Self::generation`] from the `source` graph
     /// ([`Self::set_source_resolver`]) **and** the `package require` graph
@@ -2322,28 +3098,7 @@ impl WorkspaceIndex {
     /// `package provide` records, so it works on a host that installs none.
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
-            let imports = self.imported_constants();
-            let empty = HashMap::new();
-            let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
-                let imports = &imports;
-                let empty = &empty;
-                self.sources().filter_map(move |s| {
-                    resolve(
-                        &s.uri,
-                        &s.raw_path,
-                        s.is_literal,
-                        self.path_constant_assignments(&s.uri),
-                        imports.get(&s.uri).unwrap_or(empty),
-                    )
-                    .map(|child| crate::source_graph::RunEdge {
-                        parent: s.uri.clone(),
-                        child,
-                        at: s.range.start(),
-                        enclosing_body: s.enclosing_body,
-                        kind: crate::source_graph::RunEdgeKind::Source,
-                    })
-                })
-            });
+            let source_edges = self.resolved_source_edges().into_iter();
             let edges: Vec<crate::source_graph::RunEdge> =
                 source_edges.chain(self.package_run_edges()).collect();
             crate::source_graph::RunOrder::build(&edges)
@@ -2384,15 +3139,18 @@ impl WorkspaceIndex {
     /// converged by the cap — constructible only from pathological
     /// import-unlocked cycles — ships **no** imports rather than a map its
     /// own edges disagree with.
-    fn imported_constants(&self) -> Arc<HashMap<String, HashMap<String, String>>> {
+    fn imported_constants(
+        &self,
+    ) -> Arc<HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants>> {
         const ROUND_CAP: usize = 5;
         self.imported_constants.get_or_build(|| {
             let (Some(resolve), Some(fold)) = (self.source_resolver, self.constant_folder) else {
                 return HashMap::new();
             };
-            let empty: HashMap<String, String> = HashMap::new();
+            let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
             let rows: Vec<&WorkspaceSource> = self.sources().collect();
-            let mut imports: HashMap<String, HashMap<String, String>> = HashMap::new();
+            let mut imports: HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants> =
+                HashMap::new();
             for _round in 0..ROUND_CAP {
                 // Step 1: the round's edge set, from scratch.
                 let edges: Vec<(&WorkspaceSource, String)> = rows
@@ -2401,7 +3159,8 @@ impl WorkspaceIndex {
                         let child = resolve(
                             &s.uri,
                             &s.raw_path,
-                            s.is_literal,
+                            s.original_path_expression.as_ref(),
+                            s.range.start(),
                             self.path_constant_assignments(&s.uri),
                             imports.get(&s.uri).unwrap_or(&empty),
                         )?;
@@ -2410,10 +3169,13 @@ impl WorkspaceIndex {
                     })
                     .collect();
                 // Steps 2 + 3 to their own fixpoint over this fixed edge set.
-                let mut next: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let mut next: HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants> =
+                    HashMap::new();
                 for _inner in 0..ROUND_CAP {
-                    let mut candidates: HashMap<&str, Vec<HashMap<String, String>>> =
-                        HashMap::new();
+                    let mut candidates: HashMap<
+                        &str,
+                        Vec<tcl_compiler::auto_path_eval::FoldedPathConstants>,
+                    > = HashMap::new();
                     for (s, child) in &edges {
                         // A `source` inside a proc or method body runs when
                         // that body is *called*, not at its lexical position
@@ -2425,18 +3187,16 @@ impl WorkspaceIndex {
                         // intersecting the agreement with an empty map
                         // correctly drops every name for it.
                         if s.enclosing_body.is_some() {
-                            candidates
-                                .entry(child.as_str())
-                                .or_default()
-                                .push(HashMap::new());
+                            candidates.entry(child.as_str()).or_default().push(
+                                tcl_compiler::auto_path_eval::FoldedPathConstants::empty(
+                                    self.path_constant_assignments(&s.uri).naming_policy(),
+                                ),
+                            );
                             continue;
                         }
-                        let before: Vec<tcl_compiler::auto_path_eval::PathConstantWrite> = self
+                        let before = self
                             .path_constant_assignments(&s.uri)
-                            .iter()
-                            .filter(|w| w.at < s.range.start())
-                            .cloned()
-                            .collect();
+                            .before(s.range.start());
                         // From `next` only — never the previous round's map:
                         // the inner iteration is a fixpoint **from below**
                         // over this round's fixed edge set, and seeding it
@@ -2450,18 +3210,16 @@ impl WorkspaceIndex {
                             parent_imports,
                         ));
                     }
-                    let stepped: HashMap<String, HashMap<String, String>> = candidates
+                    let stepped: HashMap<
+                        String,
+                        tcl_compiler::auto_path_eval::FoldedPathConstants,
+                    > = candidates
                         .into_iter()
-                        .filter_map(|(child, maps)| {
-                            let (first, rest) = maps.split_first()?;
-                            let agreed: HashMap<String, String> = first
-                                .iter()
-                                .filter(|(name, value)| {
-                                    rest.iter().all(|m| m.get(*name) == Some(*value))
-                                })
-                                .map(|(name, value)| (name.clone(), value.clone()))
-                                .collect();
-                            (!agreed.is_empty()).then(|| (child.to_owned(), agreed))
+                        .map(|(child, maps)| {
+                            (
+                                child.to_owned(),
+                                tcl_compiler::auto_path_eval::FoldedPathConstants::agreement(&maps),
+                            )
                         })
                         .collect();
                     if stepped == next {
@@ -2480,11 +3238,14 @@ impl WorkspaceIndex {
     }
 
     /// The imported constants for one document — the map
-    /// [`SourceResolver`] receives as its fifth argument, exposed so hosts
+    /// [`SourceResolver`] receives as its sixth argument, exposed so hosts
     /// can hand the very same view to their other per-document consumers
     /// (document links, a fresh analysis's own edges).
     #[must_use]
-    pub fn imported_path_constants_for(&self, uri: &str) -> HashMap<String, String> {
+    pub fn imported_path_constants_for(
+        &self,
+        uri: &str,
+    ) -> tcl_compiler::auto_path_eval::FoldedPathConstants {
         self.imported_constants()
             .get(uri)
             .cloned()
@@ -2538,13 +3299,21 @@ impl WorkspaceIndex {
         use std::collections::hash_map::Entry;
         // name -> the single indexed provider, or `None` once a second one
         // has been seen (gate 1).
-        let mut provider: std::collections::HashMap<&str, Option<&str>> =
-            std::collections::HashMap::new();
-        for pp in self
+        let mut provider: std::collections::HashMap<
+            &tcl_registry::native_package::NativePackageNameKey,
+            Option<&str>,
+        > = std::collections::HashMap::new();
+        if self
             .package_provides()
-            .filter(|pp| !pp.conditional && is_literal_name(&pp.name))
+            .any(|provide| !provide.conditional && provide.original_name.is_none())
         {
-            match provider.entry(pp.name.as_str()) {
+            return Vec::new();
+        }
+        for pp in self.package_provides().filter(|pp| !pp.conditional) {
+            let Some(name) = pp.original_name.as_ref() else {
+                continue;
+            };
+            match provider.entry(name) {
                 Entry::Vacant(slot) => {
                     slot.insert(Some(pp.uri.as_str()));
                 }
@@ -2557,12 +3326,16 @@ impl WorkspaceIndex {
         }
         // Gate 3: a registered load script owns the package's loading.
         for pi in self.package_ifneededs() {
-            provider.insert(pi.name.as_str(), None);
+            if let Some(name) = pi.original_name.as_ref() {
+                provider.insert(name, None);
+            } else {
+                return Vec::new();
+            }
         }
         self.package_requires()
-            .filter(|pr| !pr.conditional && is_literal_name(&pr.name))
+            .filter(|pr| !pr.conditional)
             .filter_map(|pr| {
-                let child = (*provider.get(pr.name.as_str())?)?;
+                let child = (*provider.get(pr.original_name.as_ref()?)?)?;
                 Some(crate::source_graph::RunEdge {
                     parent: pr.uri.clone(),
                     child: child.to_owned(),
@@ -2600,6 +3373,55 @@ impl WorkspaceIndex {
         }
     }
 
+    fn import_source_matches(
+        &self,
+        report: &str,
+        source: Option<&tcl_syntax::naming::NativeNamespacePatternSource>,
+        name: &str,
+    ) -> bool {
+        use tcl_syntax::naming::{NativeNameProtocol, NativeNamespacePatternSource};
+        let Some(source) = source else { return false };
+        let declarations: Vec<_> = self
+            .procs()
+            .filter(|p| p.qualified_name == report)
+            .map(|p| p.source_name.as_ref())
+            .chain(
+                self.classes()
+                    .filter(|c| c.qualified_name == report)
+                    .map(|c| {
+                        if c.source_name_ambiguous {
+                            None
+                        } else {
+                            c.source_name.as_ref()
+                        }
+                    }),
+            )
+            .collect();
+        !declarations.is_empty()
+            && declarations.into_iter().all(|receipt| {
+                receipt.is_some_and(|receipt| {
+                    let slot = receipt.slot();
+                    match (source, receipt.policy().recipe()) {
+                        (NativeNamespacePatternSource::C(namespace), NativeNameProtocol::C(_)) => {
+                            &slot.namespace == namespace
+                                && slot.simple.as_bytes() == name.as_bytes()
+                        }
+                        (
+                            NativeNamespacePatternSource::Jim(namespace),
+                            NativeNameProtocol::Jim084,
+                        ) => {
+                            let recipe = receipt.policy().recipe();
+                            recipe.namespace_qualifier_bytes(slot.simple.as_bytes())
+                                == namespace.as_bytes()
+                                && recipe.namespace_tail_bytes(slot.simple.as_bytes())
+                                    == name.as_bytes()
+                        }
+                        _ => false,
+                    }
+                })
+            })
+    }
+
     /// The command name-links that are actually installed — every `interp
     /// alias` / `rename` link, plus each exact `namespace import` link whose
     /// [`WorkspaceCommandLink::import_gate`] its source namespace's export
@@ -2629,7 +3451,18 @@ impl WorkspaceIndex {
             self.command_links()
                 .map(|l| {
                     l.import_gate.as_ref().is_none_or(|g| {
-                        if !observable.contains(g.source_ns.trim_start_matches("::")) {
+                        if self.defines_command(&l.target_qname)
+                            && !self.import_source_matches(
+                                &l.target_qname,
+                                g.native_source.as_ref(),
+                                &g.name,
+                            )
+                        {
+                            return false;
+                        }
+                        if !observable
+                            .contains(unroot_rooted_key(&g.source_ns).unwrap_or(&g.source_ns))
+                        {
                             return true;
                         }
                         if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
@@ -2653,7 +3486,7 @@ impl WorkspaceIndex {
                             && (self.defines_command(&l.linked_qname)
                                 || self
                                     .registry_for(&l.uri)
-                                    .is_some_and(|r| r.declares_command_at(&l.linked_qname))
+                                    .is_some_and(|r| r.declares_command_at_rooted_key(&l.linked_qname))
                                 || wci.conflicting_alias_at(
                                     importing_ns,
                                     &g.source_ns,
@@ -2678,18 +3511,10 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// The registry a decision about `uri`'s content must be made against —
-    /// the one for the dialect that document was analysed under.
-    ///
-    /// `None` for a document the index does not hold, or one whose record
-    /// carries no dialect (a default-constructed [`AnalysisResult`], which
-    /// only unit tests produce).  Callers abstain rather than guessing a
-    /// dialect: answering an iRule's question out of the plain-Tcl command
-    /// table would be worse than not answering it.
-    fn registry_for(&self, uri: &str) -> Option<&'static tcl_registry::CommandRegistry> {
-        let slot = *self.slots.get(uri)?;
-        let dialect = self.docs[slot].dialect.as_str();
-        (!dialect.is_empty()).then(|| crate::registry_for_dialect(dialect))
+    /// Metadata store retained with the indexed document's complete source
+    /// context. Missing or mismatched input does not recapture a profile store.
+    fn registry_for(&self, uri: &str) -> Option<&tcl_registry::CommandRegistry> {
+        self.docs[*self.slots.get(uri)?].registry()
     }
 
     /// Whether the workspace holds a real proc or class definition at
@@ -2707,7 +3532,7 @@ impl WorkspaceIndex {
     /// would cost O(procs) *per call site per in-scope import*.
     fn defines_command(&self, qualified_name: &str) -> bool {
         self.defined_command_names(false)
-            .contains(qualified_name.trim_start_matches("::"))
+            .contains(unroot_rooted_key(qualified_name).unwrap_or(qualified_name))
     }
 
     /// The `::`-stripped namespaces the workspace can say anything about: one
@@ -2725,22 +3550,22 @@ impl WorkspaceIndex {
     /// gate abstain where it has the evidence to decide.
     fn observable_namespaces(&self) -> HashSet<&str> {
         fn owning_ns(qualified: &str) -> &str {
-            qualified
-                .trim_start_matches("::")
-                .rsplit_once("::")
-                .map_or("", |(ns, _)| ns)
+            {
+                let (holder, _) = key_holder_and_tail(qualified);
+                unroot_rooted_key(holder).unwrap_or(holder)
+            }
         }
         self.procs()
             .map(|p| owning_ns(&p.qualified_name))
             .chain(self.classes().map(|c| owning_ns(&c.qualified_name)))
             .chain(
                 self.namespace_exports()
-                    .map(|e| e.ns.trim_start_matches("::")),
+                    .map(|e| unroot_rooted_key(&e.ns).unwrap_or(&e.ns)),
             )
             .chain(
                 self.namespace_refs()
                     .filter(|n| n.declares)
-                    .map(|n| n.qualified_name.trim_start_matches("::")),
+                    .map(|n| unroot_rooted_key(&n.qualified_name).unwrap_or(&n.qualified_name)),
             )
             .collect()
     }
@@ -2833,6 +3658,36 @@ impl WorkspaceIndex {
         self.slots.contains_key(uri)
     }
 
+    /// Retained document source/configuration for diagnostic dependency checks.
+    /// Missing context is unknown; report names cannot recreate it.
+    #[must_use]
+    pub fn diagnostic_source_context(
+        &self,
+        uri: &str,
+    ) -> Option<&WorkspaceDiagnosticSourceContext> {
+        self.docs
+            .get(*self.slots.get(uri)?)?
+            .diagnostic_source
+            .as_ref()
+    }
+
+    /// Whether every retained provider independently selected lexical advice.
+    /// This compatibility eligibility supplies no lookup or rename permission;
+    /// callers still require complete current source and an independent edit plan.
+    #[must_use]
+    pub fn allows_lexical_rename_advice(&self) -> bool {
+        !self.slots.is_empty()
+            && self.slots.iter().all(|(uri, &slot)| {
+                self.docs.get(slot).is_some_and(|document| {
+                    document.uri == *uri
+                        && document
+                            .diagnostic_source
+                            .as_ref()
+                            .is_some_and(|context| !context.uses_original_names())
+                })
+            })
+    }
+
     /// Revision token for `uri`'s current records.
     ///
     /// Unlike [`Self::generation`], a mutation of an unrelated document does
@@ -2883,10 +3738,11 @@ impl WorkspaceIndex {
     pub fn path_constant_assignments(
         &self,
         uri: &str,
-    ) -> &[tcl_compiler::auto_path_eval::PathConstantWrite] {
-        self.slots
-            .get(uri)
-            .map_or(&[][..], |&slot| &self.docs[slot].path_constant_assignments)
+    ) -> &tcl_compiler::auto_path_eval::PathConstantAssignments {
+        self.slots.get(uri).map_or(
+            tcl_compiler::auto_path_eval::PathConstantAssignments::unknown(),
+            |&slot| &self.docs[slot].path_constant_assignments,
+        )
     }
 
     /// Every indexed `package require NAME` declaration.
@@ -2924,6 +3780,69 @@ impl WorkspaceIndex {
         out.sort();
         out.dedup();
         out
+    }
+
+    /// Original package keys retained in a document's source inventory.
+    /// This metadata grants no completed require or package loading.
+    #[must_use]
+    pub fn original_package_requires_for(
+        &self,
+        uri: &str,
+    ) -> Vec<tcl_registry::native_package::NativePackageNameKey> {
+        let mut keys = Vec::new();
+        for required in self
+            .package_requires()
+            .filter(|required| required.uri == uri)
+        {
+            if let Some(key) = required.original_name.as_ref()
+                && !keys.contains(key)
+            {
+                keys.push(key.clone());
+            }
+        }
+        keys
+    }
+
+    /// Complete requirement advice retaining independently supplied source
+    /// identity, constraints and preference. This proves no loader executed.
+    #[must_use]
+    pub fn original_package_requirement_advice_for(
+        &self,
+        uri: &str,
+        default: crate::package_resolver::PackagePrefer,
+    ) -> Vec<crate::package_resolver::PackageRequirementAdvice> {
+        self.package_requires()
+            .filter(|required| required.uri == uri)
+            .map(|required| required.original_advice(default))
+            .collect()
+    }
+
+    /// Advisory source ancestors preserving their original package keys.
+    /// Graph identity uses document URIs; Tcl name geometry stays in the key.
+    #[must_use]
+    pub fn source_ancestor_original_package_requires(
+        &self,
+        target_uri: &str,
+        resolve: impl Fn(&str, &str) -> Option<String>,
+    ) -> Vec<tcl_registry::native_package::NativePackageNameKey> {
+        let edges = self
+            .sources()
+            .filter(|source| source.is_literal)
+            .filter_map(|source| {
+                resolve(&source.uri, &source.raw_path).map(|child| (source.uri.clone(), child))
+            })
+            .collect::<Vec<_>>();
+        let mut requirements: std::collections::HashMap<String, Vec<_>> =
+            std::collections::HashMap::new();
+        for required in self.package_requires() {
+            if let Some(key) = required.original_name.as_ref() {
+                requirements
+                    .entry(required.uri.clone())
+                    .or_default()
+                    .push(key.clone());
+            }
+        }
+        crate::source_graph::ancestor_requirements(target_uri, &edges, &requirements)
     }
 
     /// The union of `package require` names from every document that
@@ -2997,17 +3916,12 @@ impl WorkspaceIndex {
                 })
             })
             .collect();
-        let mut raises: std::collections::HashMap<String, Vec<u32>> =
-            std::collections::HashMap::new();
-        for p in self.package_prefers() {
-            raises.entry(p.uri.clone()).or_default().push(p.at);
-        }
-        crate::source_graph::ancestor_prefer_latest_raised(target_uri, &edges, &raises)
+        self.source_ancestor_prefers_latest_for_edges(target_uri, &edges)
     }
 
     /// The **source-site namespace seeds** per sourced document: for
     /// every `source` statement `resolve` can place (the closure maps
-    /// `(parent-uri, raw-path, is_literal)` to the child's URI — handling
+    /// `(parent-uri, reported-path, original-expression)` to the child's URI — handling
     /// relative literals and statically-foldable computed
     /// paths), the child URI maps to the set of namespaces it is sourced
     /// under.  `source` runs the file in the caller's namespace, so a child
@@ -3023,20 +3937,22 @@ impl WorkspaceIndex {
         resolve: impl Fn(
             &str,
             &str,
-            bool,
-            &[tcl_compiler::auto_path_eval::PathConstantWrite],
-            &HashMap<String, String>,
+            Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
+            u32,
+            &tcl_compiler::auto_path_eval::PathConstantAssignments,
+            &tcl_compiler::auto_path_eval::FoldedPathConstants,
         ) -> Option<String>,
     ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
         let imports = self.imported_constants();
-        let empty = HashMap::new();
+        let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
         let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
             std::collections::HashMap::new();
         for src in self.sources() {
             let Some(child) = resolve(
                 &src.uri,
                 &src.raw_path,
-                src.is_literal,
+                src.original_path_expression.as_ref(),
+                src.range.start(),
                 self.path_constant_assignments(&src.uri),
                 imports.get(&src.uri).unwrap_or(&empty),
             ) else {
@@ -3129,6 +4045,206 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.procs.iter())
     }
 
+    /// Original source declarations without presentation-key collapse.
+    /// These records grant declaration assistance. Positioned references and
+    /// command lifetime must be supplied independently by the source owner.
+    pub fn original_procedure_declarations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+                tcl_compiler::analyser::ProcDef,
+            >,
+        ),
+    > {
+        self.docs.iter().flat_map(|doc| {
+            doc.original_procs
+                .iter()
+                .map(|declaration| (doc.uri.as_str(), declaration))
+        })
+    }
+
+    /// Current readonly procedure source suggestions. Actual completed publications
+    /// and conditional authored publications retain independent owners; unrepresented
+    /// original declarations remain source cards. No loading, dispatch or edit follows.
+    pub fn original_procedure_source_candidates(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+                tcl_compiler::analyser::ProcDef,
+            >,
+            &tcl_core_types::ByteCommandSlot,
+            tcl_syntax::naming::NamePolicyProtocol,
+        ),
+    > {
+        // naming.source.original-procedure-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
+        self.docs.iter().flat_map(|document| {
+            document
+                .original_procedure_source_candidates()
+                .into_iter()
+                .map(move |(declaration, slot, policy)| {
+                    (document.uri.as_str(), declaration, slot, policy)
+                })
+        })
+    }
+
+    /// Current readonly class suggestions with independently selected slots.
+    /// Canonical declaration identity remains separate from a moved source slot;
+    /// neither conditional nor completed source inventories prove workspace loading.
+    pub fn original_class_source_candidates(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+                tcl_compiler::analyser::ClassDef,
+            >,
+            &tcl_core_types::ByteCommandSlot,
+            tcl_syntax::naming::NamePolicyProtocol,
+        ),
+    > {
+        // naming.source.original-class-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-class-publications.md
+        self.docs.iter().flat_map(|document| {
+            document.original_class_source_candidates().into_iter().map(
+                move |(declaration, slot, policy, _)| {
+                    (document.uri.as_str(), declaration, slot, policy)
+                },
+            )
+        })
+    }
+
+    /// Current retained hosted source headers and their independent owner context.
+    /// This readonly inventory grants no native recipe, command publication or lookup.
+    pub fn original_vendor_declarations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &WorkspaceDiagnosticSourceContext,
+            &crate::vendor_declaration::RetainedOriginalVendorDeclaration,
+        ),
+    > {
+        self.docs.iter().flat_map(|document| {
+            document
+                .original_vendor_declarations
+                .iter()
+                .filter_map(move |record| {
+                    let context = document.diagnostic_source.as_ref()?;
+                    let declaration = record.declaration();
+                    (context.uses_original_names()
+                        && declaration
+                            .input()
+                            .matches_source(context.image(), context.config()))
+                    .then_some((document.uri.as_str(), context, record))
+                })
+        })
+    }
+
+    /// Original object declarations, independent of optional displayed names.
+    pub fn original_class_declarations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+                tcl_compiler::analyser::ClassDef,
+            >,
+        ),
+    > {
+        self.docs.iter().flat_map(|doc| {
+            doc.original_classes
+                .iter()
+                .map(|declaration| (doc.uri.as_str(), declaration))
+        })
+    }
+
+    /// Publications surviving an independently completed modeled source root.
+    /// Document ownership is retained; no workspace load order or physical
+    /// interpreter existence follows from this source inventory.
+    pub fn original_command_publications(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::command_binding::OriginalCommandPublication,
+        ),
+    > {
+        self.docs.iter().flat_map(|doc| {
+            doc.original_command_world.iter().flat_map(move |world| {
+                world
+                    .declarations()
+                    .map(move |publication| (doc.uri.as_str(), publication))
+            })
+        })
+    }
+
+    /// Select source publications through the call's original ordered paths.
+    /// Unknown or disagreeing alternatives remain unknown. An empty selection
+    /// concerns only this inventory, not absence from a running interpreter.
+    #[must_use]
+    pub fn original_command_candidates(
+        &self,
+        lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+    ) -> Option<
+        Vec<(
+            &str,
+            &tcl_compiler::command_binding::OriginalCommandPublication,
+        )>,
+    > {
+        lookup.matching_slot_publications(self.original_command_publications().map(
+            |(uri, publication)| (publication.slot(), publication.policy(), (uri, publication)),
+        ))
+    }
+
+    /// Procedure declaration candidates using the shared publication matcher.
+    /// This provides workspace source assistance, without proving loading,
+    /// normal completion, current command lifetime or a writable reference.
+    pub fn original_procedure_candidates(
+        &self,
+        lookup: &tcl_compiler::signature_scan::scope::SignatureSourceLookup,
+    ) -> Vec<(
+        &str,
+        &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ProcDef,
+        >,
+    )> {
+        let Some(candidates) = lookup.candidates() else {
+            return Vec::new();
+        };
+        tcl_compiler::signature_scan::scope::first_matching_byte_slots(
+            lookup.policy(),
+            &candidates,
+            self.original_procedure_source_candidates()
+                .map(|(uri, declaration, slot, policy)| (slot, policy, (uri, declaration))),
+        )
+    }
+
+    /// Object declaration candidates under the same shared lookup purpose.
+    pub fn original_class_candidates(
+        &self,
+        lookup: &tcl_compiler::signature_scan::scope::SignatureSourceLookup,
+    ) -> Vec<(
+        &str,
+        &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ClassDef,
+        >,
+    )> {
+        let Some(candidates) = lookup.candidates() else {
+            return Vec::new();
+        };
+        tcl_compiler::signature_scan::scope::first_matching_byte_slots(
+            lookup.policy(),
+            &candidates,
+            self.original_class_source_candidates()
+                .map(|(uri, declaration, slot, policy)| (slot, policy, (uri, declaration))),
+        )
+    }
+
     /// Every proc whose name was not later retired at load level in its own
     /// document.  Cross-document command consumers should use this view;
     /// [`Self::procs`] remains the source-record view for declaration tools.
@@ -3219,26 +4335,45 @@ impl WorkspaceIndex {
     /// namespace ancestry before considering a *unique* tail.
     #[must_use]
     pub fn classes_named<'a>(&'a self, name: &str) -> Vec<&'a WorkspaceClass> {
-        let q = format!("::{}", name.trim_start_matches("::"));
+        let q = root_unrooted_key(unroot_rooted_key(name).unwrap_or(name));
         self.classes()
             .filter(|c| c.qualified_name == name || c.qualified_name == q)
             .collect()
     }
 
-    /// The `(qualified-name set, tail index)` over every indexed class —
-    /// the inputs [`resolve_class_name`] needs, built once per query so
-    /// owner-aware resolution is O(1) membership rather than a linear scan
-    /// per candidate.
-    fn class_name_universe(
-        &self,
-    ) -> (
-        std::collections::HashSet<&str>,
-        std::collections::HashMap<String, Vec<String>>,
-    ) {
-        let known: std::collections::HashSet<&str> =
-            self.classes().map(|c| c.qualified_name.as_str()).collect();
-        let tail_index = build_tail_index(self.classes().map(|c| &c.qualified_name));
-        (known, tail_index)
+    fn resolve_class_relation(&self, owner: &WorkspaceClass, written: &str) -> Option<String> {
+        let lookup = owner.relation_lookups.get(written)?.as_ref()?;
+        for candidate in lookup.candidates()? {
+            let mut reports = self
+                .classes()
+                .filter(|c| {
+                    !c.source_name_ambiguous
+                        && c.source_name.as_ref().is_some_and(|source| {
+                            source.policy() == lookup.policy() && source.slot() == &candidate
+                        })
+                })
+                .map(|c| c.qualified_name.as_str());
+            let Some(report) = reports.next() else {
+                continue;
+            };
+            if reports.any(|other| other != report) {
+                return None;
+            }
+            if self
+                .classes()
+                .filter(|c| c.qualified_name == report)
+                .any(|c| {
+                    c.source_name_ambiguous
+                        || c.source_name.as_ref().is_none_or(|source| {
+                            source.policy() != lookup.policy() || source.slot() != &candidate
+                        })
+                })
+            {
+                return None;
+            }
+            return Some(report.to_owned());
+        }
+        None
     }
 
     /// The owner-aware direct parents (superclasses + mixins) of `qname`,
@@ -3248,18 +4383,12 @@ impl WorkspaceIndex {
     /// being hidden when such a stub happens to be the first match (without
     /// the union the parent walk picks an arbitrary duplicate and silently
     /// drops the hierarchy).
-    fn resolved_parents_of(
-        &self,
-        qname: &str,
-        known: &std::collections::HashSet<&str>,
-        tail_index: &std::collections::HashMap<String, Vec<String>>,
-    ) -> Vec<String> {
+    fn resolved_parents_of(&self, qname: &str) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for c in self.classes().filter(|c| c.qualified_name == qname) {
             for s in c.superclasses.iter().chain(c.mixins.iter()) {
-                if let Some(p) =
-                    resolve_class_name(s, qname, |cand| known.contains(cand), tail_index)
+                if let Some(p) = self.resolve_class_relation(c, s)
                     && seen.insert(p.clone())
                 {
                     out.push(p);
@@ -3276,16 +4405,10 @@ impl WorkspaceIndex {
     /// cross-file **supertype** resolution.
     #[must_use]
     pub fn supertype_classes<'a>(&'a self, wc: &WorkspaceClass) -> Vec<&'a WorkspaceClass> {
-        let (known, tail_index) = self.class_name_universe();
         let mut out: Vec<&WorkspaceClass> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for name in wc.superclasses.iter().chain(wc.mixins.iter()) {
-            let Some(q) = resolve_class_name(
-                name,
-                &wc.qualified_name,
-                |cand| known.contains(cand),
-                &tail_index,
-            ) else {
+            let Some(q) = self.resolve_class_relation(wc, name) else {
                 continue;
             };
             if !seen.insert(q.clone()) {
@@ -3303,19 +4426,12 @@ impl WorkspaceIndex {
     /// resolution.
     #[must_use]
     pub fn subclasses_of<'a>(&'a self, class_qname: &str) -> Vec<&'a WorkspaceClass> {
-        let (known, tail_index) = self.class_name_universe();
         self.classes()
             .filter(|c| {
-                c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
-                    resolve_class_name(
-                        s,
-                        &c.qualified_name,
-                        |cand| known.contains(cand),
-                        &tail_index,
-                    )
-                    .as_deref()
-                        == Some(class_qname)
-                })
+                c.superclasses
+                    .iter()
+                    .chain(c.mixins.iter())
+                    .any(|s| self.resolve_class_relation(c, s).as_deref() == Some(class_qname))
             })
             .collect()
     }
@@ -3359,7 +4475,6 @@ impl WorkspaceIndex {
     /// [`Self::subclass_provided_methods`] for what per-call rebuilding costs
     /// the diagnostics worker).
     fn class_edges(&self) -> ClassEdges {
-        let (known, tail_index) = self.class_name_universe();
         // Build the resolved edge maps over the classes reachable from
         // `class_q` (bounded: every indexed class at worst).
         let mut supers_map: std::collections::HashMap<String, Vec<String>> =
@@ -3368,9 +4483,7 @@ impl WorkspaceIndex {
             std::collections::HashMap::new();
         for c in self.classes() {
             let owner = c.qualified_name.as_str();
-            let resolve = |name: &str| {
-                resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
-            };
+            let resolve = |name: &str| self.resolve_class_relation(c, name);
             let supers = supers_map.entry(owner.to_owned()).or_default();
             for s in c.superclasses.iter().filter_map(|s| resolve(s)) {
                 if !supers.contains(&s) {
@@ -3415,16 +4528,13 @@ impl WorkspaceIndex {
     pub fn subclass_provided_methods(
         &self,
     ) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
-        let (known, tail_index) = self.class_name_universe();
         let mut supers_map: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
         let mut mixins_map: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
         for c in self.classes() {
             let owner = c.qualified_name.as_str();
-            let resolve = |name: &str| {
-                resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
-            };
+            let resolve = |name: &str| self.resolve_class_relation(c, name);
             let supers = supers_map.entry(owner.to_owned()).or_default();
             for s in c.superclasses.iter().filter_map(|s| resolve(s)) {
                 if !supers.contains(&s) {
@@ -3461,7 +4571,9 @@ impl WorkspaceIndex {
                     let names = self
                         .effective_members(x)
                         .into_iter()
-                        .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
+                        .filter(|m| {
+                            m.method.kind != MethodKind::ClassMethod.as_str() && !m.method.private
+                        })
                         .map(|m| m.name.to_owned())
                         .collect();
                     member_names.insert(x.clone(), names);
@@ -3530,9 +4642,7 @@ impl WorkspaceIndex {
     /// `unknown method "make"` on 8.6 and 9.0.4), whereas an `ooutil`
     /// `classmethod` does propagate.  Both share the `"classmethod"` receiver
     /// kind, so a `self method` is kept only when the providing record *is* the
-    /// receiver class — the same test
-    /// `tcl_lsp_core::oo_dispatch::method_dispatch_provider` applies
-    /// same-document.
+    /// receiver class.
     #[must_use]
     pub fn class_method_dispatch_chain<'a>(
         &'a self,
@@ -3951,8 +5061,7 @@ impl WorkspaceIndex {
         }
         let family_set: std::collections::HashSet<&str> =
             family.iter().map(String::as_str).collect();
-        let (known, tail_index) = self.class_name_universe();
-        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
+        let parents = |qname: &str| self.resolved_parents_of(qname);
         let defines = |qname: &str| {
             self.classes()
                 .any(|c| c.qualified_name == qname && c.defines_method(method))
@@ -3993,11 +5102,10 @@ impl WorkspaceIndex {
     /// defined nor inherited from any indexed class reachable from
     /// `seed_class`.
     fn method_family_qnames(&self, seed_class: &str, method: &str) -> Vec<String> {
-        let (known, tail_index) = self.class_name_universe();
         // Owner-aware direct parents (superclasses + mixins) of each class,
         // unioned across every indexed definition (a cross-file `oo::define`
         // stub must not hide the real class's parents).
-        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
+        let parents = |qname: &str| self.resolved_parents_of(qname);
         // `parent` is a (transitive) ancestor of `child`.
         let is_ancestor = |child: &str, parent: &str| -> bool {
             let mut stack = parents(child);
@@ -4133,10 +5241,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceProc> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.procs()
             .filter(|p| p.uri != exclude_uri)
-            .filter(|p| p.qualified_name.trim_start_matches("::") == target)
+            .filter(|p| unroot_rooted_key(&p.qualified_name).unwrap_or(&p.qualified_name) == target)
             .collect()
     }
 
@@ -4149,10 +5257,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceClass> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.classes()
             .filter(|c| c.uri != exclude_uri)
-            .filter(|c| c.qualified_name.trim_start_matches("::") == target)
+            .filter(|c| unroot_rooted_key(&c.qualified_name).unwrap_or(&c.qualified_name) == target)
             .collect()
     }
 
@@ -4182,10 +5290,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceVariable> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.variables()
             .filter(|v| v.uri != exclude_uri)
-            .filter(|v| v.qualified_name.trim_start_matches("::") == target)
+            .filter(|v| unroot_rooted_key(&v.qualified_name).unwrap_or(&v.qualified_name) == target)
             .collect()
     }
 
@@ -4207,13 +5315,10 @@ impl WorkspaceIndex {
     /// neither subsumes the other.
     #[must_use]
     pub fn documents_in_namespace(&self, namespace: &str) -> Vec<String> {
-        let target = namespace.trim_start_matches("::");
+        let target = unroot_rooted_key(namespace).unwrap_or(namespace);
         let parent_matches = |qualified: &str| -> bool {
-            let bare = qualified.trim_start_matches("::");
-            match bare.rfind("::") {
-                Some(idx) => &bare[..idx] == target,
-                None => target.is_empty(),
-            }
+            let (holder, _) = key_holder_and_tail(qualified);
+            unroot_rooted_key(holder).unwrap_or(holder) == target
         };
         let mut uris: Vec<String> = self
             .procs()
@@ -4253,11 +5358,11 @@ impl WorkspaceIndex {
     /// business instead.
     #[must_use]
     pub fn documents_aliasing_variable(&self, qualified_name: &str) -> Vec<String> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         let mut uris: Vec<String> = self
             .variable_aliases()
             .filter(|a| !alias_cell_is_computed(&a.qualified_name))
-            .filter(|a| a.qualified_name.trim_start_matches("::") == target)
+            .filter(|a| unroot_rooted_key(&a.qualified_name).unwrap_or(&a.qualified_name) == target)
             .map(|a| a.uri.clone())
             .collect();
         uris.sort();
@@ -4285,14 +5390,14 @@ impl WorkspaceIndex {
     /// in scope.
     #[must_use]
     pub fn documents_with_ambiguous_alias_of(&self, qualified_name: &str) -> Vec<String> {
-        let bare = qualified_name.trim_start_matches("::");
-        let (cell_ns, cell_tail) = bare.rsplit_once("::").unwrap_or(("", bare));
+        let (cell_holder, cell_tail) = key_holder_and_tail(qualified_name);
+        let cell_ns = unroot_rooted_key(cell_holder).unwrap_or(cell_holder);
         let mut uris: Vec<String> = self
             .variable_aliases()
             .filter(|a| alias_cell_is_computed(&a.qualified_name))
             .filter(|a| {
-                let written = a.qualified_name.trim_start_matches("::");
-                let (ns, tail) = written.rsplit_once("::").unwrap_or(("", written));
+                let (holder, tail) = key_holder_and_tail(&a.qualified_name);
+                let ns = unroot_rooted_key(holder).unwrap_or(holder);
                 let ns_could_match = is_computed_word(ns) || ns == cell_ns;
                 let tail_could_match = is_computed_word(tail) || tail == cell_tail;
                 ns_could_match && tail_could_match
@@ -4304,9 +5409,137 @@ impl WorkspaceIndex {
         uris
     }
 
+    /// Original selectors targeting one canonical document-owned method.
+    /// Declaration advice and temporal receiver entries retain their separate
+    /// purpose; no reporting-name family or native allocation is reconstructed.
+    #[must_use]
+    pub fn original_method_reference_rows(
+        &self,
+        target: &crate::method_symbol::OriginalMethodCandidate,
+        include_declaration: bool,
+    ) -> Vec<(String, Span, tcl_lexer::SourceImage, tcl_lexer::LexerConfig)> {
+        let mut spans = Vec::new();
+        if include_declaration {
+            spans.push((
+                target.uri().to_owned(),
+                target.declaration_span(),
+                target.declaration_image().clone(),
+                target.declaration_config(),
+            ));
+        }
+        for document in &self.docs {
+            for query in &document.original_method_queries {
+                if let std::ops::ControlFlow::Break(Some(candidate)) =
+                    crate::method_symbol::candidate(self, &document.uri, query)
+                    && candidate.same_declaration(target)
+                {
+                    spans.push((
+                        document.uri.clone(),
+                        query.span(),
+                        query.consumer_image().clone(),
+                        query.consumer_config(),
+                    ));
+                }
+            }
+        }
+        spans.sort_by(|left, right| {
+            left.0
+                .cmp(&right.0)
+                .then_with(|| (left.1.start(), left.1.end()).cmp(&(right.1.start(), right.1.end())))
+        });
+        spans.dedup();
+        spans
+    }
+
     /// Every indexed namespace-name occurrence.
     pub fn namespace_refs(&self) -> impl Iterator<Item = &WorkspaceNamespaceRef> {
         self.docs.iter().flat_map(|doc| doc.namespace_refs.iter())
+    }
+
+    /// Original variable naming rows joined by the shared byte-table symbol.
+    /// These are source occurrences; loading, alias lifetime and native frame
+    /// entry remain independent. Display maps supply no lookup fallback.
+    pub fn original_variable_occurrences<'a>(
+        &'a self,
+        symbol: &'a tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+        exclude_uri: &'a str,
+    ) -> impl Iterator<
+        Item = (
+            &'a str,
+            &'a tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+        ),
+    > + 'a {
+        let mut seen = std::collections::HashSet::new();
+        self.docs
+            .iter()
+            .filter(move |document| document.uri != exclude_uri)
+            .flat_map(move |document| {
+                document
+                    .original_variables
+                    .iter()
+                    .filter(move |occurrence| {
+                        symbol.is_namespace() && occurrence.symbol() == symbol
+                    })
+                    .map(move |occurrence| (document.uri.as_str(), occurrence))
+            })
+            .filter(move |(owner, occurrence)| {
+                seen.insert((*owner, occurrence.span(), occurrence.is_declaration()))
+            })
+    }
+
+    /// Exact namespace occurrences from independently retained scope and name
+    /// policy. Document ownership and source words remain in each row.
+    pub fn original_namespace_occurrences<'a>(
+        &'a self,
+        symbol: &'a crate::namespace_symbol::OriginalNamespaceSymbol,
+        exclude_uri: &'a str,
+    ) -> impl Iterator<Item = &'a WorkspaceNamespaceRef> {
+        let mut seen = std::collections::HashSet::new();
+        self.namespace_refs().filter(move |row| {
+            row.uri != exclude_uri
+                && row.source.source_namespace.as_ref() == Some(symbol.scope())
+                && row.source.name_policy == Some(symbol.policy())
+                && row
+                    .source
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.policy() == symbol.policy())
+                && seen.insert((row.uri.as_str(), row.span, row.declares))
+        })
+    }
+
+    /// Actual declaring rows whose retained components include this namespace
+    /// as a strict parent. This grants no substring source edit.
+    pub fn original_namespace_descendant_declarations<'a>(
+        &'a self,
+        symbol: &'a crate::namespace_symbol::OriginalNamespaceSymbol,
+        exclude_uri: &'a str,
+    ) -> impl Iterator<Item = &'a WorkspaceNamespaceRef> {
+        let mut seen = std::collections::HashSet::new();
+        self.namespace_refs().filter(move |row| {
+            row.declares
+                && row.uri != exclude_uri
+                && row.source.name_policy == Some(symbol.policy())
+                && row.source.source_namespace.as_ref().is_some_and(|scope| {
+                    symbol.scope().is_strict_ancestor_of(scope, symbol.policy()) == Some(true)
+                })
+                && seen.insert((row.uri.as_str(), row.span))
+        })
+    }
+
+    /// Exact retained namespace selected from all indexed source receipts.
+    #[must_use]
+    pub fn retained_namespace(
+        &self,
+        report: &str,
+    ) -> Option<(
+        tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
+        crate::namespace_symbol::retained_namespace_from_refs(
+            self.namespace_refs().map(|row| &row.source),
+            report,
+        )
     }
 
     /// **Declaring** sites of the namespace `qualified_name` — the name word
@@ -4327,10 +5560,15 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        let target = qualified_name.trim_start_matches("::");
+        let Some((scope, policy)) = self.retained_namespace(qualified_name) else {
+            return Vec::new();
+        };
         self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
-            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .filter(|n| {
+                n.source.source_namespace.as_ref() == Some(&scope)
+                    && n.source.name_policy == Some(policy)
+            })
             .collect()
     }
 
@@ -4354,20 +5592,22 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        // The global namespace is created by the interpreter, not by any
-        // block, so it has no implicit creator — the same bound the
-        // in-document tier keeps.  Without it every declaring row in the
-        // workspace would count as creating `::`.
-        if qualified_name.trim_start_matches(':').is_empty() {
+        let Some((scope, policy)) = self.retained_namespace(qualified_name) else {
             return Vec::new();
-        }
+        };
         self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
             .filter(|n| {
-                crate::namespace_symbol::namespace_strictly_contains(
+                n.source.name_policy == Some(policy)
+                    && n.source.source_namespace.as_ref() != Some(&scope)
+            })
+            .filter(|n| {
+                crate::namespace_symbol::retained_namespace_from_refs(
+                    std::iter::once(&n.source),
                     qualified_name,
-                    &n.qualified_name,
                 )
+                .as_ref()
+                    == Some(&(scope.clone(), policy))
             })
             .collect()
     }
@@ -4381,10 +5621,15 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        let target = qualified_name.trim_start_matches("::");
+        let Some((scope, policy)) = self.retained_namespace(qualified_name) else {
+            return Vec::new();
+        };
         self.namespace_refs()
             .filter(|n| !n.declares && n.uri != exclude_uri)
-            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .filter(|n| {
+                n.source.source_namespace.as_ref() == Some(&scope)
+                    && n.source.name_policy == Some(policy)
+            })
             .collect()
     }
 
@@ -4398,10 +5643,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceVariableRef> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.variable_refs()
             .filter(|v| v.uri != exclude_uri)
-            .filter(|v| v.qualified_name.trim_start_matches("::") == target)
+            .filter(|v| unroot_rooted_key(&v.qualified_name).unwrap_or(&v.qualified_name) == target)
             .collect()
     }
 
@@ -4448,6 +5693,26 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceInvocation> {
         self.invocations_settling_to(qualified_name, exclude_uri, false)
+    }
+
+    /// References to an independently retained original declaration slot.
+    /// Linked references keep their selected implementation's declaration slot;
+    /// direct references keep the actual called slot. Source assistance grants
+    /// neither interpreter loading nor writable edits.
+    #[must_use]
+    pub fn original_invocations_of<'a>(
+        &'a self,
+        declaration: &tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        exclude_uri: &str,
+        follow_links: bool,
+    ) -> Vec<&'a WorkspaceInvocation> {
+        let target =
+            SettledCommandTarget::OriginalSlot(declaration.slot().clone(), declaration.policy());
+        self.settled_sites(&[target], follow_links)
+            .into_iter()
+            .map(|(slot, index)| &self.docs[slot].invocations[index])
+            .filter(|invocation| invocation.uri != exclude_uri)
+            .collect()
     }
 
     /// Whether renaming `qualified_name` must be refused outright: some
@@ -4503,8 +5768,35 @@ impl WorkspaceIndex {
         exclude_uri: &str,
         follow_links: bool,
     ) -> Vec<&'a WorkspaceInvocation> {
-        let target = qualified_name.trim_start_matches("::");
-        let sites = self.settled_sites(target, follow_links);
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
+        let mut targets = vec![SettledCommandTarget::Authored(target.to_owned())];
+        for declaration in self
+            .original_procedure_declarations()
+            .filter(|(_, declaration)| {
+                unroot_rooted_key(&declaration.metadata().qualified_name)
+                    .unwrap_or(&declaration.metadata().qualified_name)
+                    == target
+            })
+        {
+            targets.push(SettledCommandTarget::OriginalSlot(
+                declaration.1.name().slot().clone(),
+                declaration.1.name().policy(),
+            ));
+        }
+        for declaration in self
+            .original_class_declarations()
+            .filter(|(_, declaration)| {
+                unroot_rooted_key(&declaration.metadata().qualified_name)
+                    .unwrap_or(&declaration.metadata().qualified_name)
+                    == target
+            })
+        {
+            targets.push(SettledCommandTarget::OriginalSlot(
+                declaration.1.name().slot().clone(),
+                declaration.1.name().policy(),
+            ));
+        }
+        let sites = self.settled_sites(&targets, follow_links);
         sites
             .iter()
             .map(|(slot, idx)| &self.docs[*slot].invocations[*idx])
@@ -4517,7 +5809,11 @@ impl WorkspaceIndex {
     /// Thereafter a replacement which did not change the command-resolution
     /// inputs removes and re-inserts only that document's contribution in the
     /// reverse index; querying a common target never scans its callers.
-    fn settled_sites(&self, target: &str, follow_links: bool) -> Vec<(usize, usize)> {
+    fn settled_sites(
+        &self,
+        targets: &[SettledCommandTarget],
+        follow_links: bool,
+    ) -> Vec<(usize, usize)> {
         let cache = &self.settled_invocations[usize::from(follow_links)];
         let mut state = cache
             .state
@@ -4573,11 +5869,104 @@ impl WorkspaceIndex {
                 state.settled_documents = state.settled_documents.saturating_add(1);
             }
         }
-        state
-            .by_target
-            .get(target)
-            .map(|sites| sites.iter().copied().collect())
-            .unwrap_or_default()
+        targets
+            .iter()
+            .filter_map(|target| state.by_target.get(target))
+            .flat_map(|sites| sites.iter().copied())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    fn original_definition_target(
+        &self,
+        definition: &tcl_compiler::command_binding::SourceCommandDefinition,
+    ) -> Option<SettledCommandTarget> {
+        let site = &definition.allocation().site;
+        self.original_procedure_declarations()
+            .find(|(_, declaration)| declaration.declaration_site() == site)
+            .map(|(_, declaration)| {
+                SettledCommandTarget::OriginalSlot(
+                    declaration.name().slot().clone(),
+                    declaration.name().policy(),
+                )
+            })
+            .or_else(|| {
+                self.original_class_declarations()
+                    .find(|(_, declaration)| declaration.declaration_site() == site)
+                    .map(|(_, declaration)| {
+                        SettledCommandTarget::OriginalSlot(
+                            declaration.name().slot().clone(),
+                            declaration.name().policy(),
+                        )
+                    })
+            })
+    }
+
+    fn original_assistance_target(
+        &self,
+        lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+        follow_links: bool,
+    ) -> Option<SettledCommandTarget> {
+        let mut candidates = Vec::new();
+        for document in &self.docs {
+            if let Some(world) = &document.original_command_world {
+                for publication in world.declarations() {
+                    let target = if follow_links {
+                        publication
+                            .definition()
+                            .and_then(|definition| self.original_definition_target(definition))
+                    } else {
+                        matches!(publication.kind(),
+                            tcl_compiler::command_binding::OriginalCommandPublicationKind::Procedure
+                            | tcl_compiler::command_binding::OriginalCommandPublicationKind::Object)
+                        .then(|| {
+                            SettledCommandTarget::OriginalSlot(
+                                publication.slot().clone(),
+                                publication.policy(),
+                            )
+                        })
+                    };
+                    candidates.push((publication.slot(), publication.policy(), target));
+                }
+            } else {
+                // Header-only source assistance has a separate purpose. It
+                // grants no completed world, current implementation or edit.
+                candidates.extend(
+                    document
+                        .original_procedure_source_candidates()
+                        .into_iter()
+                        .map(|(declaration, slot, policy)| {
+                            (
+                                slot,
+                                policy,
+                                Some(SettledCommandTarget::OriginalSlot(
+                                    declaration.name().slot().clone(),
+                                    declaration.name().policy(),
+                                )),
+                            )
+                        }),
+                );
+                candidates.extend(document.original_class_source_candidates().into_iter().map(
+                    |(declaration, slot, policy, _)| {
+                        (
+                            slot,
+                            policy,
+                            Some(SettledCommandTarget::OriginalSlot(
+                                declaration.name().slot().clone(),
+                                declaration.name().policy(),
+                            )),
+                        )
+                    },
+                ));
+            }
+        }
+        let selected = lookup.matching_slot_publications(candidates)?;
+        let target = selected.first()?.as_ref()?;
+        selected
+            .iter()
+            .all(|candidate| candidate.as_ref() == Some(target))
+            .then(|| target.clone())
     }
 
     /// The command `inv` settles to, `::`-stripped, or `None` when nothing in
@@ -4594,7 +5983,71 @@ impl WorkspaceIndex {
         defined: &HashSet<String>,
         links: Option<&std::collections::HashMap<String, String>>,
         wci: &WildcardImportIndex<'_>,
-    ) -> Option<String> {
+    ) -> Option<SettledCommandTarget> {
+        if let Some(input) = &inv.original_name_input {
+            let lookup = inv.original_lookup.as_ref()?;
+            if lookup.name_input() != input {
+                return None;
+            }
+        }
+        if let Some(reference) = &inv.resolved_command_reference
+            && (inv.original_name_input.is_some() || reference.original_name_policy().is_some())
+        {
+            return if links.is_some() {
+                reference
+                    .linked_definition()
+                    .or_else(|| reference.definition())
+                    .and_then(|definition| self.original_definition_target(definition))
+            } else {
+                reference.is_direct_definition().then_some(())?;
+                Some(SettledCommandTarget::OriginalSlot(
+                    reference.original_slot()?.clone(),
+                    reference.original_name_policy()?,
+                ))
+            };
+        }
+        if inv.original_name_input.is_some() {
+            return self.original_assistance_target(inv.original_lookup.as_ref()?, links.is_some());
+        }
+        // A positioned source receipt precedes the workspace's assistance
+        // inventory. Later imports, renames and unrelated same-named records
+        // cannot change the implementation this invocation already selected.
+        // The direct view edits a called definition slot; imported spellings
+        // belong only to the linked view, which retains the actual declaration.
+        if let Some(reference) = &inv.resolved_command_reference {
+            return if links.is_some() {
+                reference
+                    .linked_definition()
+                    .or_else(|| reference.definition())
+                    .map(|definition| {
+                        unroot_rooted_key(&definition.allocation().command)
+                            .unwrap_or(&definition.allocation().command)
+                            .to_owned()
+                    })
+                    .map(SettledCommandTarget::Authored)
+            } else {
+                reference.is_direct_definition().then_some(())?;
+                reference
+                    .slot()
+                    .map(|slot| unroot_rooted_key(slot).unwrap_or(slot).to_owned())
+                    .map(SettledCommandTarget::Authored)
+            };
+        }
+        if let Some(definition) = &inv.resolved_definition {
+            return if links.is_some() {
+                Some(SettledCommandTarget::Authored(
+                    unroot_rooted_key(&definition.allocation().command)
+                        .unwrap_or(&definition.allocation().command)
+                        .to_owned(),
+                ))
+            } else {
+                inv.resolved_user_definition.as_deref().map(|slot| {
+                    SettledCommandTarget::Authored(
+                        unroot_rooted_key(slot).unwrap_or(slot).to_owned(),
+                    )
+                })
+            };
+        }
         let call = CallSite {
             uri: &inv.uri,
             at: inv.range.start(),
@@ -4614,18 +6067,21 @@ impl WorkspaceIndex {
         let forced_shadow = links.is_some()
             && wci.forced_shadow_over_candidates(&inv.name, &inv.resolution_candidates, call);
         if !forced_shadow && let Some(winner) = inv.resolved_user_definition.as_deref() {
-            return Some(winner.trim_start_matches("::").to_owned());
+            return Some(SettledCommandTarget::Authored(
+                unroot_rooted_key(winner).unwrap_or(winner).to_owned(),
+            ));
         }
         if !forced_shadow
             && let Some(winner) = inv
                 .resolution_candidates
                 .iter()
-                .find(|c| defined.contains(c.trim_start_matches("::")))
+                .find(|c| defined.contains(unroot_rooted_key(c).unwrap_or(c)))
         {
-            let winner = winner.trim_start_matches("::");
-            return Some(
-                links.map_or_else(|| winner.to_owned(), |m| Self::follow_links(m, winner)),
-            );
+            let winner = unroot_rooted_key(winner).unwrap_or(winner);
+            return Some(SettledCommandTarget::Authored(links.map_or_else(
+                || winner.to_owned(),
+                |m| Self::follow_links(m, winner),
+            )));
         }
         // No real command or name-link settled this call — try a wildcard
         // `namespace import NS::*` in scope for the call's own namespace
@@ -4637,7 +6093,11 @@ impl WorkspaceIndex {
         // just because its ultimate source is renamed.
         links?;
         self.resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, call, wci)
-            .map(|resolved| resolved.trim_start_matches("::").to_owned())
+            .map(|resolved| {
+                SettledCommandTarget::Authored(
+                    unroot_rooted_key(&resolved).unwrap_or(&resolved).to_owned(),
+                )
+            })
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
@@ -4649,10 +6109,23 @@ impl WorkspaceIndex {
         self.command_link_map.get_or_build(|| {
             self.live_command_links()
                 .into_iter()
+                .filter(|link| {
+                    link.linked_source_name
+                        .as_ref()
+                        .is_none_or(|name| name.source_spelling().is_some())
+                        && link
+                            .target_source_name
+                            .as_ref()
+                            .is_none_or(|name| name.source_spelling().is_some())
+                })
                 .map(|l| {
                     (
-                        l.linked_qname.trim_start_matches("::").to_owned(),
-                        l.target_qname.trim_start_matches("::").to_owned(),
+                        unroot_rooted_key(&l.linked_qname)
+                            .unwrap_or(&l.linked_qname)
+                            .to_owned(),
+                        unroot_rooted_key(&l.target_qname)
+                            .unwrap_or(&l.target_qname)
+                            .to_owned(),
                     )
                 })
                 .collect()
@@ -4682,8 +6155,8 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn resolve_command_target(&self, name: &str) -> String {
         let links = self.command_link_map();
-        let settled = Self::follow_links(&links, name.trim_start_matches("::"));
-        format!("::{settled}")
+        let settled = Self::follow_links(&links, unroot_rooted_key(name).unwrap_or(name));
+        root_unrooted_key(&settled)
     }
 
     /// The declaration spans that *name* the command `qualified_name` in an
@@ -4699,11 +6172,11 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<(String, Span)> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.live_command_links()
             .into_iter()
             .filter(|l| l.uri != exclude_uri)
-            .filter(|l| l.target_qname.trim_start_matches("::") == target)
+            .filter(|l| unroot_rooted_key(&l.target_qname).unwrap_or(&l.target_qname) == target)
             .filter_map(|l| l.target_span.map(|sp| (l.uri.clone(), sp)))
             .collect()
     }
@@ -4747,7 +6220,7 @@ impl WorkspaceIndex {
             .filter(|i| {
                 i.resolution_candidates
                     .iter()
-                    .any(|c| class_qnames.contains(c.trim_start_matches("::")))
+                    .any(|c| class_qnames.contains(unroot_rooted_key(c).unwrap_or(c)))
             })
             .map(|i| i.uri.clone())
             .collect()
@@ -4762,7 +6235,7 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn workspace_command_exists(&self, qualified_name: &str) -> bool {
         self.defined_command_names(true)
-            .contains(qualified_name.trim_start_matches("::"))
+            .contains(unroot_rooted_key(qualified_name).unwrap_or(qualified_name))
     }
 
     /// [`Self::workspace_command_exists`], but a proc, or an `interp alias` /
@@ -4796,14 +6269,16 @@ impl WorkspaceIndex {
         qualified_name: &str,
         has_builtin: bool,
     ) -> bool {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.live_procs().any(|p| {
-            (!has_builtin || !p.nested) && p.qualified_name.trim_start_matches("::") == target
+            (!has_builtin || !p.nested)
+                && unroot_rooted_key(&p.qualified_name).unwrap_or(&p.qualified_name) == target
         }) || self
             .live_classes()
-            .any(|c| c.qualified_name.trim_start_matches("::") == target)
+            .any(|c| unroot_rooted_key(&c.qualified_name).unwrap_or(&c.qualified_name) == target)
             || self.live_command_links().into_iter().any(|l| {
-                (!has_builtin || !l.nested) && l.linked_qname.trim_start_matches("::") == target
+                (!has_builtin || !l.nested)
+                    && unroot_rooted_key(&l.linked_qname).unwrap_or(&l.linked_qname) == target
             })
     }
 
@@ -4828,18 +6303,23 @@ impl WorkspaceIndex {
         self.defined_names[usize::from(include_links)].get_or_build(|| {
             let mut names: HashSet<String> = self
                 .live_procs()
-                .map(|p| p.qualified_name.trim_start_matches("::").to_owned())
-                .chain(
-                    self.live_classes()
-                        .map(|c| c.qualified_name.trim_start_matches("::").to_owned()),
-                )
+                .map(|p| {
+                    unroot_rooted_key(&p.qualified_name)
+                        .unwrap_or(&p.qualified_name)
+                        .to_owned()
+                })
+                .chain(self.live_classes().map(|c| {
+                    unroot_rooted_key(&c.qualified_name)
+                        .unwrap_or(&c.qualified_name)
+                        .to_owned()
+                }))
                 .collect();
             if include_links {
-                names.extend(
-                    self.live_command_links()
-                        .into_iter()
-                        .map(|l| l.linked_qname.trim_start_matches("::").to_owned()),
-                );
+                names.extend(self.live_command_links().into_iter().map(|l| {
+                    unroot_rooted_key(&l.linked_qname)
+                        .unwrap_or(&l.linked_qname)
+                        .to_owned()
+                }));
             }
             names
         })
@@ -4990,6 +6470,11 @@ impl WorkspaceIndex {
         imports
             .admitting(word)
             .filter(|row| {
+                let target = tcl_syntax::naming::qualify(&row.imp.source_ns, word);
+                !self.workspace_command_exists(&target)
+                    || self.import_source_matches(&target, row.imp.native_source.as_ref(), word)
+            })
+            .filter(|row| {
                 let target = tcl_syntax::naming::qualify(ns, word);
                 row.imp.forced
                     || !(self.defines_command(&target)
@@ -5026,6 +6511,9 @@ impl WorkspaceIndex {
 struct ExportGate<'a> {
     /// Surviving patterns with no glob metacharacter: an exact-name set.
     literal: HashSet<&'a str>,
+    /// Original import and export purposes were already checked against the
+    /// retained native declaration slot; display membership needs no parser.
+    original_tail_matched: bool,
     /// Surviving patterns that need `Tcl_StringMatch` semantics (`*`, `b*`,
     /// `{p[ab]}`, …), in recorded order.
     globs: Vec<&'a str>,
@@ -5039,11 +6527,68 @@ impl<'a> ExportGate<'a> {
         order: &crate::source_graph::RunOrder,
         source_ns: &str,
         site: ImportSite<'_>,
+        original: Option<&tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+        subjects: &[&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand],
+        native_source_known: bool,
     ) -> Self {
+        if let Some(original) = original {
+            if exports_by_ns.values().flatten().any(|event| {
+                event.unknown
+                    && order
+                        .has_run(
+                            RunPoint {
+                                uri: &event.uri,
+                                at: event.at,
+                                enclosing_body: event.enclosing_body,
+                            },
+                            site.point(),
+                        )
+                        .unwrap_or(true)
+            }) {
+                return Self::default();
+            }
+            let literal = subjects
+                .iter()
+                .copied()
+                .filter(|name| {
+                    original.matches_imported_command(name.slot(), name.policy()) == Some(true)
+                        && crate::namespace_import::exported_original_at_import_site(
+                            exports_by_ns.values().flatten().filter_map(|event| {
+                                Some((
+                                    event.original.as_ref()?,
+                                    RunPoint {
+                                        uri: &event.uri,
+                                        at: event.at,
+                                        enclosing_body: event.enclosing_body,
+                                    },
+                                ))
+                            }),
+                            name.slot(),
+                            name.policy(),
+                            order,
+                            site.point(),
+                        ) == ExportVerdict::Exported
+                })
+                .filter_map(|name| name.slot().simple.try_utf8().ok())
+                .collect();
+            return Self {
+                literal,
+                globs: Vec::new(),
+                original_tail_matched: true,
+            };
+        }
+        if native_source_known {
+            return Self::default();
+        }
         let Some(exports) = exports_by_ns.get(source_ns) else {
             return Self::default();
         };
-        let mut events = export_events(exports.iter().copied());
+        let mut events = export_events(
+            exports
+                .iter()
+                .copied()
+                .filter(|event| event.original.is_none() && !event.unknown),
+        );
         let surviving =
             crate::namespace_import::exports_in_effect(&mut events, order, site.point());
         let (literal, globs) = surviving
@@ -5051,6 +6596,7 @@ impl<'a> ExportGate<'a> {
             .partition::<Vec<_>, _>(|p| tcl_syntax::glob::is_literal(p));
         Self {
             literal: literal.into_iter().collect(),
+            original_tail_matched: false,
             globs,
         }
     }
@@ -5073,11 +6619,10 @@ impl<'a> ExportGate<'a> {
 struct GlobImportRow<'a> {
     imp: &'a WorkspaceGlobImport,
     exported: ExportGate<'a>,
-    /// The command table a fresh interpreter running *this import's document*
-    /// holds — the other half of the import-conflict rule, and dialect-correct
-    /// because it is resolved from that document's own analysed dialect.
-    /// `None` when the index cannot say.
-    registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// Declared-command metadata from this import document's retained store.
+    /// Original import/export/source capabilities remain independently guarded.
+    /// `None` when the actual source input cannot supply that store.
+    registry: Option<&'a tcl_registry::CommandRegistry>,
 }
 
 /// Every wildcard import recorded for one importing namespace, indexed by the
@@ -5132,7 +6677,9 @@ impl<'a> NamespaceImports<'a> {
             for name in &row.exported.literal {
                 // The tail pattern is the other half of the admission test,
                 // and it is decidable here because the name is known.
-                if tcl_syntax::glob::string_match(&row.imp.tail_pattern, name) {
+                if row.exported.original_tail_matched
+                    || tcl_syntax::glob::string_match(&row.imp.tail_pattern, name)
+                {
                     by_name.entry(name).or_default().push(idx);
                 }
             }
@@ -5197,7 +6744,7 @@ impl<'a> GlobImportRow<'a> {
     /// inventing a conflict drops an alias the program really has.
     fn declares_builtin_at(&self, qualified_name: &str) -> bool {
         self.registry
-            .is_some_and(|r| r.declares_command_at(qualified_name))
+            .is_some_and(|r| r.declares_command_at_rooted_key(qualified_name))
     }
 }
 
@@ -5223,6 +6770,7 @@ impl<'a> ExactImportRow<'a> {
 /// than re-scanned per call site — see
 /// [`WorkspaceIndex::resolve_wildcard_import_indexed`]'s doc for why.
 struct WildcardImportIndex<'a> {
+    original_subjects: Vec<&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     imports_by_ns: std::collections::HashMap<&'a str, NamespaceImports<'a>>,
     /// Every **exact** `namespace import` link, by importing namespace. The
     /// exact-pattern twin of [`Self::imports_by_ns`]: the two tables are one
@@ -5261,6 +6809,16 @@ impl<'a> WildcardImportIndex<'a> {
             exports_by_ns.entry(exp.ns.as_str()).or_default().push(exp);
         }
         let order = index.run_order();
+        let original_subjects = index
+            .docs
+            .iter()
+            .flat_map(|doc| {
+                doc.original_procs
+                    .iter()
+                    .map(|record| record.name())
+                    .chain(doc.original_classes.iter().map(|record| record.name()))
+            })
+            .collect::<Vec<_>>();
         let mut rows_by_ns: std::collections::HashMap<&str, Vec<GlobImportRow<'a>>> =
             std::collections::HashMap::new();
         for imp in index.glob_imports() {
@@ -5274,6 +6832,9 @@ impl<'a> WildcardImportIndex<'a> {
                         &order,
                         &imp.source_ns,
                         imp.site(),
+                        imp.original_pattern.as_ref(),
+                        &original_subjects,
+                        imp.native_source.is_some(),
                     ),
                     registry: index.registry_for(&imp.uri),
                 });
@@ -5294,6 +6855,9 @@ impl<'a> WildcardImportIndex<'a> {
                             &order,
                             &gate.source_ns,
                             gate.site(uri),
+                            gate.original_pattern.as_ref(),
+                            &original_subjects,
+                            gate.native_source.is_some(),
                         ),
                     });
             }
@@ -5340,6 +6904,7 @@ impl<'a> WildcardImportIndex<'a> {
             .map(|(ns, rows)| (ns, NamespaceImports::index(rows)))
             .collect();
         Self {
+            original_subjects,
             imports_by_ns,
             exact_by_ns,
             exports_by_ns,
@@ -5373,10 +6938,9 @@ impl<'a> WildcardImportIndex<'a> {
             // read `NamespaceImports::by_name`.
             imports.forced_rows().any(|row| {
                 tcl_syntax::glob::string_match(&row.imp.tail_pattern, name)
-                    && (!self
-                        .observable
-                        .contains(row.imp.source_ns.trim_start_matches("::"))
-                        || row.exported.covers(name))
+                    && (!self.observable.contains(
+                        unroot_rooted_key(&row.imp.source_ns).unwrap_or(&row.imp.source_ns),
+                    ) || row.exported.covers(name))
                     && self.alias_live_at(ns, &row.imp.source_ns, name, row.site(), call)
             })
         })
@@ -5434,7 +6998,8 @@ impl<'a> WildcardImportIndex<'a> {
             .iter()
             .filter(move |f| {
                 f.source_ns.as_deref().is_none_or(|src| {
-                    src.trim_start_matches("::") == source_ns.trim_start_matches("::")
+                    unroot_rooted_key(src).unwrap_or(src)
+                        == unroot_rooted_key(source_ns).unwrap_or(source_ns)
                 }) && tcl_syntax::glob::string_match(&f.pattern, name)
             })
             .map(move |f| AliasEvent {
@@ -5681,7 +7246,7 @@ impl<'a> WildcardImportIndex<'a> {
     ///
     /// Delegates to [`crate::namespace_import::exported_at_import_site`] — the
     /// same function the same-document resolver
-    /// (`definition::exported_at_import`) calls, so the two tiers cannot
+    /// (`definition::exported_original_slot_at_import`) calls, so the two tiers cannot
     /// disagree about what an import site sees. The only tier-specific part
     /// is which events are *ordered* against the import: those in the
     /// import's own document, compared by offset. An export in another
@@ -5689,8 +7254,69 @@ impl<'a> WildcardImportIndex<'a> {
     /// which file loads first), so it is passed unordered and the shared
     /// function abstains toward continuing to resolve.
     fn exports_name_at(&self, ns: &str, name: &str, site: ImportSite<'_>) -> bool {
+        let mut found = None;
+        for subject in &self.original_subjects {
+            let scope = tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+                subject.slot().namespace.clone(),
+            );
+            if subject.slot().simple.try_utf8().ok() != Some(name)
+                || !scope.display().is_some_and(|label| ns_eq(&label, ns))
+            {
+                continue;
+            }
+            if found.is_some_and(
+                |previous: &tcl_compiler::signature_scan::scope::SignatureSourceCommand| {
+                    previous.slot() != subject.slot() || previous.policy() != subject.policy()
+                },
+            ) {
+                return false;
+            }
+            found = Some(*subject);
+        }
+        if let Some(subject) = found {
+            if self.exports_by_ns.values().flatten().any(|event| {
+                event.unknown
+                    && self
+                        .order
+                        .has_run(
+                            RunPoint {
+                                uri: &event.uri,
+                                at: event.at,
+                                enclosing_body: event.enclosing_body,
+                            },
+                            site.point(),
+                        )
+                        .unwrap_or(true)
+            }) {
+                return false;
+            }
+            return crate::namespace_import::exported_original_at_import_site(
+                self.exports_by_ns.values().flatten().filter_map(|event| {
+                    Some((
+                        event.original.as_ref()?,
+                        RunPoint {
+                            uri: &event.uri,
+                            at: event.at,
+                            enclosing_body: event.enclosing_body,
+                        },
+                    ))
+                }),
+                subject.slot(),
+                subject.policy(),
+                &self.order,
+                site.point(),
+            ) == ExportVerdict::Exported;
+        }
         self.exports_by_ns.get(ns).is_some_and(|exports| {
-            exported_at_site(exports.iter().copied(), name, &self.order, site.point())
+            exported_at_site(
+                exports
+                    .iter()
+                    .copied()
+                    .filter(|event| event.original.is_none() && !event.unknown),
+                name,
+                &self.order,
+                site.point(),
+            )
         })
     }
 }
@@ -5711,7 +7337,7 @@ fn export_events<'e>(
         at: RunPoint {
             uri: e.uri.as_str(),
             at: e.at,
-            enclosing_body: None,
+            enclosing_body: e.enclosing_body,
         },
     })
 }
@@ -5747,6 +7373,8 @@ fn exported_at_site<'e>(
 /// where it already is; this is not a second cross-document resolver.
 #[derive(Debug, Default)]
 pub struct NamespaceExportSnapshot {
+    original_exports: Vec<WorkspaceNamespaceExport>,
+    original_declarations: Vec<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Export rows by exporting namespace, `::`-stripped so the two spellings
     /// an import pattern and an export record may carry still meet.
     exports_by_ns: std::collections::HashMap<String, Vec<WorkspaceNamespaceExport>>,
@@ -5762,21 +7390,91 @@ pub struct NamespaceExportSnapshot {
 
 impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot {
     fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict {
-        let ns = source_ns.trim_start_matches("::");
+        let mut subject = None;
+        for declaration in &self.original_declarations {
+            let Ok(tail) = declaration.slot().simple.try_utf8() else {
+                continue;
+            };
+            let scope = tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+                declaration.slot().namespace.clone(),
+            );
+            if tail != name
+                || !scope
+                    .display()
+                    .is_some_and(|label| ns_eq(&label, source_ns))
+            {
+                continue;
+            }
+            if subject.is_some_and(
+                |previous: &tcl_compiler::signature_scan::scope::SignatureSourceCommand| {
+                    previous.slot() != declaration.slot()
+                        || previous.policy() != declaration.policy()
+                },
+            ) {
+                return ExportVerdict::Unknown;
+            }
+            subject = Some(declaration);
+        }
+        if let Some(subject) = subject {
+            return self.exported_at_original(subject.slot(), subject.policy(), import_site);
+        }
+        // Explicit lexical-only authored inventories remain advice. Native
+        // source records without an original publication do not enter this path.
+        let ns = unroot_rooted_key(source_ns).unwrap_or(source_ns);
         if !self.observable.contains(ns) {
-            // The namespace lives somewhere the workspace cannot see — an
-            // installed package, a file outside the project. Silence is not
-            // evidence, exactly as in `live_command_links`.
             return ExportVerdict::Unknown;
         }
-        let exported = self.exports_by_ns.get(ns).is_some_and(|exports| {
-            exported_at_site(exports.iter(), name, &self.order, import_site)
-        });
-        if exported {
+        let exports = self
+            .exports_by_ns
+            .get(ns)
+            .into_iter()
+            .flatten()
+            .filter(|event| event.original.is_none() && !event.unknown);
+        if exported_at_site(exports, name, &self.order, import_site) {
             ExportVerdict::Exported
         } else {
-            ExportVerdict::NotExported
+            ExportVerdict::Unknown
         }
+    }
+
+    fn exported_at_original(
+        &self,
+        slot: &tcl_core_types::ByteCommandSlot,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        import_site: RunPoint<'_>,
+    ) -> ExportVerdict {
+        if self.original_exports.iter().any(|event| {
+            event.unknown
+                && self
+                    .order
+                    .has_run(
+                        RunPoint {
+                            uri: &event.uri,
+                            at: event.at,
+                            enclosing_body: event.enclosing_body,
+                        },
+                        import_site,
+                    )
+                    .unwrap_or(true)
+        }) {
+            return ExportVerdict::Unknown;
+        }
+        crate::namespace_import::exported_original_at_import_site(
+            self.original_exports.iter().filter_map(|event| {
+                Some((
+                    event.original.as_ref()?,
+                    RunPoint {
+                        uri: &event.uri,
+                        at: event.at,
+                        enclosing_body: event.enclosing_body,
+                    },
+                ))
+            }),
+            slot,
+            policy,
+            &self.order,
+            import_site,
+        )
     }
 }
 
@@ -5785,27 +7483,6 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot 
 fn importing_namespace_of(linked_qname: &str) -> &str {
     let (ns, _) = tcl_syntax::naming::key_holder_and_tail(linked_qname);
     if ns.is_empty() { "::" } else { ns }
-}
-
-/// Split a written `namespace import` pattern at its final colon run.  The
-/// command core owns this operation because Tcl treats `::a:::b` as the
-/// qualifier `::a` and tail `b`; a pairwise `rsplit_once("::")` would invent
-/// a different source namespace.  The `Qualifier` tri-state also keeps the
-/// absolute marker on `::name` instead of collapsing it to an unqualified
-/// pattern.
-fn import_pattern_parts(pattern: &str) -> Option<(String, String)> {
-    use tcl_cmd_core::namespace::{Qualifier, qualifier, tail};
-
-    let tail = std::str::from_utf8(tail(pattern.as_bytes()))
-        .ok()?
-        .to_owned();
-    let source = match qualifier(pattern.as_bytes()) {
-        Qualifier::Absolute(ns) | Qualifier::Relative(ns) => {
-            Some(std::str::from_utf8(ns).ok()?.to_owned())
-        }
-        Qualifier::Unqualified => None,
-    }?;
-    Some((source, tail))
 }
 
 /// The source namespace an import pattern names, reading the empty prefix a
@@ -5822,7 +7499,7 @@ fn global_rooted(source_ns: &str) -> &str {
 /// Namespace-name equality, ignoring a leading `::` one spelling carries and
 /// the other does not.
 fn ns_eq(a: &str, b: &str) -> bool {
-    a.trim_start_matches("::") == b.trim_start_matches("::")
+    unroot_rooted_key(a).unwrap_or(a) == unroot_rooted_key(b).unwrap_or(b)
 }
 
 /// Where a `namespace import` sits, as the export-snapshot gate needs to see
@@ -5918,6 +7595,308 @@ mod tests {
     }
 
     #[test]
+    fn original_declaration_inventory_retains_bytes_and_document_ownership() {
+        // Proof naming.workspace.original-declaration-transport:
+        // docs/design/analysis/name-resolution-proofs/workspace-original-declaration-transport.md
+        // Implementation contract: opaque naming units, declaration metadata
+        // and workspace document ownership survive removal of display maps.
+        // Native naming outcomes are established by the separate byte probes.
+        let source = r"proc p\uD800 {} {return FIRST}
+proc p\uD801 {} {return SECOND}
+p\uD800
+p\uD801";
+        let mut analysis = analyse(source);
+        assert_eq!(analysis.original_procedure_declarations().count(), 2);
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///first.tcl", &analysis),
+            ("file:///second.tcl", &analysis),
+        ]);
+        let declarations = index.original_procedure_declarations().collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 4);
+        let input = tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            declarations[0].1.name_input().clone(),
+        );
+        let lookup = tcl_compiler::signature_scan::scope::SignatureSourceLookup::from_input(
+            analysis.original_namespace_scope_at(0).unwrap().clone(),
+            &input,
+        )
+        .unwrap();
+        let candidates = index.original_procedure_candidates(&lookup);
+        assert_eq!(candidates.len(), 2);
+        assert!(
+            candidates
+                .iter()
+                .all(|(_, declaration)| { declaration.name_input().bytes() == b"p\xed\xa0\x80" })
+        );
+        for uri in ["file:///first.tcl", "file:///second.tcl"] {
+            let entries = declarations
+                .iter()
+                .filter(|(owner, _)| *owner == uri)
+                .map(|(_, declaration)| *declaration)
+                .collect::<Vec<_>>();
+            assert_eq!(entries.len(), 2);
+            assert_eq!(entries[0].name_input().bytes(), b"p\xed\xa0\x80");
+            assert_eq!(entries[1].name_input().bytes(), b"p\xed\xa0\x81");
+            assert_ne!(entries[0].name().slot(), entries[1].name().slot());
+        }
+        assert_eq!(
+            index
+                .invocations()
+                .filter(|invocation| {
+                    invocation
+                        .original_name_input
+                        .as_ref()
+                        .is_some_and(|input| input.bytes() == b"p\xed\xa0\x80")
+                })
+                .count(),
+            2
+        );
+        index.remove_document("file:///first.tcl");
+        assert!(
+            index
+                .original_procedure_declarations()
+                .all(|(uri, _)| uri == "file:///second.tcl")
+        );
+        index.add_document("file:///first.tcl", &analyse("proc plain {} {}"));
+        assert_eq!(index.original_procedure_declarations().count(), 3);
+        assert!(
+            index
+                .original_procedure_declarations()
+                .filter(|(uri, _)| *uri == "file:///first.tcl")
+                .all(|(_, declaration)| declaration.name_input().bytes() == b"plain")
+        );
+    }
+
+    #[test]
+    fn original_requirement_graph_keeps_constraints_preference_and_unknowns() {
+        // Implementation contract: naming.workspace.original-package-requirement-transport
+        // docs/design/analysis/name-resolution-proofs/workspace-original-package-requirement-transport.md
+
+        use crate::package_resolver::{PackagePrefer, PackageRequirementAdviceKey};
+        let source = "package require -exact p\\uD800 1.2\npackage prefer latest\npackage require p\\uD800 1.0 2.0\npackage require $computed\n";
+        let analysis = analyse(source);
+        let mut index = WorkspaceIndex::from_documents([("file:///library.tcl", &analysis)]);
+        let requirements = index
+            .original_package_requirement_advice_for("file:///library.tcl", PackagePrefer::Stable);
+        assert_eq!(requirements.len(), 3);
+        assert_eq!(
+            requirements[0].key().original().unwrap().bytes(),
+            b"p\xed\xa0\x80"
+        );
+        assert_eq!(requirements[0].requirements(), &["1.2"]);
+        assert!(requirements[0].exact());
+        assert_eq!(requirements[0].prefer(), PackagePrefer::Stable);
+        assert_eq!(requirements[1].key(), requirements[0].key());
+        assert_eq!(requirements[1].requirements(), &["1.0", "2.0"]);
+        assert!(!requirements[1].exact());
+        assert_eq!(requirements[1].prefer(), PackagePrefer::Latest);
+        assert_eq!(requirements[2].key(), &PackageRequirementAdviceKey::Unknown);
+        let edges = vec![
+            (
+                "file:///library.tcl".to_owned(),
+                "file:///consumer.tcl".to_owned(),
+            ),
+            (
+                "file:///consumer.tcl".to_owned(),
+                "file:///library.tcl".to_owned(),
+            ),
+        ];
+        let records = std::collections::HashMap::from([(
+            "file:///library.tcl".to_owned(),
+            requirements.clone(),
+        )]);
+        assert_eq!(
+            crate::source_graph::ancestor_requirements("file:///consumer.tcl", &edges, &records),
+            requirements
+        );
+        assert!(
+            index
+                .original_package_requirement_advice_for(
+                    "file:///library.tcl",
+                    PackagePrefer::Latest
+                )
+                .iter()
+                .all(|required| required.prefer() == PackagePrefer::Latest)
+        );
+        index.remove_document("file:///library.tcl");
+        assert!(
+            index
+                .original_package_requirement_advice_for(
+                    "file:///library.tcl",
+                    PackagePrefer::Stable
+                )
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn literal_colon_namespace_keys_keep_definitions_and_variables_distinct() {
+        let nested = analyse("namespace eval : {proc p {} {}; variable v 1}\n");
+        let global = analyse("proc :p {} {}\nvariable :v 2\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///nested.tcl", &nested),
+            ("file:///global.tcl", &global),
+        ]);
+        let nested_proc = index.proc_definitions_qualified(":::::p", "");
+        let global_proc = index.proc_definitions_qualified(":::p", "");
+        assert_eq!(nested_proc.len(), 1);
+        assert_eq!(global_proc.len(), 1);
+        assert_eq!(nested_proc[0].uri, "file:///nested.tcl");
+        assert_eq!(global_proc[0].uri, "file:///global.tcl");
+        let nested_var = index.variable_definitions_qualified(":::::v", "");
+        assert_eq!(nested_var.len(), 1);
+        assert_eq!(nested_var[0].uri, "file:///nested.tcl");
+        let global_var = index.variable_definitions_qualified(":::v", "");
+        assert_eq!(global_var.len(), 1);
+        assert_eq!(global_var[0].uri, "file:///global.tcl");
+        assert_eq!(index.documents_in_namespace(":::"), ["file:///nested.tcl"]);
+        assert_eq!(index.documents_in_namespace("::"), ["file:///global.tcl"]);
+        let namespaces = index.observable_namespaces();
+        assert!(namespaces.contains(":"));
+        assert!(namespaces.contains(""));
+    }
+
+    #[test]
+    fn literal_colon_import_sources_survive_workspace_ingestion() {
+        let source = "namespace eval : {namespace eval src {proc p {} {}; namespace export p}; namespace import src::p; p}\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///colon-import.tcl", &analysis)]);
+        let link = index
+            .command_links()
+            .find(|link| link.linked_qname == ":::::p")
+            .unwrap();
+        assert_eq!(link.target_qname, ":::::src::p");
+        assert_eq!(link.import_gate.as_ref().unwrap().source_ns, ":::::src");
+        assert!(
+            index
+                .command_links()
+                .all(|link| link.target_qname != "::src::p")
+        );
+        assert!(
+            index
+                .linked_invocations_of(":::::src::p", "")
+                .iter()
+                .any(|invocation| invocation.name == "p")
+        );
+    }
+
+    #[test]
+    fn literal_colon_alias_targets_survive_workspace_and_indirection() {
+        let source = "proc :target {} {}; interp alias {} :alias {} :target; :alias\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///colon-alias.tcl", &analysis)]);
+        let link = index
+            .command_links()
+            .find(|link| link.linked_qname == ":::alias")
+            .unwrap();
+        assert_eq!(link.target_qname, ":::target");
+        assert_eq!(
+            link.linked_source_name
+                .as_ref()
+                .unwrap()
+                .slot()
+                .simple
+                .as_bytes(),
+            b":alias"
+        );
+        let selected = link.target_source_name.as_ref().unwrap();
+        assert!(selected.slot().namespace.is_root());
+        assert_eq!(selected.slot().simple.as_bytes(), b":target");
+        assert_eq!(selected.source_spelling(), None);
+        assert!(!index.command_link_map().contains_key(":alias"));
+        let hop = tcl_compiler::analyser::indirection::walk(
+            &analysis,
+            ":alias",
+            u32::MAX,
+            &tcl_syntax::naming::normalise_qualified_name,
+        )
+        .unwrap();
+        assert_eq!(hop.target, ":::target");
+        assert_eq!(hop.target_source_name.as_ref(), Some(selected));
+        assert_eq!(hop.lookup_spelling(), None);
+        assert!(
+            index
+                .linked_invocations_of(":::target", "")
+                .iter()
+                .any(|invocation| invocation.name == ":alias")
+        );
+    }
+
+    #[test]
+    fn alias_target_navigation_uses_selected_global_or_caller_context() {
+        // native_alias_target_context.tcl: C aliases select ROOT and Jim
+        // aliases select LOCAL from the same original relative target operand.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let alias = if engine == "jimtcl" {
+                "alias contextual target"
+            } else {
+                "interp alias {} contextual {} target"
+            };
+            let source = format!(
+                "proc target {{}} {{return ROOT}}; {alias}; namespace eval N {{proc target {{}} {{return LOCAL}}; contextual}}\n"
+            );
+            let analysis = Analyser::new().analyse(&source, engine).clone();
+            let call = analysis
+                .command_invocations
+                .iter()
+                .find(|call| call.name == "contextual" && call.lookup.is_execution_site())
+                .unwrap_or_else(|| panic!("{engine}: missing original caller"));
+            let reference = call
+                .resolved_command_reference
+                .as_ref()
+                .unwrap_or_else(|| panic!("{engine}: missing positioned caller receipt"));
+            let selected = reference
+                .linked_definition()
+                .or_else(|| reference.definition())
+                .unwrap_or_else(|| panic!("{engine}: missing selected target allocation"));
+            let target = if engine == "jimtcl" {
+                "::N::target"
+            } else {
+                "::target"
+            };
+            assert_eq!(selected.allocation().command, target, "{engine}");
+            let index = WorkspaceIndex::from_documents([("file:///alias-context.tcl", &analysis)]);
+            assert!(
+                index
+                    .linked_invocations_of(target, "")
+                    .iter()
+                    .any(|call| call.name == "contextual"),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn positioned_import_definition_keeps_linked_and_editable_views_separate() {
+        let source = "namespace eval origin {proc helper {} {return ORIGIN}; namespace export helper}\nnamespace eval app {namespace import ::origin::helper; helper}\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///imports.tcl", &analysis)]);
+        let call = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.name == "helper")
+            .unwrap();
+        assert!(call.resolved_definition.is_some());
+        assert!(!call.resolved_user_definition);
+        assert_eq!(index.linked_invocations_of("::origin::helper", "").len(), 1);
+        assert!(index.invocations_of("::origin::helper", "").is_empty());
+        assert!(index.invocations_of("::app::helper", "").is_empty());
+    }
+
+    #[test]
+    fn positioned_definition_precedes_later_forced_import_assistance() {
+        let source = "namespace eval origin {proc helper {} {return ORIGIN}; namespace export helper}\nnamespace eval app {proc helper {} {return LOCAL}; helper; namespace import -force ::origin::helper; helper}\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///timeline.tcl", &analysis)]);
+        assert_eq!(index.invocations_of("::app::helper", "").len(), 1);
+        assert_eq!(index.linked_invocations_of("::app::helper", "").len(), 1);
+        assert_eq!(index.linked_invocations_of("::origin::helper", "").len(), 1);
+        assert!(index.invocations_of("::origin::helper", "").is_empty());
+    }
+
+    #[test]
     fn subclass_provided_methods_matches_the_per_class_linearisation() {
         // The bulk fold must agree with the per-class `class_linearisation`
         // walk (the per-class form rebuilds the edge maps every call —
@@ -5972,7 +7951,10 @@ mod tests {
                         index
                             .effective_members(x)
                             .into_iter()
-                            .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
+                            .filter(|m| {
+                                m.method.kind != MethodKind::ClassMethod.as_str()
+                                    && !m.method.private
+                            })
                             .map(|m| m.name.to_owned()),
                     );
                 }
@@ -7693,37 +9675,36 @@ mod tests {
     //   # app.tcl:  source mod.tcl; source imp.tcl; source exp.tcl
     //   ::app::helper   ->  invalid command name "::app::helper"
 
-    /// The server's URI resolver, in miniature: a literal path resolved
-    /// against the sourcing document's directory.
+    /// The installed server resolver's source-plan and inventory contract,
+    /// with the file URI mapped to an explicit document filename.
     fn test_resolve(
         parent_uri: &str,
-        raw_path: &str,
-        is_literal: bool,
-        raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
-        imported: &HashMap<String, String>,
+        _raw_path: &str,
+        expression: Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
+        source_offset: u32,
+        raw_constants: &tcl_compiler::auto_path_eval::PathConstantAssignments,
+        imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
     ) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;
-        // The server's two tiers, in miniature: a literal resolves directly, a
-        // computed path only when it folds statically — with the parent's own
-        // constants (and imports) chained in, exactly as the real resolver
-        // folds them — anything else names no document and sequences nothing.
-        let raw = if is_literal {
-            raw_path.to_owned()
-        } else {
-            let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
-                raw_constants,
-                Some(parent),
-                imported,
-                None,
-            );
-            tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
-                raw_path,
-                Some(parent),
-                &constants,
-                None,
-            )?
-        };
+        let expression = expression?;
+        if !expression.matches_assignments(raw_constants)
+            || expression.source_span().start() > source_offset
+            || source_offset >= expression.source_span().end()
+        {
+            return None;
+        }
+        let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+            raw_constants,
+            Some(parent),
+            imported,
+        );
+        let raw = expression.evaluate(Some(parent), &|name| {
+            tcl_compiler::auto_path_eval::PathConstantLookup::path_constant(
+                &constants.at(source_offset),
+                name,
+            )
+        })?;
         let child = crate::source_graph::resolve_under(dir, &raw);
         Some(format!("file://{}", child.display()))
     }
@@ -7732,13 +9713,11 @@ mod tests {
     /// [`test_resolve`], same URI-to-path convention.
     fn test_fold(
         uri: &str,
-        writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
-        imported: &HashMap<String, String>,
-    ) -> HashMap<String, String> {
+        writes: &tcl_compiler::auto_path_eval::PathConstantAssignments,
+        imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
+    ) -> tcl_compiler::auto_path_eval::FoldedPathConstants {
         let path = uri.strip_prefix("file://");
-        tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
-            writes, path, imported, None,
-        )
+        tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(writes, path, imported)
     }
 
     /// An index over `documents` with the `source`-path resolver installed —
@@ -7761,6 +9740,48 @@ mod tests {
             analyse("namespace eval ::mymod { namespace export helper }\n"),
             analyse("namespace eval ::app { namespace import ::mymod::* }\n"),
         )
+    }
+
+    #[test]
+    fn retained_source_routes_share_original_plans_across_graph_consumers() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let app = analyse(
+            "interp alias {} build {} file join /proj; package require Tk; package prefer latest; source [build lib.tcl]",
+        );
+        let child = analyse("proc leaf {} {}");
+        let index = sourced_index([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/lib.tcl", &child),
+        ]);
+        let edges = index.resolved_source_edges();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].child, "file:///proj/lib.tcl");
+        assert_eq!(
+            index.source_ancestor_package_requires_from_resolved("file:///proj/lib.tcl"),
+            vec!["Tk".to_owned()]
+        );
+        assert!(index.source_ancestor_prefers_latest_from_resolved("file:///proj/lib.tcl"));
+        assert_eq!(
+            index
+                .source_seed_map(test_resolve)
+                .get("file:///proj/lib.tcl"),
+            Some(&std::collections::BTreeSet::from(["::".to_owned()]))
+        );
+        let shadow =
+            analyse("proc file {args} {}; package require Tk; source [file join /proj lib.tcl]");
+        let index = sourced_index([
+            ("file:///proj/app.tcl", &shadow),
+            ("file:///proj/lib.tcl", &child),
+        ]);
+        assert!(!index.sources().collect::<Vec<_>>().is_empty());
+        assert!(index.resolved_source_edges().is_empty());
+        assert!(index.source_seed_map(test_resolve).is_empty());
+        assert!(
+            index
+                .source_ancestor_package_requires_from_resolved("file:///proj/lib.tcl")
+                .is_empty()
+        );
     }
 
     #[test]
@@ -8143,6 +10164,51 @@ mod tests {
                 )
                 .as_deref(),
             Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn typed_source_imports_export_global_homes_and_keep_original_site_scope() {
+        let parent = tcl_compiler::analyser::Analyser::new().analyse(
+            "namespace eval N {set dir /EPHEMERAL; source /s/shared.tcl}; set globalDir /GLOBAL; source /s/shared.tcl", "jim");
+        let reader = tcl_compiler::analyser::Analyser::new()
+            .analyse("source $dir/missing.tcl; source $globalDir/core.tcl", "jim");
+        let core = tcl_compiler::analyser::Analyser::new().analyse("", "jim");
+        let index = sourced_index([
+            ("file:///s/start.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///GLOBAL/core.tcl", &core),
+        ]);
+        let imports = index.imported_path_constants_for("file:///s/shared.tcl");
+        assert!(!imports.contains_key("dir"));
+        // The earlier namespace route supplies no globalDir; agreement must
+        // not use the later route's value for all executions.
+        assert!(!imports.contains_key("globalDir"));
+        assert_eq!(
+            imports.naming_policy(),
+            parent.path_constant_assignments.naming_policy()
+        );
+        let seeds = index.source_seed_map(test_resolve);
+        assert!(!seeds.contains_key("file:///s/missing.tcl"));
+    }
+
+    #[test]
+    fn path_inventory_reset_and_snapshot_preserve_empty_policy_changes() {
+        let c = tcl_compiler::analyser::Analyser::new().analyse("", "tcl8.6");
+        let jim = tcl_compiler::analyser::Analyser::new().analyse("", "jim");
+        let mut index = sourced_index([("file:///empty.tcl", &c)]);
+        let before = index.path_constant_assignments("file:///empty.tcl").clone();
+        assert!(before.is_empty());
+        index.add_document("file:///empty.tcl", &jim);
+        assert_ne!(
+            index.path_constant_assignments("file:///empty.tcl"),
+            &before
+        );
+        assert_eq!(
+            index
+                .path_constant_assignments("file:///missing.tcl")
+                .naming_policy(),
+            None
         );
     }
 
@@ -9982,7 +12048,7 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let link = index
             .command_links()
-            .find(|l| l.linked_qname.trim_start_matches("::") == "set")
+            .find(|l| unroot_rooted_key(&l.linked_qname).unwrap_or(&l.linked_qname) == "set")
             .expect("top-level alias link indexed");
         assert!(!link.nested, "a top-level alias is never nested");
         assert!(
@@ -10004,7 +12070,7 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let link = index
             .command_links()
-            .find(|l| l.linked_qname.trim_start_matches("::") == "set")
+            .find(|l| unroot_rooted_key(&l.linked_qname).unwrap_or(&l.linked_qname) == "set")
             .expect("nested alias link indexed");
         assert!(
             link.nested,
@@ -11255,5 +13321,740 @@ mod tests {
                 "no export rows for ::tcl::mathop, so nothing is admissible",
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_settlement_transport_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    use tcl_compiler::signature_scan::scope::SignatureSourceCommand;
+
+    fn original_analysis(source: &str) -> AnalysisResult {
+        Analyser::new().analyse(source, "tcl8.6").clone()
+    }
+
+    fn clear_reporting(analysis: &mut AnalysisResult) {
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "reporting-only".to_owned();
+            invocation.resolved_qualified_name = Some("::wrong".to_owned());
+            invocation.resolution_candidates = vec!["::wrong".to_owned()];
+        }
+    }
+
+    fn original_names(analysis: &AnalysisResult) -> Vec<SignatureSourceCommand> {
+        analysis
+            .original_procedure_declarations()
+            .map(|declaration| declaration.name().clone())
+            .collect()
+    }
+
+    #[test]
+    fn original_source_procedure_candidates_share_slots_and_reindex_currency() {
+        // naming.source.original-procedure-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
+        let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
+        let mut analysis = original_analysis(source);
+        assert!(analysis.original_completed_command_world().is_none());
+        clear_reporting(&mut analysis);
+        let uri = "file:///source-procedures.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let candidates = index
+            .original_procedure_source_candidates()
+            .collect::<Vec<_>>();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].0, uri);
+        assert_eq!(candidates[0].1.name_input().bytes(), b"old");
+        assert_eq!(candidates[0].2.simple.as_bytes(), b"moved");
+        let caller = original_analysis("moved; old; deleted");
+        for invocation in &caller.command_invocations {
+            let input = invocation.original_name_input.as_ref().unwrap();
+            let lookup = tcl_compiler::signature_scan::scope::SignatureSourceLookup::from_input(
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+                    tcl_core_types::ByteNamespacePath::root(),
+                ),
+                input,
+            )
+            .unwrap();
+            let matching = index.original_procedure_candidates(&lookup);
+            assert_eq!(matching.len(), usize::from(input.bytes() == b"moved"));
+            if let Some((owner, declaration)) = matching.first() {
+                assert_eq!(*owner, uri);
+                assert_eq!(declaration.name_input().bytes(), b"old");
+            }
+        }
+        let dependency = index.docs[0].settlement_dependencies();
+        let replacement = original_analysis("proc old {value} {}; rename old other");
+        index.replace_document(uri, &replacement);
+        assert!(dependency != index.docs[0].settlement_dependencies());
+        let names = index
+            .original_procedure_source_candidates()
+            .map(|(_, _, slot, _)| slot.simple.as_bytes().to_vec())
+            .collect::<Vec<_>>();
+        assert_eq!(names, [b"other".to_vec()]);
+        index.remove_document(uri);
+        index.add_document("file:///reused.tcl", &AnalysisResult::default());
+        assert!(
+            index
+                .original_procedure_source_candidates()
+                .next()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_source_class_candidates_share_current_slots_and_canonical_navigation() {
+        // naming.source.original-class-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-class-publications.md
+        let source = "oo::class create Old {}; oo::class create Removed {}; rename Old New; rename Removed {}";
+        let mut analysis = original_analysis(source);
+        assert!(analysis.original_completed_command_world().is_none());
+        clear_reporting(&mut analysis);
+        let uri = "file:///source-classes.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        assert_eq!(index.original_class_declarations().count(), 2);
+        let candidates = index.original_class_source_candidates().collect::<Vec<_>>();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].0, uri);
+        assert_eq!(candidates[0].1.name_input().bytes(), b"Old");
+        assert_eq!(candidates[0].2.simple.as_bytes(), b"New");
+        let canonical = candidates[0].1.name().clone();
+        let caller = original_analysis("New; Old; Removed");
+        for invocation in &caller.command_invocations {
+            let input = invocation.original_name_input.as_ref().unwrap();
+            let lookup = tcl_compiler::signature_scan::scope::SignatureSourceLookup::from_input(
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+                    tcl_core_types::ByteNamespacePath::root(),
+                ),
+                input,
+            )
+            .unwrap();
+            let selected = input.bytes() == b"New";
+            let matching = index.original_class_candidates(&lookup);
+            assert_eq!(matching.len(), usize::from(selected));
+            for follow_links in [false, true] {
+                assert_eq!(
+                    index.original_assistance_target(
+                        invocation.original_lookup.as_ref().unwrap(),
+                        follow_links,
+                    ),
+                    selected.then(|| SettledCommandTarget::OriginalSlot(
+                        canonical.slot().clone(),
+                        canonical.policy(),
+                    )),
+                );
+            }
+        }
+        let dependencies = index.docs[0].settlement_dependencies();
+        let replacement = original_analysis("oo::class create Old {}; rename Old Other");
+        index.replace_document(uri, &replacement);
+        assert!(dependencies != index.docs[0].settlement_dependencies());
+        assert_eq!(
+            index
+                .original_class_source_candidates()
+                .next()
+                .unwrap()
+                .2
+                .simple
+                .as_bytes(),
+            b"Other",
+        );
+        index.remove_document(uri);
+        index.add_document("file:///reused-class.tcl", &AnalysisResult::default());
+        assert!(index.original_class_source_candidates().next().is_none());
+        assert!(index.docs[0].original_source_input.is_none());
+        assert!(index.docs[0].original_source_classes.is_none());
+    }
+
+    #[test]
+    fn original_source_class_dependencies_retain_mutation_premises_and_known_barriers() {
+        // naming.source.original-class-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-class-publications.md
+        let uri = "file:///source-classes.tcl";
+        let source = "oo::class create C {}";
+        let analysis = original_analysis(source);
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let dependencies = index.docs[0].settlement_dependencies();
+        let uncertain = original_analysis("oo::class create C {}; unknown_effect");
+        assert!(uncertain.original_completed_command_world().is_none());
+        index.replace_document(uri, &uncertain);
+        let changed = index.docs[0].settlement_dependencies();
+        assert_eq!(changed.original_source_class_candidates.len(), 1);
+        assert!(changed.original_source_class_candidates[0].3.contains(
+            &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
+        ));
+        assert!(dependencies != changed);
+        for source in [
+            "oo::class create C {}; rename C {}",
+            "oo::class create C {}; proc C {} {}",
+        ] {
+            let deleted = original_analysis(source);
+            index.replace_document(uri, &deleted);
+            assert_eq!(index.original_class_declarations().count(), 1);
+            assert!(index.original_class_source_candidates().next().is_none());
+            assert!(
+                index.docs[0]
+                    .settlement_dependencies()
+                    .original_source_class_candidates
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn original_source_class_candidates_require_the_retained_input_and_availability() {
+        // naming.source.original-class-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-class-publications.md
+        let source = "oo::class create C {}";
+        let uri = "file:///source-classes.tcl";
+        let analysis = original_analysis(source);
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        assert_eq!(index.original_class_source_candidates().count(), 1);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let generation = input.context_registry();
+        let foreign = Arc::new(
+            generation.with_command_store(generation.commands().snapshot().shared_registry()),
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut changed = analysis.clone();
+        changed.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            foreign,
+            input.lexer_config(),
+        ));
+        let mut wrong_config = analysis.clone();
+        wrong_config
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting = !analysis.body_lexer_config.unwrap().strict_quoting;
+        for refused in [missing, changed, wrong_config] {
+            index.replace_document(uri, &refused);
+            assert_eq!(index.original_class_declarations().count(), 1);
+            assert!(index.original_class_source_candidates().next().is_none());
+        }
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(generation.commands())),
+        );
+        let supplied = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        );
+        let unavailable = Analyser::new()
+            .with_resolved_input(supplied)
+            .analyse(source, "tcl8.6");
+        index.replace_document(uri, &unavailable);
+        assert!(index.original_class_source_candidates().next().is_none());
+        assert_eq!(index.original_class_declarations().count(), 0);
+        assert!(index.docs[0].original_source_classes.is_some());
+    }
+
+    #[test]
+    fn original_reverse_index_keeps_opaque_slots_after_reporting_is_cleared() {
+        let mut library = original_analysis("proc p\\uD800 {} {}\nproc p\\uD801 {} {}\n");
+        let mut caller = original_analysis("p\\uD800\np\\uD801\n");
+        let names = original_names(&library);
+        assert_eq!(names.len(), 2);
+        assert_ne!(names[0].slot(), names[1].slot());
+        clear_reporting(&mut library);
+        clear_reporting(&mut caller);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///library.tcl", &library),
+            ("file:///caller.tcl", &caller),
+        ]);
+        for name in &names {
+            let rows = index.original_invocations_of(name, "", false);
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].uri, "file:///caller.tcl");
+            assert_eq!(
+                rows[0].original_name_input.as_ref().unwrap().bytes(),
+                name.slot().simple.as_bytes()
+            );
+            assert!(
+                index
+                    .original_invocations_of(name, "file:///caller.tcl", false)
+                    .is_empty()
+            );
+        }
+        assert_eq!(index.settled_invocations[0].settled_documents(), 2);
+    }
+
+    #[test]
+    fn lexical_rename_advice_requires_every_captured_provider_and_refuses_vendor_contexts() {
+        // Implementation contract: naming.workspace.lexical-rename-advice-eligibility
+        // docs/design/analysis/name-resolution-proofs/workspace-lexical-rename-advice-eligibility.md
+        let point =
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "indexed-logical-jim079",
+            &[],
+            "Logical Jim source advice",
+            point,
+        )
+        .intern();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let logical = Analyser::new()
+            .with_resolved_input(input)
+            .analyse("proc lexical {} {}", profile.name);
+        assert!(logical.allows_lexical_declaration_advice());
+        assert!(!WorkspaceIndex::new().allows_lexical_rename_advice());
+        let mut index = WorkspaceIndex::from_documents([("file:///logical.tcl", &logical)]);
+        assert!(index.allows_lexical_rename_advice());
+        assert!(index.clone().allows_lexical_rename_advice());
+        let mut native = Analyser::new().analyse(r"proc p\uD800 {} {}", "tcl8.6");
+        native.dialect = profile.name.to_owned();
+        index.add_document("file:///native.tcl", &native);
+        assert!(!index.allows_lexical_rename_advice());
+        index.remove_document("file:///native.tcl");
+        assert!(index.allows_lexical_rename_advice());
+        for source in ["proc vendor {} {}", ""] {
+            let mut vendor = Analyser::new().analyse(source, "f5-irules");
+            vendor.dialect = profile.name.to_owned();
+            index.add_document("file:///vendor.tcl", &vendor);
+            assert!(!index.allows_lexical_rename_advice(), "{source:?}");
+            index.remove_document("file:///vendor.tcl");
+            assert!(index.allows_lexical_rename_advice());
+        }
+        index.add_document("file:///unknown.tcl", &AnalysisResult::default());
+        assert!(!index.allows_lexical_rename_advice());
+        index.remove_document("file:///unknown.tcl");
+        assert!(index.allows_lexical_rename_advice());
+    }
+
+    #[test]
+    fn workspace_symbols_require_current_source_context_before_report_advice() {
+        // naming.editor.original-indexed-source-location
+        // docs/design/analysis/name-resolution-proofs/original-indexed-source-location.md
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        let source = "proc visible {} {}";
+        let uri = "file:///symbols.tcl";
+        let logical = Analyser::new().analyse(source, "tcl");
+        assert!(logical.allows_lexical_declaration_advice());
+        let mut index = WorkspaceIndex::from_documents([(uri, &logical)]);
+        let symbols = index.symbols_matching("visible", 100);
+        assert_eq!(symbols.len(), 1);
+        assert!(symbols[0].original_location.is_none());
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        index.replace_document(uri, &native);
+        let symbols = index.symbols_matching("visible", 100);
+        assert_eq!(symbols.len(), 1);
+        assert!(symbols[0].original_location.is_some());
+        for mut refused in [logical, native] {
+            assert!(!refused.all_procs.is_empty());
+            refused.resolved_input = None;
+            index.replace_document(uri, &refused);
+            assert!(index.diagnostic_source_context(uri).is_none());
+            assert!(index.symbols_matching("visible", 100).is_empty());
+        }
+        let mut stale_config = Analyser::new().analyse(source, "tcl8.6");
+        let config = stale_config.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        index.replace_document(uri, &stale_config);
+        assert!(index.diagnostic_source_context(uri).is_none());
+        assert!(index.symbols_matching("visible", 100).is_empty());
+        index.remove_document(uri);
+        index.add_document(uri, &AnalysisResult::default());
+        assert!(index.symbols_matching("", 100).is_empty());
+    }
+
+    #[test]
+    fn diagnostic_source_context_retains_currency_and_clears_reused_slots() {
+        // Implementation contract: naming.editor.original-diagnostic-invalidation
+        // docs/design/analysis/name-resolution-proofs/original-diagnostic-invalidation.md
+        let uri = "file:///provider.tcl";
+        let source = "proc p\\uD800 {} {}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let context = index.diagnostic_source_context(uri).unwrap();
+        assert_eq!(context.image(), &tcl_lexer::SourceImage::document(source));
+        assert_eq!(context.config(), analysis.body_lexer_config.unwrap());
+        assert!(context.uses_original_names());
+        assert_eq!(index.clone().diagnostic_source_context(uri), Some(context));
+        index.remove_document(uri);
+        assert!(index.diagnostic_source_context(uri).is_none());
+        index.add_document("file:///reused.tcl", &AnalysisResult::default());
+        assert!(
+            index
+                .diagnostic_source_context("file:///reused.tcl")
+                .is_none()
+        );
+        let mut stale_config = analysis.clone();
+        let mut config = stale_config.body_lexer_config.unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        stale_config.body_lexer_config = Some(config);
+        index.replace_document(uri, &stale_config);
+        assert!(index.diagnostic_source_context(uri).is_none());
+    }
+
+    #[test]
+    fn original_reverse_index_does_not_replace_missing_lookup_with_reports() {
+        let mut library = original_analysis("proc p\\uD800 {} {}\n");
+        let mut caller = original_analysis("p\\uD800\n");
+        let name = original_names(&library).remove(0);
+        let invocation = caller
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| {
+                invocation
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.bytes() == b"p\xed\xa0\x80")
+            })
+            .unwrap();
+        assert!(invocation.original_lookup.is_some());
+        invocation.original_lookup = None;
+        invocation.resolved_command_reference = None;
+        invocation.resolved_definition = None;
+        invocation.resolved_qualified_name = Some("::p\u{fffd}".to_owned());
+        invocation.resolution_candidates = vec!["::p\u{fffd}".to_owned()];
+        clear_reporting(&mut library);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///library.tcl", &library),
+            ("file:///caller.tcl", &caller),
+        ]);
+        assert!(index.original_invocations_of(&name, "", false).is_empty());
+        assert!(index.original_invocations_of(&name, "", true).is_empty());
+    }
+
+    #[test]
+    fn original_reverse_index_rejects_input_from_another_retained_source() {
+        let library = original_analysis("proc p\\uD800 {} {}\n");
+        let mut caller = original_analysis("p\\uD800\n");
+        let other = original_analysis("p\\uD801\n");
+        let name = original_names(&library).remove(0);
+        let other_input = other
+            .command_invocations
+            .iter()
+            .find_map(|invocation| invocation.original_name_input.clone())
+            .unwrap();
+        let invocation = caller
+            .command_invocations
+            .iter_mut()
+            .find(|invocation| invocation.original_lookup.is_some())
+            .unwrap();
+        assert_ne!(invocation.original_name_input.as_ref(), Some(&other_input));
+        invocation.original_name_input = Some(other_input);
+        invocation.resolved_command_reference = None;
+        invocation.resolved_definition = None;
+        let index = WorkspaceIndex::from_documents([
+            ("file:///library.tcl", &library),
+            ("file:///caller.tcl", &caller),
+        ]);
+        assert!(index.original_invocations_of(&name, "", false).is_empty());
+    }
+
+    #[test]
+    fn original_body_only_replacement_keeps_minimal_settlement_dependencies() {
+        let mut library =
+            original_analysis("proc p\\uD800 {} {return FIRST}\nproc p\\uD801 {} {}\n");
+        let mut caller = original_analysis("p\\uD800\np\\uD801\n");
+        let names = original_names(&library);
+        clear_reporting(&mut library);
+        clear_reporting(&mut caller);
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///library.tcl", &library),
+            ("file:///caller.tcl", &caller),
+        ]);
+        assert!(library.original_completed_command_world().is_some());
+        for name in &names {
+            assert_eq!(index.original_invocations_of(name, "", false).len(), 1);
+        }
+        let cold = index.settled_invocations[0].settled_documents();
+        let old_dependencies = index.docs[0].settlement_dependencies();
+        let mut replacement =
+            original_analysis("proc p\\uD800 {} {return SECOND}\nproc p\\uD801 {} {}\n");
+        clear_reporting(&mut replacement);
+        index.replace_document("file:///library.tcl", &replacement);
+        assert!(
+            old_dependencies == index.docs[0].settlement_dependencies(),
+            "body/source-image changes cannot enter the settlement dependency header"
+        );
+        for name in &names {
+            assert_eq!(index.original_invocations_of(name, "", false).len(), 1);
+        }
+        assert_eq!(
+            index.settled_invocations[0].settled_documents(),
+            cold + 1,
+            "only the changed document needs settlement when exact published slots are unchanged"
+        );
+        let rebuilt = WorkspaceIndex::from_documents([
+            ("file:///library.tcl", &replacement),
+            ("file:///caller.tcl", &caller),
+        ]);
+        for name in &names {
+            assert_eq!(
+                index.original_invocations_of(name, "", false).len(),
+                rebuilt.original_invocations_of(name, "", false).len()
+            );
+        }
+        let mut removed = original_analysis("proc p\\uD801 {} {}\n");
+        clear_reporting(&mut removed);
+        index.replace_document("file:///library.tcl", &removed);
+        assert!(
+            index
+                .original_invocations_of(&names[0], "", false)
+                .is_empty()
+        );
+        assert_eq!(index.original_invocations_of(&names[1], "", false).len(), 1);
+        assert_eq!(
+            index.settled_invocations[0].settled_documents(),
+            cold + 3,
+            "changing an original publication re-settles the caller too"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_namespace_export_index_tests {
+    use super::*;
+    use crate::namespace_import::NamespaceExportOracle;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+        // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declarations = analysis
+            .original_procedure_declarations()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        analysis.namespace_exports.clear();
+        analysis.all_procs.clear();
+        let index = WorkspaceIndex::from_documents([("file:///exports.tcl", &analysis)]);
+        let snapshot = index.export_snapshot();
+        let ask = |at, name: &tcl_compiler::signature_scan::scope::SignatureSourceCommand| {
+            snapshot.exported_at_original(
+                name.slot(),
+                name.policy(),
+                RunPoint {
+                    uri: "file:///exports.tcl",
+                    at,
+                    enclosing_body: None,
+                },
+            )
+        };
+        let first = declarations
+            .iter()
+            .find(|record| record.name().slot().simple.as_bytes() == b"p\xed\xa0\x80")
+            .unwrap()
+            .name();
+        let second = declarations
+            .iter()
+            .find(|record| record.name().slot().simple.as_bytes() == b"p\xed\xa0\x81")
+            .unwrap()
+            .name();
+        let at = u32::try_from(source.len()).unwrap();
+        assert_eq!(ask(at, first), ExportVerdict::NotExported);
+        assert_eq!(ask(at, second), ExportVerdict::Exported);
+        assert_eq!(
+            snapshot.exported_at(
+                "::",
+                "p\u{fffd}",
+                RunPoint {
+                    uri: "file:///exports.tcl",
+                    at,
+                    enclosing_body: None
+                }
+            ),
+            ExportVerdict::Unknown
+        );
+        let foreign =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0);
+        assert_eq!(
+            snapshot.exported_at_original(
+                second.slot(),
+                foreign,
+                RunPoint {
+                    uri: "file:///exports.tcl",
+                    at,
+                    enclosing_body: None
+                }
+            ),
+            ExportVerdict::Unknown
+        );
+    }
+
+    #[test]
+    fn original_import_index_retains_opaque_patterns_without_reporting_rows() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+        // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+        let source = r"namespace import -force ::n\uD800::p\uD801";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let pattern = analysis
+            .original_namespace_patterns()
+            .next()
+            .expect("genuine original import")
+            .clone();
+        assert!(pattern.forced());
+        analysis.namespace_imports.clear();
+        let index = WorkspaceIndex::from_documents([("file:///import.tcl", &analysis)]);
+        let rows = index.original_namespace_patterns().collect::<Vec<_>>();
+        assert_eq!(rows, vec![("file:///import.tcl", &pattern)]);
+        assert_eq!(pattern.parts().tail.as_bytes(), b"p\xed\xa0\x81");
+    }
+
+    #[test]
+    fn original_export_unknown_operand_blocks_source_absence_and_match_advice() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+        // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+        let source = "proc p {} {}; namespace export p; namespace export $unavailable";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let name = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name();
+        assert!(!analysis.original_namespace_export_unknowns().is_empty());
+        let index = WorkspaceIndex::from_documents([("file:///unknown.tcl", &analysis)]);
+        assert_eq!(
+            index.export_snapshot().exported_at_original(
+                name.slot(),
+                name.policy(),
+                RunPoint {
+                    uri: "file:///unknown.tcl",
+                    at: u32::try_from(source.len()).unwrap(),
+                    enclosing_body: None,
+                }
+            ),
+            ExportVerdict::Unknown
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_store_consumer_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    use tcl_registry::definer::DefinerFamily;
+
+    fn analyse(source: &str, conflict: bool, class_grammar: bool) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        if conflict {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "Target::p",
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+        }
+        if class_grammar {
+            let mut spec = registry.get("itcl::class").unwrap().clone();
+            spec.name = "source_class";
+            spec.required_package = None;
+            registry.insert(spec);
+        }
+        let context = tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(Arc::new(registry));
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn indexed_class_family_retains_its_actual_store_and_unknown_stays_unknown() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "source_class C {proc make {} {return OK}}";
+        let mut analysis = analyse(source, false, true);
+        let uri = "file:///class.tcl";
+        let index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let class = index.classes_named("::C")[0];
+        assert_eq!(class.definer_family(), Some(DefinerFamily::Itcl));
+        assert!(class.is_itcl(tcl_dialect::DialectProfile::find("tcl9.1").unwrap()));
+        assert!(
+            crate::registry_for_dialect_profile(tcl_dialect::DialectProfile::plain_tcl())
+                .get(&class.metaclass)
+                .is_none()
+        );
+        assert_eq!(
+            index.clone().classes_named("::C")[0].definer_family(),
+            class.definer_family()
+        );
+        analysis.resolved_input = None;
+        let unknown = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        assert_eq!(unknown.classes_named("::C")[0].definer_family(), None);
+        assert!(unknown.registry_for(uri).is_none());
+    }
+
+    #[test]
+    fn actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Readonly authored import metadata; no installed native import is issued.
+        let library_source = "namespace eval Mine {proc p {} {}; namespace export p}\n";
+        let caller_source = "namespace eval Target {namespace import ::Mine::*; proc run {} {p}}\n";
+        let library = analyse(library_source, false, false);
+        let first = analyse(caller_source, false, false);
+        let second = analyse(caller_source, true, false);
+        assert_eq!(first.dialect, second.dialect);
+        let uri = "file:///caller.tcl";
+        let mut index =
+            WorkspaceIndex::from_documents([("file:///library.tcl", &library), (uri, &first)]);
+        let before = index.docs[*index.slots.get(uri).unwrap()].settlement_dependencies();
+        assert_eq!(index.linked_invocations_of("::Mine::p", "").len(), 1);
+        index.replace_document(uri, &second);
+        let after = index.docs[*index.slots.get(uri).unwrap()].settlement_dependencies();
+        assert!(before != after);
+        assert!(
+            index
+                .registry_for(uri)
+                .unwrap()
+                .declares_command_at("::Target::p")
+        );
+        assert!(index.linked_invocations_of("::Mine::p", "").is_empty());
+        index.replace_document(uri, &first);
+        assert_eq!(index.linked_invocations_of("::Mine::p", "").len(), 1);
+    }
+
+    #[test]
+    fn indexed_registry_borrow_rejects_foreign_input_and_cleared_slot() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "proc p {} {}; p";
+        let original = analyse(source, false, false);
+        let foreign = analyse(source, true, false);
+        let uri = "file:///source.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &original)]);
+        assert_eq!(
+            index.registry_for(uri).unwrap().snapshot().semantic_key(),
+            original
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key()
+        );
+        let slot = *index.slots.get(uri).unwrap();
+        index.docs[slot].original_source_input = foreign.resolved_input;
+        assert!(index.registry_for(uri).is_none());
+        index.replace_document(uri, &original);
+        assert!(index.registry_for(uri).is_some());
+        index.remove_document(uri);
+        index.add_document("file:///reused.tcl", &AnalysisResult::default());
+        assert!(index.registry_for("file:///reused.tcl").is_none());
+        assert!(index.registry_for(uri).is_none());
     }
 }

@@ -1,0 +1,31 @@
+{
+  "request": "OriginalTcltestAliasCallerFrame437",
+  "canonical_question_proposal": "naming.tcltest.original-alias-caller-frame-lifecycle",
+  "canonical_doc_proposal": "docs/design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md",
+  "source": "/tmp/diagnostic-tcltest-alias-caller-frame437/probe.tcl",
+  "source_sha256": "3f0c9a8a6c6d554834088d4973dfcfa621e8c927b6f376e1315b77995cd9a9a2",
+  "providers": [
+    "C Tcl 8.4.20",
+    "C Tcl 8.5.19",
+    "C Tcl 8.6.18",
+    "C Tcl 9.0.4",
+    "C Tcl 9.1.0",
+    "current pinned Jim0.84-9-g5bac7c9"
+  ],
+  "input_channel": "Each original CLI receives the same exact ASCII file script in a fresh isolated process; actual package loading is performed by that interpreter, never supplied by Registry fixture metadata. Root retains complete stdout/stderr/process receipt and actual original CLI/build/source pins before and after. No new compile/runtime from this agent.",
+  "question": "For the exact loaded original Tcltest package and fixed original CLI source, do qualified, imported, direct interp alias and captured-name/description alias invocations preserve setup/body/cleanup caller-visible values? What actual namespace-imported caller result is observed? What independent global-test/qualified-wrapper availability and setup-error behavior is observed on the other package implementation?",
+  "scope": "Public catch codes, full results/events, same-caller procedure variable visibility, literal expected-result data versus evaluation, original package version and handler availability for this exact source only. C alias ordinals originate in genuine interp alias commands and real selected package loading. Jim/global-test branch is independent and does not borrow C qualified lifecycle identity. The test source deliberately uses benign named values for original #2286 reported variables; it does not execute tclopt constructors. No Native object/header/argv identity, current diagnostic source span, physical frame receipt, Registry stock attestation, entered worker, Normal/effect/allocation/SSA/edit permission, or whole compiler parity follows.",
+  "expectations": "No result is inferred in advance. Keep every raw row and any unexpected guest/process failure; no success from missing unsupported entry doors. Existing lifecycle direct observations remain unchanged. If package loading or C qualified handler is absent the exact availability row is evidence of that absence only.",
+  "software_relation": {
+    "packet": "/tmp/diagnostic-tcltest-alias-lifecycle436/manifest.json",
+    "limits": "New Compiler assertions are separately source/API-only, unexecuted until a genuine later Compiler image. The raw CLI request does not execute those Rust assertions or prove their provenance."
+  },
+  "execute_by": "Root only",
+  "validation": {
+    "source_ascii": true,
+    "embedded_raw_nul": false,
+    "native_execution": "not run",
+    "cargo": "not run",
+    "live_edits": false
+  }
+}

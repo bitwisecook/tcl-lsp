@@ -1,0 +1,23 @@
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error: this could be rewritten as `let...else`
+    --> rust/tcl-registry/src/resolved_invocation.rs:2438:9
+     |
+2438 | /         let spelling = match self.subcommand {
+2439 | |             SubcommandResolution::Unknown { spelling }
+2440 | |             | SubcommandResolution::Ambiguous { spelling } => spelling,
+2441 | |             _ => return None,
+2442 | |         };
+     | |__________^ help: consider writing: `let (SubcommandResolution::Unknown { spelling } | SubcommandResolution::Ambiguous { spelling }) = self.subcommand else { return None };`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_let_else
+     = note: `-D clippy::manual-let-else` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::manual_let_else)]`
+
+error: could not compile `tcl-registry` (lib) due to 1 previous error

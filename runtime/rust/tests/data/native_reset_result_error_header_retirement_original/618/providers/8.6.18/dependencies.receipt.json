@@ -1,0 +1,36 @@
+{
+  "provider": "8.6.18",
+  "channel": "dependencies",
+  "status": "closed",
+  "command": [
+    "/usr/bin/ldd",
+    "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-reset-result-error-header-retirement618",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "CPATH",
+      "C_INCLUDE_PATH",
+      "CPLUS_INCLUDE_PATH",
+      "OBJC_INCLUDE_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "source_sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.007949748978717253,
+  "stdout_sha256": "8ccba5b0e86a449dc63cece3a779587aaff9a176cb6e50a79bc8ffd8884a8a7e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verification_scope": "Actual process/streams only. Header, link, runtime, own-executable and final input verification are separate records."
+}

@@ -1,0 +1,22 @@
+{
+  "ordinal": 225,
+  "selector": "frame::rmw::tests::native_get_creates_elements_only_with_an_existing_array_root",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::rmw::tests::native_get_creates_elements_only_with_an_existing_array_root",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.0399522670195438,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.01s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/225.log",
+  "log_sha256": "bfe59822128722fd1349633275e295f4275eb17fbab506e6969192566110bdb8"
+}

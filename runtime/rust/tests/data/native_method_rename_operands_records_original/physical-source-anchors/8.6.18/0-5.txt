@@ -1,0 +1,110 @@
+ */
+
+Tcl_Object
+TclOOGetDefineCmdContext(
+    Tcl_Interp *interp)
+{
+    Interp *iPtr = (Interp *) interp;
+    Tcl_Object object;
+
+    if ((iPtr->varFramePtr == NULL)
+	    || (iPtr->varFramePtr->isProcCallFrame != FRAME_IS_OO_DEFINE)) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"this command may only be called from within the context of"
+		" an ::oo::define or ::oo::objdefine command", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return NULL;
+    }
+    object = iPtr->varFramePtr->clientData;
+    if (Tcl_ObjectDeleted(object)) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"this command cannot be called when the object has been"
+		" deleted", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return NULL;
+    }
+    return object;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * GetClassInOuterContext --
+ *	Wrapper round Tcl_GetObjectFromObj to perform the lookup in the
+ *	context that called oo::define (or equivalent). Note that this may
+ *	have to go up multiple levels to get the level that we started doing
+ *	definitions at.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline Class *
+GetClassInOuterContext(
+    Tcl_Interp *interp,
+    Tcl_Obj *className,
+    const char *errMsg)
+{
+    Interp *iPtr = (Interp *) interp;
+    Object *oPtr;
+    CallFrame *savedFramePtr = iPtr->varFramePtr;
+
+    while (iPtr->varFramePtr->isProcCallFrame == FRAME_IS_OO_DEFINE) {
+	if (iPtr->varFramePtr->callerVarPtr == NULL) {
+	    Tcl_Panic("getting outer context when already in global context");
+	}
+	iPtr->varFramePtr = iPtr->varFramePtr->callerVarPtr;
+    }
+    oPtr = (Object *) Tcl_GetObjectFromObj(interp, className);
+    iPtr->varFramePtr = savedFramePtr;
+    if (oPtr == NULL) {
+	return NULL;
+    }
+    if (oPtr->classPtr == NULL) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(errMsg, -1));
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "CLASS",
+		TclGetString(className), (char *)NULL);
+	return NULL;
+    }
+    return oPtr->classPtr;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * GenerateErrorInfo --
+ *	Factored out code to generate part of the error trace messages.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+GenerateErrorInfo(
+    Tcl_Interp *interp,		/* Where to store the error info trace. */
+    Object *oPtr,		/* What object (or class) was being configured
+				 * when the error occurred? */
+    Tcl_Obj *savedNameObj,	/* Name of object saved from before script was
+				 * evaluated, which is needed if the object
+				 * goes away part way through execution. OTOH,
+				 * if the object isn't deleted then its
+				 * current name (post-execution) has to be
+				 * used. This matters, because the object
+				 * could have been renamed... */
+    const char *typeOfSubject)	/* Part of the message, saying whether it was
+				 * an object, class or class-as-object that
+				 * was being configured. */
+{
+    int length;
+    Tcl_Obj *realNameObj = Tcl_ObjectDeleted((Tcl_Object) oPtr)
+	    ? savedNameObj : TclOOObjectName(interp, oPtr);
+    const char *objName = Tcl_GetStringFromObj(realNameObj, &length);
+    int limit = OBJNAME_LENGTH_IN_ERRORINFO_LIMIT;
+    int overflow = (length > limit);
+
+    Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+	    "\n    (in definition script for %s \"%.*s%s\" line %d)",
+	    typeOfSubject, (overflow ? limit : length), objName,
+	    (overflow ? "..." : ""), Tcl_GetErrorLine(interp)));
+}
+
+/*
+ * ----------------------------------------------------------------------

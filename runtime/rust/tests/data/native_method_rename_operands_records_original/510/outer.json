@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "/tmp/receiver-native-method-rename510/capture.py"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "started_ns": 1791687598590638501,
+  "ended_ns": 1791687612477816842,
+  "exit_code": 0,
+  "manifest_sha256": "de4db294517b3d6a161e7e2ee14751e9e4011dd65d20b36d77bb42ce62daf2fb",
+  "stdout": {
+    "path": "/workspace/.proofs/native-method-rename510-outer.stdout",
+    "sha256": "c5a50206417f543dd3f91942322720c2434e0984608414021d1cbb82e54c855d"
+  },
+  "stderr": {
+    "path": "/workspace/.proofs/native-method-rename510-outer.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

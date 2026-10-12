@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::family_b_tests::stock_guard_requires_original_ensemble_configuration_at_every_issuance ... 
+thread 'interp::family_b_tests::stock_guard_requires_original_ensemble_configuration_at_every_issuance' (1360499) panicked at rust/tcl-vm/src/interp.rs:29163:9:
+assertion failed: !vm.check_command_guard(original, "string")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::stock_guard_requires_original_ensemble_configuration_at_every_issuance
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.98s
+

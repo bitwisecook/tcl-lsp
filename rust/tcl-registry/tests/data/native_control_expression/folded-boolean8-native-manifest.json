@@ -1,0 +1,167 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "controls": 8,
+  "records": [
+    {
+      "version": "8.5.19",
+      "command": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/2286-folded-boolean-literal/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-lz",
+        "-ldl",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-folded-boolean-literal/8.5.19"
+      ],
+      "source_sha256": "790a5c6f78e5011ac7c0f5b4e7383594cdf13aabcd331f00d36d103fe42a7621",
+      "header_sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "image_sha256": "117ba3ef167ec291b69269042870a83fec1df0a869099a928e7b555e8023a554",
+      "stdout_sha256": "3bf4a6c7c06e1bfd2719fc2e5a60803083f80b40385183b066cf029b9b1d743b",
+      "exit": 0,
+      "same_original_windows": [
+        {
+          "case": 0,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        },
+        {
+          "case": 0,
+          "index": 1,
+          "same_result": "1",
+          "same_first_literal": "1"
+        },
+        {
+          "case": 1,
+          "index": 0,
+          "same_result": "0",
+          "same_first_literal": "1"
+        },
+        {
+          "case": 1,
+          "index": 1,
+          "same_result": "1",
+          "same_first_literal": "0"
+        }
+      ]
+    },
+    {
+      "version": "8.6.18",
+      "command": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/2286-folded-boolean-literal/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-lz",
+        "-ldl",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-folded-boolean-literal/8.6.18"
+      ],
+      "source_sha256": "790a5c6f78e5011ac7c0f5b4e7383594cdf13aabcd331f00d36d103fe42a7621",
+      "header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "image_sha256": "aa07fe779c2d16a249d58c35272a5630bec9e140d511feffa53b92168a5e276f",
+      "stdout_sha256": "cfad07e6b0bb840f5a046a73cf899f8725dd94cf978c3c094db4ff3a040369f0",
+      "exit": 0,
+      "same_original_windows": [
+        {
+          "case": 0,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        },
+        {
+          "case": 1,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        }
+      ]
+    },
+    {
+      "version": "9.0.4",
+      "command": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/2286-folded-boolean-literal/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-lz",
+        "-ldl",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-folded-boolean-literal/9.0.4"
+      ],
+      "source_sha256": "790a5c6f78e5011ac7c0f5b4e7383594cdf13aabcd331f00d36d103fe42a7621",
+      "header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "image_sha256": "1b2dd37eee08fe98b225612edb6de3aeb47f50f750f2c8153aab687f226429a3",
+      "stdout_sha256": "cfad07e6b0bb840f5a046a73cf899f8725dd94cf978c3c094db4ff3a040369f0",
+      "exit": 0,
+      "same_original_windows": [
+        {
+          "case": 0,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        },
+        {
+          "case": 1,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        }
+      ]
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/2286-folded-boolean-literal/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-lz",
+        "-ldl",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-folded-boolean-literal/9.1.0"
+      ],
+      "source_sha256": "790a5c6f78e5011ac7c0f5b4e7383594cdf13aabcd331f00d36d103fe42a7621",
+      "header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "image_sha256": "d2cc70e4d9cc029dfbc1e8b3e6563281632354fadcad06787ba249624d10b865",
+      "stdout_sha256": "cfad07e6b0bb840f5a046a73cf899f8725dd94cf978c3c094db4ff3a040369f0",
+      "exit": 0,
+      "same_original_windows": [
+        {
+          "case": 0,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        },
+        {
+          "case": 1,
+          "index": 0,
+          "same_result": "1",
+          "same_first_literal": "1"
+        }
+      ]
+    }
+  ]
+}

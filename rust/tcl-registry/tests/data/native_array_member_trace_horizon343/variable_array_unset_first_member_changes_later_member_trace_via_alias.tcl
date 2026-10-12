@@ -1,0 +1,1 @@
+set a(x) X; set a(y) Y; upvar 0 a(x) xx; upvar 0 a(y) yy; set log {}; proc fresh args {lappend ::log NEW}; proc old args {lappend ::log OLD; trace add variable ::xx unset fresh; trace add variable ::yy unset fresh}; trace add variable a(x) unset old; trace add variable a(y) unset old; unset a; set log

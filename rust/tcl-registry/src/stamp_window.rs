@@ -333,6 +333,7 @@ mod tests {
             Some(SurfaceQuery::any_release(Family::F5Irules)),
             Some(SurfaceQuery::core(Family::Jim, "0.81")),
             Some(SurfaceQuery {
+                realm: tcl_dialect::model::InvocationRealm::RuleLoader,
                 core: tcl_dialect::model::CorePoints::NONE,
                 packages: &[],
             }),

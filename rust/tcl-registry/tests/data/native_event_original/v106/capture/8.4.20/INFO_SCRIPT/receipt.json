@@ -1,0 +1,19 @@
+{
+  "id": "INFO_SCRIPT",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.4.20/probe",
+    "10"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "f8ab03c8c2e9e5d53fa2e72ade291da9c2f782d9af66a1c04619a4e3ebdaf911",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "INFO_SCRIPT_INPUT|0|736574206964205b61667465722069646c65207b73657420646f6e6520317d5d3b206c696e646578205b616674657220696e666f202469645d2030",
+    "INFO_SCRIPT|0|73657420646f6e652031",
+    "INFO_SCRIPT_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+  ],
+  "reported_version": "8.4.20"
+}

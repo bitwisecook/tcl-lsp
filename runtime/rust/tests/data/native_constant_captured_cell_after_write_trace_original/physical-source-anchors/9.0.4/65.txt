@@ -1,0 +1,11 @@
+
+#define TclSetVarConstant(varPtr) \
+    (varPtr)->flags = ((varPtr)->flags & ~(VAR_ARRAY|VAR_LINK)) | VAR_CONSTANT
+
+#define TclSetVarArrayElement(varPtr) \
+    (varPtr)->flags = ((varPtr)->flags & ~VAR_ARRAY) | VAR_ARRAY_ELEMENT
+
+#define TclSetVarUndefined(varPtr) \
+    (varPtr)->flags &= ~(VAR_ARRAY|VAR_LINK|VAR_CONSTANT);\
+    (varPtr)->value.objPtr = NULL
+

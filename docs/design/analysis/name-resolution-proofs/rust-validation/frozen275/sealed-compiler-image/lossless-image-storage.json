@@ -1,0 +1,21 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.elf.gz",
+  "stored_sha256": "0c9c0a4a87ea0271ec42c817cf0bce5482f1845e82ab1d5edac6dd63a6bc3c36",
+  "stored_bytes": 39142526,
+  "original_sha256": "98ec7b75b4970c1a51861f1f3c7146392f480d279e402bba78e5e1ff4db4b6d9",
+  "original_bytes": 202851848,
+  "original_recorded_executable": "/workspace/.proofs/pinned-compiler275.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.json",
+  "pin_metadata_sha256": "c0ac33992f96a4808113f7f646b0edb334872263cb7005bb080c66c0b5503520",
+  "build_receipt_id": "rust.frozen275.integration-compiler-own-test-build275",
+  "build_receipt_sha256": "ccdc8f1ff5294bd2ea11911da026c82d27e324680dc410679b40079a2aeef550",
+  "successful_producer_recorded_artifact": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_compiler-7528e034bafba336",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+    "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+    "compression": "gzip",
+    "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+  },
+  "verification": "Exact original pin JSON is unchanged. Original measured ELF digest is verified; byte length is independently measured from that ELF because producer metadata has no bytes field. The independent successful Compiler-only artifact event and original source companion are validated separately from the failed aggregate invocation. Stored gzip is decompressed and fully byte-compared before publication; it is neither another image nor a new run."
+}

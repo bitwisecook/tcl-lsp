@@ -1,0 +1,5 @@
+VERSION|0|382e362e3138
+INPUT|byte-array-utf8-eacute-octets|bytearray|0|c3a9
+RETURN|0|bytearray|0
+INPUT_AFTER|bytearray|1
+RAW|4|c383c2a9

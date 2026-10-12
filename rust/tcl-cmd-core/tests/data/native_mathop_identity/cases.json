@@ -1,0 +1,12 @@
+[
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {llength [info commands ::tcl::mathop::+]}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ add; add 2 3}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {interp alias {} aliasplus {} ::tcl::mathop::+; aliasplus 2 3}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace eval n {namespace path ::tcl::mathop; + 2 3}}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace eval n {namespace import ::tcl::mathop::+; + 2 3}}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc watch {cmd op} {lappend ::seen [lindex $cmd 0]}; trace add execution ::tcl::mathop::+ enter watch; rename ::tcl::mathop::+ renamed; set sum [renamed 2 3]; list $sum $seen}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set events {}; proc number {v} {lappend ::events $v; return $v}; interp alias {} aliasplus {} ::tcl::mathop::+; set sum [aliasplus [number 2] [number 3]]; list $sum $events}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; catch {{odd name}} message; set message}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::+; rename ::tcl::mathop::+ other; + 2 3}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ original; proc ::tcl::mathop::+ args {return OVERRIDE}; list [original 2 3] [::tcl::mathop::+ 2 3]}"
+]

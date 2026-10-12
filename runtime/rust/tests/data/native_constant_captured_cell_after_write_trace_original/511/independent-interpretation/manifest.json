@@ -1,0 +1,19 @@
+{
+  "question_id": "naming.invocation.original-constant-captured-cell-after-write-trace",
+  "purpose": "Read-only partial original-process interpretation; no implementation/semantic pass",
+  "original_aggregate_success": false,
+  "files": [
+    {
+      "path": "/workspace/.proofs/native-constant-partial-interpretation511/interpretation.md",
+      "sha256": "cc1bdac69174431a41b190a20cf9f84eadf26d5e4008f104b04d3ae1fce8776c"
+    },
+    {
+      "path": "/workspace/.proofs/native-constant-partial-interpretation511/joins.json",
+      "sha256": "9106a8ccde48b737b5f57426d4483e7d7db89dd46a247b75d7c1e06dc6c821a1"
+    },
+    {
+      "path": "/workspace/.proofs/native-constant-partial-interpretation511/observations.json",
+      "sha256": "8e89e3b3349bdf258dacd81d5c7865d8b5a969fa3901d1e5238015d13960b03c"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+
+running 1 test
+test interp::native_return_instruction::original_syntax_transport_tests::original_error_converters_check_real_primary_retirement_before_backing_adoption ... 
+thread 'interp::native_return_instruction::original_syntax_transport_tests::original_error_converters_check_real_primary_retirement_before_backing_adoption' (1339219) panicked at src/interp/native_return_instruction.rs:788:26:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'interp::native_return_instruction::original_syntax_transport_tests::original_error_converters_check_real_primary_retirement_before_backing_adoption' (1339219) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:     0x55d496aaee51 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x55d496ac7f7a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x55d496ab635c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x55d496a86936 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x55d496aa4ab1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x55d496aa4ddb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x55d496a86a14 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x55d496a7ecc9 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x55d496a879bd - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x55d496ac861d - core[a9090a07a7fa7517]::panicking::panic_nounwind_fmt
+  10:     0x55d496ac859b - core[a9090a07a7fa7517]::panicking::panic_nounwind
+  11:     0x55d496ac8727 - core[a9090a07a7fa7517]::panicking::panic_cannot_unwind
+  12:     0x55d4957932d9 - tcl_runtime[e4ffbb17d55ca06b]::interp::native_return_instruction::original_syntax_transport_tests::retire
+  13:     0x55d495abc22e - tcl_runtime[e4ffbb17d55ca06b]::obj::change_type
+  14:     0x55d495ac5d5f - tcl_runtime[e4ffbb17d55ca06b]::obj::discard_native_internal_representation
+  15:     0x55d495d5c9b6 - tcl_runtime[e4ffbb17d55ca06b]::list::install_list_backing
+  16:     0x55d495d188c8 - tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_with_stage_check::{closure#1}
+  17:     0x55d495cab20f - tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_using::<tcl_syntax[66d25b05e3cfd3a0]::value::ValueError, tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_with_stage_check::{closure#0}, tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_with_stage_check::{closure#1}>
+  18:     0x55d495d5f14a - tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_with_stage_check
+  19:     0x55d495cf702d - tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_using::<tcl_runtime_api[b69f25f6352520e5]::native_execution_error::NativeExecutionError, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#0}, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#1}>::{closure#0}
+  20:     0x55d495cacdd1 - tcl_runtime[e4ffbb17d55ca06b]::list::with_native_conversion_check::<alloc[12ca63220423dfc2]::vec::Vec<*mut tcl_runtime[e4ffbb17d55ca06b]::obj::TclObj>, tcl_runtime_api[b69f25f6352520e5]::native_execution_error::NativeExecutionError, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#0}, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#1}, tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_using<tcl_runtime_api[b69f25f6352520e5]::native_execution_error::NativeExecutionError, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#0}, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#1}>::{closure#0}>
+  21:     0x55d495cab45b - tcl_runtime[e4ffbb17d55ca06b]::list::list_elements_native_using::<tcl_runtime_api[b69f25f6352520e5]::native_execution_error::NativeExecutionError, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#0}, <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}::{closure#1}>
+  22:     0x55d4955ebee5 - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked::{closure#0}
+  23:     0x55d49516a1a2 - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack_checked
+  24:     0x55d495262c9d - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::seed_original_error_stack
+  25:     0x55d49579ddef - tcl_runtime[e4ffbb17d55ca06b]::interp::native_return_instruction::original_syntax_transport_tests::original_error_converters_check_real_primary_retirement_before_backing_adoption
+  26:     0x55d495706573 - tcl_runtime[e4ffbb17d55ca06b]::interp::native_return_instruction::original_syntax_transport_tests::original_error_converters_check_real_primary_retirement_before_backing_adoption::{closure#0}
+  27:     0x55d495980916 - <tcl_runtime[e4ffbb17d55ca06b]::interp::native_return_instruction::original_syntax_transport_tests::original_error_converters_check_real_primary_retirement_before_backing_adoption::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  28:     0x55d4960d412b - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  29:     0x55d4960e1795 - test[de0ab365ed256f3]::run_test::{closure#0}
+  30:     0x55d4960dc154 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  31:     0x55d4960e48f2 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  32:     0x55d496aadd59 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  33:     0x7f0d49fdcb7b - <unknown>
+  34:     0x7f0d4a05a7f8 - <unknown>
+  35:                0x0 - <unknown>
+thread caused non-unwinding panic. aborting.

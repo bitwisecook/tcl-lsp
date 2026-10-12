@@ -55,7 +55,7 @@ what it reads.
 | `value_provenance.rs` | its own φ / copy walk and `[list …]` element count |
 | `script_arg.rs` | a `[list …]` script through `Traits::BUILDS_COMMAND_PREFIX` |
 | `auto_path_eval.rs` | `file` subcommands on the registry's path route where every platform reads the name alike; `info script`, and the host's `dirname`, `normalize`, and `join` readings the route declines, waived as irreducible |
-| `analyser/` | `const_strings`, `last_literal_set_value_for_var`, `infer_list_length_from_recent_set`: the analyser's own lexical constant store and two backward source re-scans |
+| `analyser/` | `const_strings` retains lexical source facts; `infer_list_length_from_recent_set` performs an innermost structural scan under retained `BoundsMetadataContext` and complete lexer configuration. W103/W300 path advice uses selected original descriptors and the complete CU written-value premise. |
 
 Three modules are the exemplars:
 `rust/tcl-compiler/src/existence_query.rs` recognises `[info exists X]`

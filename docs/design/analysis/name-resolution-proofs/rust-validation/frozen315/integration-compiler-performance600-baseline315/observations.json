@@ -1,0 +1,153 @@
+{
+  "original_receipt_sha256": "903a4352077e3d347c62c66176f94d52476d30cb8fe701a966b9c7381b13f59a",
+  "original_log_sha256": "b455ef614eed00f8fea187f8aa2a410a99c175ca5cbf3b2f3c9fb732eb27befc",
+  "original_command": [
+    "env",
+    "TCL_LSP_TRACE_SOURCE_PHASES=1",
+    "/workspace/.proofs/pinned-compiler315.elf",
+    "regex_source::tests::literal_flows_to_regexp_in_a_large_multi_proc_file",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": -9,
+  "signal": "SIGKILL",
+  "seconds": 2466.3992539090104,
+  "uniform_source": true,
+  "assertion_result": null,
+  "signal_issuer_and_cause": "Not established by the original receipt/log. No timeout, caller cancellation, resource budget or OOM cause is inferred.",
+  "selection": {
+    "selector": "regex_source::tests::literal_flows_to_regexp_in_a_large_multi_proc_file",
+    "selected_tests": 1,
+    "fixture": "Unchanged generated source containing600 unrelated procedures plus the regex-check procedure and initial namespace command; this is not600 selected assertions.",
+    "source_bytes": 114937,
+    "frozen_source_path": "rust/tcl-compiler/src/regex_source.rs",
+    "frozen_source_sha256": "607692bab0dc91bd4136f3d3b2610e74949b10c1fc2cb8f1f51ba5ec8ad3978a",
+    "frozen_test_body_sha256": "25d6713b755de08b7e72559f85b8227a1b43785b69d2c5a27859bbb0aaaccfde"
+  },
+  "original_final_geometry_counters": [
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "command-key",
+      "scope": "cumulative-inclusive",
+      "calls": 952358,
+      "ms": 751184,
+      "world_clones": 952358,
+      "clone_us": 490023035,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=command-key scope=cumulative-inclusive calls=952358 ms=751184 world_clones=952358 clone_us=490023035"
+    },
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "slot-paths",
+      "scope": "cumulative-inclusive",
+      "calls": 321884,
+      "ms": 727014,
+      "world_clones": 321884,
+      "clone_us": 179311115,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=slot-paths scope=cumulative-inclusive calls=321884 ms=727014 world_clones=321884 clone_us=179311115"
+    },
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "namespace",
+      "scope": "cumulative-inclusive",
+      "calls": 33,
+      "ms": 0,
+      "world_clones": 33,
+      "clone_us": 137,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=namespace scope=cumulative-inclusive calls=33 ms=0 world_clones=33 clone_us=137"
+    },
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "metadata-advice",
+      "scope": "cumulative-inclusive",
+      "calls": 11414,
+      "ms": 121154,
+      "world_clones": 11414,
+      "clone_us": 5883369,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=metadata-advice scope=cumulative-inclusive calls=11414 ms=121154 world_clones=11414 clone_us=5883369"
+    },
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "lookup-key",
+      "scope": "cumulative-inclusive",
+      "calls": 664124,
+      "ms": 514337,
+      "world_clones": 0,
+      "clone_us": 0,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=lookup-key scope=cumulative-inclusive calls=664124 ms=514337 world_clones=0 clone_us=0"
+    },
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "baseline",
+      "scope": "cumulative-inclusive",
+      "calls": 999192,
+      "ms": 764187,
+      "world_clones": 999192,
+      "clone_us": 489948323,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=baseline scope=cumulative-inclusive calls=999192 ms=764187 world_clones=999192 clone_us=489948323"
+    },
+    {
+      "bytes": 114937,
+      "stage": "complete",
+      "query": "slot-for-key",
+      "scope": "cumulative-inclusive",
+      "calls": 0,
+      "ms": 0,
+      "world_clones": 0,
+      "clone_us": 0,
+      "original_line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0"
+    }
+  ],
+  "original_final_other_trace_lines": [
+    "SOURCE_PHASE bytes=114937 stage=complete ms=2399195 points=9008 layouts=4805",
+    "SOURCE_LEXICAL_PROJECTION_PHASE bytes=114937 stage=complete retained_owners=1 requests=66068 captures=18022 reuses=48046 rejected_captures=0",
+    "SOURCE_DEFERRED_INDEX_PHASE bytes=114937 stage=complete requests=2 builds=1 reuses=1 scanned_rows=601 scanned_alternatives=601",
+    "SOURCE_PROVIDER_VALIDATION_PHASE bytes=114937 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+    "LOWER_SCRIPT_PHASE bytes=114937 depth=1 phase=binding-analysis ms=2399197 commands=0 statements=0",
+    "LOWER_SCRIPT_PHASE bytes=114937 depth=1 phase=segmented ms=17 commands=602 statements=0"
+  ],
+  "trace_scope": "Counters labeled cumulative-inclusive can overlap and must not be added as independent costs. A complete trace stage is not test completion. The final lower segmented line reports602 commands. No correctness, convergence, speedup, dominance or original-world-readonly-query568 impact follows.",
+  "owned_producer_id": "rust.frozen315.integration-compiler-clean-rebuilt-test-build315",
+  "owned_inventory_id": "rust.frozen315.integration-compiler-own-list315",
+  "strict_original_image": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/pinned-compiler315.elf.gz",
+    "sha256": "040a6c0ed0ed42cacb284f37d6da60845387c4e7ee6bdaeb4953059b89367ea8",
+    "compression": "gzip",
+    "uncompressed_sha256": "321a2d6d3f1a16161e0d8653bab5ca68c7cf1dbb85b32c66bd5661d6babaa03a",
+    "uncompressed_bytes": 206936520,
+    "compressed_bytes": 39952183,
+    "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/lossless-compiler-image-storage.json",
+    "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/pinned-compiler315.json",
+    "metadata_sha256": "377324e8ea198ee890b332e6f2c62b89a8379645410b4f777f21b9c142ac0cac",
+    "build_receipt_id": "rust.frozen315.integration-compiler-clean-rebuilt-test-build315",
+    "original_source_snapshot_sha256": "40f20df0c954ff1568c127e6d05c1f0a2b2e6fc67e7e1188dcf3b0cf43b2e482",
+    "source_snapshot": {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/source-snapshot.json.gz",
+      "sha256": "bd5d0574cb93d3f5c6e35cf206cc9be1da3322ff66fc4d76171752e3ae46e9fa",
+      "compression": "gzip",
+      "uncompressed_sha256": "40f20df0c954ff1568c127e6d05c1f0a2b2e6fc67e7e1188dcf3b0cf43b2e482"
+    }
+  },
+  "lossless_image_reconfirmation": {
+    "original_path": "/workspace/.proofs/pinned-compiler315.elf",
+    "original_bytes": 206936520,
+    "original_sha256": "321a2d6d3f1a16161e0d8653bab5ca68c7cf1dbb85b32c66bd5661d6babaa03a",
+    "original_mode": "0o700",
+    "raw_stat_unchanged": true,
+    "canonical_gzip_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/pinned-compiler315.elf.gz",
+    "canonical_gzip_bytes": 39952183,
+    "canonical_gzip_sha256": "040a6c0ed0ed42cacb284f37d6da60845387c4e7ee6bdaeb4953059b89367ea8",
+    "roundtrip_original_bytes": 206936520,
+    "roundtrip_original_sha256": "321a2d6d3f1a16161e0d8653bab5ca68c7cf1dbb85b32c66bd5661d6babaa03a",
+    "committed_HEAD_git_blob_exact": true,
+    "remote_push_verification": "Root independently verifies the pushed exact Git blob before any raw retirement.",
+    "new_raw_copy": false,
+    "raw_retired": false
+  }
+}

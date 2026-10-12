@@ -1,0 +1,41 @@
+
+running 25 tests
+test cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::c86_dictionary_with_write_error_retains_independent_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... ok
+test cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... ok
+test command::tests::original_command_core_refusal_keeps_typed_first_host_cause ... ok
+test error::tests::typed_access_refusal_bypasses_catch_and_finally ... ok
+test exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors ... ok
+test exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims ... ok
+test exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity ... ok
+test exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch ... ok
+test interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate ... ok
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... 
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (1009608) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:97:9:
+assertion `left == right` failed: jim: absolute-existing: guest completion
+  left: "1"
+ right: "0"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore ... ok
+test interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes ... ok
+test interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol ... ok
+test interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release ... ok
+test interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal ... ok
+test value::tests::byte_array_carrier_retains_original_storage_and_string_presence ... ok
+test value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion ... ok
+test value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal ... ok
+test value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table ... ok
+
+failures:
+
+failures:
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+
+test result: FAILED. 24 passed; 1 failed; 0 ignored; 0 measured; 731 filtered out; finished in 351.63s
+

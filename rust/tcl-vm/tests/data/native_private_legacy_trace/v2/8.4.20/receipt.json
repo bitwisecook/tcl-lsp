@@ -1,0 +1,42 @@
+{
+  "provider": "8.4.20",
+  "probe_sha256": "2ac5f3d023ee67ab9d0670a3126694a23ab288cbd9fbbdebb52a23227bbaac4b",
+  "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+  "makefile_sha256": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+  "source_owner_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+  "library_sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+    "/workspace/.proofs/native-private-legacy-trace/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-private-legacy-trace-v2/8.4.20/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "cff22fbb71aa34bfa50e3a87e66f2c7f2254f82e3a722f25a6789dfb32020d86",
+  "process_exit": 0,
+  "stdout_sha256": "960c23d82f6d6da8d1c9f9726709d8bda1492bf83ad8bd3aa957ad237f7d525c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "PRIVATE_AVAILABLE|0|30",
+    "LEGACY_PLAIN|0|",
+    "LEGACY_PLAIN_INFO|0|7b772063616c6c6261636b7d",
+    "LEGACY_RAW_ZERO|0|",
+    "LEGACY_RAW_ZERO_INFO|0|7b772063616c6c6261636b7d",
+    "LEGACY_ENCODED_ZERO|1|626164206f7065726174696f6e73202277c080626164223a2073686f756c64206265206f6e65206f72206d6f7265206f662072777561",
+    "LEGACY_ENCODED_ZERO_INFO|0|",
+    "LEGACY_RAW_FF|1|626164206f7065726174696f6e73202277ff223a2073686f756c64206265206f6e65206f72206d6f7265206f662072777561",
+    "LEGACY_RAW_FF_INFO|0|",
+    "LEGACY_ONLY_ZERO|1|626164206f7065726174696f6e206c6973742022223a206d757374206265206f6e65206f72206d6f7265206f662061727261792c20726561642c20756e7365742c206f72207772697465",
+    "LEGACY_ONLY_ZERO_INFO|0|"
+  ],
+  "reported_version": "8.4.20"
+}

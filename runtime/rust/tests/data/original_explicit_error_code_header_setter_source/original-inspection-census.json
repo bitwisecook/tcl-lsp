@@ -1,0 +1,175 @@
+{
+  "rows": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "sha256": "7f63ebdcffdd2345e4ca155bfe369a7f43d58ba2c615706fd15328a19f658271",
+      "sites": [
+        {
+          "line": 9427,
+          "source": "self.capture_native_error_objects();"
+        },
+        {
+          "line": 9436,
+          "source": "pub(crate) fn set_c_error_code(&mut self, code: &[u8]) {"
+        },
+        {
+          "line": 9451,
+          "source": "self.capture_native_error_objects();"
+        },
+        {
+          "line": 9613,
+          "source": "self.capture_native_error_objects();"
+        },
+        {
+          "line": 9634,
+          "source": "self.capture_native_error_objects();"
+        },
+        {
+          "line": 10043,
+          "source": "self.capture_native_error_objects();"
+        },
+        {
+          "line": 10061,
+          "source": "self.capture_native_error_objects();"
+        },
+        {
+          "line": 10100,
+          "source": "self.capture_native_error_objects();"
+        }
+      ]
+    },
+    {
+      "path": "runtime/rust/src/capi/collections.rs",
+      "sha256": "c32d2b367d3682fdd952e64bc8a2adb1865ad31af1acdd19bfbddca1a6d0b116",
+      "sites": [
+        {
+          "line": 489,
+          "source": "pub(super) unsafe fn set_error_code(interpreter: *mut Interp, original: *mut TclObj) {"
+        },
+        {
+          "line": 497,
+          "source": "operation.interpreter.set_c_error_code(&code);"
+        }
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_error_variables.rs",
+      "sha256": "065e0fa66699086805a070dde03ceb53db3d4078b260c698b4bd5feb789012c1",
+      "sites": [
+        {
+          "line": 263,
+          "source": "pub(crate) fn publish_original_c84_error_code(&mut self, original: *mut obj::TclObj) {"
+        },
+        {
+          "line": 302,
+          "source": "self.publish_original_c84_error_code(original.as_ptr());"
+        },
+        {
+          "line": 315,
+          "source": "pub(super) fn capture_native_error_objects(&self) {"
+        },
+        {
+          "line": 340,
+          "source": "self.append_c84_global_error_info();"
+        },
+        {
+          "line": 416,
+          "source": "fn append_c84_global_error_info(&mut self) {"
+        }
+      ]
+    },
+    {
+      "path": "runtime/rust/src/codegen_native.rs",
+      "sha256": "5f2096550c0d9541c9ce7db82ffea8ad9e104614447c00dabd8aae712e14aa07",
+      "sites": [
+        {
+          "line": 1257,
+          "source": "interp.set_c_error_code(b\"ORIGINAL CALLBACK CODE\");"
+        }
+      ]
+    },
+    {
+      "path": "runtime/rust/src/engine.rs",
+      "sha256": "fd986cfdcaf22555643412eaea72bbe5d847354465771ce1e02f227c6eb0cbea",
+      "sites": [
+        {
+          "line": 1129,
+          "source": "engine.interp.set_c_error_code(b\"SEEDED CODE\");"
+        }
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/c_api_error_tests.rs",
+      "sha256": "0f31bf060f17445f6a42336ea32a1224e5b0ddcd2e8ec2a60a216d76a1cf735d",
+      "sites": [
+        {
+          "line": 100,
+          "source": "interpreter.set_c_error_code(b\"STAMP BEFORE\");"
+        },
+        {
+          "line": 137,
+          "source": "interpreter.set_c_error_code(b\"STAMP BEFORE\");"
+        },
+        {
+          "line": 145,
+          "source": "interpreter.set_c_error_code(b\"FRESH CODE\");"
+        },
+        {
+          "line": 170,
+          "source": "interpreter.set_c_error_code(b\"STAMP BEFORE\");"
+        },
+        {
+          "line": 177,
+          "source": "interpreter.set_c_error_code(b\"LATER CODE\");"
+        }
+      ]
+    }
+  ],
+  "original_implementation_sources": [
+    {
+      "provider_source": "8.4.20",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclResult.c",
+      "sha256": "710dcd51ab81bafaee88e9390d261858745f637f7bfd2d1d7ceedc502604dddf",
+      "start_line": 969,
+      "end_line": 978,
+      "body": "Tcl_SetObjErrorCode(interp, errorObjPtr)\n    Tcl_Interp *interp;\n    Tcl_Obj *errorObjPtr;\n{\n    Interp *iPtr;\n    \n    iPtr = (Interp *) interp;\n    Tcl_SetVar2Ex(interp, \"errorCode\", NULL, errorObjPtr, TCL_GLOBAL_ONLY);\n    iPtr->flags |= ERROR_CODE_SET;\n}",
+      "status": "read-only original C implementation inspection, not a new provider execution"
+    },
+    {
+      "provider_source": "8.5.19",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclResult.c",
+      "sha256": "dda0e0604a19da0b8998432c3dd831a705de70f96de28abfc6a4f47c6ecc7a37",
+      "start_line": 1090,
+      "end_line": 1101,
+      "body": "Tcl_SetObjErrorCode(\n    Tcl_Interp *interp,\n    Tcl_Obj *errorObjPtr)\n{\n    Interp *iPtr = (Interp *) interp;\n\n    if (iPtr->errorCode) {\n\tTcl_DecrRefCount(iPtr->errorCode);\n    }\n    iPtr->errorCode = errorObjPtr;\n    Tcl_IncrRefCount(iPtr->errorCode);\n}",
+      "status": "read-only original C implementation inspection, not a new provider execution"
+    },
+    {
+      "provider_source": "8.6.18",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclResult.c",
+      "sha256": "f48609a974267129f32aee9924208175be75e1cb288c2f1b9fc9dad232f4b93b",
+      "start_line": 1123,
+      "end_line": 1134,
+      "body": "Tcl_SetObjErrorCode(\n    Tcl_Interp *interp,\n    Tcl_Obj *errorObjPtr)\n{\n    Interp *iPtr = (Interp *) interp;\n\n    if (iPtr->errorCode) {\n\tTcl_DecrRefCount(iPtr->errorCode);\n    }\n    iPtr->errorCode = errorObjPtr;\n    Tcl_IncrRefCount(iPtr->errorCode);\n}",
+      "status": "read-only original C implementation inspection, not a new provider execution"
+    },
+    {
+      "provider_source": "9.0.4",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclResult.c",
+      "sha256": "29f06b862e3448ecf827971f5cf1519c2cb6b8159ff99713fc0527b3308233a1",
+      "start_line": 546,
+      "end_line": 557,
+      "body": "Tcl_SetObjErrorCode(\n    Tcl_Interp *interp,\n    Tcl_Obj *errorObjPtr)\n{\n    Interp *iPtr = (Interp *) interp;\n\n    if (iPtr->errorCode) {\n\tTcl_DecrRefCount(iPtr->errorCode);\n    }\n    iPtr->errorCode = errorObjPtr;\n    Tcl_IncrRefCount(iPtr->errorCode);\n}",
+      "status": "read-only original C implementation inspection, not a new provider execution"
+    },
+    {
+      "provider_source": "9.1.0",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclResult.c",
+      "sha256": "0dc7c5d3c2bd48c90723507d3d1001f7b8aab1abcebbfaf5c1084adf16f84c3b",
+      "start_line": 547,
+      "end_line": 558,
+      "body": "Tcl_SetObjErrorCode(\n    Tcl_Interp *interp,\n    Tcl_Obj *errorObjPtr)\n{\n    Interp *iPtr = (Interp *) interp;\n\n    if (iPtr->errorCode) {\n\tTcl_DecrRefCount(iPtr->errorCode);\n    }\n    iPtr->errorCode = errorObjPtr;\n    Tcl_IncrRefCount(iPtr->errorCode);\n}",
+      "status": "read-only original C implementation inspection, not a new provider execution"
+    }
+  ]
+}

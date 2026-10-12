@@ -59,6 +59,7 @@ pub(crate) mod method_barrier;
 pub mod pattern_recognition;
 pub mod profiles;
 pub mod propagation;
+pub(crate) mod store_packing;
 pub mod structure_elimination;
 pub mod tail_call;
 pub mod unused_procs;
@@ -67,8 +68,8 @@ pub use elimination::DeadStore;
 pub use manager::{
     apply_optimisations, finalise_optimisations, find_dead_stores, optimise, optimise_by_pass,
     optimise_raw, optimise_raw_for_profile, optimise_source_multipass,
-    optimise_source_multipass_admitting, optimise_source_multipass_filtered, optimise_unit,
-    optimise_unit_raw, optimise_with_dialect,
+    optimise_source_multipass_admitting, optimise_source_multipass_admitting_with_analysis_input,
+    optimise_source_multipass_filtered, optimise_unit, optimise_unit_raw, optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -226,6 +227,9 @@ pub struct ProcCfgEntry {
 ///   source positions.
 #[derive(Debug, Default)]
 pub struct PassContext<'a> {
+    /// Exact ingress grammar supplied by the compilation unit to a standalone
+    /// pass. This owned snapshot also supports callers without an IR borrow.
+    pub source_lexer_config: Option<tcl_lexer::LexerConfig>,
     /// Full source text (UTF-8).
     pub source: &'a str,
     /// Tcl dialect currently active — passed once when the
@@ -279,6 +283,17 @@ pub struct PassContext<'a> {
 }
 
 impl<'a> PassContext<'a> {
+    /// Word grammar retained by lowering, including custom grammar axes.
+    #[must_use]
+    pub fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        if let Some(config) = self.source_lexer_config {
+            return config;
+        }
+        self.ir_module.map_or_else(
+            || tcl_lexer::LexerConfig::for_profile(self.dialect),
+            |module| module.lexer_config,
+        )
+    }
     /// Construct a context bound to `source` and `interproc`. All
     /// other fields start empty / zero; callers populate
     /// [`proc_cfgs`](Self::proc_cfgs),
@@ -327,6 +342,145 @@ impl<'a> PassContext<'a> {
         tcl_dialect::BracedVarStyle::of_profile(self.dialect)
     }
 
+    /// Complete metadata supplied by this exact compilation module.
+    /// Missing or foreign input remains unavailable; catalogue labels do not
+    /// establish current availability, implementation or body entry.
+    #[must_use]
+    pub fn retained_metadata_context(
+        &self,
+    ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        crate::registry_invocation::retained_module_metadata_context(
+            self.registry?,
+            self.ir_module?,
+        )
+    }
+
+    /// Execution policy for value folding and string materialisation. Exact
+    /// source-entry engine knowledge takes precedence over catalogue profiles.
+    #[must_use]
+    pub fn fold_policy(&self) -> crate::tcl_expr_eval::FoldPolicy {
+        let policy = crate::tcl_expr_eval::FoldPolicy::for_profile(
+            self.dialect
+                .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
+            self.dialect,
+        );
+        self.ir_module
+            .and_then(|module| module.source_entry.invocation_dialect)
+            .map_or(policy, |dialect| policy.with_invocation_dialect(dialect))
+    }
+
+    /// Fold an original retained expression using its reached implicit-call
+    /// bindings. Reparsed or rendered text must not inherit another AST's sites.
+    #[must_use]
+    pub fn eval_expression_at(
+        &self,
+        _expression: &crate::expr_ast::ExprNode,
+        env: &crate::tcl_expr_eval::Env,
+        span: tcl_lexer::Span,
+    ) -> Option<crate::tcl_expr_eval::TclValue> {
+        let bindings = self.ir_module.and_then(|module| {
+            crate::math_function_binding::ExpressionMathBindings::for_module_statement(module, span)
+        });
+        let policy = self.fold_policy();
+        let context = policy.preparation_context()?;
+        let preparation = bindings.and_then(|bindings| bindings.preparation_for_context(&context));
+        let preparation = preparation?;
+        crate::expression_rewrite::expression_result_protocol_equivalence(
+            &preparation.witness,
+            None,
+        )
+        .ok()?;
+        let numeric = bindings
+            .and_then(|bindings| bindings.source_numeric_operands(&context, self.registry?));
+        // A literal replacement requires result-object equivalence as well as
+        // input conversion proof. Partial arithmetic rewrites use the separate
+        // expression equivalence gate and retain a numeric result operation.
+        if numeric
+            .as_ref()
+            .is_some_and(|(_, operands)| !operands.is_empty())
+        {
+            return None;
+        }
+        let mut environment = env.clone();
+        if let Some((native, _)) = &numeric {
+            environment.extend(native.clone());
+        }
+        let empty = crate::tcl_expr_eval::NativeOperandProofs::new();
+        crate::tcl_expr_eval::eval_tcl_expr_with_proved_operands(
+            preparation.witness.tree(),
+            &environment,
+            policy,
+            &|function, start| {
+                bindings
+                    .and_then(|bindings| bindings.resolved_call(function, start))
+                    .map(|call| call.target())
+            },
+            numeric.as_ref().map_or(&empty, |(_, operands)| operands),
+        )
+    }
+
+    /// License an executable expression rewrite from its original source tree.
+    /// Type/value constants cannot stand in for retained operand object evidence.
+    pub fn expression_rewrite_equivalence_at(
+        &self,
+        original: &crate::expr_ast::ExprNode,
+        proposed: &str,
+        environment: &crate::tcl_expr_eval::Env,
+        span: tcl_lexer::Span,
+    ) -> Result<(), crate::expression_rewrite::ExpressionRewriteDecline> {
+        let bindings = self.ir_module.and_then(|module| {
+            crate::math_function_binding::ExpressionMathBindings::for_module_statement(module, span)
+        });
+        let policy = self.fold_policy();
+        if let (Some(bindings), Some(registry)) = (bindings, self.registry)
+            && crate::expression_rewrite::numeric_string_comparison_equivalence(
+                proposed, policy, bindings, registry,
+            )
+            .is_ok()
+        {
+            return Ok(());
+        }
+        let numeric = bindings.and_then(|bindings| {
+            bindings.source_numeric_operands(&policy.preparation_context()?, self.registry?)
+        });
+        let mut environment = environment.clone();
+        if let Some((native, _)) = &numeric {
+            environment.extend(native.clone());
+        }
+        crate::expression_rewrite::expression_rewrite_equivalence(
+            original,
+            proposed,
+            &environment,
+            policy,
+            bindings,
+            numeric.as_ref().map(|(_, operands)| operands),
+        )
+    }
+
+    /// Conditional expression advice with no executable replacement authority.
+    /// The original preparation must be retained; this is never a fold proof.
+    pub(crate) fn report_prepared_expression_candidate(
+        &mut self,
+        code: DiagCode,
+        message: &str,
+        span: Span,
+    ) -> bool {
+        let prepared = self.ir_module.and_then(|module| {
+            let bindings =
+                crate::math_function_binding::ExpressionMathBindings::for_module_statement(
+                    module, span,
+                )?;
+            bindings.preparation_for_context(&self.fold_policy().preparation_context()?)
+        });
+        if prepared.is_none() {
+            return false;
+        }
+        let mut candidate = Optimisation::new(code, message, span, String::new());
+        candidate.hint_only = true;
+        self.report(candidate);
+        true
+    }
+
     /// Record an optimisation diagnostic.
     pub fn report(&mut self, opt: Optimisation) {
         self.optimisations.push(opt);
@@ -337,10 +491,18 @@ impl<'a> PassContext<'a> {
     /// trust stance every rewrite re-proves under.
     #[must_use]
     pub(crate) fn rewrite_folds(&self) -> crate::sccp::BuiltinFoldInputs<'_> {
+        let registry = self
+            .registry
+            .unwrap_or_else(|| tcl_registry::default_registry());
+        let source_metadata_input = self
+            .ir_module
+            .and_then(|module| {
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            })
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
         crate::sccp::BuiltinFoldInputs {
-            registry: self
-                .registry
-                .unwrap_or_else(|| tcl_registry::default_registry()),
+            source_metadata_input,
+            registry,
             mutations: &self.command_mutations,
             dialect: self.dialect,
             defining_class: None,
@@ -509,6 +671,67 @@ mod tests {
     use super::*;
 
     #[test]
+    fn pass_metadata_requires_the_module_producer_profile_and_lexer() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "puts SOURCE",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: current.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        fn metadata(
+            registry: &CommandRegistry,
+            module: &IrModule,
+        ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+            PassContext {
+                registry: Some(registry),
+                ir_module: Some(module),
+                // A reporting label cannot replace the Module's actual source owner.
+                dialect: tcl_dialect::DialectProfile::find("tcl9.1"),
+                ..PassContext::default()
+            }
+            .retained_metadata_context()
+        }
+        assert!(std::sync::Arc::ptr_eq(
+            &metadata(current.commands(), &unit.ir_module).unwrap(),
+            &current
+        ));
+        let mut wrong_profile = unit.ir_module.clone();
+        wrong_profile.dialect_profile = tcl_dialect::DialectProfile::find("tcl8.6");
+        let mut wrong_config = unit.ir_module.clone();
+        wrong_config.lexer_config.strict_quoting = !wrong_config.lexer_config.strict_quoting;
+        let mut missing = unit.ir_module.clone();
+        missing.source_metadata_input = None;
+        let mut foreign = unit.ir_module.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for module in [wrong_profile, wrong_config, missing, foreign] {
+            assert!(metadata(current.commands(), &module).is_none());
+        }
+    }
+
+    #[test]
     fn optimisation_new_defaults() {
         let o = Optimisation::new(DiagCode::O105, "message", Span::new(0, 5), "replacement");
         assert_eq!(o.code, DiagCode::O105);
@@ -535,11 +758,11 @@ mod tests {
     #[test]
     fn pass_context_default_fields_are_empty() {
         let ctx = PassContext::default();
-        assert!(ctx.proc_cfgs.is_empty());
-        assert!(ctx.propagated_branch_uses.is_empty());
-        assert!(ctx.propagated_use_groups.is_empty());
-        assert!(ctx.propagated_expr_stmts.is_empty());
-        assert!(ctx.cross_event_vars.is_empty());
+        assert_eq!(ctx.proc_cfgs.len(), 0);
+        assert_eq!(ctx.propagated_branch_uses.len(), 0);
+        assert_eq!(ctx.propagated_use_groups.len(), 0);
+        assert_eq!(ctx.propagated_expr_stmts.len(), 0);
+        assert_eq!(ctx.cross_event_vars.len(), 0);
         assert_eq!(ctx.next_group, 0);
         assert!(ctx.ir_module.is_none());
     }
@@ -567,9 +790,9 @@ mod tests {
         ctx.next_group = 7;
 
         ctx.reset_function_state();
-        assert!(ctx.propagated_branch_uses.is_empty());
-        assert!(ctx.propagated_use_groups.is_empty());
-        assert!(ctx.propagated_expr_stmts.is_empty());
+        assert_eq!(ctx.propagated_branch_uses.len(), 0);
+        assert_eq!(ctx.propagated_use_groups.len(), 0);
+        assert_eq!(ctx.propagated_expr_stmts.len(), 0);
         assert_eq!(ctx.cross_event_vars.len(), 1);
         assert_eq!(ctx.next_group, 7);
     }
@@ -607,7 +830,7 @@ mod tests {
         let cu = CompilationUnit::build_for("", &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run_passes(&mut ctx, &cu, &PassId::all());
-        assert!(ctx.optimisations.is_empty());
+        assert_eq!(ctx.optimisations, [] as [crate::optimiser::Optimisation; 0]);
     }
 
     #[test]
@@ -617,6 +840,6 @@ mod tests {
         let cu = CompilationUnit::build_for("set x 1", &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run_passes(&mut ctx, &cu, &[]);
-        assert!(ctx.optimisations.is_empty());
+        assert_eq!(ctx.optimisations, [] as [crate::optimiser::Optimisation; 0]);
     }
 }

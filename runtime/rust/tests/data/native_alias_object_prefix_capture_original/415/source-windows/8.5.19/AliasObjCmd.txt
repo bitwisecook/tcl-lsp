@@ -1,0 +1,156 @@
+1733:  *	forwarded.
+1734:  *
+1735:  *----------------------------------------------------------------------
+1736:  */
+1737: 
+1738: static int
+1739: AliasObjCmd(
+1740:     ClientData clientData,	/* Alias record. */
+1741:     Tcl_Interp *interp,		/* Current interpreter. */
+1742:     int objc,			/* Number of arguments. */
+1743:     Tcl_Obj *const objv[])	/* Argument vector. */
+1744: {
+1745: #define ALIAS_CMDV_PREALLOC 10
+1746:     Alias *aliasPtr = clientData;
+1747:     Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+1748:     int result, prefc, cmdc, i;
+1749:     Tcl_Obj **prefv, **cmdv;
+1750:     Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+1751:     Interp *tPtr = (Interp *) targetInterp;
+1752:     int isRootEnsemble = (tPtr->ensembleRewrite.sourceObjs == NULL);
+1753: 
+1754:     /*
+1755:      * Append the arguments to the command prefix and invoke the command in
+1756:      * the target interp's global namespace.
+1757:      */
+1758: 
+1759:     prefc = aliasPtr->objc;
+1760:     prefv = &aliasPtr->objPtr;
+1761:     cmdc = prefc + objc - 1;
+1762:     if (cmdc <= ALIAS_CMDV_PREALLOC) {
+1763: 	cmdv = cmdArr;
+1764:     } else {
+1765: 	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc*(int)sizeof(Tcl_Obj*));
+1766:     }
+1767: 
+1768:     memcpy(cmdv, prefv, (size_t) (prefc * sizeof(Tcl_Obj *)));
+1769:     memcpy(cmdv+prefc, objv+1, (size_t) ((objc-1) * sizeof(Tcl_Obj *)));
+1770: 
+1771:     Tcl_ResetResult(targetInterp);
+1772: 
+1773:     for (i=0; i<cmdc; i++) {
+1774: 	Tcl_IncrRefCount(cmdv[i]);
+1775:     }
+1776: 
+1777:     /*
+1778:      * Use the ensemble rewriting machinery to ensure correct error messages:
+1779:      * only the source command should show, not the full target prefix.
+1780:      */
+1781: 
+1782:     if (isRootEnsemble) {
+1783: 	tPtr->ensembleRewrite.sourceObjs = objv;
+1784: 	tPtr->ensembleRewrite.numRemovedObjs = 1;
+1785: 	tPtr->ensembleRewrite.numInsertedObjs = prefc;
+1786:     } else {
+1787: 	tPtr->ensembleRewrite.numInsertedObjs += prefc - 1;
+1788:     }
+1789: 
+1790:     /*
+1791:      * Protect the target interpreter if it isn't the same as the source
+1792:      * interpreter so that we can continue to work with it after the target
+1793:      * command completes.
+1794:      */
+1795: 
+1796:     if (targetInterp != interp) {
+1797: 	Tcl_Preserve(targetInterp);
+1798:     }
+1799: 
+1800:     /*
+1801:      * Execute the target command in the target interpreter.
+1802:      */
+1803: 
+1804:     result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+1805: 
+1806:     /*
+1807:      * Clean up the ensemble rewrite info if we set it in the first place.
+1808:      */
+1809: 
+1810:     if (isRootEnsemble) {
+1811: 	tPtr->ensembleRewrite.sourceObjs = NULL;
+1812: 	tPtr->ensembleRewrite.numRemovedObjs = 0;
+1813: 	tPtr->ensembleRewrite.numInsertedObjs = 0;
+1814:     }
+1815: 
+1816:     /*
+1817:      * If it was a cross-interpreter alias, we need to transfer the result
+1818:      * back to the source interpreter and release the lock we previously set
+1819:      * on the target interpreter.
+1820:      */
+1821: 
+1822:     if (targetInterp != interp) {
+1823: 	TclTransferResult(targetInterp, result, interp);
+1824: 	Tcl_Release(targetInterp);
+1825:     }
+1826: 
+1827:     for (i=0; i<cmdc; i++) {
+1828: 	Tcl_DecrRefCount(cmdv[i]);
+1829:     }
+1830:     if (cmdv != cmdArr) {
+1831: 	TclStackFree(interp, cmdv);
+1832:     }
+1833:     return result;
+1834: #undef ALIAS_CMDV_PREALLOC
+1835: }
+1836: 
+1837: 
+1838: /*
+1839:  *----------------------------------------------------------------------
+1840:  *
+1841:  * AliasObjCmdDeleteProc --
+1842:  *
+1843:  *	Is invoked when an alias command is deleted in a slave. Cleans up all
+1844:  *	storage associated with this alias.
+1845:  *
+1846:  * Results:
+1847:  *	None.
+1848:  *
+1849:  * Side effects:
+1850:  *	Deletes the alias record and its entry in the alias table for the
+1851:  *	interpreter.
+1852:  *
+1853:  *----------------------------------------------------------------------
+1854:  */
+1855: 
+1856: static void
+1857: AliasObjCmdDeleteProc(
+1858:     ClientData clientData)	/* The alias record for this alias. */
+1859: {
+1860:     Alias *aliasPtr = clientData;
+1861:     Target *targetPtr;
+1862:     int i;
+1863:     Tcl_Obj **objv;
+1864: 
+1865:     Tcl_DecrRefCount(aliasPtr->token);
+1866:     objv = &aliasPtr->objPtr;
+1867:     for (i = 0; i < aliasPtr->objc; i++) {
+1868: 	Tcl_DecrRefCount(objv[i]);
+1869:     }
+1870:     Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+1871: 
+1872:     /*
+1873:      * Splice the target record out of the target interpreter's master list.
+1874:      */
+1875: 
+1876:     targetPtr = aliasPtr->targetPtr;
+1877:     if (targetPtr->prevPtr != NULL) {
+1878: 	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+1879:     } else {
+1880: 	Master *masterPtr = &((InterpInfo *) ((Interp *)
+1881: 		aliasPtr->targetInterp)->interpInfo)->master;
+1882: 
+1883: 	masterPtr->targetsPtr = targetPtr->nextPtr;
+1884:     }
+1885:     if (targetPtr->nextPtr != NULL) {
+1886: 	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+1887:     }
+1888: 

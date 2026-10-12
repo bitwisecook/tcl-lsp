@@ -1,0 +1,18 @@
+
+running 2 tests
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... 
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (571570) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12314:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads ... ok
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8159 filtered out; finished in 30.11s
+

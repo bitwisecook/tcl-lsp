@@ -848,7 +848,12 @@ fn empty_cmd_subst_pushes_empty() {
     let mut ctx = proc_ctx(&reg, &[]);
     ctx.emit_inline_cmd_subst("[]");
     assert_eq!(ctx_ops(&ctx), vec![Op::PUSH1]);
-    assert!(ctx.literals.entries().iter().any(String::is_empty));
+    assert!(
+        ctx.literals
+            .entries()
+            .iter()
+            .any(tcl_bytecode::NativeStringLiteral::is_empty)
+    );
 }
 
 #[test]

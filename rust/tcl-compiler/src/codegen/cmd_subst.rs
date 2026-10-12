@@ -25,12 +25,11 @@
 use tcl_bytecode::EnteredCommandSite;
 use tcl_registry::hooks::InlineCodegenHookId;
 
-use crate::ir::CommandTokens;
+use crate::ir::{CommandTokens, WordExpr};
 use crate::registry_invocation::compiled_local_name_value;
 
-use super::emitter::bytecoded::applicable_codegen_binding;
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
-use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
+use super::values::split_array_ref;
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
 
 // Free functions — pure parsing, no emission state needed
@@ -532,7 +531,7 @@ impl CodegenCtx<'_> {
         // `[cmd]` is a single part and falls through to the fast paths below.
         if !braced
             && (arg.contains('$') || arg.contains('['))
-            && let Some(parts) = parse_subst_template(arg, self.escapes, self.braced_var)
+            && let Some(parts) = parse_subst_template(arg, self.lexer_config())
             && parts.len() > 1
         {
             for part in &parts {
@@ -540,8 +539,13 @@ impl CodegenCtx<'_> {
                     // A decoded fragment is finished text, never source — see
                     // `push_word_value`, whose fragment rule this is.
                     SubstPart::Lit(text) => self.push_lit_exact(text),
+                    SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                     SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
                     SubstPart::Var(name) => self.load_var(name),
+                    SubstPart::LiteralElement { base, key } => self.load_literal_element(base, key),
+                    SubstPart::Expression(expression) => {
+                        self.emit_expression_substitution(expression);
+                    }
                 }
             }
             self.emit(
@@ -551,32 +555,9 @@ impl CodegenCtx<'_> {
             return;
         }
         if !braced && arg.starts_with('$') {
-            // ${var} form
-            if let Some(var_name) = parse_simple_var_ref(arg, self.braced_var) {
-                self.load_var(var_name);
-                return;
+            if !self.emit_variable_reference(arg) {
+                self.emit_value(arg, true);
             }
-            // Bare $varname form (not normalised to ${var}), including a
-            // namespace-qualified name (`$::x`, `$ns::v`): a whole-word variable
-            // reference whose name is alphanumerics/`_` joined only by `::`
-            // separators. `is_bare_var_name` enforces the `::`-pair rule, so a
-            // lone trailing/interior colon (`$action:` = `$action` then literal
-            // `:`) is *not* swallowed into the name (it would `load_var
-            // "action:"`); such interpolated words fall through to `emit_value`.
-            // Loading the qualified form here also fixes `$::x` measuring the
-            // literal `$::x` (the runtime `subst_word` only substitutes `${…}`).
-            let rest = &arg[1..];
-            if tcl_syntax::naming::is_bare_var_name(rest) {
-                self.load_var(rest);
-                return;
-            }
-            // Bare $name(index) array ref form
-            if !rest.is_empty() && split_array_ref(rest).is_some() {
-                self.load_var(rest);
-                return;
-            }
-            // Fallback: push as literal
-            self.push_lit(arg);
         } else if !braced && arg.starts_with('[') && arg.ends_with(']') {
             // Nested command substitution — compile inline. Everything
             // except an `expr` body gets a startCommand wrap: `expr`'s
@@ -615,8 +596,7 @@ impl CodegenCtx<'_> {
             // sides of this change (the escaped-marker double-decode the VM's
             // `subst_word` records as living in the compiler's literal
             // emission), and closing it is not this fix.
-            let processed = tcl_lexer::backslash_subst_in(arg, self.escapes);
-            self.push_word_value(&processed);
+            self.push_decoded_literal(arg);
         } else {
             // A de-quoted or plain arg is the finished value, so it must not be
             // re-substituted: `[string index "{}" 0]` answered empty because
@@ -631,22 +611,50 @@ impl CodegenCtx<'_> {
     ///
     /// Ordinary `invokeStk` commands resolve after argument substitution in C
     /// Tcl, so a literal head alone is not enough. The entered-token sidecar is
-    /// reserved for the exact, arity-valid typed hook whose statement emitter
-    /// would otherwise consume the command. This keeps the
-    /// decision name-free and prevents a user proc or wrong-arity builtin from
-    /// accidentally acquiring specialised command-token timing.
-    fn entered_command_surrogate(
+    /// reserved for an operation selected by the native compiler grammar.
+    /// A Rust emission hook alone does not establish native selection timing.
+    pub(super) fn entered_command_surrogate(
         &mut self,
         command: &str,
-        args: &[(String, bool)],
     ) -> Option<tcl_runtime_api::CommandBindingIdentity> {
-        if command.contains('$') || command.contains('[') {
+        use tcl_registry::native_compilation::NativeCompilationSelection;
+        if self.plain_command_dispatch {
             return None;
         }
-        let args: Vec<String> = args.iter().map(|(arg, _)| arg.clone()).collect();
-        let site = applicable_codegen_binding(self, command, &args)?;
-        self.require_site_binding(&site);
-        Some(site.binding)
+        let (identity, guard) = if let Some(proof) = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+        {
+            let compiled = proof.admitted_inline_invocation()?;
+            if !compiled.target.prepended.is_empty() {
+                return None;
+            }
+            (compiled.target.command.clone(), compiled.guard)
+        } else {
+            let tokens = self.invocation_tokens.as_deref()?;
+            let dialect = crate::environment_ingress::authoring_invocation_dialect(
+                self.registry,
+                self.dialect,
+                self.lexer_config(),
+            );
+            let (facts, selection) = crate::registry_invocation::native_compilation_syntax(
+                self.registry,
+                tokens,
+                dialect,
+                self.native_compilation,
+            )?;
+            let NativeCompilationSelection::Inline { guard, .. } = selection else {
+                return None;
+            };
+            (facts.canonical_command, guard)
+        };
+        let guard = crate::registry_invocation::native_command_binding_guard(guard);
+        let binding = self
+            .command_binding_identity(command, identity)
+            .with_guard(guard);
+        self.require_command_binding(&binding);
+        Some(binding)
     }
 
     /// Attach one literal head to its own push and carry it through the
@@ -655,7 +663,7 @@ impl CodegenCtx<'_> {
     /// command table before any nested `START_CMD` is reached. Expanded calls
     /// deliberately resolve after expansion, matching Tcl's distinct
     /// command-token timing.
-    fn retain_entered_command(
+    pub(super) fn retain_entered_command(
         &mut self,
         body_start: usize,
         entered_binding: Option<tcl_runtime_api::CommandBindingIdentity>,
@@ -683,8 +691,9 @@ impl CodegenCtx<'_> {
 
     /// Emit a generic command substitution as `push cmd; <args>; invokeStk`.
     pub fn emit_generic_cmd_subst(&mut self, cmd: &str, args: &[(String, bool)]) {
-        let entered_binding = self.entered_command_surrogate(cmd, args);
-        self.emit_generic_cmd_subst_with_binding(cmd, args, entered_binding);
+        let entered_binding = self.entered_command_surrogate(cmd);
+        let original = self.original_hook_operands(cmd, args).to_vec();
+        self.emit_generic_cmd_subst_with_binding(cmd, &original, entered_binding);
     }
 
     /// Emit the generic-invoke body with an entered binding already selected
@@ -705,9 +714,25 @@ impl CodegenCtx<'_> {
         // The command name itself may be a substitution (`$Verify($opt) ...`,
         // `[lookup] ...`), so it is emitted through the same per-word path as
         // the arguments rather than as a bare literal.
-        self.emit_cmd_word(cmd, false);
-        for (arg, braced) in args {
-            self.emit_cmd_word(arg, *braced);
+        if !self.try_emit_original_command_head(cmd) {
+            self.emit_cmd_word(cmd, false);
+        }
+        let tokens = self.invocation_tokens.clone();
+        for (index, (arg, braced)) in args.iter().enumerate() {
+            let word = tokens.as_deref().and_then(|tokens| {
+                (tokens.words().len() == args.len() + 1
+                    && tokens
+                        .argv_texts
+                        .get(index + 1)
+                        .is_some_and(|text| text == arg))
+                .then(|| tokens.words().get(index + 1))
+                .flatten()
+            });
+            if let Some(word) = word {
+                self.emit_word_from_source(arg, *braced, Some(word));
+            } else {
+                self.emit_cmd_word(arg, *braced);
+            }
         }
         let arg_count = bytecode_imm(1 + args.len());
         let op = if arg_count < 256 {
@@ -737,30 +762,8 @@ impl CodegenCtx<'_> {
             self.emit_inline_cmd_subst(word);
             self.place_label(&end_label);
         } else if !braced && word.starts_with('$') {
-            if let Some(var_name) = parse_simple_var_ref(word, self.braced_var) {
-                self.load_var(var_name);
-            } else {
-                // Bare `$name` / `$name(idx)` — load the variable rather than
-                // pushing the unsubstituted literal. A namespace-qualified name
-                // (`$::x`, `$ns::v`) counts as bare, but only with `::`-pair
-                // separators (`is_bare_var_name`): a lone colon ends the name, so
-                // `$action:` is `$action` then a literal `:`, not a variable
-                // `action:`. Without the qualified case a `$::x` fell through to
-                // `emit_value` → `push_lit("$::x")`, which the runtime leaves
-                // unsubstituted (only `${…}` is a subst trigger).
-                let rest = &word[1..];
-                let is_bare = tcl_syntax::naming::is_bare_var_name(rest);
-                if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
-                    self.load_var(rest);
-                } else {
-                    // A leading `$` followed by more text (`$i.x`, `$a$b`) is an
-                    // interpolated word, not a whole-variable reference: decompose
-                    // it into its `$var` / literal parts and concatenate, so the
-                    // variable is substituted. Pushing it raw left the inline
-                    // command-substitution path (e.g. `set m [concat a "$i.x"]`)
-                    // with the literal `$i.x`.
-                    self.emit_value(word, true);
-                }
+            if !self.emit_variable_reference(word) {
+                self.emit_value(word, true);
             }
         } else if braced && (word.contains('$') || word.contains('[')) {
             self.push_lit(&format!("{{{word}}}"));
@@ -780,8 +783,7 @@ impl CodegenCtx<'_> {
             // the decoded `\{\}` is read back as a braced literal and stripped
             // to nothing: `set w [dict get [dict create k \{\}] k]` then
             // measures 0 where both oracles say 2.
-            let processed = tcl_lexer::backslash_subst_in(word, self.escapes);
-            self.push_word_value(&processed);
+            self.push_decoded_literal(word);
         } else if braced {
             // A braced word is already de-braced here, so its content is the
             // finished value: push it verbatim or the VM's `subst_word` strips
@@ -812,7 +814,13 @@ impl CodegenCtx<'_> {
     ) {
         self.emit_comment(Op::EXPAND_START, vec![], comment);
         for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
-            self.emit_cmd_word(word, braced);
+            if index == 0 {
+                if !self.try_emit_original_command_head(word) {
+                    self.emit_cmd_word(word, braced);
+                }
+            } else {
+                self.emit_native_argument_word(index - 1, word, braced);
+            }
             if expanded {
                 self.emit(
                     Op::EXPAND_STKTOP,
@@ -981,9 +989,7 @@ impl CodegenCtx<'_> {
     /// Extends the simplified `emit_value_interpolated` with command
     /// substitution inlining and `parse_subst_template` decomposition.
     pub fn emit_value(&mut self, value: &str, interpolate: bool) {
-        // Variable reference: ${var} → load
-        if let Some(var_name) = parse_simple_var_ref(value, self.braced_var) {
-            self.load_var(var_name);
+        if self.emit_variable_reference(value) {
             return;
         }
         // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
@@ -998,7 +1004,7 @@ impl CodegenCtx<'_> {
         if interpolate
             && value.starts_with('$')
             && value.ends_with(')')
-            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
+            && let Some(parts) = parse_subst_template(value, self.lexer_config())
             && parts.len() == 1
             && let SubstPart::Var(name) = &parts[0]
             && split_array_ref(name).is_some()
@@ -1009,7 +1015,7 @@ impl CodegenCtx<'_> {
         // Interpolated string: decompose $var and [cmd] parts
         if interpolate
             && (value.contains('$') || value.contains('['))
-            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
+            && let Some(parts) = parse_subst_template(value, self.lexer_config())
             && parts.len() > 1
         {
             for part in &parts {
@@ -1017,11 +1023,16 @@ impl CodegenCtx<'_> {
                     // A decoded fragment is finished text, never source — see
                     // `push_word_value`, whose fragment rule this is.
                     SubstPart::Lit(text) => self.push_lit_exact(text),
+                    SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                     SubstPart::Cmd(cmd_text) => {
                         self.emit_inline_cmd_subst(cmd_text);
                     }
                     SubstPart::Var(name) => {
                         self.load_var(name);
+                    }
+                    SubstPart::LiteralElement { base, key } => self.load_literal_element(base, key),
+                    SubstPart::Expression(expression) => {
+                        self.emit_expression_substitution(expression);
                     }
                 }
             }
@@ -1045,13 +1056,18 @@ impl CodegenCtx<'_> {
         // `${x}` rather than its six-character spelling. The twin of the same
         // arm in `emit_value_interpolated`.
         if crate::codegen::statements::has_escaped_subst_marker(value)
-            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
+            && let Some(parts) = parse_subst_template(value, self.lexer_config())
         {
             for part in &parts {
                 match part {
                     SubstPart::Lit(text) => self.push_lit_exact(text),
+                    SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                     SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
                     SubstPart::Var(name) => self.load_var(name),
+                    SubstPart::LiteralElement { base, key } => self.load_literal_element(base, key),
+                    SubstPart::Expression(expression) => {
+                        self.emit_expression_substitution(expression);
+                    }
                 }
             }
             if parts.len() > 1 {
@@ -1102,13 +1118,23 @@ impl CodegenCtx<'_> {
         cmd: &str,
         args: &[(String, bool)],
     ) -> Option<InlineCodegenHookId> {
-        if self.plain_command_dispatch {
+        if self.plain_command_dispatch || !self.invocation_specialisation_proved() {
             return None;
+        }
+        if let Some(tokens) = self.invocation_tokens.as_deref()
+            && tokens.source_binding.is_some()
+        {
+            return crate::registry_invocation::admitted_native_compiler_invocation(
+                self.registry,
+                None,
+                tokens,
+            )?
+            .inline_codegen_hook();
         }
         let arg_refs: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
         let resolved =
             self.registry
-                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
+                .resolve_call(cmd, &arg_refs, self.invocation_surface_query())?;
         (resolved.spec.name == cmd).then_some(resolved.inline_codegen_hook?)
     }
 
@@ -1149,8 +1175,25 @@ impl CodegenCtx<'_> {
         cmd: &str,
         args: &[&str],
     ) -> Option<(InlineCodegenHookId, super::SiteBinding)> {
-        if self.plain_command_dispatch {
+        if self.plain_command_dispatch || !self.invocation_specialisation_proved() {
             return None;
+        }
+        if let Some(tokens) = self.invocation_tokens.as_deref()
+            && tokens.source_binding.is_some()
+        {
+            let admitted = crate::registry_invocation::admitted_native_compiler_invocation(
+                self.registry,
+                None,
+                tokens,
+            )?;
+            return Some((
+                admitted.inline_codegen_hook()?,
+                super::SiteBinding {
+                    binding: self
+                        .command_binding_identity(cmd, admitted.canonical_registration_name()),
+                    claim: None,
+                },
+            ));
         }
         // Whole-unit mutation discovery is deliberately not an admission
         // decision here: a later proc body may mutate this name only after the
@@ -1160,11 +1203,30 @@ impl CodegenCtx<'_> {
         // The registry's own point — see `emitter::bytecoded::try_bytecoded`.
         let resolved = self
             .registry
-            .resolve_call(cmd, args, self.registry.own_surface_query())?;
+            .resolve_call(cmd, args, self.invocation_surface_query())?;
         if resolved.spec.name != cmd {
             return None;
         }
         let hook = resolved.inline_codegen_hook?;
+        if hook == InlineCodegenHookId::InfoCommandsResolve
+            && !self
+                .invocation_tokens
+                .as_deref()
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .is_some_and(|binding| {
+                    matches!(
+                        binding.native_compilation_admission_selection(),
+                        tcl_registry::native_compilation::NativeCompilationSelection::Inline {
+                            operation: tcl_registry::SemanticOperationId::Intrinsic(
+                                tcl_registry::IntrinsicId::InfoCommandsResolve
+                            ),
+                            ..
+                        }
+                    )
+                })
+        {
+            return None;
+        }
         // As `registry_codegen_hook`: the `alias_of` target's identity, and
         // the claim behind it, where the hook is the target's own; the
         // command's own name otherwise.
@@ -1204,6 +1266,7 @@ impl CodegenCtx<'_> {
             // value is already final, that would suppress a live `$` or
             // command substitution (notably a Return value, whose
             // compatibility path retains no CommandTokens).
+            NestedLocalName::Stack if source_hook == Some(InlineCodegenHookId::InfoExists) => false,
             NestedLocalName::Stack | NestedLocalName::Unavailable => {
                 self.used_inline_cmd_subst = false;
                 self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
@@ -1267,7 +1330,9 @@ impl CodegenCtx<'_> {
             })
             .collect();
 
-        let local_name = source_direct_local_name_value(tokens, 1, self.escapes, self.word_rules);
+        let local_name = self.original_hook_argument(1).and_then(|index| {
+            source_direct_local_name_value(tokens, index, self.escapes, self.word_rules)
+        });
 
         // These hooks are also valid for a complete command statement. The
         // statement dispatch checks the source-word facts, then reuses the
@@ -1275,9 +1340,51 @@ impl CodegenCtx<'_> {
         // names itself. The result is discarded just as a normal statement
         // invoke would discard it.
         match hook {
-            InlineCodegenHookId::InfoExists if inline_args.len() == 2 && local_name.is_some() => {
-                inline_args[1].0 = local_name.expect("guard proved a source local name");
-                self.emit_inline_info_exists(&inline_args);
+            InlineCodegenHookId::Error if (1..=3).contains(&inline_args.len()) => {
+                if !self.emit_inline_error(&inline_args, "") {
+                    return false;
+                }
+            }
+            InlineCodegenHookId::NamespaceCurrent => {
+                self.emit(Op::CURRENT_NAMESPACE, vec![]);
+            }
+            InlineCodegenHookId::NamespaceOrigin => {
+                if !self.emit_inline_namespace_origin(tokens) {
+                    return false;
+                }
+            }
+            InlineCodegenHookId::NamespaceCode => {
+                if !self.emit_inline_namespace_code(tokens) {
+                    return false;
+                }
+            }
+            InlineCodegenHookId::Yield if inline_args.len() <= 1 => {
+                self.emit_inline_yield(&inline_args);
+            }
+            InlineCodegenHookId::YieldTo => {
+                self.emit_inline_yield_to(
+                    inline_args
+                        .iter()
+                        .map(|(word, braced)| (word.as_str(), *braced, false)),
+                );
+            }
+            InlineCodegenHookId::Lindex => {
+                if !self.emit_inline_lindex(tokens) {
+                    return false;
+                }
+            }
+            InlineCodegenHookId::InfoLevel => {
+                if !self.emit_inline_info_level(tokens) {
+                    return false;
+                }
+            }
+            InlineCodegenHookId::InfoExists => {
+                if !self.emit_inline_info_exists(tokens) {
+                    return false;
+                }
+            }
+            InlineCodegenHookId::InfoCommandsResolve if inline_args.len() == 2 => {
+                self.emit_inline_info_commands_resolve(&inline_args);
             }
             InlineCodegenHookId::Array
                 if inline_args.len() == 2
@@ -1285,7 +1392,7 @@ impl CodegenCtx<'_> {
                     && local_name.is_some() =>
             {
                 inline_args[1].0 = local_name.expect("guard proved a source local name");
-                self.emit_inline_array(&inline_args);
+                self.emit_inline_array(cmd, &inline_args);
             }
             InlineCodegenHookId::String => {
                 let previous_inline = self.used_inline_cmd_subst;
@@ -1333,14 +1440,45 @@ impl CodegenCtx<'_> {
     /// Emit one command substitution using an aligned canonical word snapshot
     /// when its enclosing value preserved one.
     ///
-    /// The compatibility parser continues to own value emission.  The source
-    /// snapshot only decides whether `info exists` / `array exists` can claim a
-    /// local-name slot; it never reconstructs command arguments from text.
+    /// The aligned original word owns operand geometry, native compiler
+    /// admission, and child body coordinates. The shared hook dispatcher keeps
+    /// these receipts when a substitution is consumed as one value.
     pub fn emit_inline_cmd_subst_with_tokens(
         &mut self,
         text: &str,
         tokens: Option<&CommandTokens>,
     ) {
+        let syntax = tokens
+            .is_none()
+            .then(|| self.original_inline_syntax(text))
+            .flatten();
+        let tokens = tokens.or(syntax.as_ref());
+        self.with_invocation_tokens(tokens, |ctx| ctx.emit_inline_cmd_subst_inner(text, tokens));
+    }
+
+    pub(super) fn original_inline_syntax(&self, text: &str) -> Option<CommandTokens> {
+        let wrapped;
+        let spelling = if text.starts_with('[') && text.ends_with(']') {
+            text
+        } else {
+            wrapped = format!("[{text}]");
+            &wrapped
+        };
+        crate::word_subst::nested_command_words(
+            spelling,
+            &crate::ir::SourceSite::opaque(tcl_lexer::Span::new(0, 0)),
+            self.lexer_config(),
+        )
+        .ok()
+    }
+
+    fn emit_inline_cmd_subst_inner(&mut self, text: &str, tokens: Option<&CommandTokens>) {
+        if self.emit_native_original_preparation_invocation(tokens) {
+            return;
+        }
+        if self.emit_native_procedure_noop(tokens) || self.emit_native_named_invocation(tokens) {
+            return;
+        }
         // Multi-command scripts (a `;`/newline separator outside quotes/braces)
         // fall back to runtime eval — checked *before* the `{*}` form below so a
         // body that has both (`[set y 1; list {*}$a]`) runs as two commands
@@ -1375,12 +1513,86 @@ impl CodegenCtx<'_> {
         let cmd = &parts[0].0;
         let args = &parts[1..];
 
+        self.emit_inline_cmd_subst_parts(text, tokens, cmd, args);
+    }
+
+    fn emit_inline_cmd_subst_parts(
+        &mut self,
+        text: &str,
+        tokens: Option<&CommandTokens>,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) {
+        let operands = args.to_vec();
+        self.with_native_hook_operands(cmd, &operands, |ctx, logical| {
+            ctx.emit_inline_hook_operands(text, cmd, logical, tokens);
+        });
+    }
+
+    fn emit_inline_or_generic_cmd_subst(
+        &mut self,
+        cmd: &str,
+        args: &[(String, bool)],
+        emit_inline: impl FnOnce(&mut Self) -> bool,
+    ) {
+        if !emit_inline(self) {
+            self.used_inline_cmd_subst = false;
+            self.emit_generic_cmd_subst(cmd, args);
+        }
+    }
+
+    fn emit_selected_inline_catch(&mut self, args: &[(String, bool)]) {
+        self.used_inline_cmd_subst = true;
+        let body_text = &args[0].0;
+        let result_var = args.get(1).map(|(s, _)| s.as_str());
+        let options_var = args.get(2).map(|(s, _)| s.as_str());
+        let emitted = self.emit_catch_inline(body_text, result_var, options_var);
+        debug_assert!(emitted, "the same retained catch output proof was selected");
+    }
+
+    fn emit_inline_hook_operands(
+        &mut self,
+        text: &str,
+        cmd: &str,
+        args: &[(String, bool)],
+        tokens: Option<&CommandTokens>,
+    ) {
+        if super::emitter::bytecoded::try_value_bytecoded(self, cmd, args) {
+            return;
+        }
         // Registry-driven dispatch: the hook ID names the emitter, the
         // guards are each emitter's applicability conditions. A
         // subcommand-keyed hook (`InfoExists`, `DictGet`) only resolves
         // when the subcommand word matched exactly, so those arms need
         // no re-check of the subcommand text.
         match self.inline_cmd_subst_resolution(cmd, args) {
+            Some((InlineCodegenHookId::Error, _)) if (1..=3).contains(&args.len()) => {
+                self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
+                    ctx.emit_inline_error(args, text)
+                });
+            }
+            Some((InlineCodegenHookId::NamespaceCurrent, _)) => {
+                self.emit(Op::CURRENT_NAMESPACE, vec![]);
+            }
+            Some((InlineCodegenHookId::NamespaceOrigin, _)) => {
+                self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
+                    ctx.emit_inline_namespace_origin(tokens)
+                });
+            }
+            Some((InlineCodegenHookId::NamespaceCode, _)) => {
+                self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
+                    ctx.emit_inline_namespace_code(tokens)
+                });
+            }
+            Some((InlineCodegenHookId::Yield, _)) if args.len() <= 1 => {
+                self.emit_inline_yield(args);
+            }
+            Some((InlineCodegenHookId::YieldTo, _)) => {
+                self.emit_inline_yield_to(
+                    args.iter()
+                        .map(|(word, braced)| (word.as_str(), *braced, false)),
+                );
+            }
             Some((InlineCodegenHookId::Expr, _)) if args.len() == 1 => {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
@@ -1393,14 +1605,26 @@ impl CodegenCtx<'_> {
             Some((InlineCodegenHookId::Incr, _)) if (1..=2).contains(&args.len()) => {
                 self.emit_inline_incr(args);
             }
-            Some((InlineCodegenHookId::InfoExists, _)) if args.len() == 2 => {
-                self.emit_inline_info_exists(args);
+            Some((InlineCodegenHookId::InfoLevel, _)) => {
+                self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
+                    ctx.emit_inline_info_level(tokens)
+                });
+            }
+            Some((InlineCodegenHookId::InfoExists, _)) => {
+                self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
+                    ctx.emit_inline_info_exists(tokens)
+                });
+            }
+            Some((InlineCodegenHookId::InfoCommandsResolve, _)) if args.len() == 2 => {
+                self.emit_inline_info_commands_resolve(args);
             }
             Some((InlineCodegenHookId::String, binding)) if args.len() >= 2 => {
                 self.emit_inline_string(cmd, &binding, args);
             }
-            Some((InlineCodegenHookId::Lindex, _)) if args.len() >= 2 => {
-                self.emit_inline_lindex(args);
+            Some((InlineCodegenHookId::Lindex, _)) => {
+                self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
+                    ctx.emit_inline_lindex(tokens)
+                });
             }
             Some((InlineCodegenHookId::Lrange, _)) if args.len() == 3 => {
                 self.emit_inline_lrange(args);
@@ -1416,13 +1640,13 @@ impl CodegenCtx<'_> {
             }
             Some((InlineCodegenHookId::List, _)) if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
-                for (a, b) in args {
-                    self.emit_cmd_subst_arg(a, *b);
+                for (index, (a, b)) in args.iter().enumerate() {
+                    self.emit_native_argument_word(index, a, *b);
                 }
                 self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
             }
             Some((InlineCodegenHookId::Array, _)) if args.len() >= 2 => {
-                self.emit_inline_array(args);
+                self.emit_inline_array(cmd, args);
             }
             Some((InlineCodegenHookId::DictGet, _)) if args.len() >= 3 => {
                 self.emit_inline_dict_get(args);
@@ -1430,13 +1654,9 @@ impl CodegenCtx<'_> {
             Some((InlineCodegenHookId::Catch, _))
                 if self.is_proc
                     && (1..=3).contains(&args.len())
-                    && Self::catch_inline_args_are_static(args) =>
+                    && self.catch_inline_shape_is_supported(args) =>
             {
-                self.used_inline_cmd_subst = true;
-                let body_text = &args[0].0;
-                let result_var = args.get(1).map(|(s, _)| s.as_str());
-                let options_var = args.get(2).map(|(s, _)| s.as_str());
-                self.emit_catch_inline(body_text, result_var, options_var);
+                self.emit_selected_inline_catch(args);
             }
             _ => {
                 self.used_inline_cmd_subst = false;
@@ -1451,6 +1671,9 @@ impl CodegenCtx<'_> {
     /// result on the stack. Mirrors [`Self::emit_expanded_call`] without the
     /// trailing `pop`.
     pub(super) fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
+        if self.try_emit_expanded_native_call(parts) {
+            return;
+        }
         self.used_inline_cmd_subst = true;
         self.emit_expanded_words(
             parts
@@ -1462,100 +1685,563 @@ impl CodegenCtx<'_> {
 
     // Private inline helpers for emit_inline_cmd_subst.
 
-    fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
-        let var_name = &args[0].0;
-        if self.compiles_locals() && !is_qualified(var_name) {
-            let slot = bytecode_imm(self.lvt.intern(var_name));
-            if args.len() == 1 {
-                self.emit_comment(
-                    Op::INCR_SCALAR1_IMM,
-                    vec![Operand::Imm(slot), Operand::Imm(1)],
-                    &format!("var \"{var_name}\""),
-                );
-            } else {
-                let amt_str = &args[1].0;
-                if let Some(amt) = self.parse_int_operand(amt_str) {
-                    if (-128..=127).contains(&amt) {
-                        self.emit_comment(
-                            Op::INCR_SCALAR1_IMM,
-                            vec![
-                                Operand::Imm(slot),
-                                Operand::Imm(
-                                    i32::try_from(amt)
-                                        .expect("incr literal fits in i32 after range check"),
-                                ),
-                            ],
-                            &format!("var \"{var_name}\""),
-                        );
-                    } else {
-                        self.push_lit(amt_str);
-                        self.emit_comment(
-                            Op::INCR_SCALAR1,
-                            vec![Operand::Imm(slot)],
-                            &format!("var \"{var_name}\""),
-                        );
-                    }
-                } else {
-                    let var_ref = amt_str.strip_prefix('$').unwrap_or(amt_str);
-                    self.load_var(var_ref);
-                    self.emit_comment(
-                        Op::INCR_SCALAR1,
-                        vec![Operand::Imm(slot)],
-                        &format!("var \"{var_name}\""),
-                    );
-                }
+    /// Native Error uses the same return-options stack protocol as returnImm,
+    /// preserving optional errorInfo/errorCode argv and their evaluation order.
+    pub(super) fn emit_inline_error(
+        &mut self,
+        args: &[(String, bool)],
+        source_command: &str,
+    ) -> bool {
+        use tcl_registry::native_error_compilation::{NativeErrorStep, native_error_instruction};
+        let Some(version) = self
+            .native_hook_dialect()
+            .and_then(|dialect| dialect.tcl_version)
+        else {
+            return false;
+        };
+        let operands = (0..args.len())
+            .map(tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original)
+            .collect::<Vec<_>>();
+        let Ok(recipe) = native_error_instruction(&operands, version) else {
+            return false;
+        };
+        self.used_inline_cmd_subst = true;
+        for step in recipe.steps {
+            match step {
+                NativeErrorStep::Word(tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(index)) => self.emit_native_argument_word(index, &args[index].0, args[index].1),
+                NativeErrorStep::Word(_) => unreachable!("selected original argv operands"),
+                NativeErrorStep::Literal(value) => { self.push_lit_bytes_exact(&value); }
+                NativeErrorStep::List(count) => { self.emit(Op::LIST, vec![Operand::Imm(i32::try_from(count).expect("native Error pair count"))]); }
+                NativeErrorStep::DictionaryPut => { self.emit(Op::DICT_PUT, vec![]); }
+                NativeErrorStep::ReturnError => self.emit_native_error_return(source_command),
             }
+        }
+        true
+    }
+
+    pub(super) fn emit_inline_yield(&mut self, args: &[(String, bool)]) {
+        self.used_inline_cmd_subst = true;
+        if let Some((word, braced)) = args.first() {
+            self.emit_native_argument_word(0, word, *braced);
         } else {
-            self.push_lit(var_name);
-            if args.len() == 1 {
-                self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(1)]);
+            self.push_lit_exact("");
+        }
+        self.emit(Op::YIELD, vec![]);
+    }
+
+    /// Native relay list construction preserves namespace capture before argv
+    /// evaluation and Tcl 9.1's expansion boundaries.
+    pub(super) fn emit_inline_yield_to<'a>(
+        &mut self,
+        words: impl IntoIterator<Item = (&'a str, bool, bool)>,
+    ) {
+        self.used_inline_cmd_subst = true;
+        self.emit(Op::CURRENT_NAMESPACE, vec![]);
+        self.emit_native_argument_list(words, 0, 1);
+        self.emit(Op::YIELD_TO_INVOKE, vec![]);
+    }
+
+    /// Build a native list from original argument words and expansion segments.
+    /// `arguments_from` retains the hook's operand map; `prefix_count` counts
+    /// already evaluated stack values included before those arguments.
+    pub(super) fn emit_native_argument_list<'a>(
+        &mut self,
+        words: impl IntoIterator<Item = (&'a str, bool, bool)>,
+        arguments_from: usize,
+        prefix_count: usize,
+    ) {
+        let segment_limit = self.native_hook_dialect().and_then(
+            tcl_registry::native_compilation::NativeTailcallStack::argument_list_segment_limit,
+        );
+        let mut pending = prefix_count;
+        let mut concatenated = false;
+        for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
+            if expanded && pending > 0 {
+                self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(pending))]);
+                if concatenated {
+                    self.emit(Op::LIST_CONCAT, vec![]);
+                }
+                pending = 0;
+                concatenated = true;
+            }
+            self.emit_native_argument_word(arguments_from + index, word, braced);
+            if expanded {
+                if concatenated {
+                    self.emit(Op::LIST_CONCAT, vec![]);
+                }
+                concatenated = true;
             } else {
-                let amt_str = &args[1].0;
-                // `INCR_STK_IMM` carries a 1-byte signed operand, so it
-                // must be range-checked exactly like the proc-local
-                // `INCR_SCALAR1_IMM` branch above. Without the check,
-                // `[incr ::g 200]` overflowed the operand, and an amount
-                // outside `i32` (e.g. `3000000000`) fell through to a
-                // `load_var` of a variable *named* after the number — a
-                // phantom-variable read. Parse as `i64` and fall back to the
-                // full `INCR_STK` for anything outside the 1-byte range.
-                if let Some(amt) = self.parse_int_operand(amt_str) {
-                    if (-128..=127).contains(&amt) {
-                        self.emit(
-                            Op::INCR_STK_IMM,
-                            vec![Operand::Imm(
-                                i32::try_from(amt)
-                                    .expect("incr literal fits in i32 after range check"),
-                            )],
-                        );
-                    } else {
-                        self.push_lit(amt_str);
-                        self.emit(Op::INCR_STK, vec![]);
+                pending += 1;
+                if segment_limit.is_some_and(|limit| pending > limit) {
+                    self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(pending))]);
+                    if concatenated {
+                        self.emit(Op::LIST_CONCAT, vec![]);
                     }
-                } else {
-                    let var_ref = amt_str.strip_prefix('$').unwrap_or(amt_str);
-                    self.load_var(var_ref);
-                    self.emit(Op::INCR_STK, vec![]);
+                    pending = 0;
+                    concatenated = true;
                 }
             }
+        }
+        if pending > 0 {
+            self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(pending))]);
+            if concatenated {
+                self.emit(Op::LIST_CONCAT, vec![]);
+            }
+        }
+        if pending == 0 && !concatenated {
+            self.emit(Op::LIST, vec![Operand::Imm(0)]);
         }
     }
 
-    fn emit_inline_info_exists(&mut self, args: &[(String, bool)]) {
-        self.used_inline_cmd_subst = true;
-        let var_name = &args[1].0;
-        if self.compiles_locals() && !is_qualified(var_name) {
-            let slot = bytecode_imm(self.lvt.intern(var_name));
-            self.emit_comment(
-                Op::EXIST_SCALAR,
-                vec![Operand::Imm(slot)],
-                &format!("var \"{var_name}\""),
+    pub(super) fn emit_native_argument_word(&mut self, index: usize, text: &str, braced: bool) {
+        let word = self.original_hook_argument(index).and_then(|original| {
+            self.invocation_tokens
+                .as_deref()?
+                .words()
+                .get(original + 1)
+                .cloned()
+        });
+        if let Some(word) = word {
+            self.emit_word_from_source(text, braced, Some(&word));
+        } else {
+            self.emit_cmd_subst_arg(text, braced);
+        }
+    }
+
+    pub(super) fn try_emit_expanded_native_call(&mut self, parts: &[(String, bool, bool)]) -> bool {
+        let Some(tokens) = self.invocation_tokens.as_deref() else {
+            return false;
+        };
+        if tokens.source_binding.is_none() {
+            let dialect = crate::environment_ingress::authoring_invocation_dialect(
+                self.registry,
+                self.dialect,
+                self.lexer_config(),
             );
+            let Some((
+                _,
+                tcl_registry::native_compilation::NativeCompilationSelection::Inline { .. },
+            )) = crate::registry_invocation::native_compilation_syntax(
+                self.registry,
+                tokens,
+                dialect,
+                self.native_compilation,
+            )
+            else {
+                return false;
+            };
+        }
+        let Some((head, _, false)) = parts.first() else {
+            return false;
+        };
+        let args = parts[1..]
+            .iter()
+            .map(|(word, _, _)| word.as_str())
+            .collect::<Vec<_>>();
+        if super::emitter::bytecoded::try_expanded_tailcall(self, head, &parts[1..]) {
+            return true;
+        }
+        if super::emitter::bytecoded::try_expanded_lappend(self, head, &parts[1..]) {
+            self.used_inline_cmd_subst = true;
+            return true;
+        }
+        let Some((InlineCodegenHookId::YieldTo, binding)) =
+            self.inline_codegen_resolution(head, &args)
+        else {
+            return false;
+        };
+        self.emit_inline_yield_to(
+            parts[1..]
+                .iter()
+                .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
+        );
+        self.require_site_binding(&binding);
+        true
+    }
+
+    fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
+        let Some((name, braced)) = args.first() else {
+            return;
+        };
+        self.emit_incr(
+            name,
+            *braced,
+            args.get(1).map(|(amount, _)| amount.as_str()),
+        );
+    }
+
+    /// One retained compiler selection and original-command replay boundary.
+    fn emit_native_compiler_selection(
+        &mut self,
+        source: &str,
+        namespace: &str,
+        namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
+        prerequisite: tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite,
+    ) -> String {
+        let selection = self.emit(Op::NOP, vec![]);
+        let end = self.fresh_label("native_selection_end");
+        self.instructions[selection].source_cmd_text =
+            tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_image().channel());
+        self.instructions[selection].source_command_namespace =
+            namespace_context.as_ref().map_or_else(
+                || super::namespace_path_from_constructed_key(namespace),
+                |context| context.path().clone(),
+            );
+        self.instructions[selection].source_command_namespace_context = namespace_context;
+        self.instructions[selection].source_command_boundary =
+            tcl_bytecode::SourceCommandBoundary::Start;
+        self.instructions[selection].no_fold = true;
+        self.instructions[selection].native_compiler_selection =
+            Some(tcl_bytecode::NativeCompilerSelectionSite {
+                prerequisite,
+                end: end.clone(),
+            });
+        end
+    }
+
+    /// Execute every original operand, then produce the result selected by the
+    /// actual native empty variadic procedure compiler. No procedure frame or
+    /// late invocation is introduced by Tcl's `NoOp` compiler.
+    pub(super) fn emit_native_procedure_noop(&mut self, tokens: Option<&CommandTokens>) -> bool {
+        if self.plain_command_dispatch {
+            return false;
+        }
+        let Some(tokens) = tokens else { return false };
+        let Some(plan) = crate::registry_invocation::native_procedure_noop_plan(tokens) else {
+            return false;
+        };
+        let end = self.emit_native_compiler_selection(
+            &plan.source,
+            &plan.namespace,
+            plan.namespace_context,
+            tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::ProcedureHeader(Box::new(plan.prerequisite)),
+        );
+        for (index, word) in tokens.words().iter().enumerate().skip(1) {
+            let braced = tokens.argv_kinds.get(index) == Some(&tcl_lexer::TokenType::Str)
+                && tokens
+                    .single_token_word
+                    .get(index)
+                    .copied()
+                    .unwrap_or(false);
+            self.emit_word_from_source(&tokens.argv_texts[index], braced, Some(word));
+            self.emit(Op::POP, vec![]);
+        }
+        self.push_lit_exact("");
+        self.place_label(&end);
+        self.used_inline_cmd_subst = true;
+        true
+    }
+
+    /// Emit a captured private name followed by late ordinary handler lookup.
+    /// Source substitutions execute once, in original order, without capturing
+    /// an entered token or substituting a canonical handler for the private name.
+    pub(super) fn emit_native_named_invocation(&mut self, tokens: Option<&CommandTokens>) -> bool {
+        if self.plain_command_dispatch {
+            return false;
+        }
+        let Some(tokens) = tokens else { return false };
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return false;
+        };
+        let Some(named) = binding.admitted_named_invocation() else {
+            return false;
+        };
+        let Some((image, originals, offset)) = binding.original_compiler_source(tokens) else {
+            return false;
+        };
+        let Some(dialect) = binding.native_compiler_dialect() else {
+            return false;
+        };
+        let Some(protocol) = binding.compiler_source_protocol() else {
+            return false;
+        };
+        let Some(originals) = crate::registry_invocation::original_native_compiler_words(
+            image,
+            originals,
+            offset,
+            tokens.native_lexer_config(self.lexer_config()),
+        ) else {
+            return false;
+        };
+        let Ok(captured) =
+            tcl_registry::native_compiler_words::NativeCompilerWords::capture(&originals, protocol)
+        else {
+            return false;
+        };
+        let replacements: Vec<_> = named
+            .replacement_words
+            .iter()
+            .map(|word| word.as_bytes().to_vec())
+            .collect();
+        let Ok(recipe) = tcl_registry::native_instruction_plan::native_named_invocation_instruction(
+            &captured,
+            dialect,
+            named.captured_name().as_bytes(),
+            named.arguments_from,
+            named.protocol,
+            &replacements,
+        ) else {
+            return false;
+        };
+        // INVOKE_REPLACE has a fixed original word count. The genuine compiler
+        // selects ordinary dispatch when a rewrite still has dynamic expansion.
+        if recipe.protocol
+            == tcl_registry::native_compilation::NativeNamedInvocationProtocol::EnsembleRewrite
+            && recipe.expanded.iter().any(|expanded| *expanded)
+        {
+            return false;
+        }
+        let selection_end = if let Some(required) = &named.compiler_prerequisite {
+            self.retain_entry_named_compiler_prerequisite(required);
+            let Some(source) = crate::registry_invocation::native_compiler_replay_source(
+                tokens,
+                &named.compilation_site,
+            ) else {
+                return false;
+            };
+            let end = self.emit_native_compiler_selection(
+                &source,
+                &tokens.source_binding.as_ref().unwrap().lookup_namespace,
+                crate::registry_invocation::compiled_namespace_context(tokens),
+                tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::from_command_registration(
+                    std::sync::Arc::clone(required),
+                ),
+            );
+            Some(end)
+        } else {
+            None
+        };
+        if !self.emit_native_original_preparation_receipt(&named.preparations) {
+            return false;
+        }
+        self.emit_named_instruction(tokens, named, &recipe);
+        if let Some(end) = selection_end {
+            self.place_label(&end);
+        }
+        self.used_inline_cmd_subst = false;
+        true
+    }
+
+    fn emit_named_instruction(
+        &mut self,
+        tokens: &CommandTokens,
+        named: &crate::command_binding::SourceNamedInvocationProof,
+        recipe: &tcl_registry::native_instruction_plan::NativeNamedInvocationInstruction,
+    ) {
+        use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
+        use tcl_registry::native_instruction_plan::NativeNamedInvocationWord;
+        let rewrite = recipe.protocol
+            == tcl_registry::native_compilation::NativeNamedInvocationProtocol::EnsembleRewrite;
+        let expanding = recipe.expanded.iter().any(|expanded| *expanded);
+        if expanding {
+            self.emit(Op::EXPAND_START, vec![]);
+        }
+        if !rewrite {
+            self.emit_selected_native_command_name(tokens, named);
+        }
+        for (position, (word, expanded)) in recipe.words.iter().zip(&recipe.expanded).enumerate() {
+            match word {
+                NativeNamedInvocationWord::Replacement(bytes)
+                | NativeNamedInvocationWord::Original(
+                    NativeCompilerWordOperand::LiteralExpansion { value: bytes, .. },
+                ) => self.push_lit_bytes_exact(bytes),
+                NativeNamedInvocationWord::Original(NativeCompilerWordOperand::Original(index)) => {
+                    let original = &tokens.words()[*index];
+                    let payload = match original {
+                        WordExpr::Expand { word, .. } => word.as_ref(),
+                        original => original,
+                    };
+                    let braced = tokens.argv_kinds.get(*index) == Some(&tcl_lexer::TokenType::Str)
+                        && tokens
+                            .single_token_word
+                            .get(*index)
+                            .copied()
+                            .unwrap_or(false);
+                    self.emit_word_from_source(&tokens.argv_texts[*index], braced, Some(payload));
+                }
+            }
+            if *expanded {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(bytecode_imm(position + 2))],
+                );
+            }
+        }
+        if rewrite {
+            self.emit_selected_native_command_name(tokens, named);
+            self.emit(
+                Op::INVOKE_REPLACE,
+                vec![
+                    Operand::Imm(bytecode_imm(recipe.words.len())),
+                    Operand::Imm(bytecode_imm(recipe.arguments_from + 1)),
+                ],
+            );
+        } else if expanding {
+            self.emit(Op::INVOKE_EXPANDED, vec![]);
+        } else {
+            let argc = bytecode_imm(recipe.words.len() + 1);
+            self.emit(
+                if argc < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                },
+                vec![Operand::Imm(argc)],
+            );
+        }
+    }
+
+    fn emit_inline_info_commands_resolve(&mut self, args: &[(String, bool)]) {
+        self.used_inline_cmd_subst = true;
+        self.emit_native_argument_word(1, &args[1].0, args[1].1);
+        self.emit(Op::RESOLVE_CMD, vec![]);
+        self.emit(Op::DUP, vec![]);
+        self.emit(Op::STR_LEN, vec![]);
+        let end = self.fresh_label("info_commands_end");
+        self.emit(Op::JUMP_FALSE1, vec![Operand::Label(end.clone())]);
+        self.emit(Op::LIST, vec![Operand::Imm(1)]);
+        self.place_label(&end);
+    }
+
+    /// The original compiler captures its opcode before argv; the operand
+    /// still evaluates once and resolves its command in the entered namespace.
+    pub(in crate::codegen) fn emit_inline_namespace_origin(
+        &mut self,
+        tokens: Option<&CommandTokens>,
+    ) -> bool {
+        let Some(tokens) = tokens else {
+            return false;
+        };
+        let Some(invocation) = crate::registry_invocation::admitted_native_compiler_invocation(
+            self.registry,
+            None,
+            tokens,
+        ) else {
+            return false;
+        };
+        let Some([word]) = invocation
+            .effective_words()
+            .words
+            .get(1 + invocation.argument_offset()..)
+        else {
+            return false;
+        };
+        self.emit_word_from_source(
+            &word.legacy_text(),
+            matches!(word, WordExpr::BracedLiteral { .. }),
+            Some(word),
+        );
+        self.emit(Op::ORIGIN_CMD, vec![]);
+        self.used_inline_cmd_subst = true;
+        true
+    }
+
+    /// The original literal builder captures the runtime namespace, rather
+    /// than evaluating the script or baking in a compiler namespace name.
+    pub(in crate::codegen) fn emit_inline_namespace_code(
+        &mut self,
+        tokens: Option<&CommandTokens>,
+    ) -> bool {
+        let Some(invocation) = tokens.and_then(|tokens| {
+            crate::registry_invocation::admitted_native_compiler_invocation(
+                self.registry,
+                None,
+                tokens,
+            )
+        }) else {
+            return false;
+        };
+        let Some([word]) = invocation
+            .effective_words()
+            .words
+            .get(1 + invocation.argument_offset()..)
+        else {
+            return false;
+        };
+        self.push_lit("::namespace");
+        self.push_lit("inscope");
+        self.emit(Op::CURRENT_NAMESPACE, vec![]);
+        self.emit_word_from_source(
+            &word.legacy_text(),
+            matches!(word, WordExpr::BracedLiteral { .. }),
+            Some(word),
+        );
+        self.emit(Op::LIST, vec![Operand::Imm(4)]);
+        self.used_inline_cmd_subst = true;
+        true
+    }
+
+    fn emit_inline_info_level(&mut self, tokens: Option<&CommandTokens>) -> bool {
+        let Some(tokens) = tokens else {
+            return false;
+        };
+        let Some(invocation) = crate::registry_invocation::admitted_native_compiler_invocation(
+            self.registry,
+            None,
+            tokens,
+        ) else {
+            return false;
+        };
+        let Some(operands) = invocation
+            .effective_words()
+            .words
+            .get(1 + invocation.argument_offset()..)
+        else {
+            return false;
+        };
+        match operands {
+            [] => {
+                self.emit(Op::INFO_LEVEL_NUM, vec![]);
+            }
+            [word] => {
+                self.emit_word_from_source(
+                    &word.legacy_text(),
+                    matches!(word, WordExpr::BracedLiteral { .. }),
+                    Some(word),
+                );
+                self.emit(Op::INFO_LEVEL_ARGS, vec![]);
+            }
+            _ => return false,
+        }
+        self.used_inline_cmd_subst = true;
+        true
+    }
+
+    /// Emit the selected exists operand from its canonical source coordinate.
+    /// A computed name evaluates once before the stack opcode; only a source
+    /// word eligible for a direct local slot bypasses substitution.
+    fn emit_inline_info_exists(&mut self, tokens: Option<&CommandTokens>) -> bool {
+        let Some(tokens) = tokens else {
+            return false;
+        };
+        let Some(invocation) = crate::registry_invocation::admitted_native_compiler_invocation(
+            self.registry,
+            None,
+            tokens,
+        ) else {
+            return false;
+        };
+        let Some(word) = invocation
+            .effective_words()
+            .words
+            .get(1 + invocation.argument_offset())
+        else {
+            return false;
+        };
+        self.used_inline_cmd_subst = true;
+        if let Some(slot) = self.original_scalar_operand_slot(word) {
+            self.emit(Op::EXIST_SCALAR, vec![Operand::Imm(bytecode_imm(slot))]);
             self.emit(Op::NOP, vec![]);
         } else {
-            self.push_lit_exact(var_name);
+            let spelling = word.legacy_text();
+            self.emit_word_from_source(
+                &spelling,
+                matches!(word, WordExpr::BracedLiteral { .. }),
+                Some(word),
+            );
             self.emit(Op::EXIST_STK, vec![]);
         }
+        true
     }
 
     /// Emit the `string equal {-nocase}? a b` / `string compare
@@ -1590,8 +2276,8 @@ impl CodegenCtx<'_> {
         for f in flag_args {
             self.push_lit(f);
         }
-        for (a, b) in operand_args {
-            self.emit_cmd_subst_arg(a, *b);
+        for (index, (a, b)) in operand_args.iter().enumerate() {
+            self.emit_native_argument_word(1 + flag_args.len() + index, a, *b);
         }
         self.push_lit(&format!("::tcl::string::{target_subcmd}"));
         let argc = bytecode_imm(2 + flag_args.len() + operand_args.len());
@@ -1619,6 +2305,19 @@ impl CodegenCtx<'_> {
         args: &[(String, bool)],
         wrap_start_command: bool,
     ) -> bool {
+        if self
+            .registry
+            .profile()
+            .map(tcl_registry::InvocationDialect::of_profile)
+            .and_then(|dialect| {
+                dialect.ensemble_implementation_namespace(
+                    tcl_registry::EnsembleImplementationFamily::String,
+                )
+            })
+            .is_none()
+        {
+            return false;
+        }
         let Some(((subcmd, _), sargs)) = args.split_first() else {
             return false;
         };
@@ -1676,8 +2375,8 @@ impl CodegenCtx<'_> {
             );
             Some(label)
         };
-        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
+        self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+        self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
         self.emit(op, vec![]);
         if let Some(label) = sc_end {
             self.place_label(&label);
@@ -1689,6 +2388,7 @@ impl CodegenCtx<'_> {
     fn emit_inline_string_fqn_invoke(
         &mut self,
         prev_inline: bool,
+        entered_command: &str,
         subcmd: &str,
         sargs: &[(String, bool)],
     ) {
@@ -1699,12 +2399,25 @@ impl CodegenCtx<'_> {
             vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
             "",
         );
-        let fqn = format!("::tcl::string::{subcmd}");
-        self.push_lit(&fqn);
-        for (a, b) in sargs {
-            self.emit_cmd_subst_arg(a, *b);
+        let namespace = self
+            .registry
+            .profile()
+            .map(tcl_registry::InvocationDialect::of_profile)
+            .and_then(|dialect| {
+                dialect.ensemble_implementation_namespace(
+                    tcl_registry::EnsembleImplementationFamily::String,
+                )
+            });
+        if let Some(namespace) = namespace {
+            self.push_lit(&format!("{namespace}::{subcmd}"));
+        } else {
+            self.push_lit(entered_command);
+            self.push_lit(subcmd);
         }
-        let argc = bytecode_imm(1 + sargs.len());
+        for (index, (a, b)) in sargs.iter().enumerate() {
+            self.emit_native_argument_word(index + 1, a, *b);
+        }
+        let argc = bytecode_imm(usize::from(namespace.is_none()) + 1 + sargs.len());
         let invoke_op = if argc < 256 {
             Op::INVOKE_STK1
         } else {
@@ -1738,12 +2451,12 @@ impl CodegenCtx<'_> {
 
         match subcmd.as_str() {
             "index" if sargs.len() == 2 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
+                self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+                self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
                 self.emit(Op::STR_INDEX, vec![]);
             }
             "range" if sargs.len() == 3 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+                self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
                 let start_idx = parse_tcl_index(&sargs[1].0);
                 let end_idx = parse_tcl_index(&sargs[2].0);
                 if let (Some(s), Some(e)) = (start_idx, end_idx)
@@ -1752,8 +2465,8 @@ impl CodegenCtx<'_> {
                 {
                     self.emit(Op::STR_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
                 } else {
-                    self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                    self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
+                    self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
+                    self.emit_native_argument_word(3, &sargs[2].0, sargs[2].1);
                     self.emit(Op::STR_RANGE, vec![]);
                 }
             }
@@ -1767,14 +2480,14 @@ impl CodegenCtx<'_> {
                 self.emit_inline_string_replace(sargs);
             }
             "length" if sargs.len() == 1 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+                self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
                 self.emit(Op::STR_LEN, vec![]);
             }
             "is" if sargs.len() >= 2 => {
                 self.emit_inline_string_is(entered_command, entered_binding, sargs);
             }
             _ => {
-                self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
+                self.emit_inline_string_fqn_invoke(prev_inline, entered_command, subcmd, sargs);
             }
         }
     }
@@ -1790,8 +2503,8 @@ impl CodegenCtx<'_> {
             // checked add and fall back to `strreplace` when it doesn't fit.
             && let Some(start) = last_int.checked_add(1)
         {
-            self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-            self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
+            self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+            self.emit_native_argument_word(4, &sargs[3].0, sargs[3].1);
             self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
             self.emit(
                 Op::STR_RANGE_IMM,
@@ -1801,10 +2514,10 @@ impl CodegenCtx<'_> {
             return;
         }
         // Fallback: strreplace
-        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-        self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-        self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
+        self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+        self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
+        self.emit_native_argument_word(3, &sargs[2].0, sargs[2].1);
+        self.emit_native_argument_word(4, &sargs[3].0, sargs[3].1);
         self.emit(Op::STR_REPLACE, vec![]);
     }
 
@@ -1847,11 +2560,11 @@ impl CodegenCtx<'_> {
                 // for character classes); defer to the generic command.
                 self.emit_string_is_generic(entered_command, entered_binding, sargs);
             } else {
-                self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+                self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
                 self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
             }
         } else if class_name == "integer" {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
             if strict {
                 self.emit(Op::NUMERIC_TYPE, vec![]);
                 self.emit(Op::DUP, vec![]);
@@ -1879,7 +2592,7 @@ impl CodegenCtx<'_> {
                 self.place_label(&end_lbl);
             }
         } else if class_name == "double" {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
             if strict {
                 self.emit(Op::NUMERIC_TYPE, vec![]);
                 let true_lbl = self.fresh_label("si_true");
@@ -1909,7 +2622,7 @@ impl CodegenCtx<'_> {
                 self.place_label(&end_lbl);
             }
         } else if class_name == "boolean" {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
             self.emit(Op::TRY_CVT_TO_BOOLEAN, vec![]);
             let true_lbl = self.fresh_label("si_true");
             self.emit(Op::JUMP_TRUE1, vec![Operand::Label(true_lbl.clone())]);
@@ -1947,31 +2660,68 @@ impl CodegenCtx<'_> {
         );
     }
 
-    fn emit_inline_lindex(&mut self, args: &[(String, bool)]) {
-        self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[0].0, args[0].1); // list
-        if args.len() == 2 {
-            let idx = parse_tcl_index(&args[1].0);
-            if let Some(idx) = idx {
-                if idx >= 0 || idx <= INDEX_END {
-                    self.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(idx)]);
-                } else {
-                    self.emit_cmd_subst_arg(&args[1].0, args[1].1);
-                    self.emit(Op::LIST_INDEX, vec![]);
-                }
-            } else {
-                self.emit_cmd_subst_arg(&args[1].0, args[1].1);
-                self.emit(Op::LIST_INDEX, vec![]);
+    /// Emit only retained original operands of the selected list-index operation.
+    fn emit_inline_lindex(&mut self, tokens: Option<&CommandTokens>) -> bool {
+        let Some(invocation) = tokens.and_then(|tokens| {
+            crate::registry_invocation::admitted_native_compiler_invocation(
+                self.registry,
+                None,
+                tokens,
+            )
+        }) else {
+            return false;
+        };
+        let Some(operands) = invocation
+            .effective_words()
+            .words
+            .get(1 + invocation.argument_offset()..)
+            .filter(|operands| !operands.is_empty())
+        else {
+            return false;
+        };
+        let immediate = (operands.len() == 2)
+            .then(|| {
+                invocation.with_argument_words(|words| {
+                    let arguments = words.arguments();
+                    let dialect = arguments.dialect()?;
+                    if dialect.tcl_version? < tcl_dialect::TclVersion::V8_5 {
+                        return None;
+                    }
+                    let text = arguments.literal_at(1)?;
+                    let tcl_syntax::number::Number::Int(index) =
+                        tcl_syntax::number::parse_whole_with(
+                            text,
+                            tcl_syntax::number::ParseFlags::for_syntax(dialect.numbers),
+                        )?
+                    else {
+                        return None;
+                    };
+                    i32::try_from(index).ok().filter(|index| *index >= 0)
+                })
+            })
+            .flatten();
+        for (index, word) in operands.iter().enumerate() {
+            if index == 1 && immediate.is_some() {
+                continue;
             }
-        } else {
-            for a in &args[1..] {
-                self.emit_cmd_subst_arg(&a.0, a.1);
-            }
-            self.emit(
-                Op::LINDEX_MULTI,
-                vec![Operand::Imm(bytecode_imm(args.len()))],
+            self.emit_word_from_source(
+                &word.legacy_text(),
+                matches!(word, WordExpr::BracedLiteral { .. }),
+                Some(word),
             );
         }
+        if let Some(index) = immediate {
+            self.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(index)]);
+        } else if operands.len() == 2 {
+            self.emit(Op::LIST_INDEX, vec![]);
+        } else {
+            self.emit(
+                Op::LINDEX_MULTI,
+                vec![Operand::Imm(bytecode_imm(operands.len()))],
+            );
+        }
+        self.used_inline_cmd_subst = true;
+        true
     }
 
     fn emit_inline_lrange(&mut self, args: &[(String, bool)]) {
@@ -1986,7 +2736,7 @@ impl CodegenCtx<'_> {
             && imm_index_ok(e)
         {
             self.used_inline_cmd_subst = true;
-            self.emit_cmd_subst_arg(&args[0].0, args[0].1);
+            self.emit_native_argument_word(0, &args[0].0, args[0].1);
             self.emit(Op::LIST_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
         } else {
             self.used_inline_cmd_subst = false;
@@ -1996,9 +2746,9 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_lreplace(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for a in &args[1..] {
-            self.emit_cmd_subst_arg(&a.0, a.1);
+        self.emit_native_argument_word(0, &args[0].0, args[0].1);
+        for (index, a) in args[1..].iter().enumerate() {
+            self.emit_native_argument_word(index + 1, &a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2008,9 +2758,9 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_linsert(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for a in &args[1..] {
-            self.emit_cmd_subst_arg(&a.0, a.1);
+        self.emit_native_argument_word(0, &args[0].0, args[0].1);
+        for (index, a) in args[1..].iter().enumerate() {
+            self.emit_native_argument_word(index + 1, &a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2019,20 +2769,21 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_inline_regexp(&mut self, args: &[(String, bool)]) {
-        let mut rargs: Vec<&(String, bool)> = args.iter().collect();
+        let mut rargs: Vec<(usize, &(String, bool))> = args.iter().enumerate().collect();
         let mut nocase = false;
-        if !rargs.is_empty() && rargs[0].0 == "-nocase" {
+        if !rargs.is_empty() && rargs[0].1.0 == "-nocase" {
             nocase = true;
             rargs.remove(0);
         }
-        if !rargs.is_empty() && rargs[0].0 == "--" {
+        if !rargs.is_empty() && rargs[0].1.0 == "--" {
             rargs.remove(0);
         }
         if rargs.len() == 2 && nocase {
-            if let Some(glob) = regexp_to_glob(&rargs[0].0) {
+            if let Some(glob) = regexp_to_glob(&rargs[0].1.0) {
                 self.used_inline_cmd_subst = true;
                 self.push_lit(&glob);
-                self.emit_cmd_subst_arg(&rargs[1].0, rargs[1].1);
+                let (index, subject) = rargs[1];
+                self.emit_native_argument_word(index, &subject.0, subject.1);
                 self.emit(Op::STR_MATCH, vec![Operand::Imm(1)]);
             } else {
                 self.used_inline_cmd_subst = false;
@@ -2045,8 +2796,8 @@ impl CodegenCtx<'_> {
             // default `TCL_REG_ADVANCED` (3). `-nocase` is handled by the glob
             // path above, so the NOCASE bit is never set here.
             self.used_inline_cmd_subst = true;
-            for arg in &rargs {
-                self.emit_cmd_subst_arg(&arg.0, arg.1);
+            for (index, arg) in &rargs {
+                self.emit_native_argument_word(*index, &arg.0, arg.1);
             }
             self.emit(Op::REGEXP, vec![Operand::Imm(3)]);
         } else {
@@ -2055,29 +2806,65 @@ impl CodegenCtx<'_> {
         }
     }
 
-    fn emit_inline_array(&mut self, args: &[(String, bool)]) {
+    fn emit_inline_array(&mut self, entered_command: &str, args: &[(String, bool)]) {
         let sub = &args[0].0;
         let rest = &args[1..];
-        if sub == "exists" && rest.len() == 1 && self.compiles_locals() && !is_qualified(&rest[0].0)
-        {
-            self.used_inline_cmd_subst = true;
-            let slot = bytecode_imm(self.lvt.intern(&rest[0].0));
-            self.emit_comment(
-                Op::ARRAY_EXISTS_IMM,
-                vec![Operand::Imm(slot)],
-                &format!("var \"{}\"", rest[0].0),
-            );
+        if sub == "exists" && rest.len() == 1 {
+            let tokens = self.invocation_tokens.clone();
+            let source_word = tokens.as_deref().and_then(|tokens| {
+                crate::registry_invocation::admitted_native_compiler_invocation(
+                    self.registry,
+                    None,
+                    tokens,
+                )
+                .and_then(|invocation| {
+                    invocation
+                        .effective_words()
+                        .words
+                        .get(1 + invocation.argument_offset())
+                        .cloned()
+                })
+                .or_else(|| {
+                    (self.native_entry.is_none() && tokens.source_binding.is_none())
+                        .then(|| tokens.words().get(2).cloned())
+                        .flatten()
+                })
+            });
+            let slot = source_word
+                .as_ref()
+                .and_then(|word| self.original_scalar_operand_slot(word));
+            if let Some(slot) = slot {
+                self.used_inline_cmd_subst = true;
+                self.emit(Op::ARRAY_EXISTS_IMM, vec![Operand::Imm(bytecode_imm(slot))]);
+            } else {
+                self.used_inline_cmd_subst = false;
+                self.emit_generic_cmd_subst(entered_command, args);
+            }
         } else if (sub == "names" || sub == "size") && !rest.is_empty() {
+            let Some(namespace) = self
+                .registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile)
+                .and_then(|dialect| {
+                    dialect.ensemble_implementation_namespace(
+                        tcl_registry::EnsembleImplementationFamily::Array,
+                    )
+                })
+            else {
+                self.used_inline_cmd_subst = false;
+                self.emit_generic_cmd_subst(entered_command, args);
+                return;
+            };
             let sc_end = self.fresh_label("subcmd_end");
             self.emit_comment(
                 Op::START_CMD,
                 vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
                 "",
             );
-            let fqn = format!("::tcl::array::{sub}");
+            let fqn = format!("{namespace}::{sub}");
             self.push_lit(&fqn);
-            for (a, b) in rest {
-                self.emit_cmd_subst_arg(a, *b);
+            for (index, (a, b)) in rest.iter().enumerate() {
+                self.emit_native_argument_word(index + 1, a, *b);
             }
             let arg_count = bytecode_imm(1 + rest.len());
             let invoke_op = if arg_count < 256 {
@@ -2090,17 +2877,17 @@ impl CodegenCtx<'_> {
             self.seen_generic_invoke = true;
         } else {
             self.used_inline_cmd_subst = false;
-            self.emit_generic_cmd_subst("array", args);
+            self.emit_generic_cmd_subst(entered_command, args);
         }
     }
 
     fn emit_inline_dict_get(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         let dict_args = &args[1..]; // skip "get"
-        self.emit_cmd_subst_arg(&dict_args[0].0, dict_args[0].1); // dict value
+        self.emit_native_argument_word(1, &dict_args[0].0, dict_args[0].1); // dict value
         let keys = &dict_args[1..];
-        for (k, b) in keys {
-            self.emit_cmd_subst_arg(k, *b);
+        for (index, (k, b)) in keys.iter().enumerate() {
+            self.emit_native_argument_word(index + 2, k, *b);
         }
         self.emit(Op::DICT_GET, vec![Operand::Imm(bytecode_imm(keys.len()))]);
     }
@@ -2112,6 +2899,802 @@ impl CodegenCtx<'_> {
 mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    fn original_argument_tokens(
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> CommandTokens {
+        let mut commands =
+            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
+                .unwrap();
+        assert_eq!(commands.len(), 1);
+        CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            config,
+            &commands.remove(0),
+        )
+    }
+
+    fn original_argument_context<'a>(
+        registry: &'a CommandRegistry,
+        image: tcl_lexer::SourceImage,
+        version: tcl_dialect::TclVersion,
+        config: tcl_lexer::LexerConfig,
+    ) -> CodegenCtx<'a> {
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let mut context = CodegenCtx::new(true, &[], registry);
+        context.invocation_dialect = Some(dialect);
+        context.source_string_protocol = dialect.native_source_string_protocol();
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image);
+        context
+    }
+
+    #[test]
+    fn inline_source_recovery_keeps_ingress_expansion_and_quote_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Opaque compatibility syntax owns lexical shape, never Native admission.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let source = "list {*}$values";
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.dialect = Some(profile);
+        for expanded in [false, true] {
+            let config = tcl_lexer::LexerConfig {
+                expand_syntax: expanded,
+                ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+            };
+            context.ingress_lexer_config = Some(config);
+            let recovered = context.original_inline_syntax(source).unwrap();
+            let original =
+                original_argument_tokens(&tcl_lexer::SourceImage::document(source), config);
+            assert_eq!(recovered.argv, original.argv);
+            assert_eq!(recovered.argv_texts, original.argv_texts);
+            assert_eq!(
+                matches!(recovered.words()[1], WordExpr::Expand { .. }),
+                expanded
+            );
+            assert!(recovered.source_binding.is_none());
+            assert!(context.native_entry.is_none());
+        }
+        let config = tcl_lexer::LexerConfig {
+            quote_termination: tcl_dialect::QuoteTermination::Concatenating,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        context.ingress_lexer_config = Some(config);
+        let concatenated = context.original_inline_syntax(r#"[list "A"B]"#).unwrap();
+        assert_eq!(concatenated.words().len(), 2);
+        context
+            .ingress_lexer_config
+            .as_mut()
+            .unwrap()
+            .quote_termination = tcl_dialect::QuoteTermination::Strict;
+        assert!(context.original_inline_syntax(r#"[list "A"B]"#).is_none());
+    }
+
+    #[test]
+    fn retained_source_lexing_does_not_supply_native_invocation_admission() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let source = "lappend x {*}$values";
+        let registry = context.commands();
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let mut tokens = original_argument_tokens(&image, config);
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.original_lexer_config_for_tokens(&tokens).is_some());
+        assert!(binding.admitted_inline_invocation().is_none());
+        let parts = parse_cmd_parts_expand(source);
+        let mut codegen = CodegenCtx::new(false, &[], registry);
+        codegen.dialect = Some(profile);
+        codegen.ingress_lexer_config = Some(config);
+        codegen.set_source_image(image);
+        codegen.with_invocation_tokens(Some(&tokens), |codegen| {
+            assert!(codegen.entered_command_surrogate("lappend").is_none());
+            assert!(!codegen.try_emit_expanded_native_call(&parts));
+            assert!(codegen.instructions.is_empty());
+        });
+        codegen.with_invocation_tokens(None, |codegen| {
+            assert!(codegen.entered_command_surrogate("lappend").is_none());
+            assert!(!codegen.try_emit_expanded_native_call(&parts));
+        });
+        assert!(codegen.native_entry.is_none());
+    }
+
+    #[test]
+    fn original_inline_argument_emitters_keep_lexical_nul_and_escape_values() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Lexical emission and opcode wiring only; no native process or handler claim.
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            for (source, operation, expected) in [
+                (r#"list "A\u0000B""#, Op::LIST, b"A\xc0\x80B".as_slice()),
+                (
+                    r#"lrange "A\u0000B" 0 end"#,
+                    Op::LIST_RANGE_IMM,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    r#"lreplace {one two} 0 0 "A\u0000B""#,
+                    Op::LREPLACE4,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    r#"linsert {one} 0 "A\u0000B""#,
+                    Op::LREPLACE4,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    r#"dict get "A\u0000B" key"#,
+                    Op::DICT_GET,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    "lrange \"A\0B\" 0 end",
+                    Op::LIST_RANGE_IMM,
+                    b"A\0B".as_slice(),
+                ),
+                (
+                    r#"lrange {A\u0000B} 0 end"#,
+                    Op::LIST_RANGE_IMM,
+                    br"A\u0000B".as_slice(),
+                ),
+                (
+                    r#"lrange "A\$literal\[\]\\Ω" 0 end"#,
+                    Op::LIST_RANGE_IMM,
+                    "A$literal[]\\Ω".as_bytes(),
+                ),
+            ] {
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let tokens = original_argument_tokens(&image, config);
+                let parts = parse_cmd_parts(source);
+                let mut context = original_argument_context(&registry, image, version, config);
+                context.with_invocation_tokens(Some(&tokens), |context| {
+                    let args = &parts[1..];
+                    match parts[0].0.as_str() {
+                        "list" => {
+                            context.emit_inline_hook_operands(source, "list", args, Some(&tokens))
+                        }
+                        "lrange" => context.emit_inline_lrange(args),
+                        "lreplace" => context.emit_inline_lreplace(args),
+                        "linsert" => context.emit_inline_linsert(args),
+                        "dict" => context.emit_inline_dict_get(args),
+                        _ => unreachable!(),
+                    }
+                });
+                assert!(
+                    context
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == operation),
+                    "{version:?}/{source}"
+                );
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal.bytes() == expected),
+                    "{version:?}/{source}: {:?}",
+                    context.literals.entries()
+                );
+                assert!(context.invocation_tokens.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn original_regexp_argument_indices_survive_consumed_options() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        for source in [
+            r#"regexp "P\u0000AT" "S\u0000UB""#,
+            r#"regexp -- "P\u0000AT" "S\u0000UB""#,
+            r#"regexp -- "S\u0000UB" "S\u0000UB""#,
+            r#"regexp -nocase {abc} "S\u0000UB""#,
+            r#"regexp -nocase -- {abc} "S\u0000UB""#,
+        ] {
+            let image = tcl_lexer::SourceImage::native(source.as_bytes());
+            let tokens = original_argument_tokens(&image, config);
+            let parts = parse_cmd_parts(source);
+            let mut context = original_argument_context(&registry, image, version, config);
+            context.with_invocation_tokens(Some(&tokens), |context| {
+                context.emit_inline_regexp(&parts[1..])
+            });
+            assert!(
+                context
+                    .literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal.bytes() == b"S\xc0\x80UB"),
+                "{source}"
+            );
+            if source.contains("-nocase") {
+                assert!(
+                    context
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::STR_MATCH)
+                );
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal == "*abc*")
+                );
+            } else {
+                assert!(
+                    context
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::REGEXP)
+                );
+                let pattern = if source.contains("P\\u0000AT") {
+                    b"P\xc0\x80AT".as_slice()
+                } else {
+                    b"S\xc0\x80UB".as_slice()
+                };
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal.bytes() == pattern),
+                    "{source}"
+                );
+                assert_eq!(
+                    context
+                        .instructions
+                        .iter()
+                        .filter(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
+                        .count(),
+                    2
+                );
+            }
+            assert!(
+                context
+                    .literals
+                    .entries()
+                    .iter()
+                    .all(|literal| literal != "--" && literal != "-nocase")
+            );
+        }
+    }
+
+    #[test]
+    fn original_argument_ordinals_keep_worker_prefixes_and_derived_heads_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        let source = r#"worker "A\u0000B" key"#;
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let tokens = original_argument_tokens(&image, config);
+        let mut context = original_argument_context(&registry, image.clone(), version, config);
+        let logical = vec![
+            ("get".to_owned(), true),
+            (r"A\u0000B".to_owned(), false),
+            ("key".to_owned(), false),
+        ];
+        context.with_invocation_tokens(Some(&tokens), |context| {
+            context.native_hook_layout = Some(("worker".to_owned(), 1));
+            context.emit_inline_dict_get(&logical);
+            context.emit_native_argument_word(0, "get", true);
+        });
+        assert!(
+            context
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal.bytes() == b"A\xc0\x80B")
+        );
+        assert!(
+            context
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "get")
+        );
+        assert!(context.native_hook_layout.is_none());
+
+        let array_registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let array_source = r#"array names "A\u0000B" pattern"#;
+        let array_image = tcl_lexer::SourceImage::native(array_source.as_bytes());
+        let array_tokens = original_argument_tokens(&array_image, config);
+        let array_parts = parse_cmd_parts(array_source);
+        let mut array = original_argument_context(array_registry, array_image, version, config);
+        array.with_invocation_tokens(Some(&array_tokens), |context| {
+            context.emit_inline_array("array", &array_parts[1..]);
+        });
+        assert!(
+            array
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal.bytes() == b"A\xc0\x80B")
+        );
+        assert!(
+            array
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_STK1)
+        );
+        assert!(
+            array
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "::tcl::array::names")
+        );
+    }
+
+    #[test]
+    fn original_argument_emission_refuses_missing_stale_and_unavailable_lexical_receipts() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        let source = r#"worker "A\u0000B" key"#;
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let tokens = original_argument_tokens(&image, config);
+        let logical = vec![
+            ("get".to_owned(), true),
+            (r"A\u0000B".to_owned(), false),
+            ("key".to_owned(), false),
+        ];
+        // The same text and source image do not issue an original argument receipt.
+        let mut missing = original_argument_context(&registry, image.clone(), version, config);
+        missing.with_invocation_tokens(None, |context| context.emit_inline_dict_get(&logical));
+        assert!(
+            missing
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(missing.original_lexical_words.borrow().is_none());
+
+        let mut stale = original_argument_context(&registry, image.clone(), version, config);
+        stale.set_source("worker WRONG key");
+        stale.with_invocation_tokens(Some(&tokens), |context| {
+            context.native_hook_layout = Some(("worker".to_owned(), 1));
+            context.emit_inline_dict_get(&logical);
+        });
+        assert!(
+            stale
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(stale.original_lexical_words.borrow().is_none());
+
+        let mut unavailable = original_argument_context(&registry, image.clone(), version, config);
+        unavailable.source_string_protocol = None;
+        unavailable.with_invocation_tokens(Some(&tokens), |context| {
+            context.native_hook_layout = Some(("worker".to_owned(), 1));
+            context.emit_inline_dict_get(&logical);
+        });
+        assert!(
+            unavailable
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(unavailable.original_lexical_words.borrow().is_none());
+
+        let mut altered = original_argument_context(&registry, image, version, config);
+        altered.with_invocation_tokens(Some(&tokens), |context| {
+            context.emit_native_argument_word(0, r"A\u0000CHANGED", false);
+        });
+        assert!(
+            altered
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B"
+                    && literal.bytes() != b"A\xc0\x80CHANGED")
+        );
+    }
+
+    #[test]
+    fn coroutine_emitters_preserve_native_namespace_and_expansion_segments() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        let mut ctx = CodegenCtx::new(true, &[], registry);
+        ctx.emit_inline_cmd_subst("[yield]");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::YIELD)
+        );
+        let mut ctx = CodegenCtx::new(true, &["relay"], registry);
+        ctx.emit_inline_cmd_subst("[yieldto {*}$relay tail]");
+        let ops = ctx
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect::<Vec<_>>();
+        assert_eq!(ops.first(), Some(&Op::CURRENT_NAMESPACE), "{ops:?}");
+        assert!(ops.contains(&Op::LIST_CONCAT), "{ops:?}");
+        assert_eq!(ops.last(), Some(&Op::YIELD_TO_INVOKE), "{ops:?}");
+        assert!(!ops.contains(&Op::INVOKE_EXPANDED), "{ops:?}");
+        let old = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut ctx = CodegenCtx::new(true, &["relay"], old);
+        ctx.emit_inline_cmd_subst("[yieldto {*}$relay tail]");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_EXPANDED)
+        );
+        assert!(
+            !ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::YIELD_TO_INVOKE)
+        );
+    }
+
+    #[test]
+    fn tailcall_value_emission_retains_native_namespace_and_original_words() {
+        for (dialect, opcode) in [
+            ("tcl8.6", Op::TAILCALL),
+            ("tcl9.0", Op::TAILCALL),
+            ("tcl9.1", Op::TAILCALL4),
+        ] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let mut ctx = CodegenCtx::new(true, &[], registry);
+            ctx.invocation_dialect = registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile);
+            ctx.emit_inline_cmd_subst("[tailcall target {$literal}]");
+            let ops = ctx
+                .instructions
+                .iter()
+                .map(|instruction| instruction.op)
+                .collect::<Vec<_>>();
+            assert!(ops.contains(&opcode), "{dialect}: {ops:?}");
+            assert!(
+                !ops.contains(&Op::POP),
+                "the value bridge must not discard the result"
+            );
+            assert!(
+                ctx.literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal == "$literal")
+            );
+            let namespace = ops
+                .iter()
+                .position(|op| *op == Op::CURRENT_NAMESPACE)
+                .unwrap();
+            if dialect == "tcl9.1" {
+                assert_eq!(namespace, 0);
+            } else {
+                assert!(namespace >= 2);
+            }
+        }
+    }
+
+    #[test]
+    fn tailcall_empty_and_expanded_native_lists_are_selected_only_in_91() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        for text in ["[tailcall]", "[tailcall {*}$args tail]"] {
+            let mut ctx = CodegenCtx::new(true, &["args"], registry);
+            ctx.emit_inline_cmd_subst(text);
+            let ops = ctx
+                .instructions
+                .iter()
+                .map(|instruction| instruction.op)
+                .collect::<Vec<_>>();
+            assert_eq!(ops.first(), Some(&Op::CURRENT_NAMESPACE), "{text}: {ops:?}");
+            assert_eq!(ops.last(), Some(&Op::TAILCALL_LIST), "{text}: {ops:?}");
+            assert!(!ops.contains(&Op::INVOKE_EXPANDED));
+        }
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut ctx = CodegenCtx::new(true, &["args"], registry);
+        ctx.emit_inline_cmd_subst("[tailcall {*}$args]");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_EXPANDED)
+        );
+        assert!(
+            !ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::TAILCALL_LIST)
+        );
+    }
+
+    #[test]
+    fn compiled_error_retains_optional_original_values_and_operation_context() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut ctx = CodegenCtx::new(true, &[], registry);
+        ctx.emit_inline_cmd_subst("[error {$literal} {INFO} {CUSTOM CODE}]");
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "$literal")
+        );
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "-errorinfo")
+        );
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "-errorcode")
+        );
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::LIST
+                    && instruction.operands == [Operand::Imm(4)])
+        );
+        let error = ctx.instructions.last().unwrap();
+        assert_eq!(error.op, Op::RETURN_IMM);
+        assert_eq!(error.operands, [Operand::Imm(1), Operand::Imm(0)]);
+        assert!(matches!(
+            error.error_stack_context,
+            Some(tcl_bytecode::ErrorStackContext::ReturnImmediate { .. })
+        ));
+    }
+
+    #[test]
+    fn original_native_operation_range_survives_argv_worker_replacement() {
+        use tcl_runtime_api::CompileService;
+        for (dialect, source, opcode) in [
+            (
+                "tcl8.6",
+                "namespace origin [rename ::tcl::namespace::origin savedOrigin]",
+                Op::ORIGIN_CMD,
+            ),
+            (
+                "tcl9.0",
+                "namespace origin [rename ::tcl::namespace::origin savedOrigin]",
+                Op::ORIGIN_CMD,
+            ),
+            (
+                "tcl9.1",
+                "namespace origin [rename ::tcl::namespace::origin savedOrigin]",
+                Op::ORIGIN_CMD,
+            ),
+            (
+                "tcl9.1",
+                "set x X; lappend x {*}[rename lappend savedAppend]",
+                Op::LAPPEND_LIST,
+            ),
+        ] {
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+            let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_native_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let module = service
+                .compile_procedure_with_entry(
+                    tcl_runtime_api::ProcedureCompileTarget {
+                        source,
+                        namespace: "::",
+                        parameters: &[],
+                    },
+                    profile,
+                    &entry,
+                    tcl_runtime_api::ProcedureDispatch::Optimised,
+                )
+                .unwrap();
+            let instructions = &module.top_level_body.instructions;
+            let operation = instructions
+                .iter()
+                .position(|instruction| instruction.op == opcode)
+                .unwrap_or_else(|| panic!("{dialect}: missing original {opcode:?}: {source}"));
+            assert!(
+                instructions[..=operation].iter().any(|instruction| {
+                    instruction
+                        .native_operation_selections
+                        .iter()
+                        .any(|selection| {
+                            selection.source
+                                == source
+                                    .split_once("; ")
+                                    .map_or(source, |(_, command)| command)
+                                && selection.guard
+                                    == tcl_runtime_api::CommandBindingGuard::BeforeArguments
+                                && selection.requirements.iter().all(|required| {
+                                    required.guard
+                                        == tcl_runtime_api::CommandBindingGuard::BeforeArguments
+                                })
+                        })
+                }),
+                "{dialect}: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn namespace_code_literal_builder_is_shared_by_every_result_context() {
+        use tcl_runtime_api::CompileService;
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+            let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            for source in [
+                "namespace code {my tick}",
+                "set result [namespace code {my tick}]",
+                "return [namespace code {my tick}]",
+                "catch {namespace code {my tick}} result",
+                "try {error FAIL} on error {message options} {namespace code {my tick}}",
+            ] {
+                let module = service
+                    .compile_procedure_for_profile(
+                        tcl_runtime_api::ProcedureCompileTarget {
+                            source,
+                            namespace: "::receiver",
+                            parameters: &[],
+                        },
+                        profile,
+                        tcl_runtime_api::ProcedureDispatch::Optimised,
+                    )
+                    .unwrap();
+                let count = module
+                    .top_level_body
+                    .instructions
+                    .iter()
+                    .filter(|instruction| instruction.op == Op::CURRENT_NAMESPACE)
+                    .count();
+                assert_eq!(
+                    count,
+                    usize::from(matches!(dialect, "tcl8.6" | "tcl9.0" | "tcl9.1")),
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "namespace code [list my tick]",
+                "namespace code {::namespace inscope :: my}",
+            ] {
+                let module = service
+                    .compile_procedure_for_profile(
+                        tcl_runtime_api::ProcedureCompileTarget {
+                            source,
+                            namespace: "::receiver",
+                            parameters: &[],
+                        },
+                        profile,
+                        tcl_runtime_api::ProcedureDispatch::Optimised,
+                    )
+                    .unwrap();
+                assert!(
+                    !module
+                        .top_level_body
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::CURRENT_NAMESPACE),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn namespace_origin_opcode_is_shared_by_every_result_context() {
+        use tcl_runtime_api::CompileService;
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+            let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            for source in [
+                "namespace origin target",
+                "set result [namespace origin target]",
+                "return [namespace origin target]",
+                "catch {namespace origin target} result",
+                "try {error FAIL} on error {message options} {namespace origin target}",
+            ] {
+                let module = service
+                    .compile_procedure_for_profile(
+                        tcl_runtime_api::ProcedureCompileTarget {
+                            source,
+                            namespace: "::",
+                            parameters: &[],
+                        },
+                        profile,
+                        tcl_runtime_api::ProcedureDispatch::Optimised,
+                    )
+                    .unwrap();
+                let count = module
+                    .top_level_body
+                    .instructions
+                    .iter()
+                    .filter(|instruction| instruction.op == Op::ORIGIN_CMD)
+                    .count();
+                assert_eq!(
+                    count,
+                    usize::from(matches!(dialect, "tcl8.6" | "tcl9.0" | "tcl9.1")),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn current_namespace_emission_requires_its_actual_native_compiler_hook() {
+        use tcl_runtime_api::CompileService;
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+            let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let module = service
+                .compile_procedure_for_profile(
+                    tcl_runtime_api::ProcedureCompileTarget {
+                        source: "set result [namespace current]",
+                        namespace: "::",
+                        parameters: &[],
+                    },
+                    profile,
+                    tcl_runtime_api::ProcedureDispatch::Optimised,
+                )
+                .unwrap();
+            let selected = module
+                .top_level_body
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::CURRENT_NAMESPACE);
+            assert_eq!(
+                selected,
+                matches!(dialect, "tcl8.6" | "tcl9.0" | "tcl9.1"),
+                "{dialect}"
+            );
+            let statement = service
+                .compile_procedure_for_profile(
+                    tcl_runtime_api::ProcedureCompileTarget {
+                        source: "namespace current",
+                        namespace: "::",
+                        parameters: &[],
+                    },
+                    profile,
+                    tcl_runtime_api::ProcedureDispatch::Optimised,
+                )
+                .unwrap();
+            assert_eq!(
+                statement
+                    .top_level_body
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.op == Op::CURRENT_NAMESPACE),
+                selected,
+                "statement: {dialect}",
+            );
+        }
+    }
 
     /// A value-position `[expr {…}]` is re-parsed here, and must be re-parsed
     /// under the compile dialect: dialect-blind, an iRules word operator lexes
@@ -2354,6 +3937,31 @@ mod tests {
     }
 
     #[test]
+    fn inline_incr_braced_amount_does_not_evaluate_its_command_text() {
+        let registry = CommandRegistry::build_default();
+        for local in [true, false] {
+            let mut ctx = CodegenCtx::new(local, &["x"], &registry);
+            ctx.emit_inline_cmd_subst("[incr x {[set ::seen 4]}]");
+            assert!(
+                ctx.literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal == "[set ::seen 4]")
+            );
+            assert!(!ctx.instructions.iter().any(|instruction| matches!(
+                instruction.op,
+                Op::LOAD_SCALAR1 | Op::LOAD_STK | Op::INVOKE_STK1 | Op::INVOKE_STK4
+            )));
+            assert!(ctx.instructions.iter().any(|instruction| instruction.op
+                == if local {
+                    Op::INCR_SCALAR1
+                } else {
+                    Op::INCR_STK
+                }));
+        }
+    }
+
+    #[test]
     fn inline_string_length() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
@@ -2363,7 +3971,8 @@ mod tests {
     }
 
     fn registry_with_custom_string_command() -> CommandRegistry {
-        let mut registry = CommandRegistry::build_default();
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let mut text = registry.get("string").expect("string spec").clone();
         text.name = "text";
         text.surface = None;
@@ -2371,30 +3980,15 @@ mod tests {
         registry
     }
 
-    fn assert_single_entered_binding(
-        ctx: &CodegenCtx<'_>,
-        expected: &tcl_runtime_api::CommandBindingIdentity,
-    ) {
-        let entered: Vec<_> = ctx
-            .instructions
-            .iter()
-            .filter_map(|instruction| instruction.entered_command.as_ref())
-            .collect();
-        assert_eq!(entered.len(), 1, "expected one retained command entry");
-        assert_eq!(&entered[0].binding, expected);
-    }
-
     #[test]
-    fn registry_selected_string_generic_fallback_keeps_entered_identity() {
+    fn registry_hook_alone_does_not_capture_a_generic_string_fallback() {
         let registry = registry_with_custom_string_command();
-
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[text is integer -failindex fi 1.5]");
-
         assert!(
             ctx.instructions
                 .iter()
-                .any(|instruction| matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4))
+                .any(|instruction| { matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4) })
         );
         assert!(
             ctx.literals
@@ -2407,58 +4001,40 @@ mod tests {
             !ctx.literals
                 .entries()
                 .iter()
-                .any(|literal| literal == "string"),
-            "the fallback must invoke the source command, not stock string",
+                .any(|literal| literal == "string")
         );
-        let expected = tcl_runtime_api::CommandBindingIdentity::new("text", "text");
-        assert_single_entered_binding(&ctx, &expected);
-        assert!(ctx.command_binding_requirements.contains(&expected));
-        assert!(
-            !ctx.command_binding_requirements
-                .iter()
-                .any(|binding| binding.name == "string"),
-            "the fallback must not invent a dependency on the stock command",
-        );
-    }
-
-    #[test]
-    fn registry_selected_string_invoke_replace_value_keeps_entered_identity() {
-        let registry = registry_with_custom_string_command();
-
-        let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_inline_cmd_subst("[text equal -nocase a A]");
-
         assert!(
             ctx.instructions
                 .iter()
-                .any(|instruction| instruction.op == Op::INVOKE_REPLACE),
-            "the custom registry hook must exercise the entered-token specialisation",
+                .all(|instruction| instruction.entered_command.is_none())
         );
+        assert!(ctx.command_binding_requirements.is_empty());
+    }
+
+    #[test]
+    fn registry_hook_alone_does_not_turn_a_named_string_call_into_a_token_capture() {
+        let registry = registry_with_custom_string_command();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_inline_cmd_subst("[text equal -nocase a A]");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| { matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4) })
+        );
+        assert!(ctx.instructions.iter().all(|instruction| {
+            instruction.op != Op::INVOKE_REPLACE && instruction.entered_command.is_none()
+        }));
         assert!(
             ctx.literals
                 .entries()
                 .iter()
                 .any(|literal| literal == "text")
         );
-        assert!(
-            !ctx.literals
-                .entries()
-                .iter()
-                .any(|literal| literal == "string")
-        );
-        let expected = tcl_runtime_api::CommandBindingIdentity::new("text", "text");
-        assert_single_entered_binding(&ctx, &expected);
-        assert!(ctx.command_binding_requirements.contains(&expected));
-        assert!(
-            !ctx.command_binding_requirements
-                .iter()
-                .any(|binding| binding.name == "string"),
-            "the helper must not invent a dependency on the stock command",
-        );
+        assert!(ctx.command_binding_requirements.is_empty());
     }
 
     #[test]
-    fn registry_selected_string_invoke_replace_statement_keeps_entered_identity() {
+    fn a_statement_hook_declines_an_unproved_named_string_invocation() {
         let registry = registry_with_custom_string_command();
         let args = vec!["equal", "-nocase", "a", "A"]
             .into_iter()
@@ -2466,28 +4042,10 @@ mod tests {
             .collect::<Vec<_>>();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used_generic_invoke = false;
-
-        assert!(ctx.try_inline_statement_codegen("text", &args, None, &mut used_generic_invoke));
-
-        assert!(used_generic_invoke);
-        assert!(
-            ctx.instructions
-                .iter()
-                .any(|instruction| instruction.op == Op::INVOKE_REPLACE)
-        );
-        assert_eq!(
-            ctx.instructions.last().map(|instruction| instruction.op),
-            Some(Op::POP),
-        );
-        let expected = tcl_runtime_api::CommandBindingIdentity::new("text", "text");
-        assert_single_entered_binding(&ctx, &expected);
-        assert!(ctx.command_binding_requirements.contains(&expected));
-        assert!(
-            !ctx.command_binding_requirements
-                .iter()
-                .any(|binding| binding.name == "string"),
-            "the statement bridge must not invent a stock binding",
-        );
+        assert!(!ctx.try_inline_statement_codegen("text", &args, None, &mut used_generic_invoke));
+        assert!(!used_generic_invoke);
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
+        assert!(ctx.command_binding_requirements.is_empty());
     }
 
     #[test]
@@ -2586,7 +4144,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         assert!(!ctx.try_list_expand_concat("[list {*}$a]"));
-        assert!(ctx.instructions.is_empty());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
     }
 
     #[test]
@@ -2613,8 +4171,8 @@ mod tests {
 
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         assert!(!ctx.try_list_expand_concat("[list {*}$a {*}$b]"));
-        assert!(ctx.instructions.is_empty());
-        assert!(ctx.command_binding_requirements.is_empty());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
+        assert_eq!(ctx.command_binding_requirements.len(), 0);
     }
 
     #[test]
@@ -2677,11 +4235,8 @@ mod tests {
                 !ctx.try_inline_list_with_break_continue(source),
                 "owned {command} hook must control the jump specialisation"
             );
-            assert!(
-                ctx.instructions.is_empty(),
-                "partial emission for {command}"
-            );
-            assert!(ctx.command_binding_requirements.is_empty());
+            assert_eq!(ctx.instructions.len(), 0, "partial emission for {command}");
+            assert_eq!(ctx.command_binding_requirements.len(), 0);
         }
     }
 
@@ -2751,7 +4306,9 @@ mod tests {
     #[test]
     fn registry_inline_hook_stamping_matches_previous_hardcoded_dispatch() {
         use tcl_registry::hooks::InlineCodegenHookId as H;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
+        );
         let expected: &[(&str, H)] = &[
             ("expr", H::Expr),
             ("incr", H::Incr),
@@ -2769,6 +4326,8 @@ mod tests {
             ("break", H::Break),
             ("continue", H::Continue),
             ("try", H::Try),
+            ("yield", H::Yield),
+            ("yieldto", H::YieldTo),
         ];
         for (name, hook) in expected {
             assert_eq!(
@@ -2792,8 +4351,26 @@ mod tests {
                 .and_then(|s| s.inline_codegen_hook),
             Some(H::DictGet)
         );
-        // …and nothing else: stamping an inline hook on any further
-        // spec or subcommand must fail here first.
+        let expected_subcommands = [
+            ("info", "exists", H::InfoExists),
+            ("info", "commands", H::InfoCommandsResolve),
+            ("info", "level", H::InfoLevel),
+            ("namespace", "current", H::NamespaceCurrent),
+            ("namespace", "origin", H::NamespaceOrigin),
+            ("namespace", "code", H::NamespaceCode),
+            ("dict", "get", H::DictGet),
+        ];
+        for (command, member, hook) in expected_subcommands {
+            assert_eq!(
+                registry
+                    .get(command)
+                    .and_then(|spec| spec.subcommand(member))
+                    .and_then(|sub| sub.inline_codegen_hook),
+                Some(hook),
+                "{command} {member}",
+            );
+        }
+        // Stamping any further hook requires extending this audited inventory.
         let expected_cmds: std::collections::HashSet<&str> =
             expected.iter().map(|(n, _)| *n).collect();
         let names: Vec<String> = registry.command_names().map(str::to_owned).collect();
@@ -2810,8 +4387,11 @@ mod tests {
             for sub in spec.subcommands {
                 if sub.inline_codegen_hook.is_some() {
                     assert!(
-                        (name == "info" && sub.name == "exists")
-                            || (name == "dict" && sub.name == "get"),
+                        expected_subcommands.iter().any(|(command, member, hook)| {
+                            name == command
+                                && sub.name == *member
+                                && sub.inline_codegen_hook == Some(*hook)
+                        }),
                         "unexpected subcommand-level inline hook on {name} {}",
                         sub.name
                     );

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 15.70s
+

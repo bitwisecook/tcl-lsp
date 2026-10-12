@@ -1,0 +1,38 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 1 test
+test workspace_symbols::tests::query_matches_method_substring ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2523 filtered out; finished in 0.43s
+

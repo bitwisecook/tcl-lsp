@@ -1,0 +1,7 @@
+{
+  "original_payload_sha256": "af1d6366e57927bc72cd756bf8804e1a1713de958561f30258876603bc120ae9",
+  "adapted_payload_sha256": "6ea52b6cc900e12c7199530972ed655b9254d8fbf10ab3ad8fd6b09c869be5a2",
+  "event_matrix_sha256": "8f7ebe6041e5b4931ec2a550bf610f02e57fc9f5213c2eb3869976ac44856e3c",
+  "scan_receiver_sha256": "f075ddbaa2ab8398a13ed86c033d2986cd715897f59eaed352094e347049cf89",
+  "scope": "authored unexecuted BIG-IP follow-up request; native preflight not appliance execution"
+}

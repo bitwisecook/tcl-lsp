@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::tests::an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it ... 
+thread 'interp::tests::an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it' (1360776) panicked at src/interp.rs:19418:13:
+assertion failed: !i.check_command_guard(token, b"guarded")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.67s
+

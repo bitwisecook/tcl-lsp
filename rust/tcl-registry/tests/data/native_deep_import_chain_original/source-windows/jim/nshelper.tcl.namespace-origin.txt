@@ -1,0 +1,18 @@
+	}
+}
+
+proc {namespace origin} {name} {
+	set nscanon [uplevel 1 [list ::namespace canon $name]]
+	if {[exists -alias $nscanon]} {
+		tailcall {namespace origin} [info alias $nscanon]
+	}
+	if {[exists -command $nscanon]} {
+		return ::$nscanon
+	}
+	if {[exists -command $name]} {
+		return ::$name
+	}
+
+	return -code error "invalid command name \"$name\""
+}
+

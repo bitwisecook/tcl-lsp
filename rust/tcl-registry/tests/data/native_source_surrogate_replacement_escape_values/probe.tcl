@@ -1,0 +1,5 @@
+puts "SOURCE_SURROGATE_REPLACEMENT|[string equal "\uD800" "\uFFFD"]|[string length "\uD800"]|[string length "\uFFFD"]"
+puts "SOURCE_ADJACENT_SURROGATES|[string equal "\uD800" "\uD801"]|[string length "\uD801"]"
+puts "SOURCE_REPLACEMENT_SELF|[string equal "\uFFFD" "\uFFFD"]"
+puts "SOURCE_VALID_UNICODE|[string equal "caf\u00e9" "cafe"]|[string length "caf\u00e9"]"
+puts "SOURCE_BRACED_ESCAPE|[string equal {\uD800} "\uD800"]|[string length {\uD800}]"

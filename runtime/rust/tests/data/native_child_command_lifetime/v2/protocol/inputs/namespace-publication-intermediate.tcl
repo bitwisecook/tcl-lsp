@@ -1,0 +1,1 @@
+set created [namespace eval ::N {interp create kid}]; set before [list [interp slaves] [info commands ::N::kid] [info commands ::kid]]; set code [catch {::N::kid issafe} message]; list $created $before $code $message [::kid issafe]

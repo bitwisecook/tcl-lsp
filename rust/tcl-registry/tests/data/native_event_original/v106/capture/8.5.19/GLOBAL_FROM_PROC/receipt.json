@@ -1,0 +1,19 @@
+{
+  "id": "GLOBAL_FROM_PROC",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.5.19/probe",
+    "1"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "4074052564d22e872b3cc63df8c5012842497161b4b9356700cb238bd32f5b3f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "GLOBAL_FROM_PROC_INPUT|0|736574203a3a78204f4c443b2070726f632070207b7d207b7365742078204c4f43414c3b2061667465722030207b7365742078204e45577d3b20767761697420783b206c69737420247820243a3a787d3b2070",
+    "GLOBAL_FROM_PROC|0|4c4f43414c204e4557",
+    "GLOBAL_FROM_PROC_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+  ],
+  "reported_version": "8.5.19"
+}

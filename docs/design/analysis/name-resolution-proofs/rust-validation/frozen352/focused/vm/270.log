@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... 
+thread 'interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows' (1360979) panicked at rust/tcl-vm/src/interp/native_introspection.rs:139:9:
+assertion `left == right` failed: tcl9.0/0
+  left: "opaque"
+ right: "nsName"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 12.59s
+

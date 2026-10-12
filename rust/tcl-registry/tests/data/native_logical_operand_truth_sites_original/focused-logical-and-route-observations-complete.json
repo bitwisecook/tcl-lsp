@@ -1,0 +1,1082 @@
+[
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 4,
+    "row": "ROW\tcase=4\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 6,
+    "row": "ROW\tcase=4\tworker=6\tcode=0\tout=777\terrno=0\tcache=boolean\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=boolean\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=30\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 7,
+    "row": "ROW\tcase=4\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 8,
+    "row": "ROW\tcase=4\tworker=8\tcode=0\tout=777\terrno=0\tcache=boolean\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=boolean\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=30\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 9,
+    "row": "ROW\tcase=4\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 12,
+    "row": "ROW\tcase=4\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 14,
+    "row": "ROW\tcase=4\tworker=14\tcode=0\tout=777\terrno=0\tcache=boolean\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=boolean\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=30\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 15,
+    "row": "ROW\tcase=4\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 16,
+    "row": "ROW\tcase=4\tworker=16\tcode=0\tout=777\terrno=0\tcache=boolean\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=boolean\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=30\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 4,
+    "worker": 17,
+    "row": "ROW\tcase=4\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 4,
+    "row": "ROW\tcase=19\tworker=4\tcode=0\tout=777\terrno=0\tcache=boolean\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=boolean\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 6,
+    "row": "ROW\tcase=19\tworker=6\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 7,
+    "row": "ROW\tcase=19\tworker=7\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 8,
+    "row": "ROW\tcase=19\tworker=8\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 9,
+    "row": "ROW\tcase=19\tworker=9\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 12,
+    "row": "ROW\tcase=19\tworker=12\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 14,
+    "row": "ROW\tcase=19\tworker=14\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 15,
+    "row": "ROW\tcase=19\tworker=15\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 16,
+    "row": "ROW\tcase=19\tworker=16\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 19,
+    "worker": 17,
+    "row": "ROW\tcase=19\tworker=17\tcode=0\tout=777\terrno=0\tcache=wideInt\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=wideInt\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 4,
+    "row": "ROW\tcase=28\tworker=4\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 6,
+    "row": "ROW\tcase=28\tworker=6\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 7,
+    "row": "ROW\tcase=28\tworker=7\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 8,
+    "row": "ROW\tcase=28\tworker=8\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 9,
+    "row": "ROW\tcase=28\tworker=9\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 12,
+    "row": "ROW\tcase=28\tworker=12\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 14,
+    "row": "ROW\tcase=28\tworker=14\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 15,
+    "row": "ROW\tcase=28\tworker=15\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 16,
+    "row": "ROW\tcase=28\tworker=16\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.4.20",
+    "case": 28,
+    "worker": 17,
+    "row": "ROW\tcase=28\tworker=17\tcode=0\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=6e616e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 4,
+    "row": "ROW\tcase=4\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 6,
+    "row": "ROW\tcase=4\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 7,
+    "row": "ROW\tcase=4\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 8,
+    "row": "ROW\tcase=4\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 9,
+    "row": "ROW\tcase=4\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 12,
+    "row": "ROW\tcase=4\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 14,
+    "row": "ROW\tcase=4\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 15,
+    "row": "ROW\tcase=4\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 16,
+    "row": "ROW\tcase=4\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 4,
+    "worker": 17,
+    "row": "ROW\tcase=4\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 4,
+    "row": "ROW\tcase=19\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 6,
+    "row": "ROW\tcase=19\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 7,
+    "row": "ROW\tcase=19\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 8,
+    "row": "ROW\tcase=19\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 9,
+    "row": "ROW\tcase=19\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 12,
+    "row": "ROW\tcase=19\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 14,
+    "row": "ROW\tcase=19\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 15,
+    "row": "ROW\tcase=19\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 16,
+    "row": "ROW\tcase=19\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 19,
+    "worker": 17,
+    "row": "ROW\tcase=19\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 4,
+    "row": "ROW\tcase=28\tworker=4\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 6,
+    "row": "ROW\tcase=28\tworker=6\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 7,
+    "row": "ROW\tcase=28\tworker=7\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 8,
+    "row": "ROW\tcase=28\tworker=8\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 9,
+    "row": "ROW\tcase=28\tworker=9\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 12,
+    "row": "ROW\tcase=28\tworker=12\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 14,
+    "row": "ROW\tcase=28\tworker=14\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 15,
+    "row": "ROW\tcase=28\tworker=15\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 16,
+    "row": "ROW\tcase=28\tworker=16\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.5.19",
+    "case": 28,
+    "worker": 17,
+    "row": "ROW\tcase=28\tworker=17\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=4e4f4e45\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 4,
+    "row": "ROW\tcase=4\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 6,
+    "row": "ROW\tcase=4\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 7,
+    "row": "ROW\tcase=4\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 8,
+    "row": "ROW\tcase=4\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 9,
+    "row": "ROW\tcase=4\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 12,
+    "row": "ROW\tcase=4\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 14,
+    "row": "ROW\tcase=4\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 15,
+    "row": "ROW\tcase=4\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 16,
+    "row": "ROW\tcase=4\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 4,
+    "worker": 17,
+    "row": "ROW\tcase=4\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 4,
+    "row": "ROW\tcase=19\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 6,
+    "row": "ROW\tcase=19\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 7,
+    "row": "ROW\tcase=19\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 8,
+    "row": "ROW\tcase=19\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 9,
+    "row": "ROW\tcase=19\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 12,
+    "row": "ROW\tcase=19\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 14,
+    "row": "ROW\tcase=19\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 15,
+    "row": "ROW\tcase=19\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 16,
+    "row": "ROW\tcase=19\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 19,
+    "worker": 17,
+    "row": "ROW\tcase=19\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 4,
+    "row": "ROW\tcase=28\tworker=4\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 6,
+    "row": "ROW\tcase=28\tworker=6\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 7,
+    "row": "ROW\tcase=28\tworker=7\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 8,
+    "row": "ROW\tcase=28\tworker=8\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 9,
+    "row": "ROW\tcase=28\tworker=9\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 12,
+    "row": "ROW\tcase=28\tworker=12\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 14,
+    "row": "ROW\tcase=28\tworker=14\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 15,
+    "row": "ROW\tcase=28\tworker=15\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 16,
+    "row": "ROW\tcase=28\tworker=16\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "8.6.18",
+    "case": 28,
+    "worker": 17,
+    "row": "ROW\tcase=28\tworker=17\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 4,
+    "row": "ROW\tcase=4\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 6,
+    "row": "ROW\tcase=4\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 7,
+    "row": "ROW\tcase=4\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 8,
+    "row": "ROW\tcase=4\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 9,
+    "row": "ROW\tcase=4\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 12,
+    "row": "ROW\tcase=4\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 14,
+    "row": "ROW\tcase=4\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 15,
+    "row": "ROW\tcase=4\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 16,
+    "row": "ROW\tcase=4\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 4,
+    "worker": 17,
+    "row": "ROW\tcase=4\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 4,
+    "row": "ROW\tcase=19\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 6,
+    "row": "ROW\tcase=19\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 7,
+    "row": "ROW\tcase=19\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 8,
+    "row": "ROW\tcase=19\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 9,
+    "row": "ROW\tcase=19\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 12,
+    "row": "ROW\tcase=19\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 14,
+    "row": "ROW\tcase=19\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 15,
+    "row": "ROW\tcase=19\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 16,
+    "row": "ROW\tcase=19\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 19,
+    "worker": 17,
+    "row": "ROW\tcase=19\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 4,
+    "row": "ROW\tcase=28\tworker=4\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 6,
+    "row": "ROW\tcase=28\tworker=6\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 7,
+    "row": "ROW\tcase=28\tworker=7\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 8,
+    "row": "ROW\tcase=28\tworker=8\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 9,
+    "row": "ROW\tcase=28\tworker=9\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 12,
+    "row": "ROW\tcase=28\tworker=12\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 14,
+    "row": "ROW\tcase=28\tworker=14\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 15,
+    "row": "ROW\tcase=28\tworker=15\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 16,
+    "row": "ROW\tcase=28\tworker=16\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.0.4",
+    "case": 28,
+    "worker": 17,
+    "row": "ROW\tcase=28\tworker=17\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 4,
+    "row": "ROW\tcase=4\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 6,
+    "row": "ROW\tcase=4\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 7,
+    "row": "ROW\tcase=4\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 8,
+    "row": "ROW\tcase=4\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 9,
+    "row": "ROW\tcase=4\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 12,
+    "row": "ROW\tcase=4\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 14,
+    "row": "ROW\tcase=4\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 15,
+    "row": "ROW\tcase=4\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 16,
+    "row": "ROW\tcase=4\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 4,
+    "worker": 17,
+    "row": "ROW\tcase=4\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 4,
+    "row": "ROW\tcase=19\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 6,
+    "row": "ROW\tcase=19\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 7,
+    "row": "ROW\tcase=19\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 8,
+    "row": "ROW\tcase=19\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 9,
+    "row": "ROW\tcase=19\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 12,
+    "row": "ROW\tcase=19\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 14,
+    "row": "ROW\tcase=19\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 15,
+    "row": "ROW\tcase=19\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 16,
+    "row": "ROW\tcase=19\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 19,
+    "worker": 17,
+    "row": "ROW\tcase=19\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=MISSING\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 4,
+    "row": "ROW\tcase=28\tworker=4\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tresult=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765\terror_code=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 6,
+    "row": "ROW\tcase=28\tworker=6\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 7,
+    "row": "ROW\tcase=28\tworker=7\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 8,
+    "row": "ROW\tcase=28\tworker=8\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 9,
+    "row": "ROW\tcase=28\tworker=9\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 12,
+    "row": "ROW\tcase=28\tworker=12\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 14,
+    "row": "ROW\tcase=28\tworker=14\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 15,
+    "row": "ROW\tcase=28\tworker=15\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 16,
+    "row": "ROW\tcase=28\tworker=16\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "9.1.0",
+    "case": 28,
+    "worker": 17,
+    "row": "ROW\tcase=28\tworker=17\tcode=1\tout=777\terrno=0\tcache=double\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=bytecode\tscript_string=1\tscript_refcount=1\tresult=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572\terror_code=54434c2056414c554520444f55424c45204e414e\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 4,
+    "row": "ROW\tcase=4\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 6,
+    "row": "ROW\tcase=4\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 7,
+    "row": "ROW\tcase=4\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 8,
+    "row": "ROW\tcase=4\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 9,
+    "row": "ROW\tcase=4\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 12,
+    "row": "ROW\tcase=4\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 14,
+    "row": "ROW\tcase=4\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 15,
+    "row": "ROW\tcase=4\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 16,
+    "row": "ROW\tcase=4\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 4,
+    "worker": 17,
+    "row": "ROW\tcase=4\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=1\tstring_same=1\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 4,
+    "row": "ROW\tcase=19\tworker=4\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 6,
+    "row": "ROW\tcase=19\tworker=6\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 7,
+    "row": "ROW\tcase=19\tworker=7\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 8,
+    "row": "ROW\tcase=19\tworker=8\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 9,
+    "row": "ROW\tcase=19\tworker=9\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 12,
+    "row": "ROW\tcase=19\tworker=12\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 14,
+    "row": "ROW\tcase=19\tworker=14\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 15,
+    "row": "ROW\tcase=19\tworker=15\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 16,
+    "row": "ROW\tcase=19\tworker=16\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 19,
+    "worker": 17,
+    "row": "ROW\tcase=19\tworker=17\tcode=0\tout=777\terrno=0\tcache=int\tstring=0\tstring_same=0\tvariable_same=1\tvariable_cache=int\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=34323934393637323936"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 4,
+    "row": "ROW\tcase=28\tworker=4\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 6,
+    "row": "ROW\tcase=28\tworker=6\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 7,
+    "row": "ROW\tcase=28\tworker=7\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 8,
+    "row": "ROW\tcase=28\tworker=8\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 9,
+    "row": "ROW\tcase=28\tworker=9\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 12,
+    "row": "ROW\tcase=28\tworker=12\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 14,
+    "row": "ROW\tcase=28\tworker=14\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 15,
+    "row": "ROW\tcase=28\tworker=15\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 16,
+    "row": "ROW\tcase=28\tworker=16\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  },
+  {
+    "provider": "jim",
+    "case": 28,
+    "worker": 17,
+    "row": "ROW\tcase=28\tworker=17\tcode=0\tout=777\terrno=0\tcache=double\tstring=1\tstring_same=0\tvariable_same=1\tvariable_cache=double\ty_cache=int\ty_string=0\ty_variable_same=1\ty_refcount=2\tscript_cache=script\tscript_string=1\tscript_refcount=1\tresult=31\terror_code=53454544454420434f4445\tinput_after_observers=4e614e"
+  }
+]

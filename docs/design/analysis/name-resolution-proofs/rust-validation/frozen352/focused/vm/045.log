@@ -1,0 +1,6 @@
+
+running 1 test
+test command::native_frame_numeric::tests::original_frame_list_worker_checks_header_after_ok_and_guest_error ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.93s
+

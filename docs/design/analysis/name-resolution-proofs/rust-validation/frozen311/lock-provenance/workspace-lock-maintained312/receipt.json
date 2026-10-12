@@ -1,0 +1,16 @@
+{
+  "command": [
+    "cargo",
+    "metadata",
+    "--manifest-path",
+    "Cargo.toml",
+    "--offline",
+    "--format-version",
+    "1"
+  ],
+  "exit": 0,
+  "seconds": 0.5087643389997538,
+  "before_sha256": "614fdf8fc70f380fdcbb4f6a590beaac1008f4e21ebce69df7ff05730e02b025",
+  "after_sha256": "0fa3e96e11ffb9d38e1fa3c0d68ff6e25b3dc21e4dbad011b895609854b6a335",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

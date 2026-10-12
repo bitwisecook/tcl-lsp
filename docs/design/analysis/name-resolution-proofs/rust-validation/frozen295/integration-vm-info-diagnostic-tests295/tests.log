@@ -1,0 +1,18 @@
+
+running 1 test
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... INFO_COMMANDS_LITERAL context=jim: absolute-existing code=1 primary=none live=true resident=true checked=Ok([105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 110, 102, 111, 34])
+
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (1021904) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:113:9:
+assertion `left == right` failed: jim: absolute-existing: guest completion
+  left: "1"
+ right: "0"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 761 filtered out; finished in 73.31s
+

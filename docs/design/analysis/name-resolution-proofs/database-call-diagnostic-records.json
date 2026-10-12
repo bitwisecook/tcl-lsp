@@ -1,0 +1,117 @@
+[
+  {
+    "kind": "implementation-contract",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "This authentic-call diagnostic selection invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "source_anchors": [],
+    "id": "naming.database.original-call-arity-diagnostics",
+    "document": "docs/design/analysis/name-resolution-proofs/database-original-call-arity-diagnostics.md",
+    "problem_statement": "Cross-file call diagnostics can join two opaque procedure names through the same display or suppress an unresolved root call because an unrelated namespace has a matching tail. The database must demand source candidate arities using the actual call lookup and retain an unknown original lookup, rather than substituting a bare-tail match.",
+    "question": "Does project diagnostic resolution use each authentic original call lookup to distinguish opaque name slots and preserve an unresolved call whose matching tail exists only in another namespace?",
+    "conclusion": "original_lookup_command_arities demands body-free per-slot arities for retained lookup candidates and uses the shared byte/policy publication matcher. project_diagnostics keeps original-input call sites separate from display-tail resolution, preserves W123 when their original lookup has no candidate, and checks a selected candidate arity at the original call span. The regression distinguishes p\\uD800 with one formal from p\\uD801 with two, then preserves only_here as an unresolved root call despite the N::only_here declaration. These are source diagnostic projections, without proving command loading, observed current dispatch or execution.",
+    "scope": "Current database cross-file direct-call diagnostic consumer. The concrete regression checks distinct opaque original bytes, the original call spans, arity diagnostics and the typed unresolved subject. It tests unrelated-namespace exclusion; it does not exercise every namespace path/import/mutation alternative or assert a Rust test result. No native interpreter executes this question.",
+    "evidence": [
+      {
+        "id": "database-call-consumer",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "sha256": "489a9c177add18e04ee506fe11be00cce295bd7a004946483e3c05d8b623a8e2",
+        "description": "Current authentic-call arity demand, original-site diagnostic partition and exact opaque-slot/unrelated-namespace regression assertions."
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "selector": "tests::original_project_diagnostics_select_opaque_call_slots_and_namespace_priority",
+        "assertion": "The first opaque call receives E003, the independently keyed two-formal call does not, and an unrelated namespace tail cannot suppress W123 with the original only_here subject.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "symbol": "original_lookup_command_arities",
+        "purpose": "Demand original call lookup candidate arities through byte/policy publication matching."
+      },
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "symbol": "project_diagnostics",
+        "purpose": "Retain original call-site identity and unknown lookup in cross-file direct-call diagnostic settlement."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The current regression is linked by its actual proof comment and exact assertions. No executed Rust test receipt is attached. Native behavior, command presence/currency and successful body entry require separate evidence."
+    }
+  }
+]

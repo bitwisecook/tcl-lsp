@@ -1,0 +1,25 @@
+{
+  "run": "r2286_20261006e",
+  "kind": "additional_embedded_nul_controls",
+  "expected_appliance_results": "UNMEASURED",
+  "fixtures": [
+    {
+      "case": "dynamic_embedded_nul",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006e_dynamic_embedded_nul",
+      "file": "dynamic_embedded_nul.conf",
+      "sha256": "7fd169e98fe11c907f0a888b464609dafc57f0bfcee6571124b570e83cd0c3ca",
+      "size": 562,
+      "line_endings": "lf",
+      "purpose": "runtime materialization and use of the byte sequence 41 00 42"
+    },
+    {
+      "case": "literal_embedded_nul",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006e_literal_embedded_nul",
+      "file": "literal_embedded_nul.conf",
+      "sha256": "592943254790ee3e4488c44fb4edf937cdc63b8b35799b0a8a114cc50914126d",
+      "size": 171,
+      "line_endings": "lf",
+      "purpose": "literal 00 byte between ASCII A and B in the config source"
+    }
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-receiver-source-fixtures288.base-files.tar.gz",
+  "archive_sha256": "5ba1b5bf95969551f9006022be59c59f132cc0f6328e82f5e847c7a8a33583a7",
+  "archive_bytes": 1254620,
+  "uncompressed_bytes": 5504398,
+  "source_manifest_sha256": "46b94df5d65face60c2eb12f72da85d023e2a836e697c6aa2485583e50820886",
+  "source_patch_sha256": "93878177809d99f96475f20db4c1c4fead357d08aa9d5c4f84aca95f6aba9e3e",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/93878177809d99f96475f20db4c1c4fead357d08aa9d5c4f84aca95f6aba9e3e.patch",
+  "original_application_journal_sha256": "93878177809d99f96475f20db4c1c4fead357d08aa9d5c4f84aca95f6aba9e3e",
+  "member_count": 20,
+  "members": {
+    "recovered-receiver-source-fixtures288/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.090739,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0962913,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.090739,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0958135,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-core/src/document_links.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.09517,
+      "size": 71923,
+      "sha256": "4f6eb7017fdbba993d8f2ed1132557445664357498493d5404651a49e9ed09bf"
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-core/src/implementation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0956056,
+      "size": 25700,
+      "sha256": "d36436e7c625c67c1601235a2ac582badf9cd134f778740b626c2dd71e474943"
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-core/src/inlay_hints.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0961215,
+      "size": 112305,
+      "sha256": "cfa7f894d3c5547314d8419fefdab401e03472d2831439d37d259e508c1c8dc0"
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0962913,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0962913,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.101601,
+      "size": 2541243,
+      "sha256": "3e2e1244a5030ca951d3672b0a0b41b693ad78f88c825cde0355fb6cd7cc2304"
+    },
+    "recovered-receiver-source-fixtures288/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.09517,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.101601,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.09517,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.0961215,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-core/src/document_links.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601321.0884376,
+      "size": 72920,
+      "sha256": "f33183fc1f5b25ea5ea1a833587754a272b668b3934cdbcfd3b47fdb144188db"
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-core/src/implementation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.1667383,
+      "size": 26058,
+      "sha256": "d20b3e902762c6a847428af7d97e6fb43ac52af5e13bae1d3df51bf256c7c41b"
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-core/src/inlay_hints.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.1867383,
+      "size": 112676,
+      "sha256": "c8cb4bc34e376ee17b4ed7f47791dd7add05aea4e5e213537674a132dd5c6cfe"
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.101601,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.101601,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-receiver-source-fixtures288/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601289.6267345,
+      "size": 2541573,
+      "sha256": "99de748287641dea6ec61b70ae238fa5c1aeddca19920dbb3401781725d901d4"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

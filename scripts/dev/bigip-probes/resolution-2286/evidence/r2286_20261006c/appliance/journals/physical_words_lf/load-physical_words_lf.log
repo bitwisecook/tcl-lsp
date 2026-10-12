@@ -1,0 +1,16 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/physical_words_lf.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_physical_words_lf] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_physical_words_lf:1: error: [braces are required around the expression][when HTTP_REQUEST {
+    set brace {A\
+  B}
+    set quote "A\
+  B"
+    set literal {\n}
+    set unicode {é|é}
+    set out [list $brace $quote $literal $unicode]
+    binary scan $out H* hx
+    log local0. "R2286|r2286_20261006c|physical_words|hex=$hx"
+    HTTP::respond 200 content "$hx\n" Connection close
+}]
+
+Unexpected Error: Loading configuration process failed.

@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-list-arity146/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.005992390011670068,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "03dd0d973f283518d7a1dc2a9d17332ccfe82f3ad62ce973b5a4dde200ae0cc8",
+  "runner_sha256": "6e739313b414a3ca71c6aa2b27023440e00b7c0a31f77a957796a7e4da301f73",
+  "stdout_sha256": "55f1169b22e1e3734ecaa6651c06b2b64b49e8b3b333cc70e95207fecb868501",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "PATCHLEVEL 8.4.20",
+    "RESULT no_operands 1 {invalid command name \"lassign\"}",
+    "RESULT literal_no_target 1 {invalid command name \"lassign\"}",
+    "RESULT dynamic_no_target 1 {invalid command name \"lassign\"}",
+    "RESULT compiled_no_target 1 {invalid command name \"lassign\"}",
+    "RESULT malformed_no_target 1 {invalid command name \"lassign\"}",
+    "RESULT literal_one_target 1 {invalid command name \"lassign\"}",
+    "RESULT empty_no_target 1 {invalid command name \"lassign\"}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Seven fixed list-assignment invocation controls covering target-free arity, literal/dynamic/compiled source entry, malformed list before arity, one target and empty list. CLI outcomes only; no physical compiler/header/cache or BIG-IP claim."
+}

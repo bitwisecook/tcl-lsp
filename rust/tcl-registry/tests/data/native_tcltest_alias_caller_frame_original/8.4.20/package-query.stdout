@@ -1,0 +1,4 @@
+version 8.4.20
+package 0 2.2.11
+package_ifneeded {source /workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl}
+auto_path {/workspace/tcl-lsp/tmp/tcl8.4.20/library /workspace/tcl-lsp/tmp/tcl8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/lib /workspace/.proofs/native-providers/gcc14-compatibility/8.4.20/install/lib}

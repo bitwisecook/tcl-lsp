@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::variable_trace_outcomes::tests::original_callback_host_cause_stops_later_rows_and_restores_the_real_result ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 1.50s
+

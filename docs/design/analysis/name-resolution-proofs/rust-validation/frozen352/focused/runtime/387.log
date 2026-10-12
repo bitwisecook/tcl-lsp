@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::a_planted_alias_cycle_errors_instead_of_exhausting_the_stack ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 5.76s
+

@@ -1,0 +1,97 @@
+
+    fmPtr = (ForwardMethod *) Tcl_Alloc(sizeof(ForwardMethod));
+    fmPtr->prefixObj = prefixObj;
+    Tcl_IncrRefCount(prefixObj);
+    return (Method *) TclNewMethod((Tcl_Class) clsPtr, nameObj,
+	    flags, &fwdMethodType, fmPtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * InvokeForwardMethod, FinalizeForwardCall --
+ *
+ *	How to invoke a forwarded method. Works by doing some ensemble-like
+ *	command rearranging and then invokes some other Tcl command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+InvokeForwardMethod(
+    void *clientData,		/* Pointer to some per-method context. */
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,	/* The method calling context. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Arguments as actually seen. */
+{
+    CallContext *contextPtr = (CallContext *) context;
+    ForwardMethod *fmPtr = (ForwardMethod *) clientData;
+    Tcl_Obj **argObjs, **prefixObjs;
+    Tcl_Size numPrefixes, skip = contextPtr->skip;
+    Tcl_Size len;
+
+    /*
+     * Build the real list of arguments to use. Note that we know that the
+     * prefixObj field of the ForwardMethod structure holds a reference to a
+     * non-empty list, so there's a whole class of failures ("not a list") we
+     * can ignore here.
+     */
+
+    TclListObjGetElements(NULL, fmPtr->prefixObj, &numPrefixes, &prefixObjs);
+    argObjs = InitEnsembleRewrite(interp, objc, objv, skip,
+	    numPrefixes, prefixObjs, &len);
+    TclNRAddCallback(interp, FinalizeForwardCall, argObjs, NULL, NULL, NULL);
+    /*
+     * NOTE: The combination of direct set of iPtr->lookupNsPtr and the use
+     * of the TCL_EVAL_NOERR flag results in an evaluation configuration
+     * very much like TCL_EVAL_INVOKE.
+     */
+    ((Interp *) interp)->lookupNsPtr = (Namespace *)
+	    contextPtr->oPtr->namespacePtr;
+    return TclNREvalObjv(interp, len, argObjs, TCL_EVAL_NOERR, NULL);
+}
+
+static int
+FinalizeForwardCall(
+    void *data[],
+    Tcl_Interp *interp,
+    int result)
+{
+    Tcl_Obj **argObjs = (Tcl_Obj **) data[0];
+
+    TclStackFree(interp, argObjs);
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * DeleteForwardMethod, CloneForwardMethod --
+ *
+ *	How to delete and clone forwarded methods.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+DeleteForwardMethod(
+    void *clientData)
+{
+    ForwardMethod *fmPtr = (ForwardMethod *) clientData;
+
+    Tcl_DecrRefCount(fmPtr->prefixObj);
+    Tcl_Free(fmPtr);
+}
+
+static int
+CloneForwardMethod(
+    TCL_UNUSED(Tcl_Interp *),
+    void *clientData,
+    void **newClientData)
+{
+    ForwardMethod *fmPtr = (ForwardMethod *) clientData;
+    ForwardMethod *fm2Ptr = (ForwardMethod *) Tcl_Alloc(sizeof(ForwardMethod));
+
+    fm2Ptr->prefixObj = fmPtr->prefixObj;
+    Tcl_IncrRefCount(fm2Ptr->prefixObj);

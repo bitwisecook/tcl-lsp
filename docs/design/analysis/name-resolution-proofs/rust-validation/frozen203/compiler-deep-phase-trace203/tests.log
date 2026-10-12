@@ -1,0 +1,7 @@
+
+running 1 test
+test analyser::oo::tests::extract_unknown_proc_info_survives_deep_nesting ... LOWER_SOURCE_PHASE bytes=11008 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=11008 phase=configured ms=0 statements=0 procedures=0
+SOURCE_PHASE bytes=11008 stage=initial ms=25 points=0 layouts=0
+SOURCE_PHASE bytes=11008 stage=walk ms=4229 points=130 layouts=65
+SOURCE_LOOKUP_PHASE bytes=11008 stage=walk calls=14276 ms=128

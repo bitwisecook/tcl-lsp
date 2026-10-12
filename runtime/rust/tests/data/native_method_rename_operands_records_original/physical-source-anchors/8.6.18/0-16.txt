@@ -1,0 +1,112 @@
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    Tcl_Obj *resultObj, *filterObj;
+    int i;
+
+    if (Tcl_ObjectContextSkippedArgs(context) != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		NULL);
+	return TCL_ERROR;
+    }
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    TclNewObj(resultObj);
+    FOREACH(filterObj, oPtr->classPtr->filters) {
+	Tcl_ListObjAppendElement(NULL, resultObj, filterObj);
+    }
+    Tcl_SetObjResult(interp, resultObj);
+    return TCL_OK;
+}
+
+static int
+ClassFilterSet(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    int filterc;
+    Tcl_Obj **filterv;
+
+    if (Tcl_ObjectContextSkippedArgs(context) + 1 != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		"filterList");
+	return TCL_ERROR;
+    }
+    objv += Tcl_ObjectContextSkippedArgs(context);
+
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    } else if (TclListObjGetElements(interp, objv[0], &filterc,
+	    &filterv) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    TclOOClassSetFilters(interp, oPtr->classPtr, filterc, filterv);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * ClassMixinGet, ClassMixinSet --
+ *	Implementation of the "mixin" slot accessors of the "oo::define"
+ *	command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+ClassMixinGet(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    Tcl_Obj *resultObj;
+    Class *mixinPtr;
+    int i;
+
+    if (Tcl_ObjectContextSkippedArgs(context) != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		NULL);
+	return TCL_ERROR;
+    }
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    TclNewObj(resultObj);
+    FOREACH(mixinPtr, oPtr->classPtr->mixins) {
+	Tcl_ListObjAppendElement(NULL, resultObj,
+		TclOOObjectName(interp, mixinPtr->thisPtr));
+    }
+    Tcl_SetObjResult(interp, resultObj);
+    return TCL_OK;
+
+}
+
+static int

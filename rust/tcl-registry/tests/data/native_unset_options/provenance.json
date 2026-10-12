@@ -1,0 +1,1004 @@
+{
+  "scope": "Original unset command flags/arity/unknown prefixes and dynamic raw-NUL options; completion/result only",
+  "rows": [
+    {
+      "engine": "8.4",
+      "case": "none",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-none.tcl"
+      ],
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0026119069661945105
+    },
+    {
+      "engine": "8.4",
+      "case": "unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-unknown.tcl"
+      ],
+      "source_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "1\t63616e277420756e73657420222d626164223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0020580109558068216
+    },
+    {
+      "engine": "8.4",
+      "case": "defined-unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-defined-unknown.tcl"
+      ],
+      "source_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0027242929791100323
+    },
+    {
+      "engine": "8.4",
+      "case": "repeated",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-repeated.tcl"
+      ],
+      "source_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.00223370996536687
+    },
+    {
+      "engine": "8.4",
+      "case": "only-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-only-quiet.tcl"
+      ],
+      "source_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0021090370137244463
+    },
+    {
+      "engine": "8.4",
+      "case": "only-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-only-end.tcl"
+      ],
+      "source_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.002371347974985838
+    },
+    {
+      "engine": "8.4",
+      "case": "quiet-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-quiet-end.tcl"
+      ],
+      "source_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0035745750064961612
+    },
+    {
+      "engine": "8.4",
+      "case": "end-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-end-quiet.tcl"
+      ],
+      "source_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "1\t63616e277420756e73657420226d697373696e67223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0024693519808351994
+    },
+    {
+      "engine": "8.4",
+      "case": "unknown-prefix",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-unknown-prefix.tcl"
+      ],
+      "source_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d70223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0021237580222077668
+    },
+    {
+      "engine": "8.4",
+      "case": "nul-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-nul-quiet.tcl"
+      ],
+      "source_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d706c61696e007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0020143769797869027
+    },
+    {
+      "engine": "8.4",
+      "case": "nul-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-native-unset-options/8.4-nul-end.tcl"
+      ],
+      "source_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout": "1\t63616e277420756e73657420222d2d007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0020170759526081383
+    },
+    {
+      "engine": "8.5",
+      "case": "none",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-none.tcl"
+      ],
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003012146975379437
+    },
+    {
+      "engine": "8.5",
+      "case": "unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-unknown.tcl"
+      ],
+      "source_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "1\t63616e277420756e73657420222d626164223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.002389959990978241
+    },
+    {
+      "engine": "8.5",
+      "case": "defined-unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-defined-unknown.tcl"
+      ],
+      "source_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003654111991636455
+    },
+    {
+      "engine": "8.5",
+      "case": "repeated",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-repeated.tcl"
+      ],
+      "source_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0023895850172266364
+    },
+    {
+      "engine": "8.5",
+      "case": "only-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-only-quiet.tcl"
+      ],
+      "source_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.004951108014211059
+    },
+    {
+      "engine": "8.5",
+      "case": "only-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-only-end.tcl"
+      ],
+      "source_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0030841429834254086
+    },
+    {
+      "engine": "8.5",
+      "case": "quiet-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-quiet-end.tcl"
+      ],
+      "source_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.002779324015136808
+    },
+    {
+      "engine": "8.5",
+      "case": "end-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-end-quiet.tcl"
+      ],
+      "source_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "1\t63616e277420756e73657420226d697373696e67223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0028911629924550653
+    },
+    {
+      "engine": "8.5",
+      "case": "unknown-prefix",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-unknown-prefix.tcl"
+      ],
+      "source_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d70223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0029273919644765556
+    },
+    {
+      "engine": "8.5",
+      "case": "nul-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-nul-quiet.tcl"
+      ],
+      "source_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d706c61696e007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0031915009603835642
+    },
+    {
+      "engine": "8.5",
+      "case": "nul-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-native-unset-options/8.5-nul-end.tcl"
+      ],
+      "source_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout": "1\t63616e277420756e73657420222d2d007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.00244325801031664
+    },
+    {
+      "engine": "8.6",
+      "case": "none",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-none.tcl"
+      ],
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003739907988347113
+    },
+    {
+      "engine": "8.6",
+      "case": "unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-unknown.tcl"
+      ],
+      "source_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "1\t63616e277420756e73657420222d626164223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.002885014982894063
+    },
+    {
+      "engine": "8.6",
+      "case": "defined-unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-defined-unknown.tcl"
+      ],
+      "source_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0027981209568679333
+    },
+    {
+      "engine": "8.6",
+      "case": "repeated",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-repeated.tcl"
+      ],
+      "source_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0028138950001448393
+    },
+    {
+      "engine": "8.6",
+      "case": "only-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-only-quiet.tcl"
+      ],
+      "source_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003146533970721066
+    },
+    {
+      "engine": "8.6",
+      "case": "only-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-only-end.tcl"
+      ],
+      "source_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0025775369722396135
+    },
+    {
+      "engine": "8.6",
+      "case": "quiet-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-quiet-end.tcl"
+      ],
+      "source_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0031395749538205564
+    },
+    {
+      "engine": "8.6",
+      "case": "end-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-end-quiet.tcl"
+      ],
+      "source_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "1\t63616e277420756e73657420226d697373696e67223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.002881673979572952
+    },
+    {
+      "engine": "8.6",
+      "case": "unknown-prefix",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-unknown-prefix.tcl"
+      ],
+      "source_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d70223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0030393569613806903
+    },
+    {
+      "engine": "8.6",
+      "case": "nul-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-nul-quiet.tcl"
+      ],
+      "source_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d706c61696e007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.002987670013681054
+    },
+    {
+      "engine": "8.6",
+      "case": "nul-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-native-unset-options/8.6-nul-end.tcl"
+      ],
+      "source_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout": "1\t63616e277420756e73657420222d2d007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0031979450141079724
+    },
+    {
+      "engine": "9.0",
+      "case": "none",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-none.tcl"
+      ],
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006954052019864321
+    },
+    {
+      "engine": "9.0",
+      "case": "unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-unknown.tcl"
+      ],
+      "source_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "1\t63616e277420756e73657420222d626164223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006433346017729491
+    },
+    {
+      "engine": "9.0",
+      "case": "defined-unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-defined-unknown.tcl"
+      ],
+      "source_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006336498947348446
+    },
+    {
+      "engine": "9.0",
+      "case": "repeated",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-repeated.tcl"
+      ],
+      "source_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006835162988863885
+    },
+    {
+      "engine": "9.0",
+      "case": "only-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-only-quiet.tcl"
+      ],
+      "source_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006924430024810135
+    },
+    {
+      "engine": "9.0",
+      "case": "only-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-only-end.tcl"
+      ],
+      "source_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.00707481597783044
+    },
+    {
+      "engine": "9.0",
+      "case": "quiet-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-quiet-end.tcl"
+      ],
+      "source_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006722451013047248
+    },
+    {
+      "engine": "9.0",
+      "case": "end-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-end-quiet.tcl"
+      ],
+      "source_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "1\t63616e277420756e73657420226d697373696e67223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.007517407997511327
+    },
+    {
+      "engine": "9.0",
+      "case": "unknown-prefix",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-unknown-prefix.tcl"
+      ],
+      "source_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d70223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006632403994444758
+    },
+    {
+      "engine": "9.0",
+      "case": "nul-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-nul-quiet.tcl"
+      ],
+      "source_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d706c61696e007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006145611987449229
+    },
+    {
+      "engine": "9.0",
+      "case": "nul-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-native-unset-options/9.0-nul-end.tcl"
+      ],
+      "source_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout": "1\t63616e277420756e73657420222d2d007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.007150332035962492
+    },
+    {
+      "engine": "9.1",
+      "case": "none",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-none.tcl"
+      ],
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.010121839004568756
+    },
+    {
+      "engine": "9.1",
+      "case": "unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-unknown.tcl"
+      ],
+      "source_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "1\t63616e277420756e73657420222d626164223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006633712037000805
+    },
+    {
+      "engine": "9.1",
+      "case": "defined-unknown",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-defined-unknown.tcl"
+      ],
+      "source_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.007502751017455012
+    },
+    {
+      "engine": "9.1",
+      "case": "repeated",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-repeated.tcl"
+      ],
+      "source_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006858412001747638
+    },
+    {
+      "engine": "9.1",
+      "case": "only-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-only-quiet.tcl"
+      ],
+      "source_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.00635369896190241
+    },
+    {
+      "engine": "9.1",
+      "case": "only-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-only-end.tcl"
+      ],
+      "source_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0075310629908926785
+    },
+    {
+      "engine": "9.1",
+      "case": "quiet-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-quiet-end.tcl"
+      ],
+      "source_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.008615690981969237
+    },
+    {
+      "engine": "9.1",
+      "case": "end-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-end-quiet.tcl"
+      ],
+      "source_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "1\t63616e277420756e73657420226d697373696e67223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.006435880030039698
+    },
+    {
+      "engine": "9.1",
+      "case": "unknown-prefix",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-unknown-prefix.tcl"
+      ],
+      "source_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d70223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.007447900017723441
+    },
+    {
+      "engine": "9.1",
+      "case": "nul-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-nul-quiet.tcl"
+      ],
+      "source_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d706c61696e007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0058987180236727
+    },
+    {
+      "engine": "9.1",
+      "case": "nul-end",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-native-unset-options/9.1-nul-end.tcl"
+      ],
+      "source_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout": "1\t63616e277420756e73657420222d2d007461696c223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.005941330979112536
+    },
+    {
+      "engine": "jim",
+      "case": "none",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-none.tcl"
+      ],
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.004063955973833799
+    },
+    {
+      "engine": "jim",
+      "case": "unknown",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-unknown.tcl"
+      ],
+      "source_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "1\t63616e277420756e73657420222d626164223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0033477710094302893
+    },
+    {
+      "engine": "jim",
+      "case": "defined-unknown",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-defined-unknown.tcl"
+      ],
+      "source_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t302030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0030105040059424937
+    },
+    {
+      "engine": "jim",
+      "case": "repeated",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-repeated.tcl"
+      ],
+      "source_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t312030",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0034390449873171747
+    },
+    {
+      "engine": "jim",
+      "case": "only-quiet",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-only-quiet.tcl"
+      ],
+      "source_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003148095973301679
+    },
+    {
+      "engine": "jim",
+      "case": "only-end",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-only-end.tcl"
+      ],
+      "source_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0033086840412579477
+    },
+    {
+      "engine": "jim",
+      "case": "quiet-end",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-quiet-end.tcl"
+      ],
+      "source_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003061580006033182
+    },
+    {
+      "engine": "jim",
+      "case": "end-quiet",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-end-quiet.tcl"
+      ],
+      "source_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "1\t63616e277420756e73657420226d697373696e67223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0034699109965004027
+    },
+    {
+      "engine": "jim",
+      "case": "unknown-prefix",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-unknown-prefix.tcl"
+      ],
+      "source_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "1\t63616e277420756e73657420222d6e6f636f6d70223a206e6f2073756368207661726961626c65",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003323925018776208
+    },
+    {
+      "engine": "jim",
+      "case": "nul-quiet",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-nul-quiet.tcl"
+      ],
+      "source_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.003308722982183099
+    },
+    {
+      "engine": "jim",
+      "case": "nul-end",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-native-unset-options/jim-nul-end.tcl"
+      ],
+      "source_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout": "0\t30",
+      "exit_code": 0,
+      "stderr_bytes": 0,
+      "budget": 60,
+      "seconds": 0.0030729659483768046
+    }
+  ],
+  "fixture_sha256": {
+    "8.6.tsv": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+    "jim.tsv": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+    "9.1.tsv": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+    "8.4.tsv": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+    "8.5.tsv": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+    "9.0.tsv": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310"
+  },
+  "observation": "Result byte hex is the original binary-scan observer, after the original completion; raw internal String representation is not claimed."
+}

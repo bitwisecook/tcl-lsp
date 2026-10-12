@@ -1,0 +1,1374 @@
+{
+  "question": "How do original variable parsing, exact reaching definitions, callee upvar mutation and variable read observers affect literal single-use variable inlining?",
+  "scope": "Fresh native process invoked with each exact UTF-8 script file; twelve fixed cases, no Rust refactoring or ambient interpreter claim.",
+  "records": [
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-pure_ascii_original.tcl"
+      ],
+      "source": "c84-pure_ascii_original.tcl",
+      "source_sha256": "341ec8ac1b7e7958529fbcff43c623e8bce7ef752a1236e16f9399a432e68884",
+      "source_hex": "736574207820370a707574732024780a",
+      "stdout": "c84-pure_ascii_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c84-pure_ascii_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-pure_unicode_bare_original.tcl"
+      ],
+      "source": "c84-pure_unicode_bare_original.tcl",
+      "source_sha256": "419a812ab298abc3f443657de1e19ffdae9c0ac52a2774a65438a6d8ca91546c",
+      "source_hex": "73657420636166c3a920370a707574732024636166c3a90a",
+      "stdout": "c84-pure_unicode_bare_original.stdout",
+      "stdout_hex": "",
+      "stderr": "c84-pure_unicode_bare_original.stderr",
+      "stderr_hex": "63616e277420726561642022636166223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a22707574732024636166c3a9220a202020202866696c6520222f776f726b73706163652f2e70726f6f66732f63617074757265642d696e6c696e652d7661726961626c652d73656d616e746963732d76322f6338342d707572655f756e69636f64655f626172655f6f726967696e616c2e74636c22206c696e652032290a",
+      "exit": 1
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-pure_unicode_braced_original.tcl"
+      ],
+      "source": "c84-pure_unicode_braced_original.tcl",
+      "source_sha256": "b2de4474f6ee4626deaf26f78c961db3daa60a785455f1aacab20fb12f6593b4",
+      "source_hex": "73657420636166c3a920370a7075747320247b636166c3a97d0a",
+      "stdout": "c84-pure_unicode_braced_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c84-pure_unicode_braced_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-pure_inlined.tcl"
+      ],
+      "source": "c84-pure_inlined.tcl",
+      "source_sha256": "f30b628d35f6d6223d16f0cf0342e1b549331fcc295055577f81b927016a18ef",
+      "source_hex": "7075747320370a",
+      "stdout": "c84-pure_inlined.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c84-pure_inlined.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-reassigned_original.tcl"
+      ],
+      "source": "c84-reassigned_original.tcl",
+      "source_sha256": "2e41a9031470a0689ab6763f0ad1db3fe6886807eaecb96416d78c4f600beec8",
+      "source_hex": "736574207820313b20736574207820323b20707574732024780a",
+      "stdout": "c84-reassigned_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c84-reassigned_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-reassigned_naive.tcl"
+      ],
+      "source": "c84-reassigned_naive.tcl",
+      "source_sha256": "8ea674ab5ff1e0447af4a44291c80b0321e3fb5d3bd71010b40e76fa3d1594df",
+      "source_hex": "736574207820323b207075747320310a",
+      "stdout": "c84-reassigned_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c84-reassigned_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-alias_original.tcl"
+      ],
+      "source": "c84-alias_original.tcl",
+      "source_sha256": "89ca1e48f908d4efc75541686c39d65481ee7d1c7a6f6994446e981c3857a40c",
+      "source_hex": "736574207820313b2070726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b20707574732024780a",
+      "stdout": "c84-alias_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c84-alias_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-alias_naive.tcl"
+      ],
+      "source": "c84-alias_naive.tcl",
+      "source_sha256": "6cc6e7a5108fdaabdaff70c6dfda411bd32f3fadcc6736d35bfbfd9dfeba0040",
+      "source_hex": "70726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b207075747320310a",
+      "stdout": "c84-alias_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c84-alias_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-legacy_watched_original.tcl"
+      ],
+      "source": "c84-legacy_watched_original.tcl",
+      "source_sha256": "d835ecfc7833c712df0c5b0ef839d26a244e0725222db32fb18bd7c386bed80b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c84-legacy_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c84-legacy_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-legacy_watched_naive.tcl"
+      ],
+      "source": "c84-legacy_watched_naive.tcl",
+      "source_sha256": "bd37347444cd903650681b7216c109c0ab65c4bbeb17dd02db062434d444a61b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c84-legacy_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c84-legacy_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-modern_watched_original.tcl"
+      ],
+      "source": "c84-modern_watched_original.tcl",
+      "source_sha256": "1c419e7028a2fe045e38da2251365c707268ead0ec3c7827acd615ae7da72dd8",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c84-modern_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c84-modern_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c84",
+      "version_stdout_hex": "382e342e32300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-modern_watched_naive.tcl"
+      ],
+      "source": "c84-modern_watched_naive.tcl",
+      "source_sha256": "b73e48be02b51c0f35bb0cd1554b9802eef13c5e1f0330f816c0398f754e448b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c84-modern_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c84-modern_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-pure_ascii_original.tcl"
+      ],
+      "source": "c85-pure_ascii_original.tcl",
+      "source_sha256": "341ec8ac1b7e7958529fbcff43c623e8bce7ef752a1236e16f9399a432e68884",
+      "source_hex": "736574207820370a707574732024780a",
+      "stdout": "c85-pure_ascii_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c85-pure_ascii_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-pure_unicode_bare_original.tcl"
+      ],
+      "source": "c85-pure_unicode_bare_original.tcl",
+      "source_sha256": "419a812ab298abc3f443657de1e19ffdae9c0ac52a2774a65438a6d8ca91546c",
+      "source_hex": "73657420636166c3a920370a707574732024636166c3a90a",
+      "stdout": "c85-pure_unicode_bare_original.stdout",
+      "stdout_hex": "",
+      "stderr": "c85-pure_unicode_bare_original.stderr",
+      "stderr_hex": "63616e277420726561642022636166223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a22707574732024636166c3a9220a202020202866696c6520222f776f726b73706163652f2e70726f6f66732f63617074757265642d696e6c696e652d7661726961626c652d73656d616e746963732d76322f6338352d707572655f756e69636f64655f626172655f6f726967696e616c2e74636c22206c696e652032290a",
+      "exit": 1
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-pure_unicode_braced_original.tcl"
+      ],
+      "source": "c85-pure_unicode_braced_original.tcl",
+      "source_sha256": "b2de4474f6ee4626deaf26f78c961db3daa60a785455f1aacab20fb12f6593b4",
+      "source_hex": "73657420636166c3a920370a7075747320247b636166c3a97d0a",
+      "stdout": "c85-pure_unicode_braced_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c85-pure_unicode_braced_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-pure_inlined.tcl"
+      ],
+      "source": "c85-pure_inlined.tcl",
+      "source_sha256": "f30b628d35f6d6223d16f0cf0342e1b549331fcc295055577f81b927016a18ef",
+      "source_hex": "7075747320370a",
+      "stdout": "c85-pure_inlined.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c85-pure_inlined.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-reassigned_original.tcl"
+      ],
+      "source": "c85-reassigned_original.tcl",
+      "source_sha256": "2e41a9031470a0689ab6763f0ad1db3fe6886807eaecb96416d78c4f600beec8",
+      "source_hex": "736574207820313b20736574207820323b20707574732024780a",
+      "stdout": "c85-reassigned_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c85-reassigned_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-reassigned_naive.tcl"
+      ],
+      "source": "c85-reassigned_naive.tcl",
+      "source_sha256": "8ea674ab5ff1e0447af4a44291c80b0321e3fb5d3bd71010b40e76fa3d1594df",
+      "source_hex": "736574207820323b207075747320310a",
+      "stdout": "c85-reassigned_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c85-reassigned_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-alias_original.tcl"
+      ],
+      "source": "c85-alias_original.tcl",
+      "source_sha256": "89ca1e48f908d4efc75541686c39d65481ee7d1c7a6f6994446e981c3857a40c",
+      "source_hex": "736574207820313b2070726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b20707574732024780a",
+      "stdout": "c85-alias_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c85-alias_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-alias_naive.tcl"
+      ],
+      "source": "c85-alias_naive.tcl",
+      "source_sha256": "6cc6e7a5108fdaabdaff70c6dfda411bd32f3fadcc6736d35bfbfd9dfeba0040",
+      "source_hex": "70726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b207075747320310a",
+      "stdout": "c85-alias_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c85-alias_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-legacy_watched_original.tcl"
+      ],
+      "source": "c85-legacy_watched_original.tcl",
+      "source_sha256": "d835ecfc7833c712df0c5b0ef839d26a244e0725222db32fb18bd7c386bed80b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c85-legacy_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c85-legacy_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-legacy_watched_naive.tcl"
+      ],
+      "source": "c85-legacy_watched_naive.tcl",
+      "source_sha256": "bd37347444cd903650681b7216c109c0ab65c4bbeb17dd02db062434d444a61b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c85-legacy_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c85-legacy_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-modern_watched_original.tcl"
+      ],
+      "source": "c85-modern_watched_original.tcl",
+      "source_sha256": "1c419e7028a2fe045e38da2251365c707268ead0ec3c7827acd615ae7da72dd8",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c85-modern_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c85-modern_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c85",
+      "version_stdout_hex": "382e352e31390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c85-modern_watched_naive.tcl"
+      ],
+      "source": "c85-modern_watched_naive.tcl",
+      "source_sha256": "b73e48be02b51c0f35bb0cd1554b9802eef13c5e1f0330f816c0398f754e448b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c85-modern_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c85-modern_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-pure_ascii_original.tcl"
+      ],
+      "source": "c86-pure_ascii_original.tcl",
+      "source_sha256": "341ec8ac1b7e7958529fbcff43c623e8bce7ef752a1236e16f9399a432e68884",
+      "source_hex": "736574207820370a707574732024780a",
+      "stdout": "c86-pure_ascii_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c86-pure_ascii_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-pure_unicode_bare_original.tcl"
+      ],
+      "source": "c86-pure_unicode_bare_original.tcl",
+      "source_sha256": "419a812ab298abc3f443657de1e19ffdae9c0ac52a2774a65438a6d8ca91546c",
+      "source_hex": "73657420636166c3a920370a707574732024636166c3a90a",
+      "stdout": "c86-pure_unicode_bare_original.stdout",
+      "stdout_hex": "",
+      "stderr": "c86-pure_unicode_bare_original.stderr",
+      "stderr_hex": "63616e277420726561642022636166223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a22707574732024636166c3a9220a202020202866696c6520222f776f726b73706163652f2e70726f6f66732f63617074757265642d696e6c696e652d7661726961626c652d73656d616e746963732d76322f6338362d707572655f756e69636f64655f626172655f6f726967696e616c2e74636c22206c696e652032290a",
+      "exit": 1
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-pure_unicode_braced_original.tcl"
+      ],
+      "source": "c86-pure_unicode_braced_original.tcl",
+      "source_sha256": "b2de4474f6ee4626deaf26f78c961db3daa60a785455f1aacab20fb12f6593b4",
+      "source_hex": "73657420636166c3a920370a7075747320247b636166c3a97d0a",
+      "stdout": "c86-pure_unicode_braced_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c86-pure_unicode_braced_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-pure_inlined.tcl"
+      ],
+      "source": "c86-pure_inlined.tcl",
+      "source_sha256": "f30b628d35f6d6223d16f0cf0342e1b549331fcc295055577f81b927016a18ef",
+      "source_hex": "7075747320370a",
+      "stdout": "c86-pure_inlined.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c86-pure_inlined.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-reassigned_original.tcl"
+      ],
+      "source": "c86-reassigned_original.tcl",
+      "source_sha256": "2e41a9031470a0689ab6763f0ad1db3fe6886807eaecb96416d78c4f600beec8",
+      "source_hex": "736574207820313b20736574207820323b20707574732024780a",
+      "stdout": "c86-reassigned_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c86-reassigned_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-reassigned_naive.tcl"
+      ],
+      "source": "c86-reassigned_naive.tcl",
+      "source_sha256": "8ea674ab5ff1e0447af4a44291c80b0321e3fb5d3bd71010b40e76fa3d1594df",
+      "source_hex": "736574207820323b207075747320310a",
+      "stdout": "c86-reassigned_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c86-reassigned_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-alias_original.tcl"
+      ],
+      "source": "c86-alias_original.tcl",
+      "source_sha256": "89ca1e48f908d4efc75541686c39d65481ee7d1c7a6f6994446e981c3857a40c",
+      "source_hex": "736574207820313b2070726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b20707574732024780a",
+      "stdout": "c86-alias_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c86-alias_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-alias_naive.tcl"
+      ],
+      "source": "c86-alias_naive.tcl",
+      "source_sha256": "6cc6e7a5108fdaabdaff70c6dfda411bd32f3fadcc6736d35bfbfd9dfeba0040",
+      "source_hex": "70726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b207075747320310a",
+      "stdout": "c86-alias_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c86-alias_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-legacy_watched_original.tcl"
+      ],
+      "source": "c86-legacy_watched_original.tcl",
+      "source_sha256": "d835ecfc7833c712df0c5b0ef839d26a244e0725222db32fb18bd7c386bed80b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c86-legacy_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c86-legacy_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-legacy_watched_naive.tcl"
+      ],
+      "source": "c86-legacy_watched_naive.tcl",
+      "source_sha256": "bd37347444cd903650681b7216c109c0ab65c4bbeb17dd02db062434d444a61b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c86-legacy_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c86-legacy_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-modern_watched_original.tcl"
+      ],
+      "source": "c86-modern_watched_original.tcl",
+      "source_sha256": "1c419e7028a2fe045e38da2251365c707268ead0ec3c7827acd615ae7da72dd8",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c86-modern_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c86-modern_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c86",
+      "version_stdout_hex": "382e362e31380a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c86-modern_watched_naive.tcl"
+      ],
+      "source": "c86-modern_watched_naive.tcl",
+      "source_sha256": "b73e48be02b51c0f35bb0cd1554b9802eef13c5e1f0330f816c0398f754e448b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c86-modern_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c86-modern_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-pure_ascii_original.tcl"
+      ],
+      "source": "c90-pure_ascii_original.tcl",
+      "source_sha256": "341ec8ac1b7e7958529fbcff43c623e8bce7ef752a1236e16f9399a432e68884",
+      "source_hex": "736574207820370a707574732024780a",
+      "stdout": "c90-pure_ascii_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c90-pure_ascii_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-pure_unicode_bare_original.tcl"
+      ],
+      "source": "c90-pure_unicode_bare_original.tcl",
+      "source_sha256": "419a812ab298abc3f443657de1e19ffdae9c0ac52a2774a65438a6d8ca91546c",
+      "source_hex": "73657420636166c3a920370a707574732024636166c3a90a",
+      "stdout": "c90-pure_unicode_bare_original.stdout",
+      "stdout_hex": "",
+      "stderr": "c90-pure_unicode_bare_original.stderr",
+      "stderr_hex": "63616e277420726561642022636166223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a22707574732024636166c3a9220a202020202866696c6520222f776f726b73706163652f2e70726f6f66732f63617074757265642d696e6c696e652d7661726961626c652d73656d616e746963732d76322f6339302d707572655f756e69636f64655f626172655f6f726967696e616c2e74636c22206c696e652032290a",
+      "exit": 1
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-pure_unicode_braced_original.tcl"
+      ],
+      "source": "c90-pure_unicode_braced_original.tcl",
+      "source_sha256": "b2de4474f6ee4626deaf26f78c961db3daa60a785455f1aacab20fb12f6593b4",
+      "source_hex": "73657420636166c3a920370a7075747320247b636166c3a97d0a",
+      "stdout": "c90-pure_unicode_braced_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c90-pure_unicode_braced_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-pure_inlined.tcl"
+      ],
+      "source": "c90-pure_inlined.tcl",
+      "source_sha256": "f30b628d35f6d6223d16f0cf0342e1b549331fcc295055577f81b927016a18ef",
+      "source_hex": "7075747320370a",
+      "stdout": "c90-pure_inlined.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c90-pure_inlined.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-reassigned_original.tcl"
+      ],
+      "source": "c90-reassigned_original.tcl",
+      "source_sha256": "2e41a9031470a0689ab6763f0ad1db3fe6886807eaecb96416d78c4f600beec8",
+      "source_hex": "736574207820313b20736574207820323b20707574732024780a",
+      "stdout": "c90-reassigned_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c90-reassigned_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-reassigned_naive.tcl"
+      ],
+      "source": "c90-reassigned_naive.tcl",
+      "source_sha256": "8ea674ab5ff1e0447af4a44291c80b0321e3fb5d3bd71010b40e76fa3d1594df",
+      "source_hex": "736574207820323b207075747320310a",
+      "stdout": "c90-reassigned_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c90-reassigned_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-alias_original.tcl"
+      ],
+      "source": "c90-alias_original.tcl",
+      "source_sha256": "89ca1e48f908d4efc75541686c39d65481ee7d1c7a6f6994446e981c3857a40c",
+      "source_hex": "736574207820313b2070726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b20707574732024780a",
+      "stdout": "c90-alias_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c90-alias_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-alias_naive.tcl"
+      ],
+      "source": "c90-alias_naive.tcl",
+      "source_sha256": "6cc6e7a5108fdaabdaff70c6dfda411bd32f3fadcc6736d35bfbfd9dfeba0040",
+      "source_hex": "70726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b207075747320310a",
+      "stdout": "c90-alias_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c90-alias_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-legacy_watched_original.tcl"
+      ],
+      "source": "c90-legacy_watched_original.tcl",
+      "source_sha256": "d835ecfc7833c712df0c5b0ef839d26a244e0725222db32fb18bd7c386bed80b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c90-legacy_watched_original.stdout",
+      "stdout_hex": "554e415641494c41424c450a626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f76650a",
+      "stderr": "c90-legacy_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-legacy_watched_naive.tcl"
+      ],
+      "source": "c90-legacy_watched_naive.tcl",
+      "source_sha256": "bd37347444cd903650681b7216c109c0ab65c4bbeb17dd02db062434d444a61b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c90-legacy_watched_naive.stdout",
+      "stdout_hex": "554e415641494c41424c450a626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f76650a",
+      "stderr": "c90-legacy_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-modern_watched_original.tcl"
+      ],
+      "source": "c90-modern_watched_original.tcl",
+      "source_sha256": "1c419e7028a2fe045e38da2251365c707268ead0ec3c7827acd615ae7da72dd8",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c90-modern_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c90-modern_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c90",
+      "version_stdout_hex": "392e302e340a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c90-modern_watched_naive.tcl"
+      ],
+      "source": "c90-modern_watched_naive.tcl",
+      "source_sha256": "b73e48be02b51c0f35bb0cd1554b9802eef13c5e1f0330f816c0398f754e448b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c90-modern_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c90-modern_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-pure_ascii_original.tcl"
+      ],
+      "source": "c91-pure_ascii_original.tcl",
+      "source_sha256": "341ec8ac1b7e7958529fbcff43c623e8bce7ef752a1236e16f9399a432e68884",
+      "source_hex": "736574207820370a707574732024780a",
+      "stdout": "c91-pure_ascii_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c91-pure_ascii_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-pure_unicode_bare_original.tcl"
+      ],
+      "source": "c91-pure_unicode_bare_original.tcl",
+      "source_sha256": "419a812ab298abc3f443657de1e19ffdae9c0ac52a2774a65438a6d8ca91546c",
+      "source_hex": "73657420636166c3a920370a707574732024636166c3a90a",
+      "stdout": "c91-pure_unicode_bare_original.stdout",
+      "stdout_hex": "",
+      "stderr": "c91-pure_unicode_bare_original.stderr",
+      "stderr_hex": "63616e277420726561642022636166223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a22707574732024636166c3a9220a202020202866696c6520222f776f726b73706163652f2e70726f6f66732f63617074757265642d696e6c696e652d7661726961626c652d73656d616e746963732d76322f6339312d707572655f756e69636f64655f626172655f6f726967696e616c2e74636c22206c696e652032290a",
+      "exit": 1
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-pure_unicode_braced_original.tcl"
+      ],
+      "source": "c91-pure_unicode_braced_original.tcl",
+      "source_sha256": "b2de4474f6ee4626deaf26f78c961db3daa60a785455f1aacab20fb12f6593b4",
+      "source_hex": "73657420636166c3a920370a7075747320247b636166c3a97d0a",
+      "stdout": "c91-pure_unicode_braced_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c91-pure_unicode_braced_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-pure_inlined.tcl"
+      ],
+      "source": "c91-pure_inlined.tcl",
+      "source_sha256": "f30b628d35f6d6223d16f0cf0342e1b549331fcc295055577f81b927016a18ef",
+      "source_hex": "7075747320370a",
+      "stdout": "c91-pure_inlined.stdout",
+      "stdout_hex": "370a",
+      "stderr": "c91-pure_inlined.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-reassigned_original.tcl"
+      ],
+      "source": "c91-reassigned_original.tcl",
+      "source_sha256": "2e41a9031470a0689ab6763f0ad1db3fe6886807eaecb96416d78c4f600beec8",
+      "source_hex": "736574207820313b20736574207820323b20707574732024780a",
+      "stdout": "c91-reassigned_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c91-reassigned_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-reassigned_naive.tcl"
+      ],
+      "source": "c91-reassigned_naive.tcl",
+      "source_sha256": "8ea674ab5ff1e0447af4a44291c80b0321e3fb5d3bd71010b40e76fa3d1594df",
+      "source_hex": "736574207820323b207075747320310a",
+      "stdout": "c91-reassigned_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c91-reassigned_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-alias_original.tcl"
+      ],
+      "source": "c91-alias_original.tcl",
+      "source_sha256": "89ca1e48f908d4efc75541686c39d65481ee7d1c7a6f6994446e981c3857a40c",
+      "source_hex": "736574207820313b2070726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b20707574732024780a",
+      "stdout": "c91-alias_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "c91-alias_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-alias_naive.tcl"
+      ],
+      "source": "c91-alias_naive.tcl",
+      "source_sha256": "6cc6e7a5108fdaabdaff70c6dfda411bd32f3fadcc6736d35bfbfd9dfeba0040",
+      "source_hex": "70726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b207075747320310a",
+      "stdout": "c91-alias_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c91-alias_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-legacy_watched_original.tcl"
+      ],
+      "source": "c91-legacy_watched_original.tcl",
+      "source_sha256": "d835ecfc7833c712df0c5b0ef839d26a244e0725222db32fb18bd7c386bed80b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c91-legacy_watched_original.stdout",
+      "stdout_hex": "554e415641494c41424c450a626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f76650a",
+      "stderr": "c91-legacy_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-legacy_watched_naive.tcl"
+      ],
+      "source": "c91-legacy_watched_naive.tcl",
+      "source_sha256": "bd37347444cd903650681b7216c109c0ab65c4bbeb17dd02db062434d444a61b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c91-legacy_watched_naive.stdout",
+      "stdout_hex": "554e415641494c41424c450a626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f76650a",
+      "stderr": "c91-legacy_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-modern_watched_original.tcl"
+      ],
+      "source": "c91-modern_watched_original.tcl",
+      "source_sha256": "1c419e7028a2fe045e38da2251365c707268ead0ec3c7827acd615ae7da72dd8",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "c91-modern_watched_original.stdout",
+      "stdout_hex": "4f425345525645440a310a",
+      "stderr": "c91-modern_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "c91",
+      "version_stdout_hex": "392e312e300a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "argv": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/c91-modern_watched_naive.tcl"
+      ],
+      "source": "c91-modern_watched_naive.tcl",
+      "source_sha256": "b73e48be02b51c0f35bb0cd1554b9802eef13c5e1f0330f816c0398f754e448b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "c91-modern_watched_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "c91-modern_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-pure_ascii_original.tcl"
+      ],
+      "source": "jim-pure_ascii_original.tcl",
+      "source_sha256": "341ec8ac1b7e7958529fbcff43c623e8bce7ef752a1236e16f9399a432e68884",
+      "source_hex": "736574207820370a707574732024780a",
+      "stdout": "jim-pure_ascii_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "jim-pure_ascii_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-pure_unicode_bare_original.tcl"
+      ],
+      "source": "jim-pure_unicode_bare_original.tcl",
+      "source_sha256": "419a812ab298abc3f443657de1e19ffdae9c0ac52a2774a65438a6d8ca91546c",
+      "source_hex": "73657420636166c3a920370a707574732024636166c3a90a",
+      "stdout": "jim-pure_unicode_bare_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "jim-pure_unicode_bare_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-pure_unicode_braced_original.tcl"
+      ],
+      "source": "jim-pure_unicode_braced_original.tcl",
+      "source_sha256": "b2de4474f6ee4626deaf26f78c961db3daa60a785455f1aacab20fb12f6593b4",
+      "source_hex": "73657420636166c3a920370a7075747320247b636166c3a97d0a",
+      "stdout": "jim-pure_unicode_braced_original.stdout",
+      "stdout_hex": "370a",
+      "stderr": "jim-pure_unicode_braced_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-pure_inlined.tcl"
+      ],
+      "source": "jim-pure_inlined.tcl",
+      "source_sha256": "f30b628d35f6d6223d16f0cf0342e1b549331fcc295055577f81b927016a18ef",
+      "source_hex": "7075747320370a",
+      "stdout": "jim-pure_inlined.stdout",
+      "stdout_hex": "370a",
+      "stderr": "jim-pure_inlined.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-reassigned_original.tcl"
+      ],
+      "source": "jim-reassigned_original.tcl",
+      "source_sha256": "2e41a9031470a0689ab6763f0ad1db3fe6886807eaecb96416d78c4f600beec8",
+      "source_hex": "736574207820313b20736574207820323b20707574732024780a",
+      "stdout": "jim-reassigned_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "jim-reassigned_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-reassigned_naive.tcl"
+      ],
+      "source": "jim-reassigned_naive.tcl",
+      "source_sha256": "8ea674ab5ff1e0447af4a44291c80b0321e3fb5d3bd71010b40e76fa3d1594df",
+      "source_hex": "736574207820323b207075747320310a",
+      "stdout": "jim-reassigned_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "jim-reassigned_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-alias_original.tcl"
+      ],
+      "source": "jim-alias_original.tcl",
+      "source_sha256": "89ca1e48f908d4efc75541686c39d65481ee7d1c7a6f6994446e981c3857a40c",
+      "source_hex": "736574207820313b2070726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b20707574732024780a",
+      "stdout": "jim-alias_original.stdout",
+      "stdout_hex": "320a",
+      "stderr": "jim-alias_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-alias_naive.tcl"
+      ],
+      "source": "jim-alias_naive.tcl",
+      "source_sha256": "6cc6e7a5108fdaabdaff70c6dfda411bd32f3fadcc6736d35bfbfd9dfeba0040",
+      "source_hex": "70726f63206368616e6765207b7d207b7570766172202330207820616c6961733b2073657420616c69617320327d3b206368616e67653b207075747320310a",
+      "stdout": "jim-alias_naive.stdout",
+      "stdout_hex": "310a",
+      "stderr": "jim-alias_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-legacy_watched_original.tcl"
+      ],
+      "source": "jim-legacy_watched_original.tcl",
+      "source_sha256": "d835ecfc7833c712df0c5b0ef839d26a244e0725222db32fb18bd7c386bed80b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "jim-legacy_watched_original.stdout",
+      "stdout_hex": "554e415641494c41424c450a696e76616c696420636f6d6d616e64206e616d6520227472616365220a",
+      "stderr": "jim-legacy_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-legacy_watched_naive.tcl"
+      ],
+      "source": "jim-legacy_watched_naive.tcl",
+      "source_sha256": "bd37347444cd903650681b7216c109c0ab65c4bbeb17dd02db062434d444a61b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b7472616365207661726961626c6520782072206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "jim-legacy_watched_naive.stdout",
+      "stdout_hex": "554e415641494c41424c450a696e76616c696420636f6d6d616e64206e616d6520227472616365220a",
+      "stderr": "jim-legacy_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-modern_watched_original.tcl"
+      ],
+      "source": "jim-modern_watched_original.tcl",
+      "source_sha256": "1c419e7028a2fe045e38da2251365c707268ead0ec3c7827acd615ae7da72dd8",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b736574207820313b20707574732024787d0a",
+      "stdout": "jim-modern_watched_original.stdout",
+      "stdout_hex": "554e415641494c41424c450a696e76616c696420636f6d6d616e64206e616d6520227472616365220a",
+      "stderr": "jim-modern_watched_original.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    },
+    {
+      "provider": "jim",
+      "version_stdout_hex": "302e38342d392d67356261633763390a",
+      "version_exit": 0,
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "argv": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/captured-inline-variable-semantics-v2/jim-modern_watched_naive.tcl"
+      ],
+      "source": "jim-modern_watched_naive.tcl",
+      "source_sha256": "b73e48be02b51c0f35bb0cd1554b9802eef13c5e1f0330f816c0398f754e448b",
+      "source_hex": "70726f63206f627365727665207b617267737d207b70757473204f425345525645447d0a6966207b5b6361746368207b747261636520616464207661726961626c6520782072656164206f6273657276657d206d73675d7d207b7075747320554e415641494c41424c453b207075747320246d73677d20656c7365207b7075747320317d0a",
+      "stdout": "jim-modern_watched_naive.stdout",
+      "stdout_hex": "554e415641494c41424c450a696e76616c696420636f6d6d616e64206e616d6520227472616365220a",
+      "stderr": "jim-modern_watched_naive.stderr",
+      "stderr_hex": "",
+      "exit": 0
+    }
+  ]
+}

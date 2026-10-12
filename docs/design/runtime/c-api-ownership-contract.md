@@ -107,6 +107,58 @@ invalidated by the next mutation) · `status` (`int` TCL_OK/ERROR/RETURN/…) ·
 `token` (opaque `Tcl_Command`/`Tcl_Channel`/`Tcl_HashEntry*`/`Tcl_Object`/… —
 owned by the subsystem, borrowed by the caller) · `void`.
 
+### Selected scalar getters and nullable interpreters
+
+`Tcl_GetIntFromObj`, `Tcl_GetLongFromObj`, `Tcl_GetWideIntFromObj`,
+`Tcl_GetDoubleFromObj` and `Tcl_GetBooleanFromObj` delegate to the selected
+original-object primitive. The actual engine supplies its invocation dialect
+and the Host supplies the queried C integer ABI. Long uses its independently
+selected Long recipe; the Rust output type does not select parsing or range
+rules. Boolean publishes the primitive's returned C integer. Jim's cached
+integer result can be `17` or `0` after narrowing; expression truth has a
+separate purpose and cannot use that output as its conversion recipe.
+
+A live interpreter can bind an original object's scalar context.
+`bind_scalar_getter_context` and `tcl_engine_bind_scalar_object` expose this
+binding explicitly, and the selected scalar carrier importer captures it
+before constructing a physical scalar. Binary, list and String importers keep
+their independent producer contracts. Generic `Tcl_New*` constructors receive
+no interpreter and therefore issue no scalar engine context.
+
+The receipt retains weak references to the exact interpreter and Host, its
+actual runtime context, queried ABI and current Interpreter-domain epoch.
+Each read checks original object liveness and those facts, and rechecks the
+issuer after reached conversion and rendering before publishing an output. A
+host or policy change withdraws the receipt even when the previous configuration is restored.
+Duplication copies the receipt without acquiring an interpreter or native
+object reference. In-place replacement retains the receiver's context for an
+unbound source; a foreign context collision withdraws scalar access permanently
+for that allocation. These currency checks issue no guard, frame or execution
+permission for another operation.
+
+With a null interpreter, the getter requires that independently retained
+context and executes the error-neutral primitive probe. Reached cache and
+String effects still occur; a rejected guest conversion does not render a
+message or update an interpreter result or error code. With a live interpreter,
+the selected primitive failure publishes its own message and `Unchanged` or
+`Set` error-code update. All five output pointers are written only on success.
+An earlier host refusal remains the first cause. The checked Rust
+`probe_scalar_getter` preserves typed missing, foreign, expired and value-access
+failures separately from a guest conversion failure; the C status channel
+returns `TCL_ERROR` for these unavailable routes.
+
+The recorded external C null-interpreter observations in
+[numeric-original-capi-scalar-publication-width](../analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md)
+come from objects constructed by those actual native libraries. Those rows do
+not bind application objects or supply a missing engine/ABI issuer. The
+application's unissued null route remains unavailable. Current ABI recipes
+cover the measured eight-bit-byte, 32-bit-int, 64-bit-long target; other target
+layouts require their own selected recipe and evidence. An unsupported
+engine/getter pair remains unavailable; the ABI descriptor cannot supply a
+missing primitive. Jim numeric access also joins the existing original object
+context to the same selected interpreter; a foreign Jim context cannot supply
+its numeric Host to another scalar issuer.
+
 ### Error-path category
 
 | Category | Meaning |

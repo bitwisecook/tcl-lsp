@@ -1,0 +1,17 @@
+{
+  "id": "PREFIX_BGERROR",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.5.19/probe",
+    "18"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "external-timeout",
+  "process_exit": null,
+  "stdout_sha256": "9e00d09da240728cc6509a7a4374a20e4f197c5da5efdbd6ce9a804e7cf20ec0",
+  "stderr_sha256": "b9233ab447c7bd5efbce02cf8b2c91736ce25c74b4b4fe1af75d63d51a9e1cbe",
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "PREFIX_BGERROR_INPUT|0|73657420646f6e6520303b2070726f632068616e646c6572207b707265666978206d6573736167657d207b736574203a3a646f6e65205b6c697374202470726566697820246d6573736167655d7d3b20696e746572702062676572726f72207b7d205b6c6973742068616e646c6572205052455d3b2061667465722030207b6572726f7220424f4f4d7d3b20767761697420646f6e653b2073657420646f6e65"
+  ],
+  "reported_version": "8.5.19"
+}

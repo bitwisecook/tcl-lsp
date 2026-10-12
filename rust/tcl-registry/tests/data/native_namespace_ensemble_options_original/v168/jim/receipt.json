@@ -1,0 +1,42 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-native-nested-options168/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0046721800026716664,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "100350b2abac0e5935718ea2bfa41d82c1a25ff6ca26546bb03205520f36a3ce",
+  "runner_sha256": "510b371b025dce9994d60b79c3760804d3b65cd8e9c7a36e1e20d0f431f3e886",
+  "stdout_sha256": "5411cb9652774828487a7ff71ef090bb7f58dc2b3b99e414bf5c12ea64452457",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "version 0.84-9-g5bac7c9",
+    "observation capability status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation create-bare status 0 result r2286_nestedBare errorCode {}",
+    "observation invoke-bare-created status 0 result payload errorCode {}",
+    "observation create-immediate-option status 1 result {wrong # args: should be \"ensemble command ?-automap prefix?\"} errorCode NONE",
+    "observation create-dash-command-map status 1 result {wrong # args: should be \"ensemble command ?-automap prefix?\"} errorCode NONE",
+    "observation configure-command-name-map-data status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation configure-unqualified-map-data status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation configure-command-name-namespace-data status 1 result {wrong # args: should be \"ensemble command ?-automap prefix?\"} errorCode NONE",
+    "observation configure-option-after-command status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation configure-invalid-option-after-command status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation exists-dash-map-is-command-name status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation exists-dash-namespace-is-command-name status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation exists-does-not-scan-options status 1 result {only [namespace ensemble create] is supported} errorCode NONE",
+    "observation create-rejects-configure-only-option status 1 result {wrong # args: should be \"ensemble command ?-automap prefix?\"} errorCode NONE"
+  ],
+  "input_channel": "ASCII LF source-file CLI; namespace ensemble nested option positions",
+  "boundary": "Question: where do namespace ensemble create/configure/exists options begin, and are dash-named required command arguments data? All operations independently caught, including bare create and invoking its exported ensemble; no support inferred from a different operation. No native object/cache identity or compiler admission is inferred."
+}

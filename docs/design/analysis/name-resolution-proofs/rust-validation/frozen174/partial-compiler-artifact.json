@@ -1,0 +1,40 @@
+{
+  "scope": "Partial Compiler test artifact from a failed combined build; Cargo fresh=false identifies a rebuilt artifact, not a reused artifact. No combined-build pass is inferred.",
+  "pin_sha256": "54ca2956243cba3f50bb5e2e8c34fe341ad4f416bca404dacd10469a362d3249",
+  "executable_sha256": "65069b18a2c0a9827b16b610e90472f6a39df18e793de892260de8f538afa157",
+  "overall_build_exit": 101,
+  "partial_artifact_only": true,
+  "cargo_compiler_artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/.checkpoints/naming-validation/rust/tcl-compiler#0.1.0",
+    "manifest_path": "/workspace/.checkpoints/naming-validation/rust/tcl-compiler/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_compiler",
+      "src_path": "/workspace/.checkpoints/naming-validation/rust/tcl-compiler/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-085bbd0d87ae154c"
+    ],
+    "executable": "/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-085bbd0d87ae154c",
+    "fresh": false
+  },
+  "replay": "The original executable pin and full immutable source archive are retained independently of current working source. Restore any losslessly compressed inactive Rust artifact before replay; no native evidence is altered."
+}

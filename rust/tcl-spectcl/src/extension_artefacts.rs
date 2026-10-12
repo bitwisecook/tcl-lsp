@@ -95,6 +95,7 @@ pub(crate) fn provision(
         }
         for message in failures {
             notices.push(PackNotice {
+                subject: None,
                 path: command.file.clone(),
                 line: command.line,
                 context: format!("command {}", spec.name),

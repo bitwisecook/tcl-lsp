@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_increment::tests::original_dictionary_unset_matches_nine_native_jim_controls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.85s
+

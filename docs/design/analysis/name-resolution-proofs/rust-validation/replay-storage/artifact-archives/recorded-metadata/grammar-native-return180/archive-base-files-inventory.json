@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-native-return180.base-files.tar.gz",
+  "archive_sha256": "c898a6741e8fb62de1e4da13fba06029f4df6ede27e1f40dc6e50b3e8517d8ec",
+  "archive_bytes": 304917,
+  "uncompressed_bytes": 1412764,
+  "source_manifest_sha256": "8b74ec1fb1237fc35350bdee0a7e4bb4270ff800cc340422abd48fe381a908f4",
+  "source_patch_sha256": "241e1933ed431ea6f6a86b8dee2b41f0279933d101e492ed61ae2c5ca5ce7f98",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/241e1933ed431ea6f6a86b8dee2b41f0279933d101e492ed61ae2c5ca5ce7f98.patch",
+  "original_application_journal_sha256": "241e1933ed431ea6f6a86b8dee2b41f0279933d101e492ed61ae2c5ca5ce7f98",
+  "member_count": 10,
+  "members": {
+    "grammar-native-return180/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7842107,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7842107,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7842107,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7842107,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/base/rust/tcl-registry/src/registry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.788206,
+      "size": 705105,
+      "sha256": "514bad9db9393704c72796b7e5ff1a1618da298aef8f7c9719cbcec281299257"
+    },
+    "grammar-native-return180/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7882106,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7882106,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7882106,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587776.7882106,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-return180/files/rust/tcl-registry/src/registry.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587795.9440343,
+      "size": 707659,
+      "sha256": "a42e7df10f0965e1d07f5db6d2735265f843eedd32d9077a7fa2ed65bbbd9ec6"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

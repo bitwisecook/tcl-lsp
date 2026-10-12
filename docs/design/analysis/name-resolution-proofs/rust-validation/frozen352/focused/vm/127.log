@@ -1,0 +1,15 @@
+
+running 1 test
+test expr::tests::reached_operand_error_codes_follow_the_actual_expression_release ... 
+thread 'expr::tests::reached_operand_error_codes_follow_the_actual_expression_release' (1359449) panicked at rust/tcl-vm/src/expr.rs:2438:48:
+called `Result::unwrap()` on an `Err` value: ValueAccess(CommandProtocolUnavailable("borrowed error-code bytes"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::tests::reached_operand_error_codes_follow_the_actual_expression_release
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.98s
+

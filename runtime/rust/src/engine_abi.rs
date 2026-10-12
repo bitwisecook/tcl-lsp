@@ -29,8 +29,8 @@
 use core::ffi::{c_char, c_int};
 
 use crate::budget::LimitKind;
-use crate::interp::{new_string, obj_bytes, Code, Interp};
-use crate::obj::{decr_ref_count, incr_ref_count, TclObj};
+use crate::interp::{Code, Interp, new_string};
+use crate::obj::{TclObj, decr_ref_count, incr_ref_count};
 
 const TCL_OK: c_int = 0;
 const TCL_ERROR: c_int = 1;
@@ -83,7 +83,10 @@ pub unsafe extern "C" fn tcl_engine_set_limits(
 #[no_mangle]
 pub unsafe extern "C" fn tcl_engine_begin(interp: *mut Interp) {
     // SAFETY: caller guarantees a live interpreter.
-    unsafe { (*interp).begin_evaluation() }
+    unsafe {
+        (*interp).reset_native_compilation_admission();
+        (*interp).begin_evaluation();
+    }
 }
 
 /// `tcl_engine_exceeded(interp) -> kind` — the limit the evaluation outran
@@ -145,17 +148,29 @@ pub unsafe extern "C" fn tcl_engine_restrict(
     allowed: *mut TclObj,
     kept: *mut TclObj,
 ) {
-    let words = |list: *mut TclObj| -> Vec<String> {
-        crate::parse::split_list(&obj_bytes(list))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|word| String::from_utf8_lossy(&word).into_owned())
-            .collect()
+    // SAFETY: caller guarantees the live interpreter and original list objects.
+    let interp = unsafe { &mut *interp };
+    if interp.admit_restriction_purpose().is_err() {
+        return;
+    }
+    let names = interp
+        .restriction_unicode_names(allowed)
+        .and_then(|allowed| {
+            interp
+                .restriction_unicode_names(kept)
+                .map(|kept| (allowed, kept))
+        });
+    let (allowed, kept) = match names {
+        Ok(names) => names,
+        Err(error) => {
+            interp.refuse_restriction_input(error);
+            return;
+        }
     };
-    let (allowed, kept) = (words(allowed), words(kept));
     let allowed: Vec<&str> = allowed.iter().map(String::as_str).collect();
-    // SAFETY: caller guarantees a live interpreter.
-    unsafe { (*interp).restrict_to(&allowed, &kept) }
+    // This compatibility ABI is void: its typed first cause is retained by the
+    // interpreter and must be inspected with the host-refusal query.
+    let _ = interp.restrict_to(&allowed, &kept);
 }
 
 /// `tcl_engine_set_release(interp, profile, length) -> status` — pin the
@@ -196,13 +211,81 @@ pub unsafe extern "C" fn tcl_engine_define_unit(
     params: *mut TclObj,
     body: *mut TclObj,
 ) -> c_int {
-    // SAFETY: caller guarantees a live interpreter.
-    let interp = unsafe { &mut *interp };
-    let Ok(parameters) = crate::cmd_proc::parse_params(&obj_bytes(params)) else {
-        return TCL_ERROR;
+    // SAFETY: caller guarantees a live interpreter and borrowed original objects.
+    match define_unit_original(unsafe { &mut *interp }, name, params, body) {
+        Ok(_) => TCL_OK,
+        Err(code) => code,
+    }
+}
+
+/// Read a borrowed ABI original without publishing after a reached Host cause.
+fn original_input_bytes(
+    interp: &mut Interp,
+    original: *mut TclObj,
+) -> Result<std::rc::Rc<[u8]>, tcl_runtime_api::NativeExecutionError> {
+    if let Some(cause) = interp.native_execution_refusal() {
+        return Err(cause);
+    }
+    crate::obj::check_native_liveness(original)
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    // The allocation lease preserves memory across an updater without adding a
+    // native reference or changing the original object's shared/unshared role.
+    let original = crate::obj::NativeObjectLifetime::retain(original);
+    let bytes = interp
+        .native_object_string_bytes(original.as_ptr())
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    crate::obj::check_native_liveness(original.as_ptr())
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    if let Some(cause) = interp.native_execution_refusal() {
+        return Err(cause);
+    }
+    Ok(bytes)
+}
+
+/// Common ordinary-procedure producer; status adapters retain its exact cause.
+fn define_unit_original(
+    interp: &mut Interp,
+    name: *mut TclObj,
+    params: *mut TclObj,
+    body: *mut TclObj,
+) -> Result<u64, c_int> {
+    let _scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(cause) => {
+            interp.refuse_native_execution(cause);
+            return Err(TCL_ERROR);
+        }
     };
-    interp.define_proc(&obj_bytes(name), parameters, body);
-    TCL_OK
+    let name = original_input_bytes(interp, name).map_err(|_| TCL_ERROR)?;
+    let chosen_body = interp
+        .choose_original_procedure_body(body)
+        .map_err(|error| {
+            i32::try_from(interp.report_cmd_error(error.into()).as_int()).unwrap_or(TCL_ERROR)
+        })?;
+    if interp.host_refusal_pending() {
+        return Err(TCL_ERROR);
+    }
+    let parameters =
+        crate::cmd_proc::parse_params_object(interp, params, &name).map_err(|error| {
+            i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(TCL_ERROR)
+        })?;
+    if interp.host_refusal_pending() {
+        return Err(TCL_ERROR);
+    }
+    let generation = interp.install_proc_chosen_storage(
+        &name,
+        parameters,
+        Some(params),
+        (body, chosen_body),
+        None,
+        None,
+    );
+    if _scope.currency().ensure_current_or_refuse().is_err() {
+        Err(TCL_ERROR)
+    } else {
+        generation.ok_or(TCL_ERROR)
+    }
 }
 
 /// `tcl_engine_provide_package(interp, name, version) -> status` — what
@@ -220,21 +303,40 @@ pub unsafe extern "C" fn tcl_engine_provide_package(
 ) -> c_int {
     // SAFETY: caller guarantees a live interpreter.
     let interp = unsafe { &mut *interp };
-    match crate::cmd_package::provide_package(interp, &obj_bytes(name), &obj_bytes(version)) {
+    let _scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(cause) => {
+            interp.refuse_native_execution(cause);
+            return TCL_ERROR;
+        }
+    };
+    let Ok(name) = original_input_bytes(interp, name) else {
+        return TCL_ERROR;
+    };
+    let Ok(version) = original_input_bytes(interp, version) else {
+        return TCL_ERROR;
+    };
+    match crate::cmd_package::provide_package(interp, &name, &version) {
         Code::Ok => TCL_OK,
         _ => TCL_ERROR,
     }
 }
 
-/// `tcl_engine_error_code(interp) -> object` — the error code of the error the
-/// interpreter holds (`NONE` when nothing stated one).
+/// Return an owned byte-exact error-code object: implicit absence is `NONE`,
+/// while an explicitly empty code remains empty. A getter or existing Host
+/// refusal returns null and retains the interpreter's first typed cause.
 ///
 /// # Safety
-/// `interp` must be live.
+/// `interp` must be live. A null result must be settled through the Host channel
+/// before accessing an object; otherwise the caller releases the returned hold.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_engine_error_code(interp: *mut Interp) -> *mut TclObj {
     // SAFETY: caller guarantees a live interpreter.
-    let code = unsafe { (*interp).error_code() };
+    let code = match unsafe { (*interp).error_code_bytes_checked() } {
+        Ok(code) => code,
+        Err(_) => return core::ptr::null_mut(),
+    };
     let object = new_string(&code);
     // SAFETY: a fresh object; the hold is the caller's.
     unsafe { incr_ref_count(object) };
@@ -255,8 +357,27 @@ pub unsafe extern "C" fn tcl_engine_fail(
 ) -> c_int {
     // SAFETY: caller guarantees a live interpreter.
     let interp = unsafe { &mut *interp };
-    let code = (!code.is_null()).then(|| obj_bytes(code));
-    interp.c_api_error(&obj_bytes(message), code.as_deref());
+    let _scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(cause) => {
+            interp.refuse_native_execution(cause);
+            return TCL_ERROR;
+        }
+    };
+    let code = if code.is_null() {
+        None
+    } else {
+        let Ok(code) = original_input_bytes(interp, code) else {
+            return TCL_ERROR;
+        };
+        Some(code)
+    };
+    let Ok(message) = original_input_bytes(interp, message) else {
+        return TCL_ERROR;
+    };
+    interp.c_api_error(&message, code.as_deref());
+    let _ = _scope.currency().ensure_current_or_refuse();
     TCL_ERROR
 }
 
@@ -291,3 +412,173 @@ pub unsafe extern "C" fn tcl_engine_return(
     }
     c_int::try_from(code.as_int()).unwrap_or(TCL_ERROR)
 }
+
+#[cfg(test)]
+mod procedure_publication_tests {
+    use super::*;
+
+    thread_local! {
+        static PUBLICATION_INTERP: std::cell::RefCell<Option<crate::interp::WeakInterp>> = const { std::cell::RefCell::new(None) };
+        static PUBLICATION_UPDATES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        static PUBLICATION_LATER: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+    extern "C" fn publication_updater(original: *mut TclObj) {
+        PUBLICATION_UPDATES.with(|calls| calls.set(calls.get() + 1));
+        let mut interpreter = PUBLICATION_INTERP
+            .with(|slot| slot.borrow().as_ref().unwrap().upgrade())
+            .unwrap();
+        let original_context = interpreter.runtime_context();
+        let mut changed = original_context.clone();
+        changed.packages = vec![("abi-publication".into(), "1.0".into())];
+        interpreter.pin_context(&changed).unwrap();
+        interpreter.pin_context(&original_context).unwrap();
+        // SAFETY: the actual extension updater owns its reached String stage.
+        unsafe { crate::obj::set_string_rep(original, b"blocked") };
+    }
+    extern "C" fn publication_later(original: *mut TclObj) {
+        PUBLICATION_LATER.with(|calls| calls.set(calls.get() + 1));
+        // SAFETY: this extension updater receives its original live header.
+        unsafe { crate::obj::set_string_rep(original, b"1.0") };
+    }
+    static PUBLICATION_UPDATER: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"testPublicationEpoch".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(publication_updater),
+        set_from_any_proc: None,
+    };
+    static PUBLICATION_LATER_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"testPublicationLater".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(publication_later),
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn original_publication_getter_context_change_stops_later_inputs_and_mutation() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real extension callbacks and original borrowed headers; this is a
+        // software currency control, independent of native source admission.
+        for route in 0..3 {
+            let mut interpreter = Interp::new();
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            PUBLICATION_INTERP.with(|slot| *slot.borrow_mut() = Some(interpreter.downgrade()));
+            PUBLICATION_UPDATES.with(|calls| calls.set(0));
+            PUBLICATION_LATER.with(|calls| calls.set(0));
+            let original =
+                crate::obj::Owned::fresh(crate::obj::alloc_typed(&PUBLICATION_UPDATER, 0));
+            let later =
+                crate::obj::Owned::fresh(crate::obj::alloc_typed(&PUBLICATION_LATER_TYPE, 0));
+            let parameters = crate::obj::Owned::fresh(new_string(b""));
+            let body = crate::obj::Owned::fresh(new_string(b"return ORIGINAL"));
+            let before = unsafe { (*original.as_ptr()).ref_count };
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            let result = interpreter.get_obj_result();
+            let code = unsafe {
+                match route {
+                    0 => tcl_engine_define_unit(
+                        &mut interpreter,
+                        original.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr(),
+                    ),
+                    1 => tcl_engine_provide_package(
+                        &mut interpreter,
+                        original.as_ptr(),
+                        later.as_ptr(),
+                    ),
+                    2 => {
+                        tcl_engine_fail(&mut interpreter, original.as_ptr(), core::ptr::null_mut())
+                    }
+                    _ => unreachable!(),
+                }
+            };
+            assert_eq!(code, TCL_ERROR);
+            assert_eq!(PUBLICATION_UPDATES.with(std::cell::Cell::get), 1);
+            assert_eq!(PUBLICATION_LATER.with(std::cell::Cell::get), 0);
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, before);
+            assert_eq!(crate::obj::bytes_of(original.as_ptr()), b"blocked");
+            assert!(!crate::obj::has_string_rep(later.as_ptr()));
+            assert_eq!(interpreter.get_obj_result(), result);
+            assert!(interpreter.resolve_cmd_token(b"blocked").is_none());
+            assert_eq!(
+                interpreter.native_execution_refusal(),
+                Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation"
+                    )
+                ))
+            );
+            PUBLICATION_INTERP.with(|slot| slot.borrow_mut().take());
+        }
+    }
+
+    #[test]
+    fn abi_definition_uses_original_storage_and_reports_failure_without_later_publication() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::new();
+            interp.pin_release(profile).unwrap();
+            let name = crate::obj::Owned::fresh(new_string(b"unit"));
+            let bad_parameters = crate::obj::Owned::fresh(new_string(b"{x y z}"));
+            let parameters = crate::obj::Owned::fresh(new_string(b""));
+            let body = crate::obj::Owned::fresh(new_string(b"return ORIGINAL"));
+            // SAFETY: all borrowed originals and the interpreter remain live.
+            assert_eq!(
+                unsafe {
+                    tcl_engine_define_unit(
+                        &mut interp,
+                        name.as_ptr(),
+                        bad_parameters.as_ptr(),
+                        body.as_ptr(),
+                    )
+                },
+                TCL_ERROR
+            );
+            assert!(interp.resolve_cmd_token(b"unit").is_none());
+            // SAFETY: the successful producer uses the same live originals.
+            assert_eq!(
+                unsafe {
+                    tcl_engine_define_unit(
+                        &mut interp,
+                        name.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr(),
+                    )
+                },
+                TCL_OK
+            );
+            let completion = interp.eval_completion(b"unit").unwrap();
+            assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+            assert_eq!(completion.result, b"ORIGINAL");
+            let pending_name = crate::obj::Owned::fresh(new_string(b"unentered"));
+            interp.refuse_host_command("original ABI host refusal");
+            let original = interp.native_execution_refusal().unwrap();
+            // SAFETY: a prior host refusal stops before inspecting or publishing originals.
+            assert_eq!(
+                unsafe {
+                    tcl_engine_define_unit(
+                        &mut interp,
+                        pending_name.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr(),
+                    )
+                },
+                TCL_ERROR
+            );
+            assert_eq!(interp.native_execution_refusal(), Some(original));
+            assert!(interp.resolve_cmd_token(b"unentered").is_none());
+        }
+    }
+}
+
+mod command_receipts;
+pub use command_receipts::*;
+
+pub(crate) mod value_carriers;
+pub use value_carriers::*;
+
+#[cfg(test)]
+mod original_input_tests;

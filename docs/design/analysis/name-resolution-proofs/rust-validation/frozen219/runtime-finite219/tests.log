@@ -1,0 +1,163 @@
+
+running 100 tests
+test cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables ... ok
+test cmd_alias::tests::c_child_constructor_refusal_keeps_owner_cause_without_success_result ... ok
+test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... ok
+test cmd_alias::tests::jim_child_constructor_refusal_preserves_typed_cause_and_parent_result ... ok
+test cmd_alias::tests::jim_child_counted_crossings_match_original_native_public_rows ... ok
+test cmd_alias::tests::jim_core_alias_retains_original_name_result_and_prefix_members ... ok
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... ok
+test cmd_alias::tests::jim_interpreter_handle_isolation ... ok
+test cmd_alias::tests::original_jim_core_alias_matches_all_four_standalone_native_public_rows ... ok
+test cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer ... ok
+test cmd_array::tests::original_array_set_default_engine_keeps_its_actual_variable_recipe ... ok
+test cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers ... ok
+test cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results ... ok
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_coro::native_original_holder_tests::original_coroutine_holder_lifecycle_matches_all_native_public_results ... ok
+test cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries ... ok
+test cmd_coro::tests::coroinject_runs_on_next_resume ... ok
+test cmd_coro::tests::original_injection_public_completions_match_both_c9_releases ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_queries_and_inventory_compare_all_24_native_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns ... 
+thread 'cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns' (808046) panicked at src/cmd_info/native_jim_inventory_tests.rs:242:13:
+assertion `left == right` failed: tcl8.4/native_jim_core_command_inventory257/namespace-explicit-nons-all-patterns
+  left: [49, 32, 123, 117, 110, 107, 110, 111, 119, 110, 32, 111, 114, 32, 97, 109, 98, 105, 103, 117, 111, 117, 115, 32, 115, 117, 98, 99, 111, 109, 109, 97, 110, 100, 32, 34, 45, 110, 111, 110, 115, 34, 58, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 114, 103, 115, 44, 32, 98, 111, 100, 121, 44, 32, 99, 109, 100, 99, 111, 117, 110, 116, 44, 32, 99, 111, 109, 109, 97, 110, 100, 115, 44, 32, 99, 111, 109, 112, 108, 101, 116, 101, 44, 32, 100, 101, 102, 97, 117, 108, 116, 44, 32, 101, 120, 105, 115, 116, 115, 44, 32, 102, 117, 110, 99, 116, 105, 111, 110, 115, 44, 32, 103, 108, 111, 98, 97, 108, 115, 44, 32, 104, 111, 115, 116, 110, 97, 109, 101, 44, 32, 108, 101, 118, 101, 108, 44, 32, 108, 105, 98, 114, 97, 114, 121, 44, 32, 108, 111, 97, 100, 101, 100, 44, 32, 108, 111, 99, 97, 108, 115, 44, 32, 110, 97, 109, 101, 111, 102, 101, 120, 101, 99, 117, 116, 97, 98, 108, 101, 44, 32, 112, 97, 116, 99, 104, 108, 101, 118, 101, 108, 44, 32, 112, 114, 111, 99, 115, 44, 32, 115, 99, 114, 105, 112, 116, 44, 32, 115, 104, 97, 114, 101, 100, 108, 105, 98, 101, 120, 116, 101, 110, 115, 105, 111, 110, 44, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 44, 32, 111, 114, 32, 118, 97, 114, 115, 125, 32, 49, 32, 123, 117, 110, 107, 110, 111, 119, 110, 32, 111, 114, 32, 97, 109, 98, 105, 103, 117, 111, 117, 115, 32, 115, 117, 98, 99, 111, 109, 109, 97, 110, 100, 32, 34, 45, 110, 111, 110, 115, 34, 58, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 114, 103, 115, 44, 32, 98, 111, 100, 121, 44, 32, 99, 109, 100, 99, 111, 117, 110, 116, 44, 32, 99, 111, 109, 109, 97, 110, 100, 115, 44, 32, 99, 111, 109, 112, 108, 101, 116, 101, 44, 32, 100, 101, 102, 97, 117, 108, 116, 44, 32, 101, 120, 105, 115, 116, 115, 44, 32, 102, 117, 110, 99, 116, 105, 111, 110, 115, 44, 32, 103, 108, 111, 98, 97, 108, 115, 44, 32, 104, 111, 115, 116, 110, 97, 109, 101, 44, 32, 108, 101, 118, 101, 108, 44, 32, 108, 105, 98, 114, 97, 114, 121, 44, 32, 108, 111, 97, 100, 101, 100, 44, 32, 108, 111, 99, 97, 108, 115, 44, 32, 110, 97, 109, 101, 111, 102, 101, 120, 101, 99, 117, 116, 97, 98, 108, 101, 44, 32, 112, 97, 116, 99, 104, 108, 101, 118, 101, 108, 44, 32, 112, 114, 111, 99, 115, 44, 32, 115, 99, 114, 105, 112, 116, 44, 32, 115, 104, 97, 114, 101, 100, 108, 105, 98, 101, 120, 116, 101, 110, 115, 105, 111, 110, 44, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 44, 32, 111, 114, 32, 118, 97, 114, 115, 125]
+ right: [49, 32, 123, 98, 97, 100, 32, 111, 112, 116, 105, 111, 110, 32, 34, 45, 110, 111, 110, 115, 34, 58, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 114, 103, 115, 44, 32, 98, 111, 100, 121, 44, 32, 99, 109, 100, 99, 111, 117, 110, 116, 44, 32, 99, 111, 109, 109, 97, 110, 100, 115, 44, 32, 99, 111, 109, 112, 108, 101, 116, 101, 44, 32, 100, 101, 102, 97, 117, 108, 116, 44, 32, 101, 120, 105, 115, 116, 115, 44, 32, 102, 117, 110, 99, 116, 105, 111, 110, 115, 44, 32, 103, 108, 111, 98, 97, 108, 115, 44, 32, 104, 111, 115, 116, 110, 97, 109, 101, 44, 32, 108, 101, 118, 101, 108, 44, 32, 108, 105, 98, 114, 97, 114, 121, 44, 32, 108, 111, 97, 100, 101, 100, 44, 32, 108, 111, 99, 97, 108, 115, 44, 32, 110, 97, 109, 101, 111, 102, 101, 120, 101, 99, 117, 116, 97, 98, 108, 101, 44, 32, 112, 97, 116, 99, 104, 108, 101, 118, 101, 108, 44, 32, 112, 114, 111, 99, 115, 44, 32, 115, 99, 114, 105, 112, 116, 44, 32, 115, 104, 97, 114, 101, 100, 108, 105, 98, 101, 120, 116, 101, 110, 115, 105, 111, 110, 44, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 44, 32, 111, 114, 32, 118, 97, 114, 115, 125, 32, 49, 32, 123, 98, 97, 100, 32, 111, 112, 116, 105, 111, 110, 32, 34, 45, 110, 111, 110, 115, 34, 58, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 114, 103, 115, 44, 32, 98, 111, 100, 121, 44, 32, 99, 109, 100, 99, 111, 117, 110, 116, 44, 32, 99, 111, 109, 109, 97, 110, 100, 115, 44, 32, 99, 111, 109, 112, 108, 101, 116, 101, 44, 32, 100, 101, 102, 97, 117, 108, 116, 44, 32, 101, 120, 105, 115, 116, 115, 44, 32, 102, 117, 110, 99, 116, 105, 111, 110, 115, 44, 32, 103, 108, 111, 98, 97, 108, 115, 44, 32, 104, 111, 115, 116, 110, 97, 109, 101, 44, 32, 108, 101, 118, 101, 108, 44, 32, 108, 105, 98, 114, 97, 114, 121, 44, 32, 108, 111, 97, 100, 101, 100, 44, 32, 108, 111, 99, 97, 108, 115, 44, 32, 110, 97, 109, 101, 111, 102, 101, 120, 101, 99, 117, 116, 97, 98, 108, 101, 44, 32, 112, 97, 116, 99, 104, 108, 101, 118, 101, 108, 44, 32, 112, 114, 111, 99, 115, 44, 32, 115, 99, 114, 105, 112, 116, 44, 32, 115, 104, 97, 114, 101, 100, 108, 105, 98, 101, 120, 116, 101, 110, 115, 105, 111, 110, 44, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 44, 32, 111, 114, 32, 118, 97, 114, 115, 125]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... ok
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... ok
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... ok
+test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... ok
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... ok
+test cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results ... ok
+test cmd_namespace::native_holder_routing::original_jim_namespace_library_sources_match_all_native_provider_results ... ok
+test cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy ... ok
+test cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results ... ok
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... ok
+test cmd_oo::tests::define_context_self_arity ... ok
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... ok
+test cmd_oo::tests::definitionnamespace_semantics ... ok
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... ok
+test cmd_oo::tests::object_builtin_variable_varname_eval ... ok
+test cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries ... ok
+test cmd_oo::tests::unknown_method_preserves_original_selector_for_returned_slot_data ... ok
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... ok
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... ok
+test cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces ... ok
+test cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies ... ok
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... ok
+test cmd_var::tests::original_array_read_destruction_matches_six_native_source_results ... ok
+test cmd_var::tests::original_upvar_error_publication_matches_all_six_native_sources ... ok
+test cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes ... ok
+test codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged ... ok
+test codegen_abi::tests::a_logged_statement_site_preserves_the_source_trace_without_instruction_identity ... ok
+test codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read ... ok
+test codegen_abi::tests::invoke_argv_reports_unknown_error_with_options ... ok
+test dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache ... ok
+test expr::reference_root_tests::original_expression_source_matches_48_public_reference_boundaries ... ok
+test frame::native_inventory_tests::trace_member_identity_selects_original_duplicate_root_allocations ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... ok
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... ok
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... ok
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers ... ok
+test interp::native_children::tests::child_host_failure_keeps_its_typed_cause_and_parent_result ... ok
+test interp::native_children::tests::jim_child_bootstrap_copies_global_variable_extents_without_parent_object_sharing ... ok
+test interp::native_children::tests::jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal ... ok
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... ok
+test interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... ok
+test interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources ... ok
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... ok
+test interp::native_variable_names::tests::legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them ... ok
+test interp::native_variable_teardown::tests::direct_byte_unset_keeps_callback_refill_registrations ... ok
+test interp::native_variable_teardown::tests::direct_noncurrent_varstore_byte_unset_keeps_callback_refill_registrations ... ok
+test interp::native_variable_teardown::tests::direct_separate_member_unset_keeps_callback_refill_registrations ... ok
+test interp::native_variable_teardown::tests::direct_varstore_byte_unset_keeps_callback_refill_registrations ... ok
+test interp::native_variable_teardown::tests::missing_addressed_frame_cannot_donate_root_variable ... ok
+test interp::native_variable_teardown::tests::original_array_unset_keeps_release_selected_member_lookup ... ok
+test interp::native_variable_teardown::tests::original_array_unset_refills_match_six_native_source_results ... ok
+test interp::native_variable_teardown::tests::original_frame_alias_refusals_do_not_claim_teardown_chronology ... ok
+test interp::native_variable_teardown::tests::original_frame_callbacks_observe_caller_without_donating_member_traces ... ok
+test interp::native_variable_teardown::tests::original_namespace_array_teardown_matches_six_native_owner_sources ... 
+thread 'interp::native_variable_teardown::tests::original_namespace_array_teardown_matches_six_native_owner_sources' (808209) panicked at src/interp/native_literal_pool.rs:95:23:
+RefCell already borrowed
+
+thread 'interp::native_variable_teardown::tests::original_namespace_array_teardown_matches_six_native_owner_sources' (808209) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:     0x55ee36990eb1 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x55ee369a9a0a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x55ee36997e6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x55ee36968de6 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x55ee36986c91 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x55ee360a43d9 - <alloc[12ca63220423dfc2]::boxed::Box<dyn for<'a, 'b> core[a9090a07a7fa7517]::ops::function::Fn<(&'a std[c29fa2d9dbea2b0e]::panic::PanicHookInfo<'b>,), Output = ()> + core[a9090a07a7fa7517]::marker::Send + core[a9090a07a7fa7517]::marker::Sync> as core[a9090a07a7fa7517]::ops::function::Fn<(&std[c29fa2d9dbea2b0e]::panic::PanicHookInfo,)>>::call
+   6:     0x55ee35afd72d - tcl_runtime[c985227893cb4d07]::cmd_coro::imp::ensure_quiet_terminate_hook::{closure#0}::{closure#0}
+   7:     0x55ee36986e82 - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   8:     0x55ee36968ec4 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   9:     0x55ee36961709 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+  10:     0x55ee36969d5d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+  11:     0x55ee369aa02d - core[a9090a07a7fa7517]::panicking::panic_nounwind_fmt
+  12:     0x55ee369a9fab - core[a9090a07a7fa7517]::panicking::panic_nounwind
+  13:     0x55ee369aa137 - core[a9090a07a7fa7517]::panicking::panic_cannot_unwind
+  14:     0x55ee35ee1959 - tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::free_body
+  15:     0x55ee361005ef - tcl_runtime[c985227893cb4d07]::obj::obj_free
+  16:     0x55ee360f7ded - tcl_runtime[c985227893cb4d07]::obj::decr_ref_count
+  17:     0x55ee3613b7f9 - <tcl_runtime[c985227893cb4d07]::obj::Owned as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  18:     0x55ee359f4b2e - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[c985227893cb4d07]::obj::Owned>
+  19:     0x55ee359ec4bb - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime_api[eabeb00296e0d302]::native_literal::Registration<tcl_runtime[c985227893cb4d07]::obj::Owned>>
+  20:     0x55ee35f38d90 - <tcl_runtime_api[eabeb00296e0d302]::native_literal::NativeLiteralWorld<tcl_runtime[c985227893cb4d07]::obj::Owned>>::release
+  21:     0x55ee35faff2f - <tcl_runtime[c985227893cb4d07]::interp::native_literal_pool::NativeRuntimeLiteralArray as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  22:     0x55ee359fa44d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[c985227893cb4d07]::interp::native_literal_pool::NativeRuntimeLiteralArray>
+  23:     0x55ee35c5f964 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_literal_pool::NativeRuntimeLiteralArray>>::drop_slow
+  24:     0x55ee35cac814 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_literal_pool::NativeRuntimeLiteralArray> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  25:     0x55ee359e62ce - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_literal_pool::NativeRuntimeLiteralArray>>
+  26:     0x55ee359fab55 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::NativeBodyArtifact>
+  27:     0x55ee35c5f9d4 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::NativeBodyArtifact>>::drop_slow
+  28:     0x55ee35cac844 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::NativeBodyArtifact> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  29:     0x55ee359e62d6 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::NativeBodyArtifact>>
+  30:     0x55ee359e9a30 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::boxed::Box<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::NativeBodyArtifact>>>
+  31:     0x55ee3600b06d - core[a9090a07a7fa7517]::mem::drop::<alloc[12ca63220423dfc2]::boxed::Box<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::NativeBodyArtifact>>>
+  32:     0x55ee35ee1951 - tcl_runtime[c985227893cb4d07]::interp::native_body_artifact::free_body
+  33:     0x55ee361005ef - tcl_runtime[c985227893cb4d07]::obj::obj_free
+  34:     0x55ee360f7ded - tcl_runtime[c985227893cb4d07]::obj::decr_ref_count
+  35:     0x55ee3613b7f9 - <tcl_runtime[c985227893cb4d07]::obj::Owned as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  36:     0x55ee359f4b2e - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[c985227893cb4d07]::obj::Owned>
+  37:     0x55ee359fe5ac - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[c985227893cb4d07]::obj::Owned]>
+  38:     0x55ee35866c51 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[c985227893cb4d07]::obj::Owned> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  39:     0x55ee359e75bd - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[c985227893cb4d07]::obj::Owned>>
+  40:     0x55ee359e22a5 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[c985227893cb4d07]::obj::Owned>>>
+  41:     0x55ee3600adf6 - core[a9090a07a7fa7517]::mem::drop::<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[c985227893cb4d07]::obj::Owned>>>
+  42:     0x55ee357d0d0b - <tcl_runtime[c985227893cb4d07]::interp::ProcDef as tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureRoleOwner>::retire_native_procedure_resources
+  43:     0x55ee35c52150 - <tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureReference<tcl_runtime[c985227893cb4d07]::interp::ProcDef>>::release
+  44:     0x55ee35ca7276 - <tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureReference<tcl_runtime[c985227893cb4d07]::interp::ProcDef> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  45:     0x55ee359ec99d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureReference<tcl_runtime[c985227893cb4d07]::interp::ProcDef>>
+  46:     0x55ee359e2778 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureReference<tcl_runtime[c985227893cb4d07]::interp::ProcDef>>>
+  47:     0x55ee3600ae1a - core[a9090a07a7fa7517]::mem::drop::<core[a9090a07a7fa7517]::option::Option<tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureReference<tcl_runtime[c985227893cb4d07]::interp::ProcDef>>>
+  48:     0x55ee35c5c9ca - <tcl_runtime_api[eabeb00296e0d302]::native_procedure_roles::NativeProcedureBinding<tcl_runtime[c985227893cb4d07]::interp::ProcDef>>::retire
+  49:     0x55ee35c5d54a - <tcl_runtime[c985227893cb4d07]::interp::native_procedure_resources::NativeProcedureCommand>::retire
+  50:     0x55ee357e24dc - <tcl_runtime[c985227893cb4d07]::interp::InterpState as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  51:     0x55ee359f68ed - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[c985227893cb4d07]::interp::InterpState>
+  52:     0x55ee35c5f3b4 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::InterpState>>::drop_slow
+  53:     0x55ee35cac5a4 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::InterpState> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  54:     0x55ee359e6266 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[c985227893cb4d07]::interp::InterpState>>
+  55:     0x55ee359f78e3 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[c985227893cb4d07]::interp::Interp>
+  56:     0x55ee35d74437 - tcl_runtime[c985227893cb4d07]::interp::native_variable_teardown::tests::compare_controls_with::<tcl_runtime[c985227893cb4d07]::interp::native_variable_teardown::tests::compare_original_controls::{closure#0}>
+  57:     0x55ee35e1cf9e - tcl_runtime[c985227893cb4d07]::interp::native_variable_teardown::tests::compare_original_controls
+  58:     0x55ee35e1dcc2 - tcl_runtime[c985227893cb4d07]::interp::native_variable_teardown::tests::original_namespace_array_teardown_matches_six_native_owner_sources
+  59:     0x55ee35d9f923 - tcl_runtime[c985227893cb4d07]::interp::native_variable_teardown::tests::original_namespace_array_teardown_matches_six_native_owner_sources::{closure#0}
+  60:     0x55ee35aa0dd6 - <tcl_runtime[c985227893cb4d07]::interp::native_variable_teardown::tests::original_namespace_array_teardown_matches_six_native_owner_sources::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  61:     0x55ee3616606b - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  62:     0x55ee361736d5 - test[de0ab365ed256f3]::run_test::{closure#0}
+  63:     0x55ee3616e094 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  64:     0x55ee36176832 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  65:     0x55ee3698fdc9 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  66:     0x7f215f174b7b - <unknown>
+  67:     0x7f215f1f27f8 - <unknown>
+  68:                0x0 - <unknown>
+thread caused non-unwinding panic. aborting.

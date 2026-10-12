@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/ordinary_literal.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_ordinary_literal] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_ordinary_literal:3: error: [undefined procedure: same][same]
+
+Unexpected Error: Loading configuration process failed.

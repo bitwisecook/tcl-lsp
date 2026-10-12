@@ -1,0 +1,118 @@
+[
+  {
+    "version": "8.5.19",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe-8.5.19"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run": {
+      "exit": 0,
+      "stdout": "immediate\t2\t2\t1\t1\t1\t2\t1\nsyntax\t1\t2\t1\t1\t1\t1\nline\t1\t7\tint\t1\nline-failure\t1\t7\tnone\t1\t1\ncapture\t0\t1\tint\t1\tint\t1\t1\t1\ncapture-reset\t1\t1\t0\t1\n",
+      "stderr": ""
+    },
+    "source_sha256": "881e6ce2c426772db97409add707e1a25d046544e37d4e7139e5bde91768cb00",
+    "header_sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "result_observer_lease": "Explicit original message +1 until after reset observation; no dangling pointer reads"
+  },
+  {
+    "version": "8.6.18",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe-8.6.18"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run": {
+      "exit": 0,
+      "stdout": "immediate\t2\t2\t1\t1\t1\t2\t1\nsyntax\t1\t2\t1\t1\t1\t1\nline\t1\t7\tint\t1\nline-failure\t1\t7\tnone\t1\t1\nstack-alias\t1\t1\t2\t0\ncapture\t0\t1\tint\t1\tint\t1\t1\t1\ncapture-reset\t1\t1\t0\t1\n",
+      "stderr": ""
+    },
+    "source_sha256": "881e6ce2c426772db97409add707e1a25d046544e37d4e7139e5bde91768cb00",
+    "header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "result_observer_lease": "Explicit original message +1 until after reset observation; no dangling pointer reads"
+  },
+  {
+    "version": "9.0.4",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe-9.0.4"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run": {
+      "exit": 0,
+      "stdout": "immediate\t2\t2\t1\t1\t1\t2\t1\nsyntax\t1\t2\t1\t1\t1\t1\nline\t1\t7\tint\t1\nline-failure\t1\t7\tnone\t1\t1\nstack-alias\t1\t1\t2\t0\ncapture\t1\t1\tint\t1\tint\t1\t1\t1\ncapture-reset\t1\t1\t1\t3\n",
+      "stderr": ""
+    },
+    "source_sha256": "881e6ce2c426772db97409add707e1a25d046544e37d4e7139e5bde91768cb00",
+    "header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "result_observer_lease": "Explicit original message +1 until after reset observation; no dangling pointer reads"
+  },
+  {
+    "version": "9.1.0",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/original-return-instructions/probe-9.1.0"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run": {
+      "exit": 0,
+      "stdout": "immediate\t2\t2\t1\t1\t1\t2\t1\nsyntax\t1\t2\t1\t1\t1\t1\nline\t1\t7\tint\t1\nline-failure\t1\t7\tnone\t1\t1\nstack-alias\t1\t1\t2\t0\ncapture\t1\t1\tint\t1\tint\t1\t1\t1\ncapture-reset\t1\t1\t1\t3\n",
+      "stderr": ""
+    },
+    "source_sha256": "881e6ce2c426772db97409add707e1a25d046544e37d4e7139e5bde91768cb00",
+    "header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "result_observer_lease": "Explicit original message +1 until after reset observation; no dangling pointer reads"
+  }
+]

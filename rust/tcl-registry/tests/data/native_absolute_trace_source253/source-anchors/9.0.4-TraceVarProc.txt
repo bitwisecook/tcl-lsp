@@ -1,0 +1,7 @@
+	    if (rewind && (flags & TCL_TRACE_UNSETS)) {
+		((Interp *)interp)->execEnvPtr->rewind = 0;
+	    }
+	    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),
+		    Tcl_DStringLength(&cmd), 0);
+	    if (rewind) {
+		((Interp *)interp)->execEnvPtr->rewind = rewind;

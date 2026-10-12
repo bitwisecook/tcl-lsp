@@ -1,0 +1,19 @@
+{
+  "ordinal": 37,
+  "selector": "cmd_dict::tests::dict_lappend_validation_matches_c_tcl_for_every_non_dict_shape",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_dict::tests::dict_lappend_validation_matches_c_tcl_for_every_non_dict_shape",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.1079049370018765,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 5.10s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/037.log",
+  "log_sha256": "98458e0bfbfabf403c3e77b3e6b2a34406523de6835c1316297e19340f7b1956"
+}

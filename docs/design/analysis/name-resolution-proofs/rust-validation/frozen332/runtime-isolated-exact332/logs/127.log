@@ -1,0 +1,17 @@
+
+running 1 test
+test codegen_abi::original_receiver_tests::receiver_write_trace_retains_reached_store_and_stops_guest_publication ... 
+thread 'codegen_abi::original_receiver_tests::receiver_write_trace_retains_reached_store_and_stops_guest_publication' (1216243) panicked at src/codegen_abi/original_receiver_tests.rs:146:9:
+assertion `left == right` failed
+  left: 0x7f1dcc61f980
+ right: 0x7f1dcc61fb00
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    codegen_abi::original_receiver_tests::receiver_write_trace_retains_reached_store_and_stops_guest_publication
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.80s
+

@@ -16,16 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `::tcl::mathop::*` — the `expr` operators as commands, newly added to the VM
-//! over the shared `tcl_cmd_core::mathop` fold/chain logic and the VM's
-//! `ExprEval` (`ExprOps`). The VM had no `mathop` before; it now gets every
-//! operator over its `i64`+`double` number model (the runtime drives the same
-//! core over its bignum tower).
+//! `::tcl::mathop::*` commands use their retained handler identity and shared
+//! `tcl_cmd_core::mathop` fold/chain logic over the VM's `ExprEval`.
 
 use tcl_runtime_api::Completion;
 
 use crate::expr::ExprEval;
-use crate::interp::{Vm, err, ok};
+use crate::interp::Vm;
 use crate::value::Value;
 
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
@@ -58,35 +55,39 @@ fn mathop_names() -> Vec<&'static str> {
     names
 }
 
-/// The one builtin behind every operator; the invoked word's tail selects the
-/// op, so a single fn pointer serves all of them and the registration loop
-/// can be driven straight off [`mathop_names`]. `runtime/rust`'s `mathop`
-/// reads the same tail off `argv[0]`.
-///
-/// The fold / chained-comparison / arity logic is shared
-/// (`tcl_cmd_core::mathop`), driven over this VM's `ExprOps` so the result
-/// matches `expr`.
+/// The selected handler identity owns the operation. Original invocation words
+/// are accessed only when the native arity presenter needs them.
 fn mathop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::mathop::MathopError;
-    // The usage names the operator as it was invoked: via `namespace path` the
-    // word is just `!`, so the message reads `should be "! boolean"` rather than
-    // the resolved `::tcl::mathop::!` (mathop-3.9/4.9/…).
-    let invoked = vm.invoked_name().unwrap_or_default().to_owned();
-    let op = invoked.rsplit("::").next().unwrap_or(&invoked).to_owned();
-    let mut ops = ExprEval { vm };
-    match tcl_cmd_core::mathop::eval(&mut ops, &op, args.to_vec()) {
-        Ok(v) => ok(v),
+    let Some(op) = vm.invoked_builtin_identity().and_then(|identity| {
+        tcl_cmd_core::mathop::operation_for_handler_identity(identity.as_bytes())
+    }) else {
+        return vm.refuse_host_command("math operator handler identity is unavailable".into());
+    };
+    let mut ops = ExprEval::new(vm);
+    match tcl_cmd_core::mathop::eval(&mut ops, op, args.to_vec()) {
+        Ok(v) => ops.finish(v),
         Err(MathopError::WrongArgs(usage)) => {
-            err(format!("wrong # args: should be \"{invoked} {usage}\""))
+            let Some(original) = vm.invoked_name_value() else {
+                return vm
+                    .refuse_host_command("math operator invocation word is unavailable".into());
+            };
+            let mut header = match vm.native_argument_usage_header(&[original]) {
+                Ok(header) => header,
+                Err(error) => return error,
+            };
+            header.push(b' ');
+            header.extend_from_slice(usage.as_bytes());
+            crate::command::native_wrong_args_bytes(vm, &header)
         }
-        Err(MathopError::Op(e)) => err(e.message),
+        Err(MathopError::Op(e)) => crate::command::completion_from_tcl_error(ops.vm, e),
     }
 }
 
 /// Register `::tcl::mathop::*`.
 pub(crate) fn register(vm: &mut Vm) {
     for op in mathop_names() {
-        vm.register(&format!("::tcl::mathop::{op}"), mathop);
+        vm.register_stock_builtin(&format!("::tcl::mathop::{op}"), mathop);
     }
     // C exports every operator from `::tcl::mathop`, so
     // `namespace import ::tcl::mathop::*` works (mathop-25.*).
@@ -99,14 +100,162 @@ mod tests {
 
     use crate::interp::Vm;
 
-    /// Every operator spelling with a `::tcl::mathop` command form, per
-    /// `tcl_syntax::expr::operators` — the same derivation
-    /// `runtime/rust/src/cmd_mathop.rs` uses to build its registration list
-    /// mechanically. The VM's own list above is a `macro_rules!` invocation
-    /// (fn-pointer-per-operator, so it can't be generated the same way), so
-    /// this test is this crate's half of the registry/runtime
-    /// convergence: a drift gate proving the macro's hand-typed spellings
-    /// still exactly match layer 1, in both directions.
+    #[test]
+    fn original_jim_namespace_info_guard_retains_its_original_headers() {
+        // naming.mathop.original-jim-source-and-helper-context
+        // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md
+        // This compares the unchanged original guarded Jim source and public
+        // completion. Optional header-access diagnostics supply no provider evidence.
+        let source = include_str!(
+            "../../tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/0/source.tcl"
+        );
+        let observed = include_str!(
+            "../../tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/0/execute.stdout"
+        );
+        let fields: Vec<_> = observed
+            .lines()
+            .find(|line| line.starts_with("CASE_RESULT "))
+            .unwrap()
+            .split_whitespace()
+            .collect();
+        let expected: Vec<_> = fields[2]
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+            profile,
+            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
+        );
+        let completion = vm
+            .eval_source(source)
+            .expect("original Jim guard completion");
+        assert_eq!(completion.code.as_int(), fields[1].parse::<i64>().unwrap());
+        assert_eq!(
+            vm.native_name_operand_bytes(&completion.result)
+                .unwrap()
+                .as_ref(),
+            expected,
+        );
+    }
+
+    #[test]
+    fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
+        // naming.mathop.original-jim-source-and-helper-context
+        // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md
+        // The pinned current Jim distribution reconfirms these ten unchanged
+        // Jim public code/result pairs with its actual NamespaceInfo library.
+        // It does not establish the different old CLI's library roster.
+        let rows = include_str!("../../tcl-cmd-core/tests/data/native_mathop_identity/rows.txt");
+        let decode = |text: &str| {
+            text.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
+            let libraries = if fields[0] == "jim" {
+                &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo][..]
+            } else {
+                &[]
+            };
+            let mut vm =
+                crate::native_fixture::interpreter_with_scripted_libraries(profile, libraries);
+            let source = String::from_utf8(decode(fields[4])).unwrap();
+            let completion = vm.eval_source(&source).unwrap_or_else(|error| {
+                panic!(
+                    "{}/{} native mathop source: {error:?}",
+                    fields[0], fields[1]
+                )
+            });
+            assert_eq!(
+                completion.code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}/{} original result: {:?}",
+                fields[0],
+                fields[1],
+                completion.result.resident_string_bytes()
+            );
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                decode(fields[3]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            count += 1;
+        }
+        assert_eq!(count, 60);
+    }
+
+    #[test]
+    fn original_mathop_compilation_matches_all_84_native_controls() {
+        // naming.mathop.original-jim-source-and-helper-context
+        // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md
+        // Current Jim independently reconfirms these fourteen unchanged guarded
+        // script completions with NamespaceInfo. The unavailable mathop branch
+        // does not observe original Jim specialised compilation or operators.
+        let rows = include_str!("../../tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt");
+        let decode = |text: &str| {
+            text.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
+            let libraries = if fields[0] == "jim" {
+                &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo][..]
+            } else {
+                &[]
+            };
+            let mut vm =
+                crate::native_fixture::interpreter_with_scripted_libraries(profile, libraries);
+            let source = String::from_utf8(decode(fields[4])).unwrap();
+            let completion = vm.eval_source(&source).unwrap_or_else(|error| {
+                panic!(
+                    "{}/{} native mathop source: {error:?}",
+                    fields[0], fields[1]
+                )
+            });
+            assert_eq!(
+                completion.code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}/{} original result: {:?}",
+                fields[0],
+                fields[1],
+                completion.result.resident_string_bytes()
+            );
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                decode(fields[3]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            count += 1;
+        }
+        assert_eq!(count, 84);
+    }
+
+    /// Operator spellings owned by the shared expression grammar, compared
+    /// against the installed command set.
     fn expected_mathop_spellings() -> Vec<&'static str> {
         let mut names: Vec<&'static str> = ALL_BIN_OPS
             .iter()
@@ -139,10 +288,8 @@ mod tests {
     fn the_vm_registers_no_mathop_command_beyond_layer1() {
         let vm = Vm::new();
         let expected = expected_mathop_spellings();
-        // The macro's own operator list, kept in sync with `expected` by this
-        // test — if a future edit adds/removes a spelling here without a
-        // matching layer-1 change (or vice versa), one of these two tests
-        // catches it.
+        // The explicit expected surface is checked against both installed
+        // commands and shared expression grammar.
         let registered = [
             "~", "!", "+", "-", "*", "/", "%", "**", "&", "|", "^", "<<", ">>", "==", "!=", "<",
             "<=", ">", ">=", "eq", "ne", "lt", "le", "gt", "ge", "in", "ni",

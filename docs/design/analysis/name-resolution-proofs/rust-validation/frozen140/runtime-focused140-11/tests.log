@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... 
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (552786) panicked at src/interp/native_body_artifact/native_list_operations.rs:281:9:
+assertion `left == right` failed: tcl8.5/lassign $name
+  left: "0"
+ right: "1"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 2.32s
+

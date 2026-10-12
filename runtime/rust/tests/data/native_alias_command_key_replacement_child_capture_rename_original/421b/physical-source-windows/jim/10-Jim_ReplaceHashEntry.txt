@@ -1,0 +1,165 @@
+    Jim_SetHashVal(ht, entry, val);
+    return JIM_OK;
+}
+
+/* Add an element, discarding the old if the key already exists */
+int Jim_ReplaceHashEntry(Jim_HashTable *ht, const void *key, void *val)
+{
+    int existed;
+    Jim_HashEntry *entry;
+
+    /* Get the index of the new element, or -1 if
+     * the element already exists. */
+    entry = JimInsertHashEntry(ht, key, 1);
+    if (entry->key) {
+        /* It already exists, so only replace the value.
+         * Note if both a destructor and a duplicate function exist,
+         * need to dup before destroy. perhaps they are the same
+         * reference counted object
+         */
+        if (ht->type->valDestructor && ht->type->valDup) {
+            void *newval = ht->type->valDup(ht->privdata, val);
+            ht->type->valDestructor(ht->privdata, entry->u.val);
+            entry->u.val = newval;
+        }
+        else {
+            Jim_FreeEntryVal(ht, entry);
+            Jim_SetHashVal(ht, entry, val);
+        }
+        existed = 1;
+    }
+    else {
+        /* Doesn't exist, so set the key */
+        Jim_SetHashKey(ht, entry, key);
+        Jim_SetHashVal(ht, entry, val);
+        existed = 0;
+    }
+
+    return existed;
+}
+
+/**
+ * Search the hash table for the given key.
+ * If found, removes the hash entry and returns JIM_OK.
+ * Otherwise returns JIM_ERR.
+ */
+int Jim_DeleteHashEntry(Jim_HashTable *ht, const void *key)
+{
+    if (ht->used) {
+        unsigned int h = Jim_HashKey(ht, key) & ht->sizemask;
+        Jim_HashEntry *prevHe = NULL;
+        Jim_HashEntry *he = ht->table[h];
+
+        while (he) {
+            if (Jim_CompareHashKeys(ht, key, he->key)) {
+                /* Unlink the element from the list */
+                if (prevHe)
+                    prevHe->next = he->next;
+                else
+                    ht->table[h] = he->next;
+                ht->used--;
+                Jim_FreeEntryKey(ht, he);
+                Jim_FreeEntryVal(ht, he);
+                Jim_Free(he);
+                return JIM_OK;
+            }
+            prevHe = he;
+            he = he->next;
+        }
+    }
+    /* not found */
+    return JIM_ERR;
+}
+
+/**
+ * Clear all hash entries from the table, but don't free
+ * the table.
+ */
+void Jim_ClearHashTable(Jim_HashTable *ht)
+{
+    unsigned int i;
+
+    /* Free all the elements */
+    for (i = 0; ht->used > 0; i++) {
+        Jim_HashEntry *he, *nextHe;
+
+        he = ht->table[i];
+        while (he) {
+            nextHe = he->next;
+            Jim_FreeEntryKey(ht, he);
+            Jim_FreeEntryVal(ht, he);
+            Jim_Free(he);
+            ht->used--;
+            he = nextHe;
+        }
+        ht->table[i] = NULL;
+    }
+}
+
+/* Remove all entries from the hash table
+ * and leave it empty for reuse
+ */
+int Jim_FreeHashTable(Jim_HashTable *ht)
+{
+    Jim_ClearHashTable(ht);
+    /* Free the table and the allocated cache structure */
+    Jim_Free(ht->table);
+    /* Re-initialize the table */
+    JimResetHashTable(ht);
+    return JIM_OK;              /* never fails */
+}
+
+Jim_HashEntry *Jim_FindHashEntry(Jim_HashTable *ht, const void *key)
+{
+    Jim_HashEntry *he;
+    unsigned int h;
+
+    if (ht->used == 0)
+        return NULL;
+    h = Jim_HashKey(ht, key) & ht->sizemask;
+    he = ht->table[h];
+    while (he) {
+        if (Jim_CompareHashKeys(ht, key, he->key))
+            return he;
+        he = he->next;
+    }
+    return NULL;
+}
+
+Jim_HashTableIterator *Jim_GetHashTableIterator(Jim_HashTable *ht)
+{
+    Jim_HashTableIterator *iter = Jim_Alloc(sizeof(*iter));
+    JimInitHashTableIterator(ht, iter);
+    return iter;
+}
+
+Jim_HashEntry *Jim_NextHashEntry(Jim_HashTableIterator *iter)
+{
+    while (1) {
+        if (iter->entry == NULL) {
+            iter->index++;
+            if (iter->index >= (signed)iter->ht->size)
+                break;
+            iter->entry = iter->ht->table[iter->index];
+        }
+        else {
+            iter->entry = iter->nextEntry;
+        }
+        if (iter->entry) {
+            /* We need to save the 'next' here, the iterator user
+             * may delete the entry we are returning. */
+            iter->nextEntry = iter->entry->next;
+            return iter->entry;
+        }
+    }
+    return NULL;
+}
+
+/* ------------------------- private functions ------------------------------ */
+
+/* Expand the hash table if needed */
+static void JimExpandHashTableIfNeeded(Jim_HashTable *ht)
+{
+    /* If the hash table is empty expand it to the intial size,
+     * if the table is "full" double its size. */
+    if (ht->size == 0)

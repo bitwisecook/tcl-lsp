@@ -1,0 +1,30 @@
+before|shape=missing-namespace|purpose=Write|root-type=originalRootGetterProbe|root-refs=1|root-string=no|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=missing-namespace|purpose=Write|selected=none|visits=RI|result=can't set "::missing::arr(k)": parent namespace doesn't exist
+after|shape=missing-namespace|purpose=Write|root-type=originalRootGetterProbe|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=yes
+before|shape=missing-namespace|purpose=QuietWrite|root-type=originalRootGetterProbe|root-refs=1|root-string=no|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=missing-namespace|purpose=QuietWrite|selected=none|visits=R|result=SENTINEL
+after|shape=missing-namespace|purpose=QuietWrite|root-type=originalRootGetterProbe|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+before|shape=scalar-root|purpose=Write|root-type=originalRootGetterProbe|root-refs=1|root-string=no|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=scalar-root|purpose=Write|selected=none|visits=RI|result=can't set "scalar(k)": variable isn't array
+after|shape=scalar-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=yes
+before|shape=scalar-root|purpose=QuietWrite|root-type=originalRootGetterProbe|root-refs=1|root-string=no|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=scalar-root|purpose=QuietWrite|selected=none|visits=R|result=SENTINEL
+after|shape=scalar-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+before|shape=array-root|purpose=Write|root-type=originalRootGetterProbe|root-refs=1|root-string=no|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=array-root|purpose=Write|selected=some|visits=RI|result=SENTINEL
+after|shape=array-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=2|index-string=yes
+before|shape=array-root|purpose=QuietWrite|root-type=originalRootGetterProbe|root-refs=1|root-string=no|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=array-root|purpose=QuietWrite|selected=some|visits=RI|result=SENTINEL
+after|shape=array-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=2|index-string=yes
+before|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=fresh-combined-root|purpose=Write|selected=none|visits=I|result=can't set "arr(inner)(k)": variable isn't array
+after|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=yes
+before|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=fresh-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL
+after|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+before|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=cached-combined-root|purpose=Write|selected=none|visits=I|result=can't set "arr(inner)(k)": no such variable
+after|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=yes
+before|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no
+shape=cached-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL
+after|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=originalIndexGetterProbe|index-refs=1|index-string=no

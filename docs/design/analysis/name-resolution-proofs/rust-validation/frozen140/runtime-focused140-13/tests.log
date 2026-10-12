@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 1.56s
+

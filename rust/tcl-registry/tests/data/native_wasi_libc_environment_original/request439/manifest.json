@@ -1,0 +1,20 @@
+{
+  "name": "GrammarWasiNumericEnvironmentRequest439",
+  "status": "SEALED REQUEST ONLY; not compiled/launched",
+  "request_path": "/tmp/grammar-wasi-numeric-request439/request.json",
+  "request_sha256": "f1797600873c7200254932fdfa784ebd33d040a7970e532bf4b319c8c86e64fc",
+  "probe_path": "/tmp/grammar-wasi-numeric-request439/probe.c",
+  "probe_sha256": "72ef687265e1f560b0164b4a1d5305ea554253f158a84f0bfebb1ac6488334b6",
+  "launcher_path": "/tmp/grammar-wasi-numeric-request439/launch.py",
+  "launcher_sha256": "f979423a31a23a3b31d0a161f02d763739aa0524a54c921bb3b45d15e82e593e",
+  "source_cases": 21,
+  "raw_libc_rows": 315,
+  "adapter_control_rows": 12,
+  "validation": {
+    "python_ast_parse": true,
+    "all_original_writes_inspected": true,
+    "binary_case_bytes_validated": true,
+    "input_pins_exist": true,
+    "native_or_cargo_launched": false
+  }
+}

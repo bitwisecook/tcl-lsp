@@ -1,0 +1,8 @@
+version 0.84-9-g5bac7c9
+trace-command {}
+add variable cb 1 {invalid command name "trace"}
+add command cb 1 {invalid command name "trace"}
+add execution cb 1 {invalid command name "trace"}
+add variable ::Dest::cb 1 {invalid command name "trace"}
+add command ::Dest::cb 1 {invalid command name "trace"}
+add execution ::Dest::cb 1 {invalid command name "trace"}

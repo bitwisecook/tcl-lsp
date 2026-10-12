@@ -1,0 +1,38 @@
+Tcl_SetSystemEncoding(
+    Tcl_Interp *interp,		/* Interp for error reporting, if not NULL. */
+    const char *name)		/* The name of the desired encoding, or NULL/""
+				 * to reset to default encoding. */
+{
+    Tcl_Encoding encoding = NULL;
+
+    if (name && *name) {
+	encoding = Tcl_GetEncoding(interp, name); /* this increases refCount */
+	if (encoding == NULL) {
+	    return TCL_ERROR;
+	}
+    }
+
+    /* Don't lock (and change anything, bump epoch) if it remains unchanged. */
+
+    if ((encoding ? encoding : defaultEncoding) == systemEncoding) {
+	if (encoding) {
+	    Tcl_FreeEncoding(encoding); /* paired to Tcl_GetEncoding */
+	}
+	return TCL_OK;
+    }
+
+    /* Checks above ensure this is only called when system encoding changes */
+    Tcl_MutexLock(&encodingMutex);
+    if (!encoding) {
+	encoding = defaultEncoding; /* need increase its refCount */
+	((Encoding *)encoding)->refCount++;
+    }
+
+    FreeEncoding(systemEncoding);
+    systemEncoding = encoding;
+    Tcl_MutexUnlock(&encodingMutex);
+
+    Tcl_FSMountsChanged(NULL);
+
+    return TCL_OK;
+}

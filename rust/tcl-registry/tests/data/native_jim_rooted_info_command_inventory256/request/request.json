@@ -1,0 +1,53 @@
+{
+  "request_id": "naming.info.original-rooted-core-command-inventory-option-and-scope",
+  "question": "What exact rooted ::info commands grammar and public caller-owned command reports result in actual current namespace for absent, pattern, exact -all, abbreviated -al, no-pattern option and extra operands?",
+  "problem": "The rooted core ::info handler must remain independent of the Jim namespace info wrapper selected by unqualified info within namespace eval. The authentic namespace-created ensemble procedure reaches the root core inventory handler. Original unqualified254 observations do not establish rooted core option acceptance.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native236/245 original counted C API driver and independently verified provider build pins. Fresh full Tcl_Init or Jim static extensions per source. Emit VERSION and original whole code/result bytes with no outer catch/eval normalization, plus stdout/stderr/exit and exact source hashes. ",
+  "cases": [
+    {
+      "id": "original-all-option-current-namespace",
+      "source_file": "/workspace/.proofs/native-jim-rooted-info-command-inventory256-request/original-all-option-current-namespace.tcl",
+      "source_sha256": "941b302b29fedbe44795d6b02281f43bd8d8e9b33917634d6b352e70b01534b0",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality. Every inventory head is explicitly rooted ::info; the namespace eval wrapper is unchanged."
+    },
+    {
+      "id": "original-all-option-qualified-pattern",
+      "source_file": "/workspace/.proofs/native-jim-rooted-info-command-inventory256-request/original-all-option-qualified-pattern.tcl",
+      "source_sha256": "879b31f59c55e6e57836eba309cb91d9c8115e753e5e18c80543c2ea3d9d4359",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality. Every inventory head is explicitly rooted ::info; the namespace eval wrapper is unchanged."
+    },
+    {
+      "id": "original-abbreviated-all-option",
+      "source_file": "/workspace/.proofs/native-jim-rooted-info-command-inventory256-request/original-abbreviated-all-option.tcl",
+      "source_sha256": "e2ab62be5d1395bbe95627320dc080094026d9135bff210e1cee47f7305a7caa",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality. Every inventory head is explicitly rooted ::info; the namespace eval wrapper is unchanged."
+    },
+    {
+      "id": "original-option-without-pattern",
+      "source_file": "/workspace/.proofs/native-jim-rooted-info-command-inventory256-request/original-option-without-pattern.tcl",
+      "source_sha256": "2f9171ed1c14cd0facfd55c1d2088a564eb5f84e203c1e9b31760c9ea159b4b4",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality. Every inventory head is explicitly rooted ::info; the namespace eval wrapper is unchanged."
+    },
+    {
+      "id": "original-pattern-and-extra-argument",
+      "source_file": "/workspace/.proofs/native-jim-rooted-info-command-inventory256-request/original-pattern-and-extra-argument.tcl",
+      "source_sha256": "1d2814d0ca1de66bc531f471ca0ab83475f1a8afdb4499e6b7c464507099f1ec",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality. Every inventory head is explicitly rooted ::info; the namespace eval wrapper is unchanged."
+    },
+    {
+      "id": "original-absent-and-literal-pattern",
+      "source_file": "/workspace/.proofs/native-jim-rooted-info-command-inventory256-request/original-absent-and-literal-pattern.tcl",
+      "source_sha256": "22fb74824520668ecc5f11361207e6d1bc436f2ec8ca1913e9bf0d56085cd8fc",
+      "source_encoding": "ASCII LF. Actual namespace remains r2286_holder; -all and -al are exact original option words. Only queried r2286-owned command observations are retained, not assumed stock/global inventory equality. Every inventory head is explicitly rooted ::info; the namespace eval wrapper is unchanged."
+    }
+  ],
+  "scope": "Whole exact rooted original code/results and sorted caller-owned report bytes. Native254 unqualified wrapper observations remain distinct. No private command token/cache/table equality or arbitrary Unicode/NUL/complete stock-roster law follows."
+}

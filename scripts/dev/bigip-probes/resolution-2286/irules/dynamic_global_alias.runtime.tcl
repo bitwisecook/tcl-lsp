@@ -1,0 +1,3 @@
+set ::__tcl_lsp_probe_2286_lab2286_g 11
+proc __tcl_lsp_probe_2286_lab2286_read {} {global __tcl_lsp_probe_2286_lab2286_g; return $__tcl_lsp_probe_2286_lab2286_g}
+__tcl_lsp_probe_2286_lab2286_read

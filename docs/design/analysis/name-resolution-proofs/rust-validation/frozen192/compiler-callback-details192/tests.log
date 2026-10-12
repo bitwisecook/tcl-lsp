@@ -1,0 +1,30 @@
+
+running 4 tests
+test analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_composes_separate_capture_counts ... 
+thread 'analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_composes_separate_capture_counts' (701440) panicked at rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:511:14:
+authentic sorting callback source lookup
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_retains_nested_and_baked_premises ... 
+thread 'analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_retains_nested_and_baked_premises' (701463) panicked at rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:511:14:
+authentic sorting callback source lookup
+FAILED
+test analyser::diagnostics::original_positioned_callee::positioned_body_availability_refuses_unproved_native_labels_and_future_definitions ... 
+thread 'analyser::diagnostics::original_positioned_callee::positioned_body_availability_refuses_unproved_native_labels_and_future_definitions' (701489) panicked at rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs:27:46:
+called `Option::unwrap()` on a `None` value
+FAILED
+test analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs ... 
+thread 'analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs' (701503) panicked at rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs:53:46:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_composes_separate_capture_counts
+    analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_retains_nested_and_baked_premises
+    analyser::diagnostics::original_positioned_callee::positioned_body_availability_refuses_unproved_native_labels_and_future_definitions
+    analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 8370 filtered out; finished in 27.11s
+

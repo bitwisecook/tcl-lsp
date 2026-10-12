@@ -1,0 +1,13 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_callback_lookup_scope/receipt.json",
+    "sha256": "acb035fed207cdca14aeb72fa4e065ec401ff3aadf5b08282cd1569e1406326c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.callback.lsort-invoking-frame",
+      "naming.callback.after-global-frame",
+      "naming.callback.trace-trigger-frame"
+    ],
+    "reason": "Actual six native CLI captures of one exact ASCII source measuring lsort invoking, after global and C variable/command/execution trace triggering namespace lookup; Jim trace guest rejection retained separately. Full streams and launch/native binary hashes, not inferred runtime headers."
+  }
+]

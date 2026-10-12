@@ -1,0 +1,7 @@
+VERSION 0.84-9-g5bac7c9
+AVAILABLE 1
+ALIAS JimAlias
+CASE inline 0 CODE 1 RESULT {can't read "first": no such variable} first 0 {} old 0 {} one 0 {}
+CASE inline 1 CODE 0 RESULT {} first 1 one old 1 two one 0 {}
+CASE generic 0 CODE 1 RESULT {can't read "first": no such variable} first 0 {} old 0 {} one 0 {}
+CASE generic 1 CODE 0 RESULT {} first 1 one old 1 two one 0 {}

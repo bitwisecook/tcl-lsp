@@ -1,0 +1,5 @@
+These fixtures record 1,788 observations from the five supported C releases and pinned Jim 0.84. `manifest.json` identifies the probe, original native headers/libraries, and exact output hashes. `probe.c` constructs original counted objects containing raw NUL, modified-NUL, and raw FF; it preserves results before rendering and does not read guest error globals.
+
+`array-order.tsv` contains 320 C array enumeration controls used by the shared hash-kernel test. Each row supplies release, entry count, opaque-key selection, delete/reinsert selection, and exact result bytes. The ABI observations separately report native plain-char signedness, unsigned-int width, and size_t width. Hash policy requires both selected engine semantics and an independent ABI receipt.
+
+Jim array enumeration follows its Dictionary entry vector rather than the ordinary variable hash table. Jim's absent trace and array-search commands are retained as explicit guest failures in the JSONL files; they establish command absence, not supported search behavior. C compiled-local declaration order is independent of the dynamic variable hash order.

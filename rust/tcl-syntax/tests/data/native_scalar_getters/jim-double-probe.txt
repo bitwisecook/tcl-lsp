@@ -1,0 +1,26 @@
+0755	code=0	type=coerced-double	bits=4087980000000000	wide=755
+0x10	code=0	type=double	bits=4030000000000000
+0x1p4	code=0	type=double	bits=4030000000000000
+0x1.8p2	code=0	type=double	bits=4018000000000000
+0b10	code=1	type=string	bits=0000000000000000
+0o10	code=1	type=string	bits=0000000000000000
+0d10	code=1	type=string	bits=0000000000000000
+nan(foo)	code=0	type=double	bits=7ff8000000000000
+NaN(0x1)	code=0	type=double	bits=7ff8000000000001
+1e400	code=0	type=double	bits=7ff0000000000000
+1e-400	code=0	type=double	bits=0000000000000000
+18446744073709551615	code=0	type=coerced-double	bits=bff0000000000000	wide=-1
+18446744073709551616	code=0	type=coerced-double	bits=bff0000000000000	wide=-1
+-18446744073709551615	code=0	type=coerced-double	bits=3ff0000000000000	wide=1
+-18446744073709551616	code=0	type=coerced-double	bits=bff0000000000000	wide=-1
+9223372036854775808	code=0	type=coerced-double	bits=c3e0000000000000	wide=-9223372036854775808
+ 1 	code=0	type=coerced-double	bits=3ff0000000000000	wide=1
+1_0	code=1	type=string	bits=0000000000000000
+true	code=1	type=string	bits=0000000000000000
+0x1.fffffffffffffp1023	code=0	type=double	bits=7fefffffffffffff
+0x1p-1074	code=0	type=double	bits=0000000000000001
+0x1p-1075	code=0	type=double	bits=0000000000000000
+0x1.8p-1075	code=0	type=double	bits=0000000000000001
+-0	code=0	type=coerced-double	bits=0000000000000000	wide=0
+-0.0	code=0	type=double	bits=8000000000000000
+0x1.	code=0	type=double	bits=3ff0000000000000

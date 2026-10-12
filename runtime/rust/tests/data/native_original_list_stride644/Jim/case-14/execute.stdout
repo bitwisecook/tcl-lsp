@@ -1,0 +1,17 @@
+provider	Jim
+case	14	unsigned-int-maximum
+operation	lsort
+input-stride	34323934393637323935
+input-roles	stride-original-counted-string=1	stride-explicit-argument-owner=1	additional-observer-native-holds=0	input-list-length=0
+before-stride	none	1	1	10
+before-container	list	0	1	0
+code	0
+reached-stride	int	1	1	10
+reached-container	list	0	2	0
+reached-result	list	0	2	0
+result-alias	stride=0	container=1
+result-bytes	
+materialised-result	list	1	2	0
+after-result-getter-stride	int	1	1	10
+stride-bytes	34323934393637323935
+materialised-stride	int	1	1	10

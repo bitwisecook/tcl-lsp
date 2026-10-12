@@ -1,0 +1,42 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_name/provenance.json",
+    "sha256": "e78aa86921e4db5bedefd17b89c4fd76a608bbd59feee9447bbb6d0a9a0aa6f6",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.current-root-primary",
+      "naming.namespace-native.terminal-colon-original-versus-text",
+      "naming.namespace-native.deleted-current-object-recreation",
+      "naming.namespace-native.raw-zero-bytearray-parent",
+      "naming.namespace-native.opaque-original-parent",
+      "naming.namespace-native.active-retirement-cache",
+      "naming.namespace-native.missing-parent-cache",
+      "naming.namespace-native.jim-nested-current-primary"
+    ],
+    "reason": "Exact retained observer digest and103 permanent result/input-primary projection rows inspected:100C plus3Jim. Eight original producer/getter/lifecycle questions mapped by reached phase. The532-line original JSONL and reference/pointer fields are not retained and are not counted as available evidence; Jim C-getter sentinel is not guest rejection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_name/opaque_children_provenance.json",
+    "sha256": "41aaaa3f89c8a529ca5f3d356d2805c3c5ba74c7672afe7c7c89c3b656930cc9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.opaque-child-enumeration",
+      "naming.namespace-native.opaque-child-pattern-selection"
+    ],
+    "reason": "Exact20 original code/result/type rows; all five full four-row original streams recovered by original whole-log SHA256 equality. Enumeration and pattern matching are distinct questions, including C8.5 empty exact-match result. No Jim/native refcount/allocator fields inferred."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json",
+    "sha256": "1d6898b9c79f5e22b570ea7e08c992b24e393513c1d71fdc08a09daed9d09f9e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.delete-validates-later",
+      "naming.namespace-native.delete-dependent-child-duplicate",
+      "naming.namespace-native.delete-command-callback-removes-later",
+      "naming.namespace-native.delete-command-callback-recreates-later",
+      "naming.namespace-native.delete-original-zero-versus-bytearray",
+      "naming.namespace-native.delete-unset-trace-later-effects"
+    ],
+    "reason": "Exact40 original code/result/existence/callback projections inspected and complete five JSONL streams reconstructed by original whole-log SHA256 agreement. Six precise validation/dependency/callback/zero-input purposes retain all eight controls per provider; command-recreation B=1 versus trace-recreation B=0 preserved, no Rust parity inference."
+  }
+]

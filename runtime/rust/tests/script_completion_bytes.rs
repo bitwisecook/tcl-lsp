@@ -117,12 +117,14 @@ fn script_completion_preserves_non_utf8_success_and_error_values() {
     interp.register_builtin(b"binary_success", binary_success);
     interp.register_builtin(b"binary_error", binary_error);
 
-    let success = interp.eval_completion(b"binary_success");
+    let success = interp.eval_completion(b"binary_success").unwrap();
     assert_eq!(success.code, CompletionCode::Ok);
     assert_eq!(success.result, NON_UTF8_VALUE);
     assert!(!success.options.is_empty());
 
-    let failure = interp.eval_sourced_completion(b"binary_error", b"binary-error.tcl");
+    let failure = interp
+        .eval_sourced_completion(b"binary_error", b"binary-error.tcl")
+        .unwrap();
     assert_eq!(failure.code, CompletionCode::Error);
     assert_eq!(failure.result, NON_UTF8_VALUE);
     assert!(
@@ -141,7 +143,9 @@ fn raw_byte_puts_and_final_completion_share_the_lossless_boundary() {
     interp.set_host(host.clone());
     interp.register_builtin(b"binary_success", binary_success);
 
-    let completion = interp.eval_completion(b"puts -nonewline [binary_success]");
+    let completion = interp
+        .eval_completion(b"puts -nonewline [binary_success]")
+        .unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     assert!(completion.result.is_empty());
     assert_eq!(host.stdout(), NON_UTF8_VALUE);
@@ -154,10 +158,12 @@ fn binary_channel_output_uses_the_shared_tcl9_conversion_boundary() {
     interp.set_runtime_version(TclVersion::V9_0);
     interp.set_host(host.clone());
 
-    let completion = interp.eval_completion(
-        b"fconfigure stdout -translation binary; \
+    let completion = interp
+        .eval_completion(
+            b"fconfigure stdout -translation binary; \
           puts -nonewline [binary format H* ff41]",
-    );
+        )
+        .unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     assert_eq!(host.stdout(), [0xff, b'A']);
 }
@@ -181,7 +187,7 @@ fn binary_open_mode_uses_the_shared_byte_preserving_configuration() {
         tcl_syntax::list::list_element(&list_path.to_string_lossy()),
         tcl_syntax::list::list_element(&rdwr_path.to_string_lossy()),
     );
-    let completion = interp.eval_completion(script.as_bytes());
+    let completion = interp.eval_completion(script.as_bytes()).unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     for output in [&path, &list_path, &rdwr_path] {
         assert_eq!(
@@ -200,14 +206,16 @@ fn open_access_validation_tracks_the_runtime_release() {
     std::fs::write(&path, b"seed").expect("create access-mode fixture");
 
     interp.set_runtime_version(TclVersion::V8_6);
-    let repeated = interp.eval_completion(
-        format!(
-            "set f [open {} {{RDONLY WRONLY}}]; \
+    let repeated = interp
+        .eval_completion(
+            format!(
+                "set f [open {} {{RDONLY WRONLY}}]; \
              puts -nonewline $f x; close $f",
-            tcl_syntax::list::list_element(&path.to_string_lossy()),
+                tcl_syntax::list::list_element(&path.to_string_lossy()),
+            )
+            .as_bytes(),
         )
-        .as_bytes(),
-    );
+        .unwrap();
     assert_eq!(repeated.code, CompletionCode::Ok);
     assert_eq!(
         interp
@@ -215,6 +223,7 @@ fn open_access_validation_tracks_the_runtime_release() {
                 b"set m \"\\{RDONLY\"; catch {open ignored $m} msg opts; \
                   dict get $opts -errorcode"
             )
+            .unwrap()
             .result,
         b"TCL VALUE LIST BRACE"
     );
@@ -226,6 +235,7 @@ fn open_access_validation_tracks_the_runtime_release() {
                 b"set m \"\\{RDONLY\"; catch {open ignored $m} msg opts; \
                   dict get $opts -errorcode"
             )
+            .unwrap()
             .result,
         b"TCL OPENMODE INVALID"
     );
@@ -239,11 +249,13 @@ fn child_configuration_updates_the_shared_standard_channel_handle() {
     interp.set_runtime_version(TclVersion::V9_0);
     interp.set_host(host.clone());
 
-    let completion = interp.eval_completion(
-        b"interp create child; \
+    let completion = interp
+        .eval_completion(
+            b"interp create child; \
           child eval {fconfigure stdout -translation binary}; \
           puts -nonewline [binary format H* ff]",
-    );
+        )
+        .unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     assert_eq!(host.stdout(), [0xff]);
 }
@@ -255,11 +267,13 @@ fn strict_conversion_writes_its_prefix_and_reports_structured_eilseq() {
     interp.set_runtime_version(TclVersion::V9_0);
     interp.set_host(host.clone());
 
-    let completion = interp.eval_completion(
-        b"fconfigure stdout -encoding iso8859-1 -profile strict; \
+    let completion = interp
+        .eval_completion(
+            b"fconfigure stdout -encoding iso8859-1 -profile strict; \
           set c [catch {puts -nonewline \"A\\u0178B\"} m o]; \
           set ::observedCode [dict get $o -errorcode]; set c",
-    );
+        )
+        .unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     assert_eq!(completion.result, b"1");
     assert_eq!(host.stdout(), b"A");
@@ -279,10 +293,12 @@ fn strict_conversion_writes_its_prefix_and_reports_structured_eilseq() {
 fn configuration_errors_keep_their_structured_tcl_identity() {
     let mut interp = Interp::new();
     interp.set_runtime_version(TclVersion::V9_0);
-    let completion = interp.eval_completion(
-        b"catch {fconfigure stdout -profile bogus} m o; \
+    let completion = interp
+        .eval_completion(
+            b"catch {fconfigure stdout -profile bogus} m o; \
           list $m [dict get $o -errorcode]",
-    );
+        )
+        .unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     assert_eq!(
         completion.result,
@@ -291,6 +307,7 @@ fn configuration_errors_keep_their_structured_tcl_identity() {
     assert_eq!(
         interp
             .eval_completion(b"encoding system ascii; encoding system {}; encoding system")
+            .unwrap()
             .result,
         b"iso8859-1"
     );
@@ -317,7 +334,7 @@ fn mutable_system_encoding_is_shared_and_only_seeds_future_channels() {
          list $before [fconfigure stdout -encoding] $childSystem $opened",
         tcl_syntax::list::list_element(&path.to_string_lossy()),
     );
-    let completion = interp.eval_completion(script.as_bytes());
+    let completion = interp.eval_completion(script.as_bytes()).unwrap();
     assert_eq!(completion.code, CompletionCode::Ok);
     assert_eq!(completion.result, b"utf-8 utf-8 iso8859-1 iso8859-1");
     assert_eq!(std::fs::read(&path).expect("read encoded file"), [0xff]);
@@ -332,10 +349,12 @@ fn completion_captures_live_error_options_before_publishing_globals() {
     // Tcl 9.0.4 oracle (catching this same script in a fresh child interp):
     // 1 BOOM {-errorinfo {CUSTOM INFO} -errorcode {CUSTOM CODE} -code 1
     //         -level 0 -errorstack {} -errorline 1}
-    let completion = interp.eval_completion(
-        b"return -code error -level 0 -errorinfo {CUSTOM INFO} \
+    let completion = interp
+        .eval_completion(
+            b"return -code error -level 0 -errorinfo {CUSTOM INFO} \
           -errorcode {CUSTOM CODE} [binary_success]",
-    );
+        )
+        .unwrap();
     assert_eq!(completion.code, CompletionCode::Error);
     assert_eq!(completion.result, NON_UTF8_VALUE);
     assert_eq!(dict_value(&completion.options, b"-code"), b"1");
@@ -359,12 +378,14 @@ fn completion_captures_live_error_options_before_publishing_globals() {
 #[test]
 fn completion_preserves_the_during_chain_before_publication() {
     let mut interp = Interp::new();
-    let completion = interp.eval_completion(
-        b"try {return -code error -level 0 -errorinfo {INNER INFO} \
+    let completion = interp
+        .eval_completion(
+            b"try {return -code error -level 0 -errorinfo {INNER INFO} \
             -errorcode {INNER CODE} INNER} \
           on error {} {return -code error -level 0 -errorinfo {OUTER INFO} \
             -errorcode {OUTER CODE} OUTER}",
-    );
+        )
+        .unwrap();
 
     // Tcl 9.0.4 reports OUTER with OUTER CODE and this exact nested exception:
     // -during {-errorinfo {INNER INFO\n    ("try" body line 1)}
@@ -435,7 +456,7 @@ fn completion_exposes_every_tcl_completion_code_and_return_options() {
     // 4 {}    {-code 4 -level 0}
     // 37 VALUE {-code 37 -level 0}
     for case in cases {
-        let completion = Interp::new().eval_completion(case.script);
+        let completion = Interp::new().eval_completion(case.script).unwrap();
         assert_eq!(
             completion.code,
             case.code,
@@ -457,7 +478,9 @@ fn completion_exposes_every_tcl_completion_code_and_return_options() {
 fn sourced_completion_settles_return_before_snapshot_and_publication() {
     let mut interp = Interp::new();
 
-    let ordinary = interp.eval_sourced_completion(b"return VALUE", b"ordinary.tcl");
+    let ordinary = interp
+        .eval_sourced_completion(b"return VALUE", b"ordinary.tcl")
+        .unwrap();
     assert_eq!(ordinary.code, CompletionCode::Ok);
     assert_eq!(ordinary.result, b"VALUE");
     assert_eq!(dict_value(&ordinary.options, b"-code"), b"0");
@@ -465,18 +488,21 @@ fn sourced_completion_settles_return_before_snapshot_and_publication() {
 
     // Tcl 9.0.4: sourcing a file containing this command is caught as
     // `37 VALUE {-code 37 -level 0}`.
-    let other =
-        interp.eval_sourced_completion(b"return -code 37 -level 1 VALUE", b"other-code.tcl");
+    let other = interp
+        .eval_sourced_completion(b"return -code 37 -level 1 VALUE", b"other-code.tcl")
+        .unwrap();
     assert_eq!(other.code, CompletionCode::Other(37));
     assert_eq!(other.result, b"VALUE");
     assert_eq!(dict_value(&other.options, b"-code"), b"37");
     assert_eq!(dict_value(&other.options, b"-level"), b"0");
 
-    let failure = interp.eval_sourced_completion(
-        b"return -code error -level 1 -errorinfo {SOURCE INFO} \
+    let failure = interp
+        .eval_sourced_completion(
+            b"return -code error -level 1 -errorinfo {SOURCE INFO} \
           -errorcode {SOURCE CODE} FAILURE",
-        b"error-code.tcl",
-    );
+            b"error-code.tcl",
+        )
+        .unwrap();
     assert_eq!(failure.code, CompletionCode::Error);
     assert_eq!(failure.result, b"FAILURE");
     assert_eq!(dict_value(&failure.options, b"-code"), b"1");

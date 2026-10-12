@@ -1,0 +1,33 @@
+warning: constant `TCL_WS` is never used
+   --> rust/tcl-cmd-core/src/list.rs:480:7
+    |
+480 | const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
+    |       ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-cmd-core` (lib) generated 1 warning
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+error[E0004]: non-exhaustive patterns: `tcl_lexer::WordPart::Expression(_)` not covered
+   --> rust/tcl-registry/src/value_transfer/template.rs:341:15
+    |
+341 |         match part {
+    |               ^^^^ pattern `tcl_lexer::WordPart::Expression(_)` not covered
+    |
+note: `tcl_lexer::WordPart<'_>` defined here
+   --> rust/tcl-lexer/src/word_parts.rs:184:1
+    |
+184 | pub enum WordPart<'s> {
+    | ^^^^^^^^^^^^^^^^^^^^^
+...
+196 |     Expression(&'s [u8]),
+    |     ---------- not covered
+    = note: the matched value is of type `tcl_lexer::WordPart<'_>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    |
+392 ~             Part::ParseError(_) => return false,
+393 ~             tcl_lexer::WordPart::Expression(_) => todo!(),
+    |
+
+For more information about this error, try `rustc --explain E0004`.
+error: could not compile `tcl-registry` (lib) due to 1 previous error

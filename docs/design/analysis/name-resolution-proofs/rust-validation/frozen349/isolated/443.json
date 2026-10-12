@@ -1,0 +1,19 @@
+{
+  "ordinal": 443,
+  "selector": "list::tests::list_backing_canonical_flags_match_original_native_operations",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::list_backing_canonical_flags_match_original_native_operations",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.017671687994152308,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/443.log",
+  "log_sha256": "c89ce030cd06268d03e579e210c8e909fdbdb523de0702684b8ad29627e6ce63"
+}

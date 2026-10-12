@@ -207,6 +207,9 @@ impl BpfProgTypeSet {
 /// declaration it stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BpfOpKind {
+    /// Static conditional syntax, expanded into CFG branches by the closed
+    /// BPF language frontend. This grants no Tcl handler or compiler proof.
+    Conditional,
     /// `setint`/`seti32`/`setu32 NAME {EXPR}` — evaluate and commit a scalar.
     ScalarSet(BpfScalarWidth),
     /// `setbuf NAME ctx` — bind the packet buffer.

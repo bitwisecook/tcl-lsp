@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/current-native-implicit-function-presence156/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.013183970004320145,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "52606ff182cbccd8125c7be37bea2397fe93285047cc37a8cb6adfbe7c190332",
+  "runner_sha256": "379080da40335d5f4e57c0bd411249eb81253d6994b82533c6c1d52cc0f48222",
+  "stdout_sha256": "2e59e14d21073e395d367fa15cd38ced5e91f39cf6d5ad0c54f00e7481cfafcd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "VERSION|9.1.0",
+    "initial-slot|0|",
+    "initial-call|1|696e76616c696420636f6d6d616e64206e616d65202274636c3a3a6d61746866756e633a3a506922",
+    "namespace-control|0|",
+    "install-control|0|",
+    "installed-slot|0|3a3a74636c3a3a6d61746866756e633a3a5069",
+    "installed-call|0|3137"
+  ],
+  "input_channel": "ASCII LF source-file CLI; six sequential independently caught implicit-function/slot control cases",
+  "boundary": "Question: distinguish implicit expression-function dispatch from original written command-head lookup, before and after a counted ASCII procedure-name control. Hex is binary scan H* presentation, no native getter, allocation identity, cache or compiler admission. Cases execute sequentially in a fresh CLI process per provider; namespace creation and installation results are independently caught, not assumed."
+}

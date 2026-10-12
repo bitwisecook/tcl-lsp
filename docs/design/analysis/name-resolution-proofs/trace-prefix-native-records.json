@@ -1,0 +1,624 @@
+[
+  {
+    "id": "naming.variable.copied-prefix-storage-removal-report-evaluation",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/copied-prefix-storage-removal-report-evaluation.md",
+    "problem_statement": "A trace prefix containing a counted zero may have different storage, removal, reporting and execution extents. Reusing one byte equality or retaining the original prefix object can make removal or later callback arguments differ from the actual interpreter. The public object-vector inputs distinguish a raw zero from encoded C080, equal versus unequal counted lengths, and mutation of the caller-owned prefix after registration.",
+    "question": "Does variable trace registration copy a counted raw-zero prefix, and do removal, reporting and callback evaluation use the same extent?",
+    "conclusion": "All five tested C releases copy the full prefix without retaining its input object, report only watch A, and evaluate a callback whose first argument is the full counted A00X. A same-length A00Y prefix removes it; a longer A00YY or encoded C080 prefix leaves it registered. C8.4 uses legacy trace syntax and reports callback operation w; C8.5 through C9.1 use the modern form and report write. Current pinned Jim rejects trace. These observations establish four distinct extents for the exact selected variable trace purpose.",
+    "scope": "Public object-vector trace registration/removal, fresh interpreters, an original nine-byte prefix watch<space>A00X, public prefix-object mutation after registration, ASCII top-level source, and direct callback argv byte observation. Callback argument rendering is observed through its counted public string getter. This does not measure command/execution trace removal, callback bytecode cache, arbitrary object class, variable cell grants or BIG-IP trace behavior.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Recorded header 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf, static library 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47 and executed probe 74317b59af81d67da0b604d415dde72a17742fd39b47e17923b93a33f2a5b6b0; original compiler arguments retained.",
+        "input_channel": "Counted Tcl_NewStringObj input arrays passed to Tcl_EvalObjv; ASCII NUL-terminated C source passed to Tcl_Eval for firing and reporting. Jim uses ASCII Jim_Eval only for trace availability.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Registration leaves the input at refCount1; changing it does not change copied reporting or callback A00X. Same-length raw-zero removal leaves0 registrations; longer and C080 negatives each leave1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Recorded header c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5, static library 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc and executed probe 08acee8e6390b5fef87d251212dce23e61dea32aac32c211cb41132574ac57ff; original compiler arguments retained.",
+        "input_channel": "Counted Tcl_NewStringObj input arrays passed to Tcl_EvalObjv; ASCII NUL-terminated C source passed to Tcl_Eval for firing and reporting. Jim uses ASCII Jim_Eval only for trace availability.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Registration leaves the input at refCount1; changing it does not change copied reporting or callback A00X. Same-length raw-zero removal leaves0 registrations; longer and C080 negatives each leave1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e4",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Recorded header aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245, static library 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb and executed probe 7a656de6f30186ca48979345770f1c1ddbe5c566e69e2101645a671ae0d04085; original compiler arguments retained.",
+        "input_channel": "Counted Tcl_NewStringObj input arrays passed to Tcl_EvalObjv; ASCII NUL-terminated C source passed to Tcl_Eval for firing and reporting. Jim uses ASCII Jim_Eval only for trace availability.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Registration leaves the input at refCount1; changing it does not change copied reporting or callback A00X. Same-length raw-zero removal leaves0 registrations; longer and C080 negatives each leave1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e6",
+          "e7"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Recorded header eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a, static library dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4 and executed probe 338d45ea1d8f12d29f8c1877ff6eabec846e7b0df365e7e85de6fbc79b19700e; original compiler arguments retained.",
+        "input_channel": "Counted Tcl_NewStringObj input arrays passed to Tcl_EvalObjv; ASCII NUL-terminated C source passed to Tcl_Eval for firing and reporting. Jim uses ASCII Jim_Eval only for trace availability.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Registration leaves the input at refCount1; changing it does not change copied reporting or callback A00X. Same-length raw-zero removal leaves0 registrations; longer and C080 negatives each leave1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e8",
+          "e9"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Recorded header 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950, static library 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db and executed probe 6cc9406689540b77d53f11aa8ad1712243eb28da47273fbdd362c38693357718; original compiler arguments retained.",
+        "input_channel": "Counted Tcl_NewStringObj input arrays passed to Tcl_EvalObjv; ASCII NUL-terminated C source passed to Tcl_Eval for firing and reporting. Jim uses ASCII Jim_Eval only for trace availability.",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Registration leaves the input at refCount1; changing it does not change copied reporting or callback A00X. Same-length raw-zero removal leaves0 registrations; longer and C080 negatives each leave1.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e10",
+          "e11"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84-9-g5bac7c9",
+        "build": "Recorded header d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d, static library a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da and executed probe 7e42c9d6e403da9fc893387c28099c1968f4078902550efa65ad236cc18c300a; original compiler arguments retained.",
+        "input_channel": "Counted Tcl_NewStringObj input arrays passed to Tcl_EvalObjv; ASCII NUL-terminated C source passed to Tcl_Eval for firing and reporting. Jim uses ASCII Jim_Eval only for trace availability.",
+        "dialect": "Jim Tcl",
+        "status": "unsupported",
+        "answer": "Guest Error: invalid command name \"trace\"; no prefix law is measured.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e12",
+          "e13"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/probe.c",
+        "role": "input",
+        "sha256": "4bf1ba2f34197a0a113a47ae3898bfd700c32cdd4983d1f770591d42c68cb817",
+        "description": "Exact public C/Jim API program; all raw-zero and encoded-zero arrays and three discriminating removal controls retained."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/receipt.json",
+        "role": "observation",
+        "sha256": "338bcd94c04983c5ec26d7a07f4f920af04a56dfd15092a6293473e0d332bf43",
+        "description": "Complete six-provider compile/process attribution, header/library/executable/source hashes and exact native rows."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/8.4.20/stdout.tsv",
+        "role": "observation",
+        "sha256": "bba528bfb2340df2b52fa2a18e050710190e32befdb5555eaa209e6876863b09",
+        "description": "Exact original stdout: expected native guest failures remain rows."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/8.4.20/receipt.json",
+        "role": "observation",
+        "sha256": "576d836878ca8c7e7e0f058716ba7a3c9cba27bd0b49158e8b4a858f141a6cef",
+        "description": "This provider compile/process result and original input/build/stream hashes."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/8.5.19/stdout.tsv",
+        "role": "observation",
+        "sha256": "3b8012378ffba88fc693acc63104556fe5fd8f1a1dcc7773f8224e761234abed",
+        "description": "Exact original stdout: expected native guest failures remain rows."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/8.5.19/receipt.json",
+        "role": "observation",
+        "sha256": "da557a2f9582e9b29ae97200b8ce877de326d8f697c3f32cdaed0d8043af5787",
+        "description": "This provider compile/process result and original input/build/stream hashes."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/8.6.18/stdout.tsv",
+        "role": "observation",
+        "sha256": "3b8012378ffba88fc693acc63104556fe5fd8f1a1dcc7773f8224e761234abed",
+        "description": "Exact original stdout: expected native guest failures remain rows."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/8.6.18/receipt.json",
+        "role": "observation",
+        "sha256": "9d9a96ee4abe6b237b36dcf072db04ce0221a283263a6357ad953ed8c6c2864b",
+        "description": "This provider compile/process result and original input/build/stream hashes."
+      },
+      {
+        "id": "e8",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/9.0.4/stdout.tsv",
+        "role": "observation",
+        "sha256": "3b8012378ffba88fc693acc63104556fe5fd8f1a1dcc7773f8224e761234abed",
+        "description": "Exact original stdout: expected native guest failures remain rows."
+      },
+      {
+        "id": "e9",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/9.0.4/receipt.json",
+        "role": "observation",
+        "sha256": "591f794aa040166e0a10847579b1a992ae5e8b440dbab69c177df8fccb749f0b",
+        "description": "This provider compile/process result and original input/build/stream hashes."
+      },
+      {
+        "id": "e10",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/9.1.0/stdout.tsv",
+        "role": "observation",
+        "sha256": "3b8012378ffba88fc693acc63104556fe5fd8f1a1dcc7773f8224e761234abed",
+        "description": "Exact original stdout: expected native guest failures remain rows."
+      },
+      {
+        "id": "e11",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/9.1.0/receipt.json",
+        "role": "observation",
+        "sha256": "5a14a0abeddc373ece727615ed4dc364d3a2e49a355dc3c4ae0e9488928d5e21",
+        "description": "This provider compile/process result and original input/build/stream hashes."
+      },
+      {
+        "id": "e12",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/jim/stdout.tsv",
+        "role": "observation",
+        "sha256": "7f018cd7c2761ed94f734a96126881c684788be92346dc8750a8a87479c6dc93",
+        "description": "Exact original stdout: expected native guest failures remain rows."
+      },
+      {
+        "id": "e13",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/jim/receipt.json",
+        "role": "observation",
+        "sha256": "982f12b94dbecd9335b64f38ecc2ef172d4a3023e35eb572c2d94c586e29e3d7",
+        "description": "This provider compile/process result and original input/build/stream hashes."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_variable_trace.rs",
+        "selector": "native_variable_trace::tests::variable_prefix_copy_remove_report_and_counted_eval_keep_independent_extents",
+        "assertion": "Check same-length strncmp match, unequal length and C080 negative, copied byte extent and independent report/callback extents.",
+        "status": "linked"
+      },
+      {
+        "path": "runtime/rust/src/cmd_trace/native_command_tests.rs",
+        "selector": "cmd_trace::native_command_tests::variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls",
+        "assertion": "Register original object, mutate input, fire counted copied argument and compare all three removal outcomes.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_trace/native_original_tests.rs",
+        "selector": "cmd_trace::native_original_tests::variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls",
+        "assertion": "Copied prefix survives original representation invalidation, reports CString and fires counted argument with independent removal negatives.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "selector": "variable_bindings::tests::original_variable_trace_copies_producers_and_removes_by_selected_native_purpose",
+        "assertion": "Checks compiler copied original prefix lineage and selected same-length native removal purpose; Rust lifetime ownership remains an independent obligation rather than a native trace callback guarantee.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_variable_trace.rs",
+        "symbol": "NativeVariableTraceProtocol::variable_prefix_storage",
+        "purpose": "Selected immutable counted extent, independently of registration and cell."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_variable_trace.rs",
+        "symbol": "NativeVariableTraceProtocol::variable_prefix_matches",
+        "purpose": "Independent length-plus-strncmp removal selector."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_variable_trace.rs",
+        "symbol": "NativeVariableTraceProtocol::variable_prefix_report",
+        "purpose": "CString result projection."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_variable_trace.rs",
+        "symbol": "NativeVariableTraceProtocol::variable_callback_source",
+        "purpose": "Counted assembled script extent."
+      }
+    ],
+    "replay": {
+      "command": [
+        "python3",
+        "rust/tcl-registry/tests/data/native_variable_trace_prefix/replay.py",
+        "--tcl-source-root",
+        "${TCL_SOURCE_ROOT}",
+        "--jim-source-root",
+        "${JIM_SOURCE_ROOT}",
+        "--output",
+        "${NEW_OUTPUT}"
+      ],
+      "limitations": "Exact original probe/header/static library hashes required; independently configured Jim static extensions and C library trees must match. A fresh output directory is required. Rebuilds retain their own executable SHA and compare exact process exit/stdout/stderr, including unsupported Jim. Run serially or with global native concurrency at most two; each process has a60-second budget. This command reconfirms the oracle, not Rust parity."
+    }
+  },
+  {
+    "id": "naming.variable.trace-callback-direct-source",
+    "kind": "source-anchor",
+    "document": "docs/design/analysis/name-resolution-proofs/trace-callback-direct-source.md",
+    "problem_statement": "A copied variable trace script is bytes evaluated by a C source entry, not an original caller script object. Treating it as an ordinary ControlBody can attach native Bytecode or literal-pool authority that the callback never received. The reached callback callsite and independently selected source evaluation purpose must be kept separate from namespace/frame and prefix storage proof.",
+    "question": "Which counted source entry do the five retained C variable trace callsites invoke, and can that purpose reuse an ordinary object-body compilation grant?",
+    "conclusion": "The inspected TraceVarProc callsites in C8.4 through C9.1 append the retained prefix with its counted length and pass the assembled DString plus its full length to Tcl_EvalEx with flags0. The retained evaluator excerpts show direct command parsing and object-vector dispatch: TclEvalObjvInternal in C8.4/C8.5 and Tcl_EvalObjv in C8.6/C9. The shared TraceCallback purpose therefore selects fresh direct operands and rejects ordinary List dispatch, Bytecode cache donation and foreign string protocols. Source inspection and Rust admission assertions remain distinct from actual native prefix observations.",
+    "scope": "Exact pinned generic source files for Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0. Independently retained full-file SHA and original line numbers identify excerpts. Current Jim and BIG-IP are not inspected for this C TraceVarProc entry; no arbitrary object body or callback result cache is granted.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.",
+        "input_channel": "Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.",
+        "input_channel": "Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.",
+        "evidence": [
+          "e2",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.",
+        "input_channel": "Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.",
+        "evidence": [
+          "e4",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.",
+        "input_channel": "Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.",
+        "evidence": [
+          "e6",
+          "e7"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.",
+        "input_channel": "Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.",
+        "evidence": [
+          "e8",
+          "e9"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt",
+        "role": "source-anchor",
+        "sha256": "618870335b0cc62363ca52dab51e139c86c693754a521bd68393d1a95e22e742",
+        "description": "Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt",
+        "role": "source-anchor",
+        "sha256": "6e9e91803affdfa4a238cb96b062404da2d83d275b0391b55fd28d1b46dec217",
+        "description": "Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt",
+        "role": "source-anchor",
+        "sha256": "4ef99a3dacfa9511cef6379a2f79b577f90622abbe791978866606c25802d682",
+        "description": "Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt",
+        "role": "source-anchor",
+        "sha256": "25b8dbbfb632e54e6cd57fac4c4ed181158a70566f7ad8c9beca212750e83c61",
+        "description": "Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt",
+        "role": "source-anchor",
+        "sha256": "6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a",
+        "description": "Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt",
+        "role": "source-anchor",
+        "sha256": "a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2",
+        "description": "Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt",
+        "role": "source-anchor",
+        "sha256": "6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a",
+        "description": "Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt",
+        "role": "source-anchor",
+        "sha256": "a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2",
+        "description": "Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch."
+      },
+      {
+        "id": "e8",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt",
+        "role": "source-anchor",
+        "sha256": "6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a",
+        "description": "Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate."
+      },
+      {
+        "id": "e9",
+        "path": "rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt",
+        "role": "source-anchor",
+        "sha256": "a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2",
+        "description": "Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch."
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclCmdMZ.c",
+        "function": "TraceVarProc",
+        "lines": [
+          4927,
+          4944
+        ],
+        "source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+        "snippet": "\n\t    Tcl_SaveResult(interp, &state);\n\t    if ((flags & TCL_TRACE_DESTROYED)\n\t\t    && !(tvarPtr->flags & TCL_TRACE_DESTROYED)) {\n\t\tdestroy = 1;\n\t\ttvarPtr->flags |= TCL_TRACE_DESTROYED;\n\t    }\n\n\t    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),\n\t\t    Tcl_DStringLength(&cmd), 0);\n\t    if (code != TCL_OK) {\t     /* copy error msg to result */\n\t\tregister Tcl_Obj *errMsgObj = Tcl_GetObjResult(interp);\n\t\tTcl_IncrRefCount(errMsgObj);\n\t\tresult = (char *) errMsgObj;\n\t    }\n\n\t    Tcl_RestoreResult(interp, &state);\n\n",
+        "snippet_sha256": "618870335b0cc62363ca52dab51e139c86c693754a521bd68393d1a95e22e742",
+        "evidence": "e0"
+      },
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclBasic.c",
+        "function": "EvalEx",
+        "lines": [
+          4256,
+          4273
+        ],
+        "source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+        "snippet": "\t    eeFrame.cmd.str.len = parse.commandSize;\n\n\t    if (parse.term == parse.commandStart + parse.commandSize - 1) {\n\t\teeFrame.cmd.str.len --;\n\t    }\n\n\t    TclArgumentEnter (interp, objv, objectsUsed, &eeFrame);\n\t    iPtr->cmdFramePtr = &eeFrame;\n#endif\n\t    iPtr->numLevels++;    \n\t    code = TclEvalObjvInternal(interp, objectsUsed, objv, \n\t            parse.commandStart, parse.commandSize, 0);\n\t    iPtr->numLevels--;\n#ifdef TCL_TIP280\n\t    iPtr->cmdFramePtr = iPtr->cmdFramePtr->nextPtr;\n\t    TclArgumentRelease (interp, objv, objectsUsed);\n\n\t    ckfree ((char*) eeFrame.line);\n",
+        "snippet_sha256": "6e9e91803affdfa4a238cb96b062404da2d83d275b0391b55fd28d1b46dec217",
+        "evidence": "e1"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclTrace.c",
+        "function": "TraceVarProc",
+        "lines": [
+          2045,
+          2062
+        ],
+        "source_sha256": "d974ce7d57afd060edbc9a858975e17c9577c7905f5dfaf6df477fa409ef89e6",
+        "snippet": "\t     * double-free might occur depending on what the eval does.\n\t     */\n\n\t    if ((flags & TCL_TRACE_DESTROYED)\n\t\t    && !(tvarPtr->flags & TCL_TRACE_DESTROYED)) {\n\t\tdestroy = 1;\n\t\ttvarPtr->flags |= TCL_TRACE_DESTROYED;\n\t    }\n\t    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),\n\t\t    Tcl_DStringLength(&cmd), 0);\n\t    if (code != TCL_OK) {\t\t/* copy error msg to result */\n\t\tTcl_Obj *errMsgObj = Tcl_GetObjResult(interp);\n\t\tTcl_IncrRefCount(errMsgObj);\n\t\tresult = (char *) errMsgObj;\n\t    }\n\t    Tcl_DStringFree(&cmd);\n\t}\n    }\n",
+        "snippet_sha256": "4ef99a3dacfa9511cef6379a2f79b577f90622abbe791978866606c25802d682",
+        "evidence": "e2"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclBasic.c",
+        "function": "TclEvalEx",
+        "lines": [
+          4461,
+          4478
+        ],
+        "source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+        "snippet": "\t\t    parsePtr->commandStart + parsePtr->commandSize - 1) {\n\t\teeFramePtr->cmd.str.len--;\n\t    }\n\n\t    eeFramePtr->nline = objectsUsed;\n\t    eeFramePtr->line = lines;\n\n\t    TclArgumentEnter (interp, objv, objectsUsed, eeFramePtr);\n\t    iPtr->cmdFramePtr = eeFramePtr;\n\t    iPtr->numLevels++;\n\t    code = TclEvalObjvInternal(interp, objectsUsed, objv,\n\t\t    parsePtr->commandStart, parsePtr->commandSize, 0);\n\t    iPtr->numLevels--;\n\t    iPtr->cmdFramePtr = iPtr->cmdFramePtr->nextPtr;\n\t    TclArgumentRelease (interp, objv, objectsUsed);\n\n\t    eeFramePtr->line = NULL;\n\t    eeFramePtr->nline = 0;\n",
+        "snippet_sha256": "25b8dbbfb632e54e6cd57fac4c4ed181158a70566f7ad8c9beca212750e83c61",
+        "evidence": "e3"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclTrace.c",
+        "function": "TraceVarProc",
+        "lines": [
+          2056,
+          2073
+        ],
+        "source_sha256": "8034d0a6da9f529bebeedfa4ab8af88f944bf858ad8c498719a972ac81d503a9",
+        "snippet": "\t    /*\n\t     * Make sure that unset traces are rune even if the execEnv is\n\t     * rewinding (coroutine deletion, [Bug 2093947]\n\t     */\n\n\t    if (rewind && (flags & TCL_TRACE_UNSETS)) {\n\t\t((Interp *)interp)->execEnvPtr->rewind = 0;\n\t    }\n\t    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),\n\t\t    Tcl_DStringLength(&cmd), 0);\n\t    if (rewind) {\n\t\t((Interp *)interp)->execEnvPtr->rewind = rewind;\n\t    }\n\t    if (code != TCL_OK) {\t\t/* copy error msg to result */\n\t\tTcl_Obj *errMsgObj = Tcl_GetObjResult(interp);\n\n\t\tTcl_IncrRefCount(errMsgObj);\n\t\tresult = (char *) errMsgObj;\n",
+        "snippet_sha256": "6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a",
+        "evidence": "e4"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclBasic.c",
+        "function": "TclEvalEx",
+        "lines": [
+          5448,
+          5465
+        ],
+        "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+        "snippet": "\n\t    if (parsePtr->term ==\n\t\t    parsePtr->commandStart + parsePtr->commandSize - 1) {\n\t\teeFramePtr->len--;\n\t    }\n\n\t    eeFramePtr->nline = objectsUsed;\n\t    eeFramePtr->line = lines;\n\n\t    TclArgumentEnter(interp, objv, objectsUsed, eeFramePtr);\n\t    code = Tcl_EvalObjv(interp, objectsUsed, objv,\n\t\t    TCL_EVAL_NOERR | TCL_EVAL_SOURCE_IN_FRAME);\n\t    TclArgumentRelease(interp, objv, objectsUsed);\n\n\t    eeFramePtr->line = NULL;\n\t    eeFramePtr->nline = 0;\n\t    if (eeFramePtr->cmdObj) {\n\t\tTcl_DecrRefCount(eeFramePtr->cmdObj);\n",
+        "snippet_sha256": "a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2",
+        "evidence": "e5"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclTrace.c",
+        "function": "TraceVarProc",
+        "lines": [
+          1921,
+          1938
+        ],
+        "source_sha256": "b091fe603d801002a17d6d4c18de08f43e7aa7851abc64849ab2b1f7aac52904",
+        "snippet": "\t    /*\n\t     * Make sure that unset traces are rune even if the execEnv is\n\t     * rewinding (coroutine deletion, [Bug 2093947]\n\t     */\n\n\t    if (rewind && (flags & TCL_TRACE_UNSETS)) {\n\t\t((Interp *)interp)->execEnvPtr->rewind = 0;\n\t    }\n\t    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),\n\t\t    Tcl_DStringLength(&cmd), 0);\n\t    if (rewind) {\n\t\t((Interp *)interp)->execEnvPtr->rewind = rewind;\n\t    }\n\t    if (code != TCL_OK) {\t\t/* copy error msg to result */\n\t\tTcl_Obj *errMsgObj = Tcl_GetObjResult(interp);\n\n\t\tTcl_IncrRefCount(errMsgObj);\n\t\tresult = (char *) errMsgObj;\n",
+        "snippet_sha256": "6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a",
+        "evidence": "e6"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclBasic.c",
+        "function": "TclEvalEx",
+        "lines": [
+          5621,
+          5638
+        ],
+        "source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+        "snippet": "\n\t    if (parsePtr->term ==\n\t\t    parsePtr->commandStart + parsePtr->commandSize - 1) {\n\t\teeFramePtr->len--;\n\t    }\n\n\t    eeFramePtr->nline = objectsUsed;\n\t    eeFramePtr->line = lines;\n\n\t    TclArgumentEnter(interp, objv, objectsUsed, eeFramePtr);\n\t    code = Tcl_EvalObjv(interp, objectsUsed, objv,\n\t\t    TCL_EVAL_NOERR | TCL_EVAL_SOURCE_IN_FRAME);\n\t    TclArgumentRelease(interp, objv, objectsUsed);\n\n\t    eeFramePtr->line = NULL;\n\t    eeFramePtr->nline = 0;\n\t    if (eeFramePtr->cmdObj) {\n\t\tTcl_DecrRefCount(eeFramePtr->cmdObj);\n",
+        "snippet_sha256": "a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2",
+        "evidence": "e7"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclTrace.c",
+        "function": "TraceVarProc",
+        "lines": [
+          1926,
+          1943
+        ],
+        "source_sha256": "b39de1869c493f1405355c9f92537bdd5d9839a42a10da78b18a725309d71847",
+        "snippet": "\t    /*\n\t     * Make sure that unset traces are rune even if the execEnv is\n\t     * rewinding (coroutine deletion, [Bug 2093947]\n\t     */\n\n\t    if (rewind && (flags & TCL_TRACE_UNSETS)) {\n\t\t((Interp *)interp)->execEnvPtr->rewind = 0;\n\t    }\n\t    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),\n\t\t    Tcl_DStringLength(&cmd), 0);\n\t    if (rewind) {\n\t\t((Interp *)interp)->execEnvPtr->rewind = rewind;\n\t    }\n\t    if (code != TCL_OK) {\t\t/* copy error msg to result */\n\t\tTcl_Obj *errMsgObj = Tcl_GetObjResult(interp);\n\n\t\tTcl_IncrRefCount(errMsgObj);\n\t\tresult = (char *) errMsgObj;\n",
+        "snippet_sha256": "6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a",
+        "evidence": "e8"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclBasic.c",
+        "function": "TclEvalEx",
+        "lines": [
+          5579,
+          5596
+        ],
+        "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+        "snippet": "\n\t    if (parsePtr->term ==\n\t\t    parsePtr->commandStart + parsePtr->commandSize - 1) {\n\t\teeFramePtr->len--;\n\t    }\n\n\t    eeFramePtr->nline = objectsUsed;\n\t    eeFramePtr->line = lines;\n\n\t    TclArgumentEnter(interp, objv, objectsUsed, eeFramePtr);\n\t    code = Tcl_EvalObjv(interp, objectsUsed, objv,\n\t\t    TCL_EVAL_NOERR | TCL_EVAL_SOURCE_IN_FRAME);\n\t    TclArgumentRelease(interp, objv, objectsUsed);\n\n\t    eeFramePtr->line = NULL;\n\t    eeFramePtr->nline = 0;\n\t    if (eeFramePtr->cmdObj) {\n\t\tTcl_DecrRefCount(eeFramePtr->cmdObj);\n",
+        "snippet_sha256": "a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2",
+        "evidence": "e9"
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_eval_object.rs",
+        "selector": "native_eval_object::trace_source_tests::copied_trace_scripts_select_direct_operands_without_borrowing_control_body_compilation",
+        "assertion": "TraceCallback selects matching C direct operands, declines Jim/foreign version strings, and leaves ControlBody compilation independent.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_eval_object.rs",
+        "symbol": "NativeEvalObjectProtocol::permits_direct_source_operands",
+        "purpose": "Purpose-separated matching engine source entry only."
+      },
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeDirectSourceOperands",
+        "purpose": "Fresh source objects for a genuine plain direct control plan; no native registered literal objects."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_variable_trace.rs",
+        "symbol": "NativeVariableTraceProtocol::callback_compilation",
+        "purpose": "Independently selected Direct ScriptCode trace source entry with loop0/catchSome0; triggering physical frame and copied-prefix lifetime remain separate."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Reconfirmation is source inspection against exact retained full-file SHA and original function/lines. The independent native prefix probe above checks reached callback bytes but does not observe bytecode-object or literal-pool internals. Rust tests require the parent current build and are not claimed executed here."
+    }
+  }
+]

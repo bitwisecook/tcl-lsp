@@ -1,0 +1,142 @@
+Host System...x86_64-pc-linux-gnu
+Build System...x86_64-pc-linux-gnu
+C compiler... cc  
+C++ compiler... c++  
+Build C compiler...cc
+Checking for stdlib.h...ok
+Checking for restrict...ok
+Checking for long long...ok
+Checking for sizeof int...4
+Checking whether the C compiler accepts -fno-unwind-tables...yes
+Checking whether the C compiler accepts -fno-asynchronous-unwind-tables...yes
+Checking for time.h...ok
+Checking for sys/time.h...ok
+Checking for sys/socket.h...ok
+Checking for netinet/in.h...ok
+Checking for arpa/inet.h...ok
+Checking for netdb.h...ok
+Checking for strings.h...ok
+Checking for util.h...not found
+Checking for pty.h...ok
+Checking for sys/un.h...ok
+Checking for dlfcn.h...ok
+Checking for unistd.h...ok
+Checking for dirent.h...ok
+Checking for crt_externs.h...not found
+Checking for execinfo.h...ok
+Checking for sizeof time_t...8
+Checking libs for inet_ntop...none needed
+Checking libs for socket...none needed
+Checking for ualarm...ok
+Checking for fork...ok
+Checking for system...ok
+Checking for select...ok
+Checking for execvpe...ok
+Checking for geteuid...ok
+Checking for mkstemp...ok
+Checking for isatty...ok
+Checking for regcomp...ok
+Checking for waitpid...ok
+Checking for sigaction...ok
+Checking for sys_signame...not found
+Checking for sys_siglist...not found
+Checking for isascii...ok
+Checking for syslog...ok
+Checking for opendir...ok
+Checking for readlink...ok
+Checking for sleep...ok
+Checking for usleep...ok
+Checking for pipe...ok
+Checking for getaddrinfo...ok
+Checking for utimes...ok
+Checking for shutdown...ok
+Checking for socketpair...ok
+Checking for link...ok
+Checking for symlink...ok
+Checking for fsync...ok
+Checking for dup...ok
+Checking for umask...ok
+Checking for localtime...ok
+Checking for gmtime...ok
+Checking for strptime...ok
+Checking for realpath...ok
+Checking for isinf...ok
+Checking for isnan...ok
+Checking for vfork...ok
+Checking libs for backtrace...none needed
+Checking for sysinfo...ok
+Checking for struct sysinfo.uptime...ok
+Checking for struct stat.st_mtimespec...not found
+Checking for struct stat.st_mtim...ok
+Checking for struct flock...ok
+Checking for sys/types.h...(cached) ok
+Checking if -D_FILE_OFFSET_BITS=64 is needed...no
+Checking for fstat...ok
+Checking for lstat...ok
+Checking for make...ok
+Checking for asciidoc...no
+Checking for sed...ok
+Checking for _NSGetEnviron...not found
+Checking environ declared in unistd.h...yes
+Checking for sys/types.h...(cached) ok
+Checking for sys/stat.h...(cached) ok
+Checking for mkdir with one arg...no
+Checking for S_IXUSR...ok
+Checking for S_IRWXG...ok
+Checking for S_IRWXO...ok
+Enabling UTF-8
+Checking libs for sin...-lm
+Enabling math functions
+Enabling IPv6
+Checking for pkg-config...1.8.1
+Checking for openssl ...3.5.7
+Enabling SSL (openssl)
+Checking libs for TLS_method...-lssl
+Checking for termios.h...ok
+Enabling line editing
+Checking for inline support...yes
+Enabling references
+Enabling taint support
+Building static library
+Extension aio...enabled
+Extension array...enabled
+Extension pack...enabled
+Extension binary...enabled
+Extension clock...enabled
+Extension ensemble...enabled
+Extension eventloop...enabled
+Extension exec...enabled
+Extension file...enabled
+Extension readdir...enabled
+Extension glob...enabled
+Extension history...enabled
+Extension interp...enabled
+Extension jsonencode...enabled
+Extension json...enabled
+Checking libs for dlopen...none needed
+Extension load...enabled
+Extension nshelper...enabled
+Extension namespace...enabled
+Extension oo...enabled
+Extension package...enabled
+Extension posix...enabled
+Extension regexp...enabled
+Extension signal...enabled
+Extension stdlib...enabled
+Extension syslog...enabled
+Extension tclcompat...enabled
+Extension tclprefix...enabled
+Extension tree...enabled
+Checking for zlib ...1.3.1
+Extension zlib...enabled
+Checking for clock_gettime...ok
+Checking for posix_openpt...ok
+Using built-in regexp
+Jim static extensions: aio array binary clock ensemble eventloop exec file glob history interp json jsonencode load namespace nshelper oo pack package posix readdir regexp signal stdlib syslog tclcompat tclprefix tree zlib
+Created jim-config.h
+Created jimautoconf.h
+Created Makefile from Makefile.in
+tests/Makefile is unchanged
+examples.api/Makefile is unchanged
+Created build-jim-ext from build-jim-ext.in
+Created jimtcl.pc from jimtcl.pc.in

@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_operation_currency::tests::actual_logical_ingress_changes_context_without_granting_native_purpose ... 
+thread 'interp::native_operation_currency::tests::actual_logical_ingress_changes_context_without_granting_native_purpose' (1218137) panicked at src/interp/native_operation_currency.rs:687:67:
+called `Result::unwrap()` on an `Err` value: ValueAccessRefusal(CommandProtocolUnavailable("variable naming"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_operation_currency::tests::actual_logical_ingress_changes_context_without_granting_native_purpose
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.11s
+

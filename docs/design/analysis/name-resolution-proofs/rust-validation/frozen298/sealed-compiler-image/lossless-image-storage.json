@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen298/sealed-compiler-image/pinned-compiler298.elf.gz",
+  "stored_sha256": "483a7a093c0eba7f1da95b11315685f6a433c4efd67d1b53137e37e4cb65f54a",
+  "stored_bytes": 39637656,
+  "original_sha256": "219c07b9e80ae922ff842658e406b9ec9b75a5e793bd2b0852a5109644ce2ce7",
+  "original_bytes": 205183960,
+  "original_recorded_executable": "/workspace/.proofs/pinned-compiler298.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen298/sealed-compiler-image/pinned-compiler298.json",
+  "pin_metadata_sha256": "a021262ee93afd9f9894cf8bca97b4ba62529e02d3eb56e7b22c2f568b386090",
+  "build_receipt_id": "rust.frozen298.integration-compiler-registry-syntax-own-test-build298",
+  "build_receipt_sha256": "28968aac7539429ed7562ba58894c34793cb660df10f35246e3cc7f5d4520b87",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen298/source-snapshot.json.gz",
+    "sha256": "f073a7d73a57128729fec889ab63080acadf07180d3583dd756b19069625cdcf",
+    "compression": "gzip",
+    "uncompressed_sha256": "f14ad6c22d3a7de6510b66a0691b357f8d33c14ceb25b2c1c49ae50b45b6bcdf"
+  },
+  "verification": "Successful three-crate own-producer and strict original pin/source correspondence; full gzip restoration byte/SHA/size comparison. No original unlink, build or run."
+}

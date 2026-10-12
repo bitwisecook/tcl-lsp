@@ -1,0 +1,8 @@
+HTTP/1.0 200 OK
+Content-Type: text/plain
+X-R2286-Run: r2286lex1
+X-R2286-TMM: 0:0
+Server: BigIP
+Connection: Keep-Alive
+Content-Length: 1237183
+

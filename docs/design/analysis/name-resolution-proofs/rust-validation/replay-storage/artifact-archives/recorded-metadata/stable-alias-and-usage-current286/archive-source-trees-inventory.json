@@ -1,0 +1,158 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/stable-alias-and-usage-current286.source-trees.tar.gz",
+  "archive_sha256": "f83c312a105e516d91ce898a878195ca3bf998b9d336d3f404c931ce0f5d0fec",
+  "archive_bytes": 394359,
+  "uncompressed_bytes": 1709009,
+  "source_manifest_sha256": "6a5e57328e8c643ba5ffebd24ebd704eee5bcff156d8325c2f5495aa9beeca48",
+  "source_patch_sha256": "4c9e351a6e02c2769350ff52a409412283a8a7e4046cf7f9f7f903cb31cf9094",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 12,
+  "members": {
+    "stable-alias-and-usage-current286/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.590197,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.590197,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.590197,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.595357,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.5958471,
+      "size": 754786,
+      "sha256": "b97c741616036ebe44604e2ec46faf5af571238f6255ddb06cc76b562040fbac"
+    },
+    "stable-alias-and-usage-current286/base/runtime/rust/src/vars.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.590846,
+      "size": 98109,
+      "sha256": "7988bb1a4701cb7493ab589d5e5f227a4c16dfddadfa9050b82d7042de8d1872"
+    },
+    "stable-alias-and-usage-current286/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.5860498,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.5860498,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.5860498,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.590846,
+      "size": 0,
+      "sha256": null
+    },
+    "stable-alias-and-usage-current286/candidate/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.595357,
+      "size": 754824,
+      "sha256": "9c4b822bf730c22c2c6914788124311ce80cc114ff9c4312cf2ebf21bddac9c8"
+    },
+    "stable-alias-and-usage-current286/candidate/runtime/rust/src/vars.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618334.590197,
+      "size": 101290,
+      "sha256": "d777c3ba3ed1afd957f90f2a986c7212b49371440a6605769f6d64538e1d859f"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/vars.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "d777c3ba3ed1afd957f90f2a986c7212b49371440a6605769f6d64538e1d859f",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/vars.rs",
+      "hash_key": "base_sha256",
+      "sha256": "7988bb1a4701cb7493ab589d5e5f227a4c16dfddadfa9050b82d7042de8d1872",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "9c4b822bf730c22c2c6914788124311ce80cc114ff9c4312cf2ebf21bddac9c8",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "base_sha256",
+      "sha256": "b97c741616036ebe44604e2ec46faf5af571238f6255ddb06cc76b562040fbac",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

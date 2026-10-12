@@ -1,0 +1,131 @@
+{
+  "packet": "ReceiverOriginalOoOperandStages499",
+  "status": "READY-request-only-no-native-launch",
+  "request_sha256": "07b205f6258c957ad11d43447fc068722e9e9a5c0eb4ea3a2212b6051126022a",
+  "probe_sha256": "7560e1ae3b09446e2a45cf2503ef980e1462a58616c53415a772c881cdebb899",
+  "launch_plan_sha256": "c29f7930af979f8215c5512234a8c7766740c7e8f359908e456f5eb36dd33c47",
+  "launcher_sha256": "dbee0c294e338b0db4ff9dee59ee1b4ae74fbec8c4a823897cce0a4d92a54866",
+  "files": [
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/availability.tcl",
+      "sha256": "8c94240d3e4b9650b5e2071cc68eb05d5f444357d6bc3f33b5a8523ba884d8da"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/c-version.tcl",
+      "sha256": "94435c94329c585b6c1aeab67588b472dfce542e43c68cfc63a214ccdc6e72ea"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/capture.py",
+      "sha256": "dbee0c294e338b0db4ff9dee59ee1b4ae74fbec8c4a823897cce0a4d92a54866"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/invoke-forward.tcl",
+      "sha256": "a8245c4452e661c97c4917d423f3895adb72af9c51a2e9a26c2810b98377ec6a"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/jim-version-probe.tcl",
+      "sha256": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/jim-version.tcl",
+      "sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/launch-plan.json",
+      "sha256": "c29f7930af979f8215c5512234a8c7766740c7e8f359908e456f5eb36dd33c47"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/probe.c",
+      "sha256": "7560e1ae3b09446e2a45cf2503ef980e1462a58616c53415a772c881cdebb899"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/request.json",
+      "sha256": "07b205f6258c957ad11d43447fc068722e9e9a5c0eb4ea3a2212b6051126022a"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/setup.tcl",
+      "sha256": "9c53fd81fa3ae9e0b6e2a8436139b1f6e8a8b87f694faebabd5d1d96ce0f12bb"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclCmdIL.c",
+      "sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOO.c",
+      "sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOOBasic.c",
+      "sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclCmdIL.c",
+      "sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOO.c",
+      "sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOOBasic.c",
+      "sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclCmdIL.c",
+      "sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOO.c",
+      "sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOOBasic.c",
+      "sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/version-probe.tcl",
+      "sha256": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd"
+    }
+  ],
+  "validation": "Pure source/API inspection and Python launcher syntax parse only; no compile, provider, Cargo or test launch."
+}

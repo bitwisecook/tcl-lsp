@@ -1,0 +1,15 @@
+{
+  "question_id": "naming.variable.setter-original-child-expression-identity",
+  "original_probe_sha256": "2cbe4c863a59554f0538d96ed7cacaea6ac534c714b053c06e4d8f712e363036",
+  "source_sha256": "36b6678065adfe744cc46ecaffcce83a75a89ccd433d0063d68fa9b5c64038f2",
+  "version_prefix_added": "puts [list version [info patchlevel]] followed by LF",
+  "input_channel": "ASCII LF source-file CLI",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ]
+}

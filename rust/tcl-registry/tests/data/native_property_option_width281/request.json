@@ -1,0 +1,29 @@
+{
+  "question": "naming.tcloo.property-option-value-boundary",
+  "problem": "Which post-keyword words are property names, getter/setter script values and actual options when a script value is itself -get/-set, an option is quoted or abbreviated, names follow option-value pairs, or a getter option repeats?",
+  "channel": "Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.",
+  "source_sha256": "13d2f4227bc951e627b081da1f5212a1dc4777fce27d273f36e8001fa5cf5d43",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested; hosted configurable availability must be independently measured",
+  "source_inspection": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c",
+      "sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+      "start_line": 1030,
+      "detail": "Getter/setter option values consumed at i+2; i advances by two; repeated options replace stored getterScript/setterScript before installation. Source inspection is an explanation, not an execution result."
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+      "sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+      "start_line": 1138,
+      "detail": "Getter/setter option values consumed at i+2; i advances by two; repeated options replace stored getterScript/setterScript before installation. Source inspection is an explanation, not an execution result."
+    }
+  ]
+}

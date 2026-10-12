@@ -1,0 +1,63 @@
+TclCompileVariableCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    Tcl_LVTIndex localIndex;
+    Tcl_Size numWords = parsePtr->numWords, i;
+
+    if (numWords < 2 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Bail out if not compiling a proc body
+     */
+
+    if (!EnvIsProc(envPtr)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Loop over the (var, value) pairs.
+     */
+
+    valueTokenPtr = parsePtr->tokenPtr;
+    for (i=1; i<numWords; i+=2) {
+	varTokenPtr = TokenAfter(valueTokenPtr);
+	valueTokenPtr = TokenAfter(varTokenPtr);
+
+	localIndex = IndexTailVarIfKnown(interp, varTokenPtr, envPtr);
+
+	if (localIndex < 0) {
+	    return TCL_ERROR;
+	}
+
+	/* TODO: Consider what value can pass through the
+	 * IndexTailVarIfKnown() screen.  Full CompileWord()
+	 * likely does not apply here.  Push known value instead. */
+	PUSH_TOKEN(		varTokenPtr, i);
+	OP4(			VARIABLE, localIndex);
+
+	if (i + 1 < numWords) {
+	    /*
+	     * A value has been given: set the variable, pop the value
+	     */
+
+	    PUSH_TOKEN(		valueTokenPtr, i + 1);
+	    OP4(		STORE_SCALAR, localIndex);
+	    OP(			POP);
+	}
+    }
+
+    /*
+     * Set the result to empty
+     */
+
+    PUSH(			"");
+    return TCL_OK;
+}

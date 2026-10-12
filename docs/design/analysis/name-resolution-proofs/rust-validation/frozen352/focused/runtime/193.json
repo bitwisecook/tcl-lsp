@@ -1,0 +1,22 @@
+{
+  "ordinal": 193,
+  "selector": "dict::tests::odd_length_string_is_an_error",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "dict::tests::odd_length_string_is_an_error",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.011609298991970718,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/193.log",
+  "log_sha256": "e7c3443bedbb6992202ebd2c9d894a229516c279d56f0eb2bd351a931f834713"
+}

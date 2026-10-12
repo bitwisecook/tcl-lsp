@@ -1,0 +1,26 @@
+Tcl_Command
+Tcl_CreateObjCommand(
+    Tcl_Interp *interp,		/* Token for command interpreter (returned by
+				 * previous call to Tcl_CreateInterp). */
+    const char *cmdName,	/* Name of command. If it contains namespace
+				 * qualifiers, the new command is put in the
+				 * specified namespace; otherwise it is put in
+				 * the global namespace. */
+    Tcl_ObjCmdProc *proc,	/* Object-based function to associate with
+				 * name. */
+    void *clientData,		/* Arbitrary value to pass to object
+				 * function. */
+    Tcl_CmdDeleteProc *deleteProc)
+				/* If not NULL, gives a function to call when
+				 * this command is deleted. */
+{
+    CmdWrapperInfo *info = (CmdWrapperInfo *)Tcl_Alloc(sizeof(CmdWrapperInfo));
+    info->proc = proc;
+    info->clientData = clientData;
+    info->deleteProc = deleteProc;
+    info->deleteData = clientData;
+
+    return Tcl_CreateObjCommand2(interp, cmdName,
+	    (proc ? CmdWrapperProc : NULL),
+	    info, CmdWrapperDeleteProc);
+}

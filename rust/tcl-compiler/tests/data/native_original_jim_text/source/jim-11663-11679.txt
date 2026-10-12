@@ -1,0 +1,17 @@
+                if (wordtokens < 0) {
+                    expand = 1;
+                    wordtokens = -wordtokens;
+                }
+            }
+
+            if (wordtokens == 1) {
+                /* Fast path if the token does not
+                 * need interpolation */
+
+                switch (token[i].type) {
+                    case JIM_TT_ESC:
+                    case JIM_TT_STR:
+                        wordObjPtr = token[i].objPtr;
+                        break;
+                    case JIM_TT_VAR:
+                        wordObjPtr = Jim_GetVariable(interp, token[i].objPtr, JIM_ERRMSG);

@@ -1,0 +1,31 @@
+{
+  "question_id": "naming.variable.original-undefined-array-member-retirement",
+  "question": "Does a trace-created undefined array member participate in unset callbacks when the whole original array is explicitly unset, its procedure frame exits, or its namespace is deleted?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Three independent ASCII originals with fresh fullInit interpreter/process per case and unchanged counted CAPI driver. Actual trace add variable a(x) unset creates original member without assigning any member value. Public before observations retain array existence and member nonexistence. No fallback or substituted trace API; preserve Jim guest error.",
+  "observation": "Whole original completion/result plus public before pair, log, and namespace-existence flag where applicable. No private header/cell/table identity or equivalence inferred. Pin all exact source/provider/build/process/stdout/stderr receipts. The question distinguishes physical original member inventory from defined-value array names, not a new name resolver.",
+  "cases": [
+    {
+      "id": "explicit-unset",
+      "source_file": "explicit-unset.tcl",
+      "source_sha256": "f14e14b56727a282362a86e3ee9c633ce5aa605923314f2e7277912b150da449"
+    },
+    {
+      "id": "frame-exit",
+      "source_file": "frame-exit.tcl",
+      "source_sha256": "5e11cd18cf8cf1f48ef6c7583b095467ac21abc1d93aea2d8a529d559db0759f"
+    },
+    {
+      "id": "namespace-delete",
+      "source_file": "namespace-delete.tcl",
+      "source_sha256": "540c5b0f929162e1d3611bf239d2dc64a6cd62687238c30b9e8e2eede8426f44"
+    }
+  ]
+}

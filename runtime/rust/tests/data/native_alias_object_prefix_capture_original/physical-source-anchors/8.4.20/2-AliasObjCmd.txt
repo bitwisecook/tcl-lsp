@@ -1,0 +1,153 @@
+ *	invocation is forwarded.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+AliasObjCmd(clientData, interp, objc, objv)
+    ClientData clientData;	/* Alias record. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument vector. */	
+{
+#define ALIAS_CMDV_PREALLOC 10
+    Tcl_Interp *targetInterp;	
+    Alias *aliasPtr;		
+    int result, prefc, cmdc, i;
+    Tcl_Obj **prefv, **cmdv;
+    Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+    aliasPtr = (Alias *) clientData;
+    targetInterp = aliasPtr->targetInterp;
+
+    /*
+     * Append the arguments to the command prefix and invoke the command
+     * in the target interp's global namespace.
+     */
+     
+    prefc = aliasPtr->objc;
+    prefv = &aliasPtr->objPtr;
+    cmdc = prefc + objc - 1;
+    if (cmdc <= ALIAS_CMDV_PREALLOC) {
+	cmdv = cmdArr;
+    } else {
+	cmdv = (Tcl_Obj **) ckalloc((unsigned) (cmdc * sizeof(Tcl_Obj *)));
+    }
+
+    prefv = &aliasPtr->objPtr;
+    memcpy((VOID *) cmdv, (VOID *) prefv, 
+            (size_t) (prefc * sizeof(Tcl_Obj *)));
+    memcpy((VOID *) (cmdv+prefc), (VOID *) (objv+1), 
+	    (size_t) ((objc-1) * sizeof(Tcl_Obj *)));
+
+    Tcl_ResetResult(targetInterp);
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_IncrRefCount(cmdv[i]);
+    }
+    if (targetInterp != interp) {
+	Tcl_Preserve((ClientData) targetInterp);
+	result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+	TclTransferResult(targetInterp, result, interp);	
+	Tcl_Release((ClientData) targetInterp);
+    } else {
+	result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+    }
+    for (i=0; i<cmdc; i++) {
+	Tcl_DecrRefCount(cmdv[i]);
+    }
+
+    if (cmdv != cmdArr) {
+	ckfree((char *) cmdv);
+    }
+    return result;        
+#undef ALIAS_CMDV_PREALLOC
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * AliasObjCmdDeleteProc --
+ *
+ *	Is invoked when an alias command is deleted in a slave. Cleans up
+ *	all storage associated with this alias.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Deletes the alias record and its entry in the alias table for
+ *	the interpreter.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+AliasObjCmdDeleteProc(clientData)
+    ClientData clientData;	/* The alias record for this alias. */
+{
+    Alias *aliasPtr;		
+    Target *targetPtr;		
+    int i;
+    Tcl_Obj **objv;
+
+    aliasPtr = (Alias *) clientData;
+    
+    Tcl_DecrRefCount(aliasPtr->namePtr);
+    objv = &aliasPtr->objPtr;
+    for (i = 0; i < aliasPtr->objc; i++) {
+	Tcl_DecrRefCount(objv[i]);
+    }
+    Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+
+    targetPtr = (Target *) Tcl_GetHashValue(aliasPtr->targetEntryPtr);
+    ckfree((char *) targetPtr);
+    Tcl_DeleteHashEntry(aliasPtr->targetEntryPtr);
+
+    ckfree((char *) aliasPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_CreateSlave --
+ *
+ *	Creates a slave interpreter. The slavePath argument denotes the
+ *	name of the new slave relative to the current interpreter; the
+ *	slave is a direct descendant of the one-before-last component of
+ *	the path, e.g. it is a descendant of the current interpreter if
+ *	the slavePath argument contains only one component. Optionally makes
+ *	the slave interpreter safe.
+ *
+ * Results:
+ *	Returns the interpreter structure created, or NULL if an error
+ *	occurred.
+ *
+ * Side effects:
+ *	Creates a new interpreter and a new interpreter object command in
+ *	the interpreter indicated by the slavePath argument.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_CreateSlave(interp, slavePath, isSafe)
+    Tcl_Interp *interp;		/* Interpreter to start search at. */
+    CONST char *slavePath;	/* Name of slave to create. */
+    int isSafe;			/* Should new slave be "safe" ? */
+{
+    Tcl_Obj *pathPtr;
+    Tcl_Interp *slaveInterp;
+
+    pathPtr = Tcl_NewStringObj(slavePath, -1);
+    slaveInterp = SlaveCreate(interp, pathPtr, isSafe);
+    Tcl_DecrRefCount(pathPtr);
+
+    return slaveInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetSlave --
+ *
+ *	Finds a slave interpreter by its path name.

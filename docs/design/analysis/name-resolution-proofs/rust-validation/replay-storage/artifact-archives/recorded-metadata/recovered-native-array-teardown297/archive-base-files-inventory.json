@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-native-array-teardown297.base-files.tar.gz",
+  "archive_sha256": "2382fa4235d66d5e826cf27ba84bad177a74544418b47546c50ee2072a2905d7",
+  "archive_bytes": 349717,
+  "uncompressed_bytes": 1482037,
+  "source_manifest_sha256": "40d5f8879f7d36c72c92dee695a14409617f355415f1954d02202cc6aac488d4",
+  "source_patch_sha256": "224e08eaab673533d4fd84924f03b72537a36eb34719aedf15408fc59a18b26c",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/224e08eaab673533d4fd84924f03b72537a36eb34719aedf15408fc59a18b26c.patch",
+  "original_application_journal_sha256": "224e08eaab673533d4fd84924f03b72537a36eb34719aedf15408fc59a18b26c",
+  "member_count": 10,
+  "members": {
+    "recovered-native-array-teardown297/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.2694798,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.2694798,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.2694798,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.2694798,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603505.8548157,
+      "size": 740812,
+      "sha256": "e2a004bfdb05dd397178ed6a1a3feba83679d8de064c06a1cf76a226be34ca07"
+    },
+    "recovered-native-array-teardown297/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.27104,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/files/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.27104,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/files/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.27104,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/files/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.27104,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-native-array-teardown297/files/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603507.4374783,
+      "size": 741225,
+      "sha256": "61e85c738472285b9d7c2477497512fe17beb0fbd017b0e9b7da92f9116e5f8b"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

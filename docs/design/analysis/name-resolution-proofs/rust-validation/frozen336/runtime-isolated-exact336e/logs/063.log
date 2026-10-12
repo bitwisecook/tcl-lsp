@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows ... 
+thread 'cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows' (1254001) panicked at src/cmd_namespace/original_argument_tests.rs:221:5:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.36s
+

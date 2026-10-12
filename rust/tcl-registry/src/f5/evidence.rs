@@ -16,52 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! [`EmbeddedRuntimeEvidence`] — F2's truth records.
+//! Runtime observations retain their exact context, appliance build and provenance.
 //!
-//! The review's objection was that the shipping model stated *"iRules
-//! embeds a genuine Tcl 8.4.6 forever"*, *"iApps runs a real Tcl 8.5.13
-//! host"*, and *"tmsh uses Tcl 8.5"* as total facts with no build
-//! manifest, source package, binary dependency, appliance transcript, or
-//! version matrix behind any of them. Two of those three were then
-//! **measured and falsified**: `TmshCliScript` and `IAppImplementation`
-//! both report `8.4.6` and both fail every 8.4/8.5 discriminator as 8.4
-//! (`docs/design/f5/bigip-irule-parser-measurements.md` §4/§4a). The 8.5.13
-//! that the model had adopted turned out to be `/usr/bin/tclsh` — the host
-//! binary, unrelated to any F5 execution context.
-//!
-//! So a fact here is never a bare field. It is a
-//! `(context, build, fact, provenance)` record:
-//!
-//! - **context** — [`BigIpExecutionContext`], because `exec` exists in two
-//!   of the three F5 contexts and not the third (§4a);
-//! - **build** — [`BigIpBuild`], the exact appliance release *and* build
-//!   number the observation was taken on, because one build can falsify a
-//!   universal claim but cannot justify "forever";
-//! - **fact** — a typed [`RuntimeFact`], because `info patchlevel` alone
-//!   is not a semantic profile: F5 can patch parser and command behaviour
-//!   without moving that string, which is exactly what happened;
-//! - **provenance** — [`EvidenceProvenance`], naming the probe set, the
-//!   measurements section, and whether the run met the §E4 contract.
-//!
-//! ## The resolution rule
-//!
-//! Unmeasured builds must not silently inherit a measured one. The API is
-//! split in two, deliberately with different names and different return
-//! types (redesign H5, the assistance/semantics split):
-//!
-//! - [`measured_fact`] is the **semantic** door. Exact context, exact
-//!   build, or `None`. Compiler and analyser hooks that assert something
-//!   about a program use this one.
-//! - [`assistance_fact`] is the **assistance** door. It may answer with an
-//!   explicitly labelled [`EvidenceResolution::NearestKnownAssistance`]
-//!   carrying the build it was actually measured on, so a hover or
-//!   completion can say *"measured on 21.1.0.1"* rather than implying the
-//!   user's build was probed.
-//!
-//! Neither door crosses a context boundary, ever: assistance widens along
-//! the **build** axis only. An `IAppPresentationApl` query answers
-//! [`EvidenceResolution::Unknown`] no matter how much is known about
-//! `IAppImplementation`.
+//! [`measured_fact`] requires the measured context and exact build. Semantic
+//! consumers use this door. [`assistance_fact`] can return a labelled nearest
+//! measured build for assistance, but never crosses execution contexts.
+//! Reported Tcl versions do not imply parser, command or object behaviour.
+
+mod resolution_contexts;
 
 use tcl_dialect::compare_versions;
 
@@ -96,9 +58,7 @@ impl std::fmt::Display for BigIpBuild {
     }
 }
 
-/// Every build this repository has evidence for. One row today — and the
-/// review's acceptance matrix wants three (this build, one supported 17.x,
-/// one older).
+/// Every appliance build with checked-in measured evidence.
 pub const MEASURED_BUILDS: &[BigIpBuild] = &[BigIpBuild::MEASURED_21_1_0_1];
 
 /// The identity of one checked-in probe set under
@@ -123,6 +83,8 @@ impl ProbeSetId {
     pub const EVENT_CONTEXT: Self = Self("07-event-context");
     /// The traffic lab (§8) — priority ordering and runtime behaviour.
     pub const TRAFFIC_LAB: Self = Self("08-traffic-lab");
+    /// Byte-controlled scripts entered independently in F5 execution contexts.
+    pub const RESOLUTION_CONTEXTS: Self = Self("resolution-2286/r2286_20261006l");
 
     /// The probe set's identifier.
     #[must_use]
@@ -188,6 +150,17 @@ pub enum PlatformShape {
 /// A typed observation about one execution context on one build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimeFact {
+    /// Completion for the exact source bytes of one entered appliance script.
+    ParserCase {
+        /// Identifier within the measured probe set.
+        case: &'static str,
+        /// Exact script bytes, encoded as hexadecimal.
+        source_hex: &'static str,
+        /// Actual Tcl completion code.
+        code: u8,
+        /// Actual completion result bytes, encoded as hexadecimal.
+        value_hex: &'static str,
+    },
     /// What the interpreter reports about its own Tcl release: `info
     /// patchlevel`, and the `tcl_patchLevel` global, which is **not**
     /// always the same question (§4a).
@@ -289,6 +262,8 @@ pub enum ResolutionTime {
 /// the context and the build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimeFactKind {
+    /// [`RuntimeFact::ParserCase`] for one exact case identifier.
+    ParserCase(&'static str),
     /// [`RuntimeFact::ReportedPatchlevel`].
     ReportedPatchlevel,
     /// [`RuntimeFact::CommandCount`].
@@ -312,6 +287,7 @@ impl RuntimeFact {
     #[must_use]
     pub const fn kind(self) -> RuntimeFactKind {
         match self {
+            Self::ParserCase { case, .. } => RuntimeFactKind::ParserCase(case),
             Self::ReportedPatchlevel { .. } => RuntimeFactKind::ReportedPatchlevel,
             Self::CommandCount(_) => RuntimeFactKind::CommandCount,
             Self::TclPlatform { .. } => RuntimeFactKind::TclPlatform,
@@ -758,6 +734,7 @@ pub static EMBEDDED_RUNTIME_EVIDENCE: std::sync::LazyLock<Vec<EmbeddedRuntimeEvi
                 .map(|&command| surface(TmmIRule, command, CompilerRefused, SURFACE)),
         );
 
+        rows.extend(resolution_contexts::rows());
         rows
     });
 

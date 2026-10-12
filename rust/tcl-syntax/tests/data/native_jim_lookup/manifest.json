@@ -1,0 +1,27 @@
+{
+  "compile": [
+    "cc",
+    "-I/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-packages-dialects/jim-lookup-caches/probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-ldl",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-packages-dialects/jim-lookup-caches/probe"
+  ],
+  "compile_exit": 0,
+  "run_exit": 0,
+  "rows": 28,
+  "sha256": {
+    "/workspace/.proofs/2286-packages-dialects/jim-lookup-caches/probe.c": "38ff2c264988cbbfe43c1ceb5e41d11bc1b31eb1df839497fb5610a4c5e57682",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/workspace/.proofs/2286-packages-dialects/jim-lookup-caches/probe": "4a8c88d429fa880c83bd39bc71068d2761385075afbe4725d8072a8bd95b8949",
+    "/workspace/.proofs/2286-packages-dialects/jim-lookup-caches/observations.tsv": "87f65dd947af2b5f96a2698d1b0922d66fe2bd7412d98c4d26536576af053c81"
+  },
+  "observer": "Direct original Jim headers; no guest error globals; stale command pointer dereferenced only with matching native procEpoch."
+}

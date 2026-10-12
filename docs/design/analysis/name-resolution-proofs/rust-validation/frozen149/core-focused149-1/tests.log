@@ -1,0 +1,6 @@
+
+running 1 test
+test variable_symbol::logical_formal_tests::logical_navigation_reuses_declared_formal_scope_and_exact_reads ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2632 filtered out; finished in 0.62s
+

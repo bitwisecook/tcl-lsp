@@ -1,0 +1,6 @@
+{"case":"wide-success","code":0,"alias":1,"nested_alias":0,"before":"none","resident_before":1,"after":"int","resident_after":1,"resident_hex":"30783130"}
+{"case":"int-failure","code":1,"alias":1,"nested_alias":0,"before":"none","resident_before":1,"after":"none","resident_after":1,"resident_hex":"312e35"}
+{"case":"int-magnitude-failure","code":1,"alias":1,"nested_alias":0,"before":"none","resident_before":1,"after":"bignum","resident_after":1,"resident_hex":"3138343436373434303733373039353531363136"}
+{"case":"integer-string","code":0,"alias":1,"nested_alias":0,"before":"int","resident_before":0,"after":"int","resident_after":1,"resident_hex":"39303037313939323534373430393933"}
+{"case":"binary-string","code":0,"alias":1,"nested_alias":0,"before":"bytearray","resident_before":0,"after":"bytearray","resident_after":1,"resident_hex":"c080c3bf"}
+{"case":"nested-wide","code":0,"alias":1,"nested_alias":1,"before":"none","resident_before":1,"after":"int","resident_after":1,"resident_hex":"30783130"}

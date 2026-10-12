@@ -1,0 +1,22 @@
+{
+  "ordinal": 220,
+  "selector": "frame::native_variable_names::indexed_receiver_tests::unnamed_native_locals_retain_original_values_without_dynamic_entries",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::native_variable_names::indexed_receiver_tests::unnamed_native_locals_retain_original_values_without_dynamic_entries",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.008507926017045975,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/220.log",
+  "log_sha256": "50f0670f0afc6d6183940288a60cd5101aa7e3555194ebfc1bf7ba5a2fee964f"
+}

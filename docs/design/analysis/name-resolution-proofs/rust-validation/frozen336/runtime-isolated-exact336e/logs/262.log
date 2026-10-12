@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_error_code_projection_tests::array_read_trace_host_cause_cannot_become_a_skipped_guest_element ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.54s
+

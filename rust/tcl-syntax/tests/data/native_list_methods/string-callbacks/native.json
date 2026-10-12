@@ -1,0 +1,32 @@
+[
+  {
+    "version": "8.4",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=compiled kind=list code=0 result=1 SAFE list list\nroute=generic kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=generic kind=list code=0 result=1 SAFE list list\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.5",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=compiled kind=list code=0 result=1 SAFE list list\nroute=compiled kind=dict code=0 result=2 SAFE dict list\nroute=generic kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=generic kind=list code=0 result=1 SAFE list list\nroute=generic kind=dict code=0 result=2 SAFE dict list\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=compiled kind=list code=0 result=1 SAFE list list\nroute=compiled kind=dict code=0 result=2 SAFE dict list\nroute=generic kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=generic kind=list code=0 result=1 SAFE list list\nroute=generic kind=dict code=0 result=2 SAFE dict list\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=compiled kind=list code=0 result=1 SAFE list list\nroute=compiled kind=dict code=0 result=2 SAFE dict list\nroute=generic kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=generic kind=list code=0 result=1 SAFE list list\nroute=generic kind=dict code=0 result=2 SAFE dict list\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=compiled kind=list code=0 result=1 SAFE list list\nroute=compiled kind=dict code=0 result=2 SAFE dict list\nroute=generic kind=scalar code=0 result=1 MUTATED custom-scalar list\nroute=generic kind=list code=0 result=1 SAFE list list\nroute=generic kind=dict code=0 result=2 SAFE dict list\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "output": "/workspace/.proofs/native-method-rename510",
+  "summary_sha256": "7c298bff40f0ed9b4122446de94804d731ff24e674bc1634051fb780e4fa29fe",
+  "original_request_sha256": "a313617c40d8e6111bd29044989771b0855c80b6cea74de6405fd246dd28c4d9",
+  "original_probe_sha256": "d76759e50a8551357ae2abcf2d89b0f355859fb51b405cb345697fddb9d69d5f",
+  "original_launcher_sha256": "0d6aece97913e53bf659c1b20d2f739ca58165343ce630d6965ca345fc014472",
+  "interpretation": {
+    "path": "/tmp/receiver-native-method-rename510-interpretation.json",
+    "sha256": "79583c2a1f8891dfe50333500417189862c48c3e9f43fc6c6a9b81afbfe3faeb"
+  },
+  "scope": "All six process groups closed0. C90 direct16 cases do not reach worker: returned CmdInfo native kind1 fails original kind2 requirement, actual sentinel-712. C90 public16 and C86/C91 public/direct workers reached. Original rows are unchanged and are not upgraded."
+}

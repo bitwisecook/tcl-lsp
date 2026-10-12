@@ -1,0 +1,13 @@
+{
+  "question_id": "naming.string.original-binary-replacement-direct-helper-sharing",
+  "problem": "Does the genuine parsed-index TclStringReplace C9 producer select subject/fresh/replacement headers for actual unshared/shared/no-inplace inputs, independently of indexed EvalObjv caller ownership?",
+  "source_sha256": "12e3a810df236b87cf35405cfd3cb707d5beb6a7167ed298b133cd7ddbab6e2f",
+  "providers": [
+    "9.0.4",
+    "9.1.0"
+  ],
+  "case_count": 8,
+  "compile": "Use each pinned generic/tclInt.h plus unix include and same static lib/compiler flags as633. Exact helper declaration and TCL_STRING_IN_PLACE come from that header; no recreated symbol layout/flag magic.",
+  "purpose": "Each case fresh process. Constructors proper native ByteArray, subject/replacement one genuine native reference each; case1 adds one subject reference. first/count already parsed literal operands, no command-name/index/caller-frame claim. snapshots original public fields and source bytes; helper result has no interpreter publication until explicit snapshot/getter.",
+  "limits": "Case3 initial uninitialised native payload is observational/unspecified; never generalise observed zeros into a deterministic producer or software expected bytes. Independent version diagnostic and full pinned receipts required."
+}

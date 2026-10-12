@@ -1,0 +1,57 @@
+{
+  "status": "bounded static review accepted; no launch or actual compiler/header/executable admission",
+  "manifest": "/workspace/.proofs/native-explicit-error-code-header-setter614b/manifest.json",
+  "manifest_sha256": "afc23de9bfae87a97f1d104957cdeb1b408e7ff24e0086009cc4aff4555c169c",
+  "request_sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821",
+  "probe_sha256": "d85ae996cf65de3bf3dc7beeb522e588af03178c93e336ddfa9b6d0dcfa4c614",
+  "launcher_sha256": "68bf157a7761d6e96cea97ac6c2e2eb9dac9ce8a0e16e6f224ff9154c36506ca",
+  "declared_input_pins_verified": 6107,
+  "physical_lf_original_source_joins": [
+    {
+      "provider": "tcl8.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclResult.c",
+      "first_physical_lf_line": 952,
+      "last_physical_lf_line": 961,
+      "sha256": "02f7c918b42f0bf851f67a69e4b27ae09f70de0a51d4cd1937b1c44f2394b451"
+    },
+    {
+      "provider": "tcl8.5",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclResult.c",
+      "first_physical_lf_line": 1070,
+      "last_physical_lf_line": 1081,
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+    },
+    {
+      "provider": "tcl8.6",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclResult.c",
+      "first_physical_lf_line": 1103,
+      "last_physical_lf_line": 1114,
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+    },
+    {
+      "provider": "tcl9.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclResult.c",
+      "first_physical_lf_line": 535,
+      "last_physical_lf_line": 546,
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+    },
+    {
+      "provider": "tcl9.1",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclResult.c",
+      "first_physical_lf_line": 536,
+      "last_physical_lf_line": 547,
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+    }
+  ],
+  "unchanged_probe_vs_original614": true,
+  "python_ast": "parsed without execution",
+  "reviewed_transport": [
+    "Each process original stdout/stderr and receipt fsynced before after-process declared-input/header/link/runtime verification.",
+    "Separate refusal and verification records preserve reached process status and prevent later processes after refusal.",
+    "Fresh independent compiler output, actual compile.d/link.map dependency verification, own produced executable and ldd dependencies checked before/after execution; unknown actual dependency remains terminal.",
+    "Original callback/trace/header lifetime observations unchanged from the earlier bounded probe read; four fixed cases and five C providers, no Jim Tcl API grant.",
+    "Outer exit0 alone is not semantic or capture success: actual provider process codes and closure all_capture_processes_closed must be consumed."
+  ],
+  "qualification": "Old614 actual attempt refused unpinned compat/stdlib.h before native execution. All6107 declared614b pins verify now, including expanded compat/header associations, but only Root actual compilation can establish the reached dependency closure.",
+  "native_or_rust_assertion_claims": null
+}

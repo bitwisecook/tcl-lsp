@@ -1,0 +1,154 @@
+    }
+    TclSkipTailcall(interp);
+    return Tcl_NREvalObj(interp, listPtr, flags);
+}
+
+static int
+AliasObjCmd(
+    ClientData clientData,	/* Alias record. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument vector. */
+{
+#define ALIAS_CMDV_PREALLOC 10
+    Alias *aliasPtr = (Alias *)clientData;
+    Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+    int result, prefc, cmdc, i;
+    Tcl_Obj **prefv, **cmdv;
+    Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+    Interp *tPtr = (Interp *) targetInterp;
+    int isRootEnsemble;
+
+    /*
+     * Append the arguments to the command prefix and invoke the command in
+     * the target interp's global namespace.
+     */
+
+    prefc = aliasPtr->objc;
+    prefv = &aliasPtr->objPtr;
+    cmdc = prefc + objc - 1;
+    if (cmdc <= ALIAS_CMDV_PREALLOC) {
+	cmdv = cmdArr;
+    } else {
+	cmdv = (Tcl_Obj **)TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+    }
+
+    memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+    memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+
+    Tcl_ResetResult(targetInterp);
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_IncrRefCount(cmdv[i]);
+    }
+
+    /*
+     * Use the ensemble rewriting machinery to ensure correct error messages:
+     * only the source command should show, not the full target prefix.
+     */
+
+    isRootEnsemble = TclInitRewriteEnsemble((Tcl_Interp *)tPtr, 1, prefc, objv);
+
+    /*
+     * Protect the target interpreter if it isn't the same as the source
+     * interpreter so that we can continue to work with it after the target
+     * command completes.
+     */
+
+    if (targetInterp != interp) {
+	Tcl_Preserve(targetInterp);
+    }
+
+    /*
+     * Execute the target command in the target interpreter.
+     */
+
+    result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+
+    /*
+     * Clean up the ensemble rewrite info if we set it in the first place.
+     */
+
+    if (isRootEnsemble) {
+	TclResetRewriteEnsemble((Tcl_Interp *)tPtr, 1);
+    }
+
+    /*
+     * If it was a cross-interpreter alias, we need to transfer the result
+     * back to the source interpreter and release the lock we previously set
+     * on the target interpreter.
+     */
+
+    if (targetInterp != interp) {
+	Tcl_TransferResult(targetInterp, result, interp);
+	Tcl_Release(targetInterp);
+    }
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_DecrRefCount(cmdv[i]);
+    }
+    if (cmdv != cmdArr) {
+	TclStackFree(interp, cmdv);
+    }
+    return result;
+#undef ALIAS_CMDV_PREALLOC
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * AliasObjCmdDeleteProc --
+ *
+ *	Is invoked when an alias command is deleted in a child. Cleans up all
+ *	storage associated with this alias.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Deletes the alias record and its entry in the alias table for the
+ *	interpreter.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+AliasObjCmdDeleteProc(
+    ClientData clientData)	/* The alias record for this alias. */
+{
+    Alias *aliasPtr = (Alias *)clientData;
+    Target *targetPtr;
+    int i;
+    Tcl_Obj **objv;
+
+    Tcl_DecrRefCount(aliasPtr->token);
+    objv = &aliasPtr->objPtr;
+    for (i = 0; i < aliasPtr->objc; i++) {
+	Tcl_DecrRefCount(objv[i]);
+    }
+    Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+
+    /*
+     * Splice the target record out of the target interpreter's parent list.
+     */
+
+    targetPtr = aliasPtr->targetPtr;
+    if (targetPtr->prevPtr != NULL) {
+	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+    } else {
+	Parent *parentPtr = &((InterpInfo *) ((Interp *)
+		aliasPtr->targetInterp)->interpInfo)->parent;
+
+	parentPtr->targetsPtr = targetPtr->nextPtr;
+    }
+    if (targetPtr->nextPtr != NULL) {
+	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+    }
+
+    ckfree(targetPtr);
+    ckfree(aliasPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *

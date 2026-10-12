@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "/tmp/native-active-command-retirement671/8.4.20/probe.elf"
+  ],
+  "cwd": "/tmp/native-active-command-retirement671/8.4.20",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "exit": 0,
+  "seconds": 0.021250400051940233,
+  "stdout": "/tmp/native-active-command-retirement671/8.4.20/probe.stdout",
+  "stdout_sha256": "279a0ab59956abeca88f48fe7fb6a10682ebfde379e71f6044434a144b876221",
+  "stderr": "/tmp/native-active-command-retirement671/8.4.20/probe.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

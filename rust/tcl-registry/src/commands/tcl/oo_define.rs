@@ -55,6 +55,7 @@ const OO_DEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const OO_DEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(oo_define_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -169,11 +170,20 @@ pub enum TclOoPropertyKind {
     Writable,
 }
 
+impl TclOoPropertyKind {
+    /// Canonical access kind from the independently selected Registry table.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        TCL_OO_PROPERTY_KINDS[self as usize].value
+    }
+}
+
 /// Resolve a configurable-property option from its registry metadata.
 ///
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous option message.
 pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
     let names: Vec<&str> = TCL_OO_PROPERTY_OPTIONS
         .iter()
         .map(|option| option.name)
@@ -191,6 +201,7 @@ pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption,
 /// # Errors
 /// Tcl's byte-exact bad/ambiguous kind message.
 pub fn resolve_tcloo_property_kind(word: &[u8]) -> Result<TclOoPropertyKind, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
     let names: Vec<&str> = TCL_OO_PROPERTY_KINDS
         .iter()
         .map(|kind| kind.value)
@@ -436,6 +447,7 @@ pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::define",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::define"),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::LANGUAGE_KEYWORD

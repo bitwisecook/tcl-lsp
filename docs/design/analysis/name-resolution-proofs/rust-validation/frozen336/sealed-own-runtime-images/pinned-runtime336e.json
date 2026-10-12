@@ -1,0 +1,20 @@
+{
+  "executable": "/tmp/naming-owned336/pinned-runtime336e.elf",
+  "sha256": "2c4abb772b6f97de8cbe3874568a33898f9a573f6fb28c68f2c8ac9806f1bd07",
+  "build_receipt": "/workspace/.proofs/integration-runtime-own-test-build336e.json",
+  "build_receipt_sha256": "14af43a43c1459de6dd4ebab93008228234907c2d7a91a8e6b9884f14846af0a",
+  "source_snapshot_sha256": "9abbe992e2ddb059ff8ca4124f64f1fe2ca2406d248fe2d77f303f34491a67a8",
+  "features": [
+    "engine"
+  ],
+  "original_cargo_artifact": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_runtime-6697dde386f1bbc8",
+  "bytes": 72455496,
+  "original_inode": 938389,
+  "device": 33,
+  "original_mode": 448,
+  "original_uid": 1000,
+  "original_gid": 1000,
+  "original_mtime_ns": 1791703803914514679,
+  "original_atime_ns": 1791703803942514465,
+  "storage": "Closed actual own emitted image sealed by same-filesystem rename. Exact emitted inode/full bytes retained, no dependency image substitution. Future Cargo must recreate missing original output."
+}

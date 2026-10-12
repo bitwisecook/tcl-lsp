@@ -1,0 +1,36 @@
+{
+  "question": "Does the exact nested inline foreach source at depths32,128,300 complete or raise an evaluation error in a fresh real provider, and what is the counted original public completion?",
+  "problem": "The Runtime deep foreach control currently assumes an evaluation error at300 and aborts its process. Native observations distinguish source compilation/inline semantics from a host-stack implementation bound. This driver observes public completion only; it does not prove private bytecode, command object identity, instruction identity or stack layout.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver_sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+  "cases": [
+    {
+      "id": "foreach-32",
+      "source_file": "foreach-32.tcl",
+      "source_sha256": "5ecd610313bc7ac0dd5845f9d56f7713a770abc323efcb1a92174dc740a4a717",
+      "nesting_depth": 32,
+      "source_notes": "ASCII only. Exactly depth repeated foreach opening lines, one set done 1, and depth closing brace lines. Original counted source is not surrounded by catch/eval/puts. Fresh full provider initialisation; no stack-size override."
+    },
+    {
+      "id": "foreach-128",
+      "source_file": "foreach-128.tcl",
+      "source_sha256": "1fe6ea122e83869dc456f64b8a57c8e2384147fbe8253f7760e62ef3fd1b35bb",
+      "nesting_depth": 128,
+      "source_notes": "ASCII only. Exactly depth repeated foreach opening lines, one set done 1, and depth closing brace lines. Original counted source is not surrounded by catch/eval/puts. Fresh full provider initialisation; no stack-size override."
+    },
+    {
+      "id": "foreach-300",
+      "source_file": "foreach-300.tcl",
+      "source_sha256": "eff885e2c3924373ccf795df318f0f46f36324e8421792b7e2af9249e6fed943",
+      "nesting_depth": 300,
+      "source_notes": "ASCII only. Exactly depth repeated foreach opening lines, one set done 1, and depth closing brace lines. Original counted source is not surrounded by catch/eval/puts. Fresh full provider initialisation; no stack-size override."
+    }
+  ]
+}

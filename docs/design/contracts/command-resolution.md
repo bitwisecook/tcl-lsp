@@ -1,9 +1,22 @@
-# Contract: command-name resolution — one algorithm, everywhere
+# Contract: command-name lookup and source advice
 
-Every component that answers "which command does this call dispatch?" must
-implement **C Tcl's** rule, and must prove it by passing the shared
-conformance vectors. This contract names the algorithm, its single Rust
-home, every consumer, and the anti-drift gates.
+Command lookup has a shared owner for each selected naming purpose. The C Tcl
+namespace candidate order below governs an actual C command-table lookup and
+the explicit Logical reporting model. It does not select Jim's flat naming
+recipe, a hosted source policy, an original input extent or a callable entry.
+Original consumers retain those independently selected owners and decline when
+the required receipt is unavailable.
+
+An Original source query first validates the complete image/channel, full lexer
+configuration and actual ContextRegistry/Registry. The command-binding owner
+supplies its authentic name input, selected lookup scope and allocation or
+negative lookup. Readonly source schema uses shared
+`registry_invocation::source_structure::OriginalRegistryWords`; conditional
+Native, hosted and authored-transition advice retain their explicit obligations
+without supplying runtime dispatch, Normal completion or edit permission.
+Reporting labels and whole-file declarations cannot replace these receipts.
+See the [consumer matrix](naming-consumer-matrix.md) and
+[implementer guide](../compiler/name-resolution-implementer-guide.md).
 
 ## The algorithm (C Tcl 9, `Tcl_FindCommand`, `generic/tclNamesp.c`)
 
@@ -27,36 +40,44 @@ Given a call to `name` from current namespace `ns` whose
    exists but holds no `p`.
 4. No implicit ancestor walk: `helper` inside `::a::b` never reaches
    `::a::helper` unless `::a` is on the path.
-5. Resolution happens at **call time**: a candidate defined later in the
-   file (or dynamically) wins when the call finally runs.
+5. Resolution happens at **call time**: a later or dynamic definition can win
+   only if it has actually been installed before that call runs. A future
+   source header or whole-file reporting catalogue supplies no such fact.
 
 Behaviour pinned against real tclsh 8.6.16 and 9.0.4 (they agree on every
 case, including all edge cases above).
 
 ## Canonical implementation
 
-[`tcl_syntax::naming`](../../../rust/tcl-syntax/src/naming.rs):
+The representable String candidate-order helpers live in
+[`tcl_syntax::naming`](../../../rust/tcl-syntax/src/naming.rs). Their outputs are
+candidate/reporting projections, not original byte inputs or callable receipts.
+Actual original names use `NativeNameProtocol` and its purpose-specific lookup,
+publication and rename recipes; Jim and hosted source inputs retain their own
+issuers.
 
 | Helper | Role |
 |---|---|
 | `command_resolution_candidates(ns, path, name)` | Candidate list in priority order (absolute → single candidate; relative → `ns`, path entries, global; deduped). Roots a relative path entry against `ns` (the current-namespace-relative-only rule above), so callers may pass entries as written. |
 | `bareword_resolution_candidates(ns, name)` | Path-free wrapper for consumers that do not model `namespace path`. |
-| `resolve_command_with(ns, path, name, exists)` | The full rule: first candidate for which `exists` is true, `None` = `invalid command name`. |
+| `resolve_command_with(ns, path, name, exists)` | Select the first representable candidate for which the supplied existence oracle is true. `None` means that oracle supplied no candidate; a native guest error additionally requires its actual handler and failure-presentation owner. |
 | `naming::conformance` | The shared vector table (`tests/data/command_resolution_vectors.txt`), its parser, and `vector_script` (renders a vector as runnable Tcl). |
 
 ## Consumers and their conformance gates
 
 | Consumer | How it conforms | Gate |
 |---|---|---|
-| Analyser call-site settlement (`Analyser::finalise_invocation_resolutions`, feeds `resolved_qualified_name` for references / rename / call hierarchy / code lens / symbol graph / minifier) | calls `resolve_command_with` post-walk (call-time semantics: whole-file definitions count) with the namespace's statically-recorded `namespace path` (`handle_namespace_path_command` tracks literal declarations; each replaces the whole path, as in C Tcl) | `tcl-compiler/tests/command_resolution_conformance.rs` (every vector, path-carrying included) |
-| Analyser shadow/arity checks (`resolve_proc_call`), W-code validity (`qualify_candidates`) | shared candidate helper | unit tests in `handlers.rs` / `validity.rs` |
-| Cross-document settlement (`settle_call_against_workspace`, `tcl-lsp-server`) — the **one** lookup shared by go-to-definition, find-references and the diagnostics path (W123 suppression + cross-file E002/E003) | replays the site's recorded `resolution_candidates` in priority order against the workspace index's existence oracle, applying the forced-import, nested-shadow and pending-indirection gates | `tcl-lsp-server/tests/e2e/issue1331_crossfile_diagnostics.rs` + `lib.rs` unit tests; see [cross-file-diagnostics.md](cross-file-diagnostics.md) |
+| Original source identity and navigation | CommandBindingRealm, authentic original occurrences and `OriginalDeclarationIdentity` retain positioned lookup/allocation, whole image/channel/configuration/Registry and independent URI currency. Missing Original ownership is terminal; source cards remain separate. | [Original declaration contract](../analysis/name-resolution-proofs/original-declaration-wire-identity.md) and [consumer matrix](naming-consumer-matrix.md) |
+| Original readonly command schemas | Shared Compiler `OriginalRegistryWords` preserves exact effective argv and selected/conditional/hosted/source-transition applicability under the actual full context. Roles and source geometry do not supply execution. | [Source-schema contract](../analysis/name-resolution-proofs/original-command-source-schema.md) |
+| Analyser reporting settlement (`Analyser::finalise_invocation_resolutions`, `resolved_qualified_name`) | Post-walk `resolve_command_with` uses whole-file reporting definitions and recorded literal paths. This supports the Logical catalogue model; Original providers consume their independent positioned receipts instead of treating a later header as an installed command. | `tcl-compiler/tests/command_resolution_conformance.rs` (representable candidate order, including paths) |
+| Analyser String candidate helpers (`resolve_proc_call`, `qualify_candidates`) | Shared candidate order supplies reporting candidates. Original callable arity and unresolved subjects require their separately selected lookup and signature owners. | unit tests in `handlers.rs` / `validity.rs`; [original call arity](../analysis/name-resolution-proofs/database-original-call-arity-diagnostics.md) |
+| Server reporting diagnostic settlement (`settle_call_against_workspace`, `settle_cross_file_calls`, callable arity and W123 refinement) | Replays reporting candidates only when `AnalysisResult::allows_lexical_declaration_advice` independently selects Logical compatibility. Native/hosted subjects remain unresolved despite matching workspace labels or opt-in tails. Independent Original navigation uses its own owners. | [Workspace diagnostic contract](../analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md) |
 | Optimiser interprocedural identity (`resolve_internal_call` / `resolve_call_target`), O103 folding (`resolve_proc_qname`) | `resolve_command_with` over the unit's proc table | unit tests in `interprocedural.rs` and `optimiser/propagation.rs` |
 | `uplevel` passthrough inliner (`inline_uplevel.rs`) | `resolve_command_with` over the candidate map | existing inliner tests |
-| Bytecode VM dispatch (`tcl-vm`: `lookup_command` = `resolve_command_fqn` + fetch; also `rename`'s source lookup, alias global anchoring, TclOO forward object-ns anchoring, `namespace unknown` chain, expr mathfunc dispatch) | `resolve_command_with` over the live command table, with the namespace's real `namespace path` | `tcl-vm/tests/command_resolution_conformance.rs` (compiles + executes every vector) + `tcl-vm/tests/tricky_resolution_e2e.rs` (tclsh-pinned alias/forward/mathfunc/unknown/rename interactions) |
+| Bytecode VM dispatch (`tcl-vm`) | Original byte lookup uses the independently selected name purpose and current allocation/generation. Representable C compatibility helpers use `resolve_command_with` over the live table and actual namespace path. Alias, TclOO forward and math-function purposes retain their own owners. | `tcl-vm/tests/command_resolution_conformance.rs` (compiles + executes every vector) + `tcl-vm/tests/tricky_resolution_e2e.rs` (tclsh-pinned alias/forward/mathfunc/unknown/rename interactions) |
 | WASM runtime dispatch (`runtime/rust`: `Namespaces::home_of`) | structural mirror (its store is a namespace *tree*, not a flat map) — same base order, command-existence-checked per base | `cmd_namespace.rs::dispatch_matches_every_conformance_vector` (executes every vector) |
-| eBPF backend (`bpf-tcl-*`) | **N/A** — no user procs, no namespaces; the 24-verb DSL rejects anything else as a hard compile error, so there is nothing to resolve |
-| Compiler codegen | **no static binding** — proc calls emit runtime name dispatch (`invokeStk`), inheriting the *runtime's* conformance via eval-delegation (the WASM runtime row above; the bytecode VM's row covers `tcl-vm` execution) |
+| eBPF backend (`bpf-tcl-*`) | The bounded DSL rejects unsupported commands and has no user-procedure or namespace lookup. | Its separate backend grammar, rather than Tcl command-name conformance. |
+| Compiler codegen | Generic procedure calls retain runtime dispatch. Specialised Original operations require independently selected compiler/admission receipts before emitting their native route; reporting lookup does not grant that route. | Compiler opcode/admission obligations remain separate from runtime name-order conformance. |
 
 The vector table itself is pinned to C Tcl by
 `tcl-syntax/tests/command_resolution_conformance.rs::vectors_match_real_tclsh`,
@@ -67,12 +88,23 @@ adding a vector**: every
 implementation then has to pass it or fail its own suite — drift is a test
 failure, not a code review hope.
 
+Those vectors establish their recorded representable C namespace-order cases.
+They do not grant raw/counting extent, Jim naming, hosted worker context,
+physical command generation, Native compilation or source-edit authority. The
+optimiser and inliner String helpers listed above cannot independently issue
+an Original implementation, effect or equivalence receipt.
+
 ## What changes which input, not the algorithm
 
 These features interact with resolution by changing its *inputs* — they do
 not change the rule, and must not grow bespoke resolution logic. Every
 "pinned" fact below was verified on **both** tclsh 8.6.16 and 9.0.4
 (they agree on all of them):
+
+The C observations below describe actual reached runtime operations. Static
+event logs and reporting approximations describe the explicit Logical model;
+Original consumers need the corresponding selected operation and current
+source/table receipts before deriving identity or mutation effects.
 
 - **`namespace eval` / proc bodies** select `ns`: a body resolves in its
   *defining* namespace, not its caller's. Plain **`eval`** keeps the
@@ -86,8 +118,10 @@ not change the rule, and must not grow bespoke resolution logic. Every
   defining namespace is unreachable unqualified; the global one wins).
   `forward` targets resolve the same way at call time (pinned even when
   the caller's namespace has a same-named proc). Statically the object
-  namespace is unknowable, so the analyser approximates TclOO method
-  bodies as **global-only** (`Scope::oo_global_resolution`); the VM runs
+  namespace can be unavailable, so reporting analysis approximates TclOO method
+  bodies as **global-only** (`Scope::oo_global_resolution`); Original lookup
+  keeps that namespace unknown rather than treating the approximation as a
+  frame receipt. The VM runs
   method bodies in the object namespace and anchors `forward` there.
   snit / itcl members genuinely resolve in the type / class namespace
   and keep the defining-namespace rule.
@@ -113,10 +147,14 @@ not change the rule, and must not grow bespoke resolution logic. Every
 - **`namespace import`** installs real entries gated by `namespace
   export`; in C they hold the source's command *token*, so a source
   **rename is followed** (the import keeps working; `namespace origin`
-  reports the new name) while a source **delete dangles** (both pinned).
-  The WASM runtime retargets its by-name redirects on rename to match;
-  the VM's clone-model import (a later redefinition of the origin is not
-  seen) is a **known divergence**, documented here.
+  reports the new name) while a source **delete retires the import** (both pinned).
+  The WASM runtime retains imported-source generations and retargets matching
+  imports on rename. The VM retains generation-checked import provenance;
+  `replace_import_implementations` refreshes downstream dispatcher clones on an
+  atomic source implementation replacement, and retirement follows the actual
+  import graph. Dispatcher cloning alone therefore does not describe current
+  source-redefinition behavior. These bounded lifecycle owners do not establish
+  arbitrary callback ordering, native reference counts or all import parity.
   The export gate is a **snapshot taken at the import site**, not a
   standing subscription: the import binds the names exported when it runs,
   and neither a later `namespace export -clear` (which does **not** revoke
@@ -280,18 +318,19 @@ not change the rule, and must not grow bespoke resolution logic. Every
 - **`source`** evaluates the file in the **caller's current namespace**
   (pinned: `namespace eval ::ns { source f.tcl }` lands `f.tcl`'s bare
   `proc`s in `::ns`). Both backends do this; the static cross-file model
-  treats each file as its own global-rooted unit (documented gap below).
+  retains source-site namespace candidates through guarded seeded re-analysis
+  (bounded source advice, described below).
 - **Safe / sub-interpreters** are entirely separate command tables
   (pinned: nothing crosses the boundary; safe interps *hide* commands).
   Both backends model children as separate interpreters with a hidden
   table. Statically, an `interp eval` script argument is still walked in
   the parent's context for injection diagnostics — its name bindings are
   a **known approximation**, documented below.
-- **Execution traces** observe dispatch; they never alter it. Both
-  backends key command and execution traces by the resolved FQN and fire
-  them from their dispatch chokepoint (`tcl-vm`'s `cmd_trace.rs` /
-  `interp.rs`, `runtime/rust`'s `Interp::fire_cmd_trace` /
-  `Interp::dispatch`).
+- **Execution traces** observe selected dispatch and can mutate command tables
+  during callbacks. Both backends retain the selected command generation and
+  lifecycle identity through the trace chokepoint; a rendered FQN is only
+  presentation. Replacement during a callback does not turn the captured old
+  allocation into the current same-name command.
 - **`args` variadics and alias prepended words** are an *arity* surface:
   the alias prepend happens before the target's own arity check
   (prepend-then-invoke, matching C).
@@ -303,7 +342,12 @@ not change the rule, and must not grow bespoke resolution logic. Every
   caller frame, the `#0` vs non-`#0` `uplevel` frame distinction) is its own
   contract, [runtime-variable-frame-model.md](runtime-variable-frame-model.md).
 
-## Known modelling gaps (static side)
+## Reporting-model limits and Original obligations
+
+The whole-file catalogue and path heuristics here describe reporting
+compatibility. A missing Original lookup cannot enter them. Original consumers
+use positioned command snapshots, typed declarations and shared source schema;
+unknown paths, frames, providers or mutation coverage remain explicit.
 
 - The analyser tracks **literal** `namespace path {…}` declarations only:
   a dynamic list (`namespace path $entries` / `[…]`) is statically
@@ -352,7 +396,7 @@ not change the rule, and must not grow bespoke resolution logic. Every
   carries one runtime identity per seed. A `source` path the folder cannot
   prove abstains rather than guessing. See
   [name-resolution.md](../analysis/name-resolution.md) §3.2.
-- **`expr` function names** are routed through command resolution: each
+- **Logical `expr` function names** are routed through reporting command resolution: each
   `f(…)` application is recorded as an invocation carrying
   `is_mathfunc_call`, settled with the `namespace path`-aware candidate
   builder over `tcl::mathfunc::f`, so a user `proc ::tcl::mathfunc::f` — a
@@ -360,3 +404,6 @@ not change the rule, and must not grow bespoke resolution logic. Every
   per-release function set is gated by
   `tcl_syntax::expr::mathfunc::added_in`. See
   [name-resolution.md](../analysis/name-resolution.md) §7.
+  Original expression functions use `OriginalMathFunctionOccurrence` and the
+  selected fixed-table or command-dispatch protocol; a synthetic mathfunc
+  invocation cannot replace its authentic expression extent or lookup.

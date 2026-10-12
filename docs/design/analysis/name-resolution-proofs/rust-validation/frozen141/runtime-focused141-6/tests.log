@@ -1,0 +1,18 @@
+
+running 1 test
+test cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter ... ADMISSION140 control physical=None in_proc=false list_dispatch=false compiles=false namespace=0 original=0x7f0ff8557a90
+
+thread 'cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter' (560663) panicked at src/cmd_error.rs:1171:17:
+assertion `left == right` failed: root
+  left: [66, 79, 79, 77, 32, 123, 123, 125, 32, 123, 125, 32, 49, 32, 123, 101, 114, 114, 111, 114, 32, 66, 79, 79, 77, 125, 125, 32, 48, 32, 48]
+ right: [66, 79, 79, 77, 32, 123, 123, 125, 32, 115, 116, 100, 105, 110, 32, 49, 32, 123, 101, 114, 114, 111, 114, 32, 66, 79, 79, 77, 125, 125, 32, 48, 32, 48]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 0.75s
+

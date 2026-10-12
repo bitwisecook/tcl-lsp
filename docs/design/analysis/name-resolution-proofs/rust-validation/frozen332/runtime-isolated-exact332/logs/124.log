@@ -1,0 +1,6 @@
+
+running 1 test
+test codegen_abi::original_receiver_tests::consumed_receiver_inputs_retire_once_before_every_early_refusal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.01s
+

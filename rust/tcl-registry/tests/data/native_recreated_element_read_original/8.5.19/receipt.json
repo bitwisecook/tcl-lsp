@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/native-recreated-element142/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.005238555007963441,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "6332cbe0cc8ea8128016174dad8719410b89ed844f0234232ca6fbcf34b34e32",
+  "runner_sha256": "7d517f1ab2deb50c65b14582cb5b517562f65ec7acfd274ccd88ea5c7305af6b",
+  "stdout_sha256": "89f2e08358d4a89316cecde48dc410c56188bc14381437b89f00f4e495054dd1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "PATCHLEVEL 8.5.19",
+    "SETUP 0 ",
+    "OBSERVATION 31207b63616e27742073657420223a3a61286b29223a2075707661722072656665727320746f20656c656d656e7420696e2064656c657465642061727261797d20313030205245414420313030"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Old element READ callback unsets whole array, recreates same-key element, installs a new READ observer and reads the new element before old callback return. Observes old increment completion separately. Explicit trace SETUP refusal is unsupported, not callback behaviour. No physical object/header, compiler/cache or BIG-IP claim."
+}

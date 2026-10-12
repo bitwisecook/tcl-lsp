@@ -17,6 +17,96 @@ and grammar version), `rust/tcl-lexer/src/expr_lexer.rs` (the expression
 tokeniser; a word operator is an operator token only when the profile's
 `LexerGrammar::has_word_operator` admits it)
 
+### Native expression source and advisory text
+
+Native expression source is a counted byte sequence. The expression lexer
+scans bytes once and retains exact token payloads and byte offsets.
+`parse_expr_bytes_checked_with_context` produces `NativeExprNode`, the
+`ExprNode<Vec<u8>>` specialization. Quoted and braced operands, variable
+references and command bodies can contain bytes outside Rust UTF-8. A NUL
+inside a quoted or braced operand remains part of that value.
+
+The Unicode `ExprNode` specialization supports document analysis. Its token
+adapter projects checked Unicode source through the same scanner and Pratt
+grammar. It does not supply native execution evidence for an opaque source.
+`ExprText` lets the shared evaluator use either specialization without
+changing precedence, operand order or short-circuit behavior.
+
+A native adapter implements the byte leaf doors on `ExprOps`:
+`literal_bytes`, `string_bytes`, `variable_reference_bytes_at`, `command_bytes`
+and `call_bytes_at`. Variable reads use the original reference spelling and
+selected variable grammar; the decoded AST name is an advisory label. Nested
+command bodies enter the source compiler through an original `SourceImage`.
+Quoted operands use the selected expression-quote settlement, independently
+of the `subst` command. Substituted values are materialized on their original
+objects before their bytes are concatenated.
+
+`Vm::prepare_expression_value` materializes the original expression object
+through its selected native string protocol and caches the native tree with
+the complete invocation and source-profile policy. Jim fixed-function
+preparation retains its actual table lookup and scans every function before
+operand substitution. `Vm::try_eval_expr_bytes` preserves full guest
+completion objects and returns host refusals separately.
+
+Logical simulation has its own explicit capability:
+`LogicalExpressionParseProvider::Tcl84CoreSimulation`. Its registry selector
+retains the F5 lexer and operator grammar while supplying the authored Tcl 8.4
+parser and template recipe. The VM setter requires a separately selected
+actual host engine; the Runtime setter receives and retains that host profile
+explicitly. Command availability and a vendor compatibility version cannot
+install the capability. The provider travels with child interpreters and
+participates in expression and compilation cache policy. A scoped native host
+activation uses its own parser policy. The native F5 invocation still has no
+C/Jim expression syntax or compiler receipt from this simulation capability.
+
+Source escape materialisation has a separate capability,
+`LogicalSourceWordProvider::Tcl84CoreSimulation`. Its selector issues only the
+source-byte recipe for the retained F5 escape grammar. It cannot install a
+physical string cache, native variable policy or expression parser. The VM and
+Runtime setters require an independently selected actual host engine. Child
+interpreters retain the provider, and VM compilation cache policy records it.
+`source_string_protocol` checks the actual escape grammar; an unavailable
+recipe remains unavailable at native compilation admission.
+
+Native text components use `backslash::native_arena_text` on the original
+arena span. Raw NUL bytes remain raw; escaped Unicode NUL uses the selected
+native encoder. Advisory decoded text is never used as executable native data.
+
+Expression preparation first materialises source bytes on the original object.
+The selected `NativeExprSyntax::source_cache_preparation` recipe determines
+when the expression cache replaces its previous list or numeric storage:
+Tcl 8.4 commits a prepared tree only on success, while Tcl 8.5–9.1 retire
+the previous representation before parsing, including failed parsing. Jim
+applies the original parser's independent preparation action: empty or
+incomplete input preserves the old primary, a lexical or tree rejection
+installs an Expression with no prepared tree, and successful preparation
+installs the original term-object backing. A rejected primary is distinct
+from an absent cache and does not trigger another parse on cache lookup.
+Runtime AST readers retain their `Rc` tree before substitution can change the
+source object's cache.
+
+Checked parsing distinguishes a complete native tree, a proved syntax
+rejection and unsupported evidence. The sole scanner retains typed lexical
+failure offsets, including missing delimiters, invalid bytes and a dollar sign
+without a variable name. Native presentation uses original byte fragments,
+with each native printf source fragment ending at its first NUL. A dollar sign
+alone is a literal in Tcl 8.4 and a syntax failure in later Tcl and Jim.
+External NUL and invalid opaque operand bytes receive selected native syntax
+errors. Unselected native grammar, unsupported Unicode lexeme rules,
+unpresented native diagnostics and the parser's nesting limit produce typed
+host refusals rather than fabricated guest Unicode errors.
+
+Syntax error-code state is separate from the displayed diagnostic.
+`NativeExprSyntax::error_state` preserves the prior code on direct Tcl 8.4,
+Tcl 8.5 and Jim expression failures; Tcl 8.6–9.1 set the exact parser code.
+Actual script propagation sets `NONE` for Tcl 8.4/8.5, while Jim preserves its
+original code object. Registry `NativeExpressionErrorStage` converts these
+actions to mandatory `CmdErrorCodeUpdate` values. Runtime error snapshots retain
+the selected action until script propagation; VM original-object script
+preparation selects the Eval action, and its public direct expression APIs
+select the Direct action. Numeric conversion and arithmetic failures retain
+their own error producers.
+
 ### Braced vs unbraced expressions
 
 **Braced** — `expr {$a + $b * 2}`:

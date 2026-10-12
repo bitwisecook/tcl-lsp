@@ -1,0 +1,40 @@
+{
+  "source_anchors": [
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-array.c",
+      "original_sha256": "ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda",
+      "function": "array_cmd_get",
+      "line_range": [
+        62,
+        83
+      ],
+      "snippet": "static int array_cmd_get(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    Jim_Obj *objPtr = Jim_GetVariable(interp, argv[0], JIM_NONE);\n    Jim_Obj *patternObj;\n\n    if (!objPtr) {\n        return JIM_OK;\n    }\n\n    patternObj = (argc == 1) ? NULL : argv[1];\n\n    /* Optimise the \"all\" case */\n    if (patternObj == NULL || Jim_CompareStringImmediate(interp, patternObj, \"*\")) {\n        if (Jim_IsList(objPtr) && Jim_ListLength(interp, objPtr) % 2 == 0) {\n            /* A list with an even number of elements */\n            Jim_SetResult(interp, objPtr);\n            return JIM_OK;\n        }\n    }\n\n    return Jim_DictMatchTypes(interp, objPtr, patternObj, JIM_DICTMATCH_KEYS, JIM_DICTMATCH_KEYS | JIM_DICTMATCH_VALUES);\n}\n",
+      "snippet_sha256": "030cd86ca020f9e5e62b271f1ea83f6d307e4c3e61fba16319ecb3b65d0ef7e7"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-array.c",
+      "original_sha256": "ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda",
+      "function": "array_cmd_names",
+      "line_range": [
+        85,
+        94
+      ],
+      "snippet": "static int array_cmd_names(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    Jim_Obj *objPtr = Jim_GetVariable(interp, argv[0], JIM_NONE);\n\n    if (!objPtr) {\n        return JIM_OK;\n    }\n\n    return Jim_DictMatchTypes(interp, objPtr, argc == 1 ? NULL : argv[1], JIM_DICTMATCH_KEYS, JIM_DICTMATCH_KEYS);\n}\n",
+      "snippet_sha256": "b9d48e8e15f0111ca90942b6fc6eaaaf1834956ebf7c0dd3b06844703fdcde63"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-array.c",
+      "original_sha256": "ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda",
+      "function": "array_cmd_unset",
+      "line_range": [
+        96,
+        135
+      ],
+      "snippet": "static int array_cmd_unset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    int i;\n    int len;\n    Jim_Obj *resultObj;\n    Jim_Obj *objPtr;\n    Jim_Obj **dictValuesObj;\n\n    if (argc == 1 || Jim_CompareStringImmediate(interp, argv[1], \"*\")) {\n        /* Unset the whole array */\n        Jim_UnsetVariable(interp, argv[0], JIM_NONE);\n        return JIM_OK;\n    }\n\n    objPtr = Jim_GetVariable(interp, argv[0], JIM_NONE);\n\n    if (objPtr == NULL) {\n        /* Doesn't exist, so nothing to do */\n        return JIM_OK;\n    }\n\n    dictValuesObj = Jim_DictPairs(interp, objPtr, &len);\n    if (dictValuesObj == NULL) {\n        /* Variable is not an array - tclsh ignores this and returns nothing - be compatible */\n        Jim_SetResultString(interp, \"\", -1);\n        return JIM_OK;\n    }\n\n    /* Create a new object with the values which don't match */\n    resultObj = Jim_NewDictObj(interp, NULL, 0);\n\n    for (i = 0; i < len; i += 2) {\n        if (!Jim_StringMatchObj(interp, argv[1], dictValuesObj[i], 0)) {\n            Jim_DictAddElement(interp, resultObj, dictValuesObj[i], dictValuesObj[i + 1]);\n        }\n    }\n\n    Jim_SetVariable(interp, argv[0], resultObj);\n    return JIM_OK;\n}\n",
+      "snippet_sha256": "72f9e7cd3f3ab9cd8cf73abbcd6cbafe01c5cd4254dd207aad575aad1b938120"
+    }
+  ]
+}

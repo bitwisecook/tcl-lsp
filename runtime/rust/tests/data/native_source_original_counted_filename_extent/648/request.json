@@ -1,0 +1,22 @@
+{
+  "qid": "naming.source.original-counted-filename-filesystem-extent",
+  "document": "docs/design/analysis/name-resolution-proofs/source-original-counted-filename-filesystem-extent.md",
+  "status": "READY private original Native request; unrun",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim5bac7c99"
+  ],
+  "cases_per_provider": 6,
+  "question": "For original public counted String filenames containing literal zero or modified-zero plus TAIL after an existing or absent ASCII path, does source preserve counted filesystem input, truncate a CString prefix, reject it or select another path? What are exact result/errorCode/effect bytes and the original path header bytes after the public operation on each provider?",
+  "arguments": [
+    "runner-owned-existing-ascii-file",
+    "runner-owned-guaranteed-absent-file"
+  ],
+  "source_content_ascii": "set ::R2286_ENCODING_LOADED YES; return SOURCE_OK\n",
+  "execution": "Root establishes the two owned ASCII paths and compiles the exact public object-vector probe against each original retained header/library. Each probe process creates six fresh initialized interpreters; C explicitly selects utf-8 current system encoding, source receives filename only, public constructors retain counted lengths. Record compile/CLI/same-library versions, full outputs and source/header/library/executable/tool/input before-after pins. Retain path input raw buffer bytes without invoking its getter before source; PATH_AFTER is a post-operation observer only.",
+  "limits": "No Native execution, source decode, parse fallback, guessed byte extent or callback/refcount/OS chronology is asserted. Existing and absent suffix variants are independent blocks; directory/read-order and encoding catalogue names remain separate questions. Provider defaults/Unicode filesystem conversion and pathname display versus lookup must be distinguished by actual pinned source and full bytes."
+}

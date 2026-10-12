@@ -28,23 +28,23 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("clock", cmd_clock);
+    vm.register_stock_builtin("clock", cmd_clock);
     // The ensemble's implementation members — `clock clicks` compiles/dispatches
     // to `::tcl::clock::clicks`, and library/framework code calls these
     // fully-qualified forms directly. Each prepends its subcommand and reuses
     // the same dispatch.
-    vm.register("::tcl::clock::seconds", |vm, a| member(vm, "seconds", a));
-    vm.register("::tcl::clock::milliseconds", |vm, a| {
+    vm.register_stock_builtin("::tcl::clock::seconds", |vm, a| member(vm, "seconds", a));
+    vm.register_stock_builtin("::tcl::clock::milliseconds", |vm, a| {
         member(vm, "milliseconds", a)
     });
-    vm.register("::tcl::clock::microseconds", |vm, a| {
+    vm.register_stock_builtin("::tcl::clock::microseconds", |vm, a| {
         member(vm, "microseconds", a)
     });
-    vm.register("::tcl::clock::clicks", |vm, a| member(vm, "clicks", a));
-    vm.register("::tcl::clock::format", |vm, a| member(vm, "format", a));
-    vm.register("::tcl::clock::add", |vm, a| member(vm, "add", a));
-    vm.register("::tcl::clock::scan", |vm, a| member(vm, "scan", a));
-    vm.register(
+    vm.register_stock_builtin("::tcl::clock::clicks", |vm, a| member(vm, "clicks", a));
+    vm.register_stock_builtin("::tcl::clock::format", |vm, a| member(vm, "format", a));
+    vm.register_stock_builtin("::tcl::clock::add", |vm, a| member(vm, "add", a));
+    vm.register_stock_builtin("::tcl::clock::scan", |vm, a| member(vm, "scan", a));
+    vm.register_stock_builtin(
         "::tcl::unsupported::clock::configure",
         |_vm, args| match args {
             [option] if &*option.to_str() == "-init-complete" => ok(Value::empty()),
@@ -71,6 +71,6 @@ fn cmd_clock(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let offset = move |ts: i64| host.clock().local_offset_secs(ts);
     match core_clock::dispatch(vm, args, &now, &offset) {
         Ok(v) => ok(v),
-        Err(e) => crate::command::completion_from_cmd_error(e),
+        Err(e) => crate::command::completion_from_cmd_error(vm, e),
     }
 }

@@ -189,7 +189,7 @@ impl VmBackend {
         let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
         let module = Svc::for_profile(profile)
             .compile(source)
-            .map_err(|e| DebugError::Failed(e.0))?;
+            .map_err(|error| DebugError::Failed(error.to_string()))?;
 
         let trace: Rc<RefCell<Vec<DebugSnapshot>>> = Rc::new(RefCell::new(Vec::new()));
         let sink = Rc::clone(&trace);

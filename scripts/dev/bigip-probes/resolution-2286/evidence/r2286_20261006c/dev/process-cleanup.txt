@@ -1,0 +1,4 @@
+stopped backend pid=2053093 cmd=python3 /tmp/backend.py --bind 192.168.9.80 --port 18080 
+stopped artifact-http pid=2053094 cmd=python3 -m http.server 18081 --bind 192.168.9.80 
+stopped traffic-control pid=2057383 cmd=python3 /tmp/traffic-control.py --bind 192.168.9.80 --port 18082 --traffic /tmp/traffic.py --out-dir /tmp/r2286_20261006c-dev --vip 192.168.9.24 --vip-port 18086 --source-ip 192.168.9.80 --run r2286_20261006c 
+ports-18080-18083-absent

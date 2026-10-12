@@ -52,9 +52,9 @@ These are the owner's decisions, and every section below fits inside them.
 1. **Ownership boundary.** Command-specific specialisation lives in
    registry-owned code and data. The analyser exposes generic operations
    and applies validated answers; it acquires no new command-name or
-   command-ID arms. A compiler-owned handler that remains is listed in the
-   migration page's ledger with where it lives, what keys it, and why it
-   stays.
+   command-ID arms. The current
+   [command-knowledge inventory](value-transfers-migration.md#compiler-owned-handlers)
+   records each compiler-owned handler's owner, selection key and purpose.
 2. **Executable backing is declared, never inferred.** A command's
    evaluator route — a direct shared core, the shared expression engine,
    or a declared implementation in the bounded engine — is an explicit
@@ -251,6 +251,12 @@ invocation view `incr name ?amount?`; the synthetic loop header the CFG
 builder emits for `foreach`, `lmap`, and `dict for` projects to its
 declared iteration protocol, and its `container_arg: 0` refers to the
 synthetic layout, never to the source var-list.
+
+The path specialisation reads values from `argument_offset` through the end
+of the same invocation. A selected file member retains its selector at
+operand zero and offset one; a typed source path operation that already
+excludes the selector retains every supplied value at offset zero. Both
+layouts use the same path kernel, cardinality checks and decline rules.
 
 **Three declaration states.** For each specialisation on a spec, a
 subcommand, or a form: *inherited* from the enclosing level, *declared*
@@ -2855,7 +2861,8 @@ count is unknown.
 An analyser-local fact not in this table is not exempt: its owner declares
 its input dependencies, its monotone transfer and join or its non-dataflow
 evaluation phase, its unknown policy, its cache key, and its consumers. The
-migration page's ledger is the checklist.
+current [command-knowledge inventory](value-transfers-migration.md) is the
+checklist.
 
 **Construction and solving are different phases.** First, resolve the
 invocation and its structural semantics and build scopes, IR, CFG, and SSA
@@ -2965,7 +2972,7 @@ backend legality is never gated by diagnostic enablement.
 
 ## The completion test
 
-Migrated command names are not the proof. The proof is the experiment:
+The following experiment checks shared interface coverage:
 
 1. Author one private command with a supported existing transfer,
    validation, and body pattern. Rename it, and add a subcommand form with

@@ -1,0 +1,58 @@
+/*
+ * Methods in the oo::object and oo::class classes. First, we define a helper
+ * macro that makes building the method type declaration structure a lot
+ * easier. No point in making life harder than it has to be!
+ *
+ * Note that the core methods don't need clone or free proc callbacks.
+ */
+
+#define DCM(name,visibility,proc) \
+    {name,visibility,\
+	{TCL_OO_METHOD_VERSION_2,"core method: "#name,proc,NULL,NULL}}
+
+static const DeclaredClassMethod objMethods[] = {
+    DCM("<cloned>", false,	TclOO_Object_Cloned),
+    DCM("destroy", true,	TclOO_Object_Destroy),
+    DCM("eval", false,		TclOO_Object_Eval),
+    DCM("unknown", false,	TclOO_Object_Unknown),
+    DCM("variable", false,	TclOO_Object_LinkVar),
+    DCM("varname", false,	TclOO_Object_VarName),
+    {NULL, false, {0, NULL, NULL, NULL, NULL}}
+}, clsMethods[] = {
+    DCM("<cloned>", false,	TclOO_Class_Cloned),
+    DCM("create", true,		TclOO_Class_Create),
+    DCM("new", true,		TclOO_Class_New),
+    DCM("createWithNamespace", false, TclOO_Class_CreateNs),
+    {NULL, false, {0, NULL, NULL, NULL, NULL}}
+}, cfgMethods[] = {
+    DCM("configure", true,	TclOO_Configurable_Configure),
+    {NULL, false, {0, NULL, NULL, NULL, NULL}}
+}, singletonMethods[] = {
+    DCM("new", true,		TclOO_Singleton_New),
+    {NULL, false, {0, NULL, NULL, NULL, NULL}}
+}, singletonInstanceMethods[] = {
+    DCM("<cloned>", false,	TclOO_SingletonInstance_Cloned),
+    DCM("destroy", true,	TclOO_SingletonInstance_Destroy),
+    {NULL, false, {0, NULL, NULL, NULL, NULL}}
+};
+
+/*
+ * And for the oo::class constructor...
+ */
+
+static const Tcl_MethodType2 classConstructor = {
+    TCL_OO_METHOD_VERSION_2,
+    "oo::class constructor",
+    TclOO_Class_Constructor, NULL, NULL
+};
+
+/*
+ * And the oo::configurable constructor...
+ */
+
+static const Tcl_MethodType2 configurableConstructor = {
+    TCL_OO_METHOD_VERSION_2,
+    "oo::configurable constructor",
+    TclOO_Configurable_Constructor, NULL, NULL
+};
+

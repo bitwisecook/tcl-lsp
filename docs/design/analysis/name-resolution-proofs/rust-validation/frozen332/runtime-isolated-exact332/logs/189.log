@@ -1,0 +1,16 @@
+
+running 1 test
+test expr::native_values::tests::authored_f5_getter_first_host_stops_before_later_operand_and_result ... 
+thread 'expr::native_values::tests::authored_f5_getter_first_host_stops_before_later_operand_and_result' (1217533) panicked at src/expr/native_values.rs:394:9:
+assertion failed: matches!(&first, NativeExecutionError::HostCommandRefusal(first) if
+    first.reason == "first original expression value updater")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::native_values::tests::authored_f5_getter_first_host_stops_before_later_operand_and_result
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.13s
+

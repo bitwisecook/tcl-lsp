@@ -1,0 +1,25 @@
+{
+  "packet": "OriginalCountedSourceFilenameExtent648",
+  "status": "READY exact request/source-input only; unrun",
+  "qid": "naming.source.original-counted-filename-filesystem-extent",
+  "files": [
+    {
+      "path": "cases.json",
+      "sha256": "1b97fba22bfadae47b63433a41b8a46610d872bd3fed4276d4165a64229e44ab"
+    },
+    {
+      "path": "probe.c",
+      "sha256": "b1d303979d1cb26b37606f275403cb9a875cede5b326030fbfc3376bdf427de3"
+    },
+    {
+      "path": "request.json",
+      "sha256": "60e5b2dca4ad0e992c6a496ea2d2fb79188c2ea27b8ae37c3af9fe420eed969a"
+    }
+  ],
+  "predecessor_public_constructor_probe": "/tmp/sourceperf-encoding-source-request643/probe.c",
+  "predecessor_sha256": "7f7c2c4bc91f2305ff5ad12036a44a078fbcdf6acbf40968a559b5c0ae2e8f39",
+  "processes_requested": 6,
+  "fresh_interpreters_each": 6,
+  "observations": 0,
+  "limits": "No compile/Native/Rust assertion/provider observation or LIVE edit."
+}

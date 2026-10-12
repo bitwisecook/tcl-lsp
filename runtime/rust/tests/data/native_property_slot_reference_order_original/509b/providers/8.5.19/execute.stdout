@@ -1,0 +1,5 @@
+VERSION	status=0	hex=382e352e3139202f776f726b73706163652f74636c2d6c73702f746d702f74636c382e352e31392f6c696272617279
+BUILD	HEADER=8.5.19	GetVersion=8.5.19/2
+ABI	int=4	long=8	ptr=8	CHAR_BIT=8
+AVAILABILITY	status=0	hex=7b7d207b7d207b7d207b7d
+UNAVAILABLE	worker=C91-original-property-storage	reason=not-in-this-initialized-core-SDK

@@ -1,0 +1,19 @@
+{
+  "ordinal": 222,
+  "selector": "interp::native_body_artifact::native_compiler_pass::tests::compiler_pass_environment_uses_actual_parent_limits_and_command_owner",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_body_artifact::native_compiler_pass::tests::compiler_pass_environment_uses_actual_parent_limits_and_command_owner",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 4.653667550010141,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.60s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/222.log",
+  "log_sha256": "4e5dbf1f139a6e1515825b12cebf25c593198d66123fc71819e880809912190e"
+}

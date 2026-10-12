@@ -1,0 +1,19 @@
+{
+  "ordinal": 220,
+  "selector": "interp::command_publication_tests::original_proc_replacement_checks_retirement_and_holder_before_incoming_adoption",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::command_publication_tests::original_proc_replacement_checks_retirement_and_holder_before_incoming_adoption",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 11.183642226009397,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 11.12s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/220.log",
+  "log_sha256": "7517cdc730edd9efaf14c905674875ed016192c489647921bcfa11f0f8aebd23"
+}

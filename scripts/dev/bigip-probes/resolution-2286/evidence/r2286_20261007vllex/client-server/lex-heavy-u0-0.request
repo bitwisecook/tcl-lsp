@@ -1,0 +1,5 @@
+GET /r2286-backend-pass HTTP/1.1
+Host: 192.168.9.24:18860
+X-R2286-Request: lexical-43100-0
+Connection: keep-alive
+

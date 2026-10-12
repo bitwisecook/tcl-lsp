@@ -1,0 +1,10 @@
+
+running 5 tests
+test inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments ... ok
+test inlay_hints::original_hint_tests::original_builtin_alias_and_expansion_hints_keep_effective_slots_and_original_extents ... ok
+test inlay_hints::original_hint_tests::original_builtin_hints_use_retained_descriptor_and_do_not_borrow_shadowed_prototype ... ok
+test inlay_hints::original_hint_tests::original_format_alias_expansion_and_escape_hints_use_the_template_producer ... ok
+test inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 2623 filtered out; finished in 6.60s
+

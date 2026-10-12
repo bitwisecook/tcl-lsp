@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::tests::original_publication_holder_preserves_retained_dying_and_permanent_root_tokens ... 
+thread 'interp::tests::original_publication_holder_preserves_retained_dying_and_permanent_root_tokens' (1218249) panicked at src/interp.rs:16650:13:
+assertion failed: interpreter.namespaces().command_in(GLOBAL, b"root").is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::original_publication_holder_preserves_retained_dying_and_permanent_root_tokens
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.51s
+

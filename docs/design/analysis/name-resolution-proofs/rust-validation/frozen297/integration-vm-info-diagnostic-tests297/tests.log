@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... 
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (1031114) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:23:5:
+assertion `left == right` failed: jim: absolute-existing: primary before getter
+  left: "none"
+ right: "string"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 762 filtered out; finished in 42.36s
+

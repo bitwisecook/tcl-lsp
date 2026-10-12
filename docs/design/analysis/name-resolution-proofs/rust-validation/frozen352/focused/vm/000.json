@@ -1,0 +1,22 @@
+{
+  "ordinal": 0,
+  "selector": "cmd_coro::original_operand_tests::coroutine_original_name_lookup_keeps_missing_and_unavailable_distinct",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "cmd_coro::original_operand_tests::coroutine_original_name_lookup_keeps_missing_and_unavailable_distinct",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 2.634981314011384,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.60s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/000.log",
+  "log_sha256": "0f075a47e72253543816a6bc0e0c4d0e6a289eed536e4fb25a5d14061526e7fc"
+}

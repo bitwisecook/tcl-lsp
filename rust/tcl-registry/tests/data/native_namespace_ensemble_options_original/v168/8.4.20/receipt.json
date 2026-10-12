@@ -1,0 +1,43 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/current-native-nested-options168/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.006266228010645136,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "100350b2abac0e5935718ea2bfa41d82c1a25ff6ca26546bb03205520f36a3ce",
+  "runner_sha256": "510b371b025dce9994d60b79c3760804d3b65cd8e9c7a36e1e20d0f431f3e886",
+  "stdout_sha256": "508b8c2617364c4d302b35f23a4e2d6ba6f8e2fe2d579014d9f58770693a3c42",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "version 8.4.20",
+    "observation capability status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation create-bare status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation invoke-bare-created status 1 result {invalid command name \"::r2286_nestedBare\"} errorCode NONE",
+    "observation create-immediate-option status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation create-dash-command-map status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation configure-command-name-map-data status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation configure-unqualified-map-data status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation configure-command-name-namespace-data status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation configure-option-after-command status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation configure-invalid-option-after-command status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation exists-dash-map-is-command-name status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation exists-dash-namespace-is-command-name status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation exists-does-not-scan-options status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE",
+    "observation create-rejects-configure-only-option status 1 result {bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE"
+  ],
+  "input_channel": "ASCII LF source-file CLI; namespace ensemble nested option positions",
+  "boundary": "Question: where do namespace ensemble create/configure/exists options begin, and are dash-named required command arguments data? All operations independently caught, including bare create and invoking its exported ensemble; no support inferred from a different operation. No native object/cache identity or compiler admission is inferred."
+}

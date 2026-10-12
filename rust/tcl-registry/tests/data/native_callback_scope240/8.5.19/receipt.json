@@ -1,0 +1,55 @@
+{
+  "provider": "8.5.19",
+  "reported_version": "8.5.19",
+  "executions": {
+    "version": {
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/.proofs/native-callback-scope240/version.tcl"
+      ],
+      "exit": 0,
+      "seconds": 0.005029048974392936,
+      "source_sha256": "d862b04b6faf58f29eaa43c3e0eb3ba70923e29883cfa5ac6efa5e1b8ba1bf70",
+      "stdout_sha256": "17f2bb44f9906ab5b72ea0e3b821ee6c42c03e0cf567e88780e930a7fae27cd3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "version 8.5.19"
+      ]
+    },
+    "original": {
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/.proofs/native-callback-scope240/probe.tcl"
+      ],
+      "exit": 0,
+      "seconds": 0.005377643014071509,
+      "source_sha256": "4bf4df72bdc2aea99c1727d47f7e3f66986ba2664f380ba468d5de93b4491514",
+      "stdout_sha256": "5055c813a22bd7e3683501917cbd73c7f05fd87407ab4c2d30d935e679186158",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "namespace_install 0 resolution_scope_handler",
+        "namespace_create 0 {}",
+        "namespace_trigger 0 handled observed TRIGGER",
+        "package_install 0 {}",
+        "package_trigger 1 {can't find package resolution_scope_missing_package} observed GLOBAL"
+      ]
+    }
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f"
+  },
+  "channel": "Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim"
+}

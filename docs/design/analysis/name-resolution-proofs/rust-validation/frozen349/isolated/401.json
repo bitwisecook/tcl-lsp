@@ -1,0 +1,19 @@
+{
+  "ordinal": 401,
+  "selector": "interp::tests::object_dispatch_remains_poisoned_but_interpreter_is_guardable",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::object_dispatch_remains_poisoned_but_interpreter_is_guardable",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 4.506205070996657,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.49s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/401.log",
+  "log_sha256": "a54d916c71e7e71fc53f53cfd1d24fcfefc416a46d821ee4ac328f9b5597d21c"
+}

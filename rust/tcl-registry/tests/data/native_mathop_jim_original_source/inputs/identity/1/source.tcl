@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ add; add 2 3}

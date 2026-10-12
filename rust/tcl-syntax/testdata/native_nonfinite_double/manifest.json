@@ -1,0 +1,152 @@
+{
+  "source": "/workspace/.proofs/2286-native-nonfinite-double.c",
+  "source_sha256": "914402d5b7a8ca1f7c5f7ab061b7d3a2bfc24701981014070672055782c59703",
+  "engines": [
+    {
+      "version": "8.4.20",
+      "build_exit": 0,
+      "build_stderr": "",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "/workspace/.proofs/2286-native-nonfinite-double.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-nonfinite-double-8.4.20"
+      ],
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-nonfinite-double-8.4.20.tsv",
+      "stdout": "0\t6e616e\n1\t2d6e616e\n2\t696e66\n3\t2d696e66\n4\t302e30\n5\t2d302e30\n",
+      "elf_sha256": "4f6fe9c5eff7281b46df7d2e2ea071ea81fd470c8c4e9f2f8497971d91ada7ea"
+    },
+    {
+      "version": "8.5.19",
+      "build_exit": 0,
+      "build_stderr": "",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/2286-native-nonfinite-double.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-nonfinite-double-8.5.19"
+      ],
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-nonfinite-double-8.5.19.tsv",
+      "stdout": "0\t4e614e\n1\t2d4e614e\n2\t496e66\n3\t2d496e66\n4\t302e30\n5\t2d302e30\n",
+      "elf_sha256": "6beb08b111bc3e513fc68527900879ef8c04eefd5b879ea56299a986fb25baae"
+    },
+    {
+      "version": "8.6.18",
+      "build_exit": 0,
+      "build_stderr": "",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/2286-native-nonfinite-double.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-nonfinite-double-8.6.18"
+      ],
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-nonfinite-double-8.6.18.tsv",
+      "stdout": "0\t4e614e\n1\t2d4e614e\n2\t496e66\n3\t2d496e66\n4\t302e30\n5\t2d302e30\n",
+      "elf_sha256": "659166fd4283da55693403da066f9c21a4fa79bbc1e3911c25bf5ea74e6ea280"
+    },
+    {
+      "version": "9.0.4",
+      "build_exit": 0,
+      "build_stderr": "",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/2286-native-nonfinite-double.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-nonfinite-double-9.0.4"
+      ],
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-nonfinite-double-9.0.4.tsv",
+      "stdout": "0\t4e614e\n1\t2d4e614e\n2\t496e66\n3\t2d496e66\n4\t302e30\n5\t2d302e30\n",
+      "elf_sha256": "423fb65e10fa1c882e86c06e97264df9ad4202939c6d93735ba88e452abe0e23"
+    },
+    {
+      "version": "9.1.0",
+      "build_exit": 0,
+      "build_stderr": "",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/2286-native-nonfinite-double.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-nonfinite-double-9.1.0"
+      ],
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-nonfinite-double-9.1.0.tsv",
+      "stdout": "0\t4e614e\n1\t2d4e614e\n2\t496e66\n3\t2d496e66\n4\t302e30\n5\t2d302e30\n",
+      "elf_sha256": "aff131db5b837d4f8e092caacb8315fdf36c65ba8b868a33b8b4865b69d89db2"
+    },
+    {
+      "version": "jim",
+      "build_exit": 0,
+      "build_stderr": "",
+      "command": [
+        "cc",
+        "-DUSE_JIM",
+        "-I/tmp/2286-oracles/jimtcl",
+        "/workspace/.proofs/2286-native-nonfinite-double.c",
+        "/tmp/2286-oracles/jimtcl/libjim.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-nonfinite-double-jim"
+      ],
+      "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-nonfinite-double-jim.tsv",
+      "stdout": "0\t4e614e\n1\t4e614e\n2\t496e66\n3\t2d496e66\n4\t302e30\n5\t2d302e30\n",
+      "elf_sha256": "5287edc94a91e35fff6b935bd0087f2a0d9e44e51d1e340466268d2bc50c20d0"
+    }
+  ],
+  "actual_string_updaters": 36,
+  "scope": "Direct original floating bits six shape construction then lazy string update on all actual engines; no Rust comparisons."
+}

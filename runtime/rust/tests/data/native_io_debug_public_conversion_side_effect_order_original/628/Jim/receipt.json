@@ -1,0 +1,24 @@
+{
+  "provider": "Jim",
+  "argv": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/root-native-io-debug628/probe.tcl"
+  ],
+  "cwd": "/workspace/.proofs/root-native-io-debug628",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "R2286_IO_PROBE_FILE": "/workspace/.proofs/root-native-io-debug628/Jim/owned-io-probe.txt"
+  },
+  "exit": 0,
+  "seconds": 0.0075244903564453125,
+  "before_source_and_executable_pins": {
+    "/workspace/.proofs/root-native-io-debug628/probe.tcl": "f46db0596af9b10a373d08ac9444037b4931a8805a03b32a1b43a9e1f3d911dd",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+  },
+  "all_after_pins_match": true,
+  "stdout_sha256": "b2f396a1742b51845746cfcbf8f3f5b30ee79a62914c8b53248a325c88b5e4a1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "limitations": "Measures actual selected read/seek/binary/debug public-worker result/errorCode and cursor state only. No bytecode identity, Native lifetime/teardown, current Rust assertions, F5 or opaque-source inference."
+}

@@ -1,0 +1,1 @@
+Separate corrected v4 input. Rename harness-only Interp typedef to ProbeInterp to avoid collision with authentic private tclInt.h Interp. All snapshots and selected setup unchanged from v3; v3 attempted compiler error remains immutable.

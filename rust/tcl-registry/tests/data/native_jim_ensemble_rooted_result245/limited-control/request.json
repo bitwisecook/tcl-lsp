@@ -1,0 +1,63 @@
+{
+  "request_id": "naming.namespace.jim-original-scripted-ensemble-publication",
+  "question": "Which exact namespace-created command and callable target does the original loaded Jim scripted namespace ensemble publish for default, namespace -automap and literal command-prefix -automap inputs, and are create/options matched exactly?",
+  "problem": "The Jim namespace specification currently inherits C ensemble configure/exists, -map and prefix-abbreviation metadata. Actual loaded Jim source is a procedure wrapper over a scripted ensemble factory. Public positive controls must bound accepted publication and arbitrary command-prefix mapping before consumer metadata is corrected.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged original-counted driver of Native236 with fresh full Tcl_Init or Jim core/static extensions per case. Preserve exact source, counted code/result, stdout/stderr, exit and independent build/source pins. The info body capability guard is original source; C NOT_APPLICABLE is not a substitute C ensemble observation. No outer catch/eval/puts wrapper or result normalization.",
+  "cases": [
+    {
+      "id": "default-namespace-command",
+      "source_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/default-namespace-command.tcl",
+      "source_sha256": "85d8515bf46b218e9293e8d3f7c97b6050b5781c7a84fb00a89888232a697d52",
+      "source_encoding": "ASCII LF; the literal-command-prefix control intentionally names one command \"target go\" and supplies the trailing-space prefix \"target \"."
+    },
+    {
+      "id": "namespace-prefix-override",
+      "source_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/namespace-prefix-override.tcl",
+      "source_sha256": "c6d20241fdf0bfead8d648a0638f3ed1c2ba10787874c3735ed17c9ef0f43a41",
+      "source_encoding": "ASCII LF; the literal-command-prefix control intentionally names one command \"target go\" and supplies the trailing-space prefix \"target \"."
+    },
+    {
+      "id": "literal-command-prefix-override",
+      "source_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/literal-command-prefix-override.tcl",
+      "source_sha256": "8c127897c5ac9d5006d33db9957e625e46653d1b313f5e7ebcd9274488841107",
+      "source_encoding": "ASCII LF; the literal-command-prefix control intentionally names one command \"target go\" and supplies the trailing-space prefix \"target \"."
+    },
+    {
+      "id": "exact-create-and-option-selection",
+      "source_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/exact-create-and-option-selection.tcl",
+      "source_sha256": "7c10bb385d4f3c4266b4e0fd942702bb9751cb8fc771080f9cd10aa3f47c15f8",
+      "source_encoding": "ASCII LF; the literal-command-prefix control intentionally names one command \"target go\" and supplies the trailing-space prefix \"target \"."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/jim.c"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c",
+      "source_sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "copy_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/jim-namespace.c"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "copy_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/nshelper.tcl"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/ensemble.tcl",
+      "source_sha256": "9ca704e877070759aeada3c5a326a2d960ebe5184abce6428c97cec73fed32de",
+      "copy_file": "/workspace/.proofs/native-jim-ensemble-publication240-request/ensemble.tcl"
+    }
+  ],
+  "scope": "Public returned created spelling, callable command result, info args/-commands results, and exact caught unsupported selector/option errors only. This does not expose private proc/static storage, cached mapping identity, deletion/lifetime, Source carrier, compiler admission or F5 behavior."
+}

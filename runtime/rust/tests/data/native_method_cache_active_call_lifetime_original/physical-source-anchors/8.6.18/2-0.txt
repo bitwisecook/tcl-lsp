@@ -1,0 +1,59 @@
+/*
+ * Alternatives to Tcl_Preserve/Tcl_EventuallyFree/Tcl_Release.
+ */
+
+#define AddRef(ptr) ((ptr)->refCount++)
+
+/*
+ * A convenience macro for iterating through the lists used in the internal
+ * memory management of objects.
+ * REQUIRES DECLARATION: int i;
+ */
+
+#define FOREACH(var,ary) \
+    for(i=0 ; i<(ary).num; i++) if ((ary).list[i] == NULL) { \
+	continue; \
+    } else if ((var) = (ary).list[i], 1)
+
+/*
+ * Convenience macros for iterating through hash tables. FOREACH_HASH_DECLS
+ * sets up the declarations needed for the main macro, FOREACH_HASH, which
+ * does the actual iteration. FOREACH_HASH_VALUE is a restricted version that
+ * only iterates over values.
+ */
+
+#define FOREACH_HASH_DECLS \
+    Tcl_HashEntry *hPtr;Tcl_HashSearch search
+#define FOREACH_HASH(key,val,tablePtr) \
+    for(hPtr=Tcl_FirstHashEntry((tablePtr),&search); hPtr!=NULL ? \
+	    ((key)=(void *)Tcl_GetHashKey((tablePtr),hPtr),\
+	    (val)=Tcl_GetHashValue(hPtr),1):0; hPtr=Tcl_NextHashEntry(&search))
+#define FOREACH_HASH_VALUE(val,tablePtr) \
+    for(hPtr=Tcl_FirstHashEntry((tablePtr),&search); hPtr!=NULL ? \
+	    ((val)=Tcl_GetHashValue(hPtr),1):0;hPtr=Tcl_NextHashEntry(&search))
+
+/*
+ * Convenience macro for duplicating a list. Needs no external declaration,
+ * but all arguments are used multiple times and so must have no side effects.
+ */
+
+#undef DUPLICATE /* prevent possible conflict with definition in WINAPI nb30.h */
+#define DUPLICATE(target,source,type) \
+    do { \
+	size_t len = sizeof(type) * ((target).num=(source).num);\
+	if (len != 0) { \
+	    memcpy(((target).list=(type*)ckalloc(len)), (source).list, len); \
+	} else { \
+	    (target).list = NULL; \
+	} \
+    } while(0)
+
+#endif /* TCL_OO_INTERNAL_H */
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */

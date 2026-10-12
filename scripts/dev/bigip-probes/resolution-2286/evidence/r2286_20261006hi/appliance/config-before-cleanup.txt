@@ -1,0 +1,553 @@
+auth partition R2286_r2286i { }
+sys folder /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
+sys folder /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
+sys folder /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
+sys folder __tcl_lsp_probe_2286_r2286i_fa {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
+sys folder __tcl_lsp_probe_2286_r2286i_fb {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
+ltm virtual __tcl_lsp_probe_2286_r2286i_vs {
+    acmev2-challenge disabled
+    address-status yes
+    app-cloud-security-services none
+    app-service none
+    auth none
+    auto-lasthop default
+    bwc-policy none
+    clone-pools none
+    cmp-enabled yes
+    connection-limit 0
+    creation-time 1969-12-31:16:00:00
+    description none
+    destination 192.168.9.24:18087
+    enabled
+    ephemeral-auth-access-config none
+    eviction-protected disabled
+    fallback-persistence none
+    flow-eviction-policy none
+    gtm-score 0
+    ip-protocol tcp
+    last-hop-pool none
+    last-modified-time 2026-10-06:07:13:06
+    mask 255.255.255.255
+    metadata none
+    mirror disabled
+    mobile-app-tunnel disabled
+    nat64 disabled
+    parent-name none
+    partition Common
+    per-flow-request-access-policy none
+    persist none
+    policies none
+    pool __tcl_lsp_probe_2286_r2286i_pool
+    profiles {
+        http {
+            context all
+        }
+        tcp {
+            context all
+        }
+    }
+    rate-class none
+    rate-limit disabled
+    rate-limit-dst-mask 0
+    rate-limit-mode object
+    rate-limit-src-mask 0
+    related-rules none
+    rules {
+        __tcl_lsp_probe_2286_r2286i_unicode_dynamic
+    }
+    security-log-profiles none
+    serverssl-use-sni disabled
+    service-down-immediate-action none
+    service-policy none
+    source 0.0.0.0/0
+    source-address-translation {
+        pool none
+        type automap
+    }
+    source-port preserve
+    syn-cookie-status not-activated
+    traffic-classes none
+    traffic-matching-criteria none
+    translate-address enabled
+    translate-port enabled
+    transparent-nexthop none
+    urldb-feed-policy none
+    vlans none
+    vlans-disabled
+    vs-index 10
+}
+ltm virtual /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_vs {
+    acmev2-challenge disabled
+    address-status yes
+    app-cloud-security-services none
+    app-service none
+    auth none
+    auto-lasthop default
+    bwc-policy none
+    clone-pools none
+    cmp-enabled yes
+    connection-limit 0
+    creation-time 1969-12-31:16:00:00
+    description none
+    destination 192.168.9.24:18088
+    enabled
+    ephemeral-auth-access-config none
+    eviction-protected disabled
+    fallback-persistence none
+    flow-eviction-policy none
+    gtm-score 0
+    ip-protocol tcp
+    last-hop-pool none
+    last-modified-time 2026-10-06:07:13:05
+    mask 255.255.255.255
+    metadata none
+    mirror disabled
+    mobile-app-tunnel disabled
+    nat64 disabled
+    parent-name none
+    partition R2286_r2286i
+    per-flow-request-access-policy none
+    persist none
+    policies none
+    pool /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_pool
+    profiles {
+        http {
+            context all
+        }
+        tcp {
+            context all
+        }
+    }
+    rate-class none
+    rate-limit disabled
+    rate-limit-dst-mask 0
+    rate-limit-mode object
+    rate-limit-src-mask 0
+    related-rules none
+    rules {
+        /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_caller
+    }
+    security-log-profiles none
+    serverssl-use-sni disabled
+    service-down-immediate-action none
+    service-policy none
+    source 0.0.0.0/0
+    source-address-translation {
+        pool none
+        type automap
+    }
+    source-port preserve
+    syn-cookie-status not-activated
+    traffic-classes none
+    traffic-matching-criteria none
+    translate-address enabled
+    translate-port enabled
+    transparent-nexthop none
+    urldb-feed-policy none
+    vlans none
+    vlans-disabled
+    vs-index 11
+}
+ltm pool __tcl_lsp_probe_2286_r2286i_pool {
+    allow-nat yes
+    allow-snat yes
+    app-service none
+    autoscale-group-id none
+    description none
+    gateway-failsafe-device none
+    ignore-persisted-weight disabled
+    ip-tos-to-client pass-through
+    ip-tos-to-server pass-through
+    link-qos-to-client pass-through
+    link-qos-to-server pass-through
+    load-balancing-mode round-robin
+    members {
+        __tcl_lsp_probe_2286_r2286i_node:18084 {
+            address 192.168.9.80
+            app-service none
+            connection-limit 0
+            delay-timeout 0
+            description none
+            dynamic-ratio 1
+            ephemeral false
+            inherit-profile enabled
+            logging disabled
+            monitor default
+            priority-group 0
+            rate-limit disabled
+            ratio 1
+            session user-enabled
+            state unchecked
+            fqdn {
+                autopopulate disabled
+                name none
+            }
+            metadata none
+            profiles none
+        }
+    }
+    metadata none
+    min-active-members 0
+    min-up-members 0
+    min-up-members-action failover
+    min-up-members-checking disabled
+    monitor none
+    partition Common
+    profiles none
+    queue-depth-limit 0
+    queue-on-connection-limit disabled
+    queue-time-limit 0
+    reselect-tries 0
+    service-down-action none
+    slow-ramp-time 10
+}
+ltm pool /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_pool {
+    allow-nat yes
+    allow-snat yes
+    app-service none
+    autoscale-group-id none
+    description none
+    gateway-failsafe-device none
+    ignore-persisted-weight disabled
+    ip-tos-to-client pass-through
+    ip-tos-to-server pass-through
+    link-qos-to-client pass-through
+    link-qos-to-server pass-through
+    load-balancing-mode round-robin
+    members {
+        __tcl_lsp_probe_2286_r2286i_node:18084 {
+            address 192.168.9.80
+            app-service none
+            connection-limit 0
+            delay-timeout 0
+            description none
+            dynamic-ratio 1
+            ephemeral false
+            inherit-profile enabled
+            logging disabled
+            monitor default
+            priority-group 0
+            rate-limit disabled
+            ratio 1
+            session user-enabled
+            state unchecked
+            fqdn {
+                autopopulate disabled
+                name none
+            }
+            metadata none
+            profiles none
+        }
+    }
+    metadata none
+    min-active-members 0
+    min-up-members 0
+    min-up-members-action failover
+    min-up-members-checking disabled
+    monitor none
+    partition R2286_r2286i
+    profiles none
+    queue-depth-limit 0
+    queue-on-connection-limit disabled
+    queue-time-limit 0
+    reselect-tries 0
+    service-down-action none
+    slow-ramp-time 10
+}
+ltm rule __tcl_lsp_probe_2286_r2286i_rootlib {
+    app-service none
+    partition Common
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib {
+    app-service none
+    partition Common
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib {
+    app-service none
+    partition Common
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib {
+    app-service none
+    partition R2286_r2286i
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib {
+    app-service none
+    partition R2286_r2286i
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib {
+    app-service none
+    partition R2286_r2286i
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_lib {
+    app-service none
+    partition R2286_r2286i
+proc identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286i_caller {
+    app-service none
+    partition Common
+proc local_identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    foreach item [list {local local_identify} {common_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_root_absolute /Common/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_a_absolute /Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify} {common_b_absolute /Common/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib::identify} {partition_root_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {partition_a_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify} {wrong_folder /Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_missing::identify} {tcl_absolute_namespace ::__tcl_lsp_probe_2286_r2286i_rootlib::identify}] {
+        set label [lindex $item 0]
+        set target [lindex $item 1]
+        set rc [catch {call $target $label} value]
+        set which_script [list [binary format H* 6e616d657370616365] which -command $target]
+        set which_rc [catch {eval $which_script} which]
+        binary scan $value H* value_hex
+        binary scan $which H* which_hex
+        log local0. "R2286|r2286i|caller_common_root|unit=$unit|request=$request|label=$label|target=$target|rc=$rc|value_hex=$value_hex|which_rc=$which_rc|which_hex=$which_hex"
+    }
+    HTTP::header insert X-R2286-Scope "caller_common_root:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller {
+    app-service none
+    partition Common
+proc local_identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    foreach item [list {local local_identify} {same_folder_relative __tcl_lsp_probe_2286_r2286i_lib::identify} {same_folder_absolute /Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify} {common_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_root_absolute /Common/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {sibling_absolute /Common/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib::identify} {partition_a_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify}] {
+        set label [lindex $item 0]
+        set target [lindex $item 1]
+        set rc [catch {call $target $label} value]
+        set which_script [list [binary format H* 6e616d657370616365] which -command $target]
+        set which_rc [catch {eval $which_script} which]
+        binary scan $value H* value_hex
+        binary scan $which H* which_hex
+        log local0. "R2286|r2286i|caller_common_a|unit=$unit|request=$request|label=$label|target=$target|rc=$rc|value_hex=$value_hex|which_rc=$which_rc|which_hex=$which_hex"
+    }
+    HTTP::header insert X-R2286-Scope "caller_common_a:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller {
+    app-service none
+    partition R2286_r2286i
+proc local_identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    foreach item [list {local local_identify} {partition_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {partition_root_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {partition_a_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify} {common_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_root_absolute /Common/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_a_absolute /Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify}] {
+        set label [lindex $item 0]
+        set target [lindex $item 1]
+        set rc [catch {call $target $label} value]
+        set which_script [list [binary format H* 6e616d657370616365] which -command $target]
+        set which_rc [catch {eval $which_script} which]
+        binary scan $value H* value_hex
+        binary scan $which H* which_hex
+        log local0. "R2286|r2286i|caller_partition_root|unit=$unit|request=$request|label=$label|target=$target|rc=$rc|value_hex=$value_hex|which_rc=$which_rc|which_hex=$which_hex"
+    }
+    HTTP::header insert X-R2286-Scope "caller_partition_root:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller {
+    app-service none
+    partition R2286_r2286i
+proc local_identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    foreach item [list {local local_identify} {same_folder_relative __tcl_lsp_probe_2286_r2286i_lib::identify} {same_folder_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify} {partition_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {partition_root_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {sibling_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib::identify} {nested_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_lib::identify} {common_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_root_absolute /Common/__tcl_lsp_probe_2286_r2286i_rootlib::identify}] {
+        set label [lindex $item 0]
+        set target [lindex $item 1]
+        set rc [catch {call $target $label} value]
+        set which_script [list [binary format H* 6e616d657370616365] which -command $target]
+        set which_rc [catch {eval $which_script} which]
+        binary scan $value H* value_hex
+        binary scan $which H* which_hex
+        log local0. "R2286|r2286i|caller_partition_a|unit=$unit|request=$request|label=$label|target=$target|rc=$rc|value_hex=$value_hex|which_rc=$which_rc|which_hex=$which_hex"
+    }
+    HTTP::header insert X-R2286-Scope "caller_partition_a:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+ltm rule /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_caller {
+    app-service none
+    partition R2286_r2286i
+proc local_identify {expected} {
+    set command [binary format H* 6e616d6573706163652063757272656e74]
+    set current [eval $command]
+    return [list $expected $current [info level 0]]
+}
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    foreach item [list {local local_identify} {same_folder_relative __tcl_lsp_probe_2286_r2286i_lib::identify} {same_folder_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_lib::identify} {parent_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib::identify} {partition_root_relative __tcl_lsp_probe_2286_r2286i_rootlib::identify} {partition_root_absolute /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib::identify} {common_root_absolute /Common/__tcl_lsp_probe_2286_r2286i_rootlib::identify}] {
+        set label [lindex $item 0]
+        set target [lindex $item 1]
+        set rc [catch {call $target $label} value]
+        set which_script [list [binary format H* 6e616d657370616365] which -command $target]
+        set which_rc [catch {eval $which_script} which]
+        binary scan $value H* value_hex
+        binary scan $which H* which_hex
+        log local0. "R2286|r2286i|caller_partition_nested|unit=$unit|request=$request|label=$label|target=$target|rc=$rc|value_hex=$value_hex|which_rc=$which_rc|which_hex=$which_hex"
+    }
+    HTTP::header insert X-R2286-Scope "caller_partition_nested:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_precomposed) was not found.
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_decomposed) was not found.
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright) was not found.
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_snowman) was not found.
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_heart) was not found.
+ltm rule __tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_grinning {
+    app-service none
+    partition Common
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    set value "😀"
+    binary scan $value H* value_hex
+    log local0. "R2286|r2286i|unicode_literal_emoji_grinning|unit=$unit|request=$request|value=$value|value_hex=$value_hex|chars=[string length $value]"
+    HTTP::header insert X-R2286-Scope "unicode_literal_emoji_grinning:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_text_vs) was not found.
+ltm rule __tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_skin_tone {
+    app-service none
+    partition Common
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    set value "👍🏽"
+    binary scan $value H* value_hex
+    log local0. "R2286|r2286i|unicode_literal_emoji_skin_tone|unit=$unit|request=$request|value=$value|value_hex=$value_hex|chars=[string length $value]"
+    HTTP::header insert X-R2286-Scope "unicode_literal_emoji_skin_tone:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_zwj) was not found.
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_family) was not found.
+ltm rule __tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_flag {
+    app-service none
+    partition Common
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    set value "🇳🇿"
+    binary scan $value H* value_hex
+    log local0. "R2286|r2286i|unicode_literal_emoji_flag|unit=$unit|request=$request|value=$value|value_hex=$value_hex|chars=[string length $value]"
+    HTTP::header insert X-R2286-Scope "unicode_literal_emoji_flag:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_rainbow_flag) was not found.
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_keycap) was not found.
+ltm rule __tcl_lsp_probe_2286_r2286i_unicode_dynamic {
+    app-service none
+    partition Common
+when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    foreach item [list {precomposed c3a9} {decomposed 65cc81} {bmp_copyright c2a9} {bmp_snowman e29883} {bmp_heart e29da4} {emoji_grinning f09f9880} {emoji_text_vs e29da4efb88f} {emoji_skin_tone f09f918df09f8fbd} {emoji_zwj f09f91a9f09f8fbde2808df09f92bb} {emoji_family f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6} {emoji_flag f09f87b3f09f87bf} {emoji_rainbow_flag f09f8fb3efb88fe2808df09f8c88} {emoji_keycap 31efb88fe283a3}] {
+        set label [lindex $item 0]
+        set source_hex [lindex $item 1]
+        set value [binary format H* $source_hex]
+        binary scan $value H* value_hex
+        log local0. "R2286|r2286i|unicode_dynamic|unit=$unit|request=$request|label=$label|source_hex=$source_hex|value=$value|value_hex=$value_hex|chars=[string length $value]"
+    }
+    HTTP::header insert X-R2286-Scope "unicode_dynamic:$unit"
+}
+when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}
+}

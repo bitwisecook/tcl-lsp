@@ -1,0 +1,126 @@
+{
+  "source": "/workspace/.proofs/2286-native-list-canonical3.c",
+  "source_sha256": "7f3bdf31ff42797ee3931c270ff62f9df8d6f366007a9988732f9b261267da84",
+  "engines": [
+    {
+      "version": "8.4.20",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "/workspace/.proofs/2286-native-list-canonical3.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-list-canonical3-8.4.20"
+      ],
+      "build_exit": 0,
+      "build_stderr": "",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-list-canonical3-8.4.20.tsv",
+      "stdout": "0\tbefore\tlist\t0\t-1\n0\tafter\tlist\t1\t-1\n1\tbefore\tlist\t0\t-1\n1\tafter\tlist\t0\t-1\n2\tbefore\tlist\t1\t-1\n2\tafter\tlist\t0\t-1\n3\tbefore\tlist\t1\t-1\n3\tafter\tlist\t0\t-1\n4\tbefore\tlist\t1\t-1\n4\tafter\tlist\t0\t-1\n5\tbefore\tlist\t0\t-1\n5\tafter\tlist\t1\t-1\n",
+      "elf_sha256": "79fba7ae4ed0def32f7c84702e8da894a6e7da9403c25ab7f8a2e1c86789452a"
+    },
+    {
+      "version": "8.5.19",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/2286-native-list-canonical3.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-list-canonical3-8.5.19"
+      ],
+      "build_exit": 0,
+      "build_stderr": "In file included from /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclUnixPort.h:142,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-native-list-canonical3.c:2:\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-list-canonical3-8.5.19.tsv",
+      "stdout": "0\tbefore\tlist\t0\t0\n0\tafter\tlist\t1\t1\n1\tbefore\tlist\t0\t0\n1\tafter\tlist\t0\t0\n2\tbefore\tlist\t1\t1\n2\tafter\tlist\t0\t1\n3\tbefore\tlist\t1\t1\n3\tafter\tlist\t0\t0\n4\tbefore\tlist\t1\t0\n4\tafter\tlist\t0\t0\n5\tbefore\tlist\t0\t0\n5\tafter\tlist\t1\t1\n",
+      "elf_sha256": "31448c5bb7393a070ff3fdc060c97307ea488ef8abbb3e78c300264658a96b1e"
+    },
+    {
+      "version": "8.6.18",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/2286-native-list-canonical3.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-list-canonical3-8.6.18"
+      ],
+      "build_exit": 0,
+      "build_stderr": "In file included from /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h:161,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-native-list-canonical3.c:2:\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-list-canonical3-8.6.18.tsv",
+      "stdout": "0\tbefore\tlist\t0\t0\n0\tafter\tlist\t1\t1\n1\tbefore\tlist\t0\t0\n1\tafter\tlist\t0\t0\n2\tbefore\tlist\t1\t1\n2\tafter\tlist\t0\t1\n3\tbefore\tlist\t1\t1\n3\tafter\tlist\t0\t1\n4\tbefore\tlist\t1\t0\n4\tafter\tlist\t0\t0\n5\tbefore\tlist\t0\t0\n5\tafter\tlist\t1\t1\n",
+      "elf_sha256": "e6447ff5cb7b383ada3024168f89a533a0fac5363247b17f4c6083ac3039523b"
+    },
+    {
+      "version": "9.0.4",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/2286-native-list-canonical3.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-list-canonical3-9.0.4"
+      ],
+      "build_exit": 0,
+      "build_stderr": "",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-list-canonical3-9.0.4.tsv",
+      "stdout": "0\tbefore\tlist\t0\t0\n0\tafter\tlist\t1\t1\n1\tbefore\tlist\t0\t0\n1\tafter\tlist\t0\t0\n2\tbefore\tlist\t1\t1\n2\tafter\tlist\t0\t1\n3\tbefore\tlist\t1\t1\n3\tafter\tlist\t0\t0\n4\tbefore\tlist\t1\t0\n4\tafter\tlist\t0\t0\n5\tbefore\tlist\t0\t0\n5\tafter\tlist\t1\t0\n",
+      "elf_sha256": "fa2f4df69633ca7dcd3faf072486e332294d679fc251c50cbfa8abbe31157f50"
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/2286-native-list-canonical3.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-o",
+        "/workspace/.proofs/2286-native-list-canonical3-9.1.0"
+      ],
+      "build_exit": 0,
+      "build_stderr": "",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "exit": 0,
+      "stderr": "",
+      "output": "/workspace/.proofs/2286-native-list-canonical3-9.1.0.tsv",
+      "stdout": "0\tbefore\tlist\t0\t0\n0\tafter\tlist\t1\t1\n1\tbefore\tlist\t0\t0\n1\tafter\tlist\t0\t0\n2\tbefore\tlist\t1\t1\n2\tafter\tlist\t0\t1\n3\tbefore\tlist\t1\t1\n3\tafter\tlist\t0\t0\n4\tbefore\tlist\t1\t0\n4\tafter\tlist\t0\t0\n5\tbefore\tlist\t0\t0\n5\tafter\tlist\t1\t0\n",
+      "elf_sha256": "66fcd7d773cf5bc647c823df7232ca546db3eea86668f9ebaab4aa0cd8278963"
+    }
+  ]
+}

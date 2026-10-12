@@ -1,0 +1,142 @@
+{
+  "request_sha256": "97b490fd1a7493985bcfbb4a82c2cb509ed87867cb2e8915cd1632340da93fb2",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/compiler-version.receipt.json",
+      "sha256": "9d8d2a23a3269508dc33774200351b39edb35bcf9cc4f76131428c7b952d49f5",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.4.20/compile.receipt.json",
+      "sha256": "b7a609eca68b6147ccffda61f4cb44e31b503cf8addbc364d5d81ceaaa3fba6d",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "c3c77547335c3bef2913362be0d8b35d2e5e947134e80671f85d1c3b4ac6bc95",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.4.20/execute.receipt.json",
+      "sha256": "7a8b1fef75aa614003e7c56d006e0c55a64703e80077a081b4a565b959198962",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.5.19/compile.receipt.json",
+      "sha256": "3fbdfc0e21c4bec0dfb427c21aa4e80d047451d852561e028032119fe76a0d80",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "ad75d84a9363343d0eaf0e1a069b98f3c02d0f226ebc9eaea85a5a364d8120d1",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.5.19/execute.receipt.json",
+      "sha256": "72f8c6661b3ca671d14237c1c3cea93da55e5f915887f63c2eda066784b67950",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.6.18/compile.receipt.json",
+      "sha256": "c8018fe3c8599ad47622d4414dc50410c050589482707cba3a579ef93096e3fc",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "b4d5c0023d6149fb40bd48d3803446bd1c4b67410be4fb5b914e528ed49f53b8",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/8.6.18/execute.receipt.json",
+      "sha256": "5dd1b3b80d24ab2ca6621fe42ad35d7c500f0dbbde34750b06c7c642e0bd7083",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/9.0.4/compile.receipt.json",
+      "sha256": "b5f62773fa4a911022147b9453d63099d7c64cb8b965a809fd04a98df658df6f",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "015bb90e4b2cc8f35621017d4dfd56ebaf587f601f3da11c1249d4fcec346c21",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/9.0.4/execute.receipt.json",
+      "sha256": "e3f5f90d053c6ebe6e64c4e18895fe1a8b311a6baa4fdc5133e87e2396118ed9",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/9.1.0/compile.receipt.json",
+      "sha256": "c139fe0e48eee6403ab18846cf227578c9f7cc2034c851210b0c35777f0eb11d",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "f923a887aa5b0ea7880b29ad020be36847c5b87ce40030e8ecca8c8cd2abf40d",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/9.1.0/execute.receipt.json",
+      "sha256": "3e934205bd0e2bccab03a0280a1f315b2c4d434bf799c39e9e8f0f926aceab29",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/jim/compile.receipt.json",
+      "sha256": "b8c55b033fc9e70a52c389fee5170e0e2e55f038385d8b793a8ce2da92bd9270",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/jim/dependencies.receipt.json",
+      "sha256": "f1d9c871ff63333125b4efc2a2dd52acab2562c1c33c5bbc6de433c7a178278d",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/providers/jim/execute.receipt.json",
+      "sha256": "ed9e83067a573b9477ba3ab4d8d523d9d2b14d9e3dcf8581f3288918fb582f8a",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/consumer-native-alias-key-request421b/providers",
+  "all_capture_processes_closed": true,
+  "scope": "Original process/source/link/runtime closure only; individual Guest failures and Jim unsupported observer/namespace purposes stay explicit."
+}

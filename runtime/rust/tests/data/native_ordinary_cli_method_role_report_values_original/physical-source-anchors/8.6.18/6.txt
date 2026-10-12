@@ -1,0 +1,12 @@
+     * there is a call into stereotypical object after it has finished running
+     * its destructor phase. Such things can't be cached for a long time so the
+     * epoch can be bogus. [Bug 7842f33a5c]
+     */
+
+    callPtr->flags = flags &
+	    (PUBLIC_METHOD | PRIVATE_METHOD | SPECIAL | FILTER_HANDLING);
+    if (oPtr->flags & USE_CLASS_CACHE) {
+	oPtr = (oPtr->selfCls ? oPtr->selfCls->thisPtr : NULL);
+	callPtr->flags |= USE_CLASS_CACHE;
+    }
+    if (oPtr) {

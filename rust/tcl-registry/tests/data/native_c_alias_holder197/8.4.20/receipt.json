@@ -1,0 +1,34 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-c-alias-holder197/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0064660030184313655,
+  "reported_version_row": "version 8.4.20 interp_available interp",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "94e8c02f0fb2abd9b0f56800072498c2cca8fdee026500d75b2cc58747c13498",
+  "stdout_sha256": "e3d4f64cee02c9ac12fbec2cd50a55d4587c078e0b3c572afc4fde69fc0194c5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9"
+  },
+  "rows": [
+    "version 8.4.20 interp_available interp",
+    "relative_qualified 0 q::a ::N::q::a {}",
+    "relative_calls 0 VALUE 1 {invalid command name \"::q::a\"}",
+    "unqualified 0 plain {} ::plain",
+    "explicitly_rooted 0 ::N::q::rooted ::N::q::rooted 0 ROOTED"
+  ],
+  "input_channel": "ASCII source file, LF endings, no counted NUL or Unicode; public same-interpreter alias creation and info commands/calls only",
+  "question": "Does interp alias publication in the same interpreter use the current namespace holder for an unqualified or relative-qualified alias name, or the root holder, and how do explicit root names compare?"
+}

@@ -1,0 +1,17 @@
+VERSION|0|392e302e34
+version 9.0.4
+child_command namespace 1
+child_command package 1
+child_command interp 1
+child_command array 1
+child_command binary 1
+child_command pack 0
+child_command unpack 0
+child_command class 0
+child_variable argv 0 ABSENT
+child_variable argc 0 ABSENT
+child_variable argv0 0 ABSENT
+child_variable jim::argv0 0 ABSENT
+child_variable jim::exe 0 ABSENT
+child_variable jim::lineedit 0 ABSENT
+ORIGINAL|0|

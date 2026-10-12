@@ -1,0 +1,262 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/fullinit-fixtures267.source-trees.tar.gz",
+  "archive_sha256": "3421e0b66c1e7ef278f56dd75b57db4177f2ecea5a8007b1405b105db7142886",
+  "archive_bytes": 188800,
+  "uncompressed_bytes": 875096,
+  "source_manifest_sha256": "b527e583c1ad9c9596892a3862f23fb00265409eb9c289d53a01dc822a1908d7",
+  "source_patch_sha256": "7d0105eaba4f7e4333963223618395c40b4cb92302a5ae814bbcb7076a0606be",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 20,
+  "members": {
+    "fullinit-fixtures267/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1994295,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1994295,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1994295,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2259045,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/base/runtime/rust/src/cmd_mathop.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.199793,
+      "size": 12421,
+      "sha256": "940da371902ec7c5917b201cb7b10df8c86847e6291ea2eff03155af6107ddf4"
+    },
+    "fullinit-fixtures267/base/runtime/rust/src/cmd_namespace": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2259045,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/base/runtime/rust/src/cmd_namespace/native_holder_routing.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2260892,
+      "size": 15122,
+      "sha256": "57131a47db876856360f9b2687e4af9974f13e79d2a3004ba279b39032c5ae92"
+    },
+    "fullinit-fixtures267/base/runtime/rust/src/cmd_oo": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2253385,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/base/runtime/rust/src/cmd_oo/native_original_holder_tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2255175,
+      "size": 11846,
+      "sha256": "04b71f7e5e674d70d600d706962e5e1a1845f3c3f981db997e9414b763df846c"
+    },
+    "fullinit-fixtures267/base/runtime/rust/src/cmd_oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2032514,
+      "size": 397760,
+      "sha256": "c30ffc74a623a7b2f14b7a14577ceb85832342d446fc259433c248beec32042d"
+    },
+    "fullinit-fixtures267/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1970108,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1970108,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1970108,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2255175,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src/cmd_mathop.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.1994295,
+      "size": 12737,
+      "sha256": "a9a8ac35c74555cdd6e01577d1a005de5bcc356861a9039bcd9ee70249c58be7"
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src/cmd_namespace": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2255175,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src/cmd_namespace/native_holder_routing.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2259045,
+      "size": 15280,
+      "sha256": "02942d682bebaf2f454d191872d5a79e39b2e26667ed1b0b6e538e13c3109443"
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src/cmd_oo": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2210104,
+      "size": 0,
+      "sha256": null
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src/cmd_oo/native_original_holder_tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2253385,
+      "size": 12004,
+      "sha256": "a7408db6e63875f16f1c98e7035c72c0c0deaea8718f3a7e4e0cb9dd764193e1"
+    },
+    "fullinit-fixtures267/candidate/runtime/rust/src/cmd_oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791614360.2019832,
+      "size": 397926,
+      "sha256": "d99c561c5bbf65557d0289d26ba1c89bdbece29b21de875c178e51aeeb21a8ae"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/cmd_mathop.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "a9a8ac35c74555cdd6e01577d1a005de5bcc356861a9039bcd9ee70249c58be7",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_mathop.rs",
+      "hash_key": "base_sha256",
+      "sha256": "940da371902ec7c5917b201cb7b10df8c86847e6291ea2eff03155af6107ddf4",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "d99c561c5bbf65557d0289d26ba1c89bdbece29b21de875c178e51aeeb21a8ae",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "hash_key": "base_sha256",
+      "sha256": "c30ffc74a623a7b2f14b7a14577ceb85832342d446fc259433c248beec32042d",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/native_original_holder_tests.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "a7408db6e63875f16f1c98e7035c72c0c0deaea8718f3a7e4e0cb9dd764193e1",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/native_original_holder_tests.rs",
+      "hash_key": "base_sha256",
+      "sha256": "04b71f7e5e674d70d600d706962e5e1a1845f3c3f981db997e9414b763df846c",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "02942d682bebaf2f454d191872d5a79e39b2e26667ed1b0b6e538e13c3109443",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/cmd_namespace/native_holder_routing.rs",
+      "hash_key": "base_sha256",
+      "sha256": "57131a47db876856360f9b2687e4af9974f13e79d2a3004ba279b39032c5ae92",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

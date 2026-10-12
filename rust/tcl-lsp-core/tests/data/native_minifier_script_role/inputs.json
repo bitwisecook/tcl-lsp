@@ -1,0 +1,13 @@
+{
+  "purpose": "Distinguish directly dispatched versus compiled handler selection after argument substitution mutates the source head; candidate changes body separators only and is not claimed as actual minifier output.",
+  "cases": [
+    {
+      "id": "ORIGINAL",
+      "source": "if [eval {rename if saved; proc if {condition body} {set ::custom_ran CUSTOM; set ::custom_body $body; return $body}; list 1}] {  set ::builtin_ran BUILTIN  ; list {  VALUE  }  }"
+    },
+    {
+      "id": "BODY_SEPARATOR_CANDIDATE",
+      "source": "if [eval {rename if saved; proc if {condition body} {set ::custom_ran CUSTOM; set ::custom_body $body; return $body}; list 1}] {set ::builtin_ran BUILTIN;list {  VALUE  }}"
+    }
+  ]
+}

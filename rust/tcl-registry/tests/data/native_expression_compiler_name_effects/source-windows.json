@@ -1,0 +1,290 @@
+[
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompExpr.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c",
+    "function": "CompileExprTree:FUNCTION",
+    "lines": [
+      2196,
+      2221
+    ],
+    "source_sha256": "0a6d97e0800151eeb85e60635c9862ac111022a56d8535d38d8d2fd34fd779f5",
+    "snippet": "\t    case FUNCTION: {\n\t\tTcl_DString cmdName;\n\t\tconst char *p;\n\t\tint length;\n\n\t\tTcl_DStringInit(&cmdName);\n\t\tTcl_DStringAppend(&cmdName, \"tcl::mathfunc::\", -1);\n\t\tp = TclGetStringFromObj(*funcObjv, &length);\n\t\tfuncObjv++;\n\t\tTcl_DStringAppend(&cmdName, p, length);\n\t\tTclEmitPush(TclRegisterNewNSLiteral(envPtr,\n\t\t\tTcl_DStringValue(&cmdName),\n\t\t\tTcl_DStringLength(&cmdName)), envPtr);\n\t\tTcl_DStringFree(&cmdName);\n\n\t\t/*\n\t\t * Start a count of the number of words in this function\n\t\t * command invocation.  In case there's already a count\n\t\t * in progress (nested functions), save it in our unused\n\t\t * \"left\" field for restoring later.\n\t\t */\n\n\t\tnodePtr->left = numWords;\n\t\tnumWords = 2;\t/* Command plus one argument */\n\t\tbreak;\n\t    }\n",
+    "snippet_sha256": "a0db87fa298968aa1d6d909087509ffc6911971328e64f1231e06025d3a76c2e",
+    "evidence": "tcl8.5-0"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c",
+    "function": "TclCreateLiteral",
+    "lines": [
+      175,
+      301
+    ],
+    "source_sha256": "2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e",
+    "snippet": "TclCreateLiteral(\n    Interp *iPtr,\n    char *bytes,\n    int length,\n    unsigned int hash,       /* The string's hash. If -1, it will be computed here */\n    int *newPtr,\n    Namespace *nsPtr,\n    int flags,\n    LiteralEntry **globalPtrPtr)\n{\n    LiteralTable *globalTablePtr = &(iPtr->literalTable);\n    LiteralEntry *globalPtr;\n    int globalHash;\n    Tcl_Obj *objPtr;\n\n    /*\n     * Is it in the interpreter's global literal table?\n     */\n\n    if (hash == (unsigned int) -1) {\n\thash = HashString(bytes, length);\n    }\n    globalHash = (hash & globalTablePtr->mask);\n    for (globalPtr=globalTablePtr->buckets[globalHash] ; globalPtr!=NULL;\n\t    globalPtr = globalPtr->nextPtr) {\n\tobjPtr = globalPtr->objPtr;\n\tif ((globalPtr->nsPtr == nsPtr)\n\t\t&& (objPtr->length == length) && ((length == 0)\n\t\t|| ((objPtr->bytes[0] == bytes[0])\n\t\t&& (memcmp(objPtr->bytes, bytes, (unsigned) length) == 0)))) {\n\t    /*\n\t     * A literal was found: return it\n\t     */\n\n\t    if (newPtr) {\n\t\t*newPtr = 0;\n\t    }\n\t    if (globalPtrPtr) {\n\t\t*globalPtrPtr = globalPtr;\n\t    }\n\t    if (flags & LITERAL_ON_HEAP) {\n\t\tckfree(bytes);\n\t    }\n\t    globalPtr->refCount++;\n\t    return objPtr;\n\t}\n    }\n    if (!newPtr) {\n\tif (flags & LITERAL_ON_HEAP) {\n\t    ckfree(bytes);\n\t}\n\treturn NULL;\n    }\n\n    /*\n     * The literal is new to the interpreter. Add it to the global literal\n     * table.\n     */\n\n    TclNewObj(objPtr);\n    Tcl_IncrRefCount(objPtr);\n    if (flags & LITERAL_ON_HEAP) {\n\tobjPtr->bytes = bytes;\n\tobjPtr->length = length;\n    } else {\n\tTclInitStringRep(objPtr, bytes, length);\n    }\n\n#ifdef TCL_COMPILE_DEBUG\n    if (LookupLiteralEntry((Tcl_Interp *) iPtr, objPtr) != NULL) {\n\tTcl_Panic(\"TclRegisterLiteral: literal \\\"%.*s\\\" found globally but shouldn't be\",\n\t\t(length>60? 60 : length), bytes);\n    }\n#endif\n\n    globalPtr = (LiteralEntry *) ckalloc((unsigned) sizeof(LiteralEntry));\n    globalPtr->objPtr = objPtr;\n    globalPtr->refCount = 1;\n    globalPtr->nsPtr = nsPtr;\n    globalPtr->nextPtr = globalTablePtr->buckets[globalHash];\n    globalTablePtr->buckets[globalHash] = globalPtr;\n    globalTablePtr->numEntries++;\n\n    /*\n     * If the global literal table has exceeded a decent size, rebuild it with\n     * more buckets.\n     */\n\n    if (globalTablePtr->numEntries >= globalTablePtr->rebuildSize) {\n\tRebuildLiteralTable(globalTablePtr);\n    }\n\n#ifdef TCL_COMPILE_DEBUG\n    TclVerifyGlobalLiteralTable(iPtr);\n    {\n\tLiteralEntry *entryPtr;\n\tint found, i;\n\n\tfound = 0;\n\tfor (i=0 ; i<globalTablePtr->numBuckets ; i++) {\n\t    for (entryPtr=globalTablePtr->buckets[i]; entryPtr!=NULL ;\n\t\t    entryPtr=entryPtr->nextPtr) {\n\t\tif ((entryPtr == globalPtr) && (entryPtr->objPtr == objPtr)) {\n\t\t    found = 1;\n\t\t}\n\t    }\n\t}\n\tif (!found) {\n\t    Tcl_Panic(\"TclRegisterLiteral: literal \\\"%.*s\\\" wasn't global\",\n\t\t    (length>60? 60 : length), bytes);\n\t}\n    }\n#endif /*TCL_COMPILE_DEBUG*/\n\n#ifdef TCL_COMPILE_STATS\n    iPtr->stats.numLiteralsCreated++;\n    iPtr->stats.totalLitStringBytes += (double) (length + 1);\n    iPtr->stats.currentLitStringBytes += (double) (length + 1);\n    iPtr->stats.literalCount[TclLog2(length)]++;\n#endif /*TCL_COMPILE_STATS*/\n\n    if (globalPtrPtr) {\n\t*globalPtrPtr = globalPtr;\n    }\n    *newPtr = 1;\n    return objPtr;\n}\n",
+    "snippet_sha256": "4cb452093af4d4859c325007e4bd18abba321666355e23a5ede708b72ae06193",
+    "evidence": "tcl8.5-1"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c",
+    "function": "TclRegisterLiteral",
+    "lines": [
+      331,
+      412
+    ],
+    "source_sha256": "2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e",
+    "snippet": "TclRegisterLiteral(\n    CompileEnv *envPtr,\t\t/* Points to the CompileEnv in whose object\n\t\t\t\t * array an object is found or created. */\n    register char *bytes,\t/* Points to string for which to find or\n\t\t\t\t * create an object in CompileEnv's object\n\t\t\t\t * array. */\n    int length,\t\t\t/* Number of bytes in the string. If < 0, the\n\t\t\t\t * string consists of all bytes up to the\n\t\t\t\t * first null character. */\n    int flags)\t\t\t/* If LITERAL_ON_HEAP then the caller already\n\t\t\t\t * malloc'd bytes and ownership is passed to\n\t\t\t\t * this function. If LITERAL_NS_SCOPE then\n\t\t\t\t * the literal shouldnot be shared accross\n\t\t\t\t * namespaces. */\n{\n    Interp *iPtr = envPtr->iPtr;\n    LiteralTable *localTablePtr = &(envPtr->localLitTable);\n    LiteralEntry *globalPtr, *localPtr;\n    Tcl_Obj *objPtr;\n    unsigned int hash;\n    int localHash, objIndex, new;\n    Namespace *nsPtr;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    hash = HashString(bytes, length);\n\n    /*\n     * Is the literal already in the CompileEnv's local literal array? If so,\n     * just return its index.\n     */\n\n    localHash = (hash & localTablePtr->mask);\n    for (localPtr=localTablePtr->buckets[localHash] ; localPtr!=NULL;\n\t    localPtr = localPtr->nextPtr) {\n\tobjPtr = localPtr->objPtr;\n\tif ((objPtr->length == length) && ((length == 0)\n\t\t|| ((objPtr->bytes[0] == bytes[0])\n\t\t&& (memcmp(objPtr->bytes, bytes, (unsigned) length) == 0)))) {\n\t    if (flags & LITERAL_ON_HEAP) {\n\t\tckfree(bytes);\n\t    }\n\t    objIndex = (localPtr - envPtr->literalArrayPtr);\n#ifdef TCL_COMPILE_DEBUG\n\t    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n\n\t    return objIndex;\n\t}\n    }\n\n    /*\n     * The literal is new to this CompileEnv. Should it be shared accross\n     * namespaces? If it is a fully qualified name, the namespace\n     * specification is not needed to avoid sharing.\n     */\n\n    if ((flags & LITERAL_NS_SCOPE) && iPtr->varFramePtr\n\t    && ((length <2) || (bytes[0] != ':') || (bytes[1] != ':'))) {\n\tnsPtr = iPtr->varFramePtr->nsPtr;\n    } else {\n\tnsPtr = NULL;\n    }\n\n    /*\n     * Is it in the interpreter's global literal table? If not, create it.\n     */\n\n    objPtr = TclCreateLiteral(iPtr, bytes, length, hash, &new, nsPtr,\n\t    flags, &globalPtr);\n    objIndex = AddLocalLiteralEntry(envPtr, objPtr, localHash);\n\n#ifdef TCL_COMPILE_DEBUG\n    if (globalPtr->refCount < 1) {\n\tTcl_Panic(\"TclRegisterLiteral: global literal \\\"%.*s\\\" had bad refCount %d\",\n\t\t(length>60? 60 : length), bytes, globalPtr->refCount);\n    }\n    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n    return objIndex;\n}\n",
+    "snippet_sha256": "1b97d577023d42a29882901e03421b397ee48db4e71b546c40cf1831124f0169",
+    "evidence": "tcl8.5-2"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c",
+    "function": "TclReleaseLiteral",
+    "lines": [
+      750,
+      807
+    ],
+    "source_sha256": "2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e",
+    "snippet": "TclReleaseLiteral(\n    Tcl_Interp *interp,\t\t/* Interpreter for which objPtr was created to\n\t\t\t\t * hold a literal. */\n    register Tcl_Obj *objPtr)\t/* Points to a literal object that was\n\t\t\t\t * previously created by a call to\n\t\t\t\t * TclRegisterLiteral. */\n{\n    Interp *iPtr = (Interp *) interp;\n    LiteralTable *globalTablePtr = &(iPtr->literalTable);\n    register LiteralEntry *entryPtr, *prevPtr;\n    char *bytes;\n    int length, index;\n\n    bytes = TclGetStringFromObj(objPtr, &length);\n    index = (HashString(bytes, length) & globalTablePtr->mask);\n\n    /*\n     * Check to see if the object is in the global literal table and remove\n     * this reference. The object may not be in the table if it is a hidden\n     * local literal.\n     */\n\n    for (prevPtr=NULL, entryPtr=globalTablePtr->buckets[index];\n\t    entryPtr!=NULL ; prevPtr=entryPtr, entryPtr=entryPtr->nextPtr) {\n\tif (entryPtr->objPtr == objPtr) {\n\t    entryPtr->refCount--;\n\n\t    /*\n\t     * If the literal is no longer being used by any ByteCode, delete\n\t     * the entry then remove the reference corresponding to the global\n\t     * literal table entry (decrement the ref count of the object).\n\t     */\n\n\t    if (entryPtr->refCount == 0) {\n\t\tif (prevPtr == NULL) {\n\t\t    globalTablePtr->buckets[index] = entryPtr->nextPtr;\n\t\t} else {\n\t\t    prevPtr->nextPtr = entryPtr->nextPtr;\n\t\t}\n\t\tckfree((char *) entryPtr);\n\t\tglobalTablePtr->numEntries--;\n\n\t\tTclDecrRefCount(objPtr);\n\n#ifdef TCL_COMPILE_STATS\n\t\tiPtr->stats.currentLitStringBytes -= (double) (length + 1);\n#endif /*TCL_COMPILE_STATS*/\n\t    }\n\t    break;\n\t}\n    }\n\n    /*\n     * Remove the reference corresponding to the local literal table entry.\n     */\n\n    Tcl_DecrRefCount(objPtr);\n}\n",
+    "snippet_sha256": "9b155882898c4a283bb0ba4569cd1a71a152452ce8ab019f27a1debc4a4050e7",
+    "evidence": "tcl8.5-3"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "revision": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h",
+    "function": "TclRegisterNewNSLiteral",
+    "lines": [
+      989,
+      991
+    ],
+    "source_sha256": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+    "snippet": "#define TclRegisterNewNSLiteral(envPtr, bytes, length) \\\n\tTclRegisterLiteral(envPtr, (char *)(bytes), length, \\\n\t\t/*flags*/ LITERAL_NS_SCOPE)\n",
+    "snippet_sha256": "1a038b8f52cbc217d23e8a32883fe71f52e6c37c966bb97ce16d138b1b7dddb3",
+    "evidence": "tcl8.5-4"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompExpr.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c",
+    "function": "CompileExprTree:FUNCTION",
+    "lines": [
+      2270,
+      2295
+    ],
+    "source_sha256": "970b54cc3b24299ff47e64ec6dccc14fdbffd6fdc9f0904170c2071bfd3f8ca0",
+    "snippet": "\t    case FUNCTION: {\n\t\tTcl_DString cmdName;\n\t\tconst char *p;\n\t\tint length;\n\n\t\tTcl_DStringInit(&cmdName);\n\t\tTclDStringAppendLiteral(&cmdName, \"tcl::mathfunc::\");\n\t\tp = TclGetStringFromObj(*funcObjv, &length);\n\t\tfuncObjv++;\n\t\tTcl_DStringAppend(&cmdName, p, length);\n\t\tTclEmitPush(TclRegisterNewCmdLiteral(envPtr,\n\t\t\tTcl_DStringValue(&cmdName),\n\t\t\tTcl_DStringLength(&cmdName)), envPtr);\n\t\tTcl_DStringFree(&cmdName);\n\n\t\t/*\n\t\t * Start a count of the number of words in this function\n\t\t * command invocation. In case there's already a count in\n\t\t * progress (nested functions), save it in our unused \"left\"\n\t\t * field for restoring later.\n\t\t */\n\n\t\tnodePtr->left = numWords;\n\t\tnumWords = 2;\t/* Command plus one argument */\n\t\tbreak;\n\t    }\n",
+    "snippet_sha256": "e23d9038b9dd059de9f5f253a39b4f30bc66200756b7aa53cc5b49593cf424e2",
+    "evidence": "tcl8.6-0"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c",
+    "function": "TclCreateLiteral",
+    "lines": [
+      175,
+      324
+    ],
+    "source_sha256": "6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005",
+    "snippet": "TclCreateLiteral(\n    Interp *iPtr,\n    char *bytes,\t\t/* The start of the string. Note that this is\n\t\t\t\t * not a NUL-terminated string. */\n    int length,\t\t\t/* Number of bytes in the string. */\n    unsigned hash,\t\t/* The string's hash. If -1, it will be\n\t\t\t\t * computed here. */\n    int *newPtr,\n    Namespace *nsPtr,\n    int flags,\n    LiteralEntry **globalPtrPtr)\n{\n    LiteralTable *globalTablePtr = &iPtr->literalTable;\n    LiteralEntry *globalPtr;\n    int globalHash;\n    Tcl_Obj *objPtr;\n\n    /*\n     * Is it in the interpreter's global literal table?\n     */\n\n    if (hash == (unsigned) -1) {\n\thash = HashString(bytes, length);\n    }\n    globalHash = (hash & globalTablePtr->mask);\n    for (globalPtr=globalTablePtr->buckets[globalHash] ; globalPtr!=NULL;\n\t    globalPtr = globalPtr->nextPtr) {\n\tobjPtr = globalPtr->objPtr;\n\tif (globalPtr->nsPtr == nsPtr) {\n\t    /*\n\t     * Literals should always have UTF-8 representations... but this\n\t     * is not guaranteed so we need to be careful anyway.\n\t     *\n\t     * https://stackoverflow.com/q/54337750/301832\n\t     */\n\n\t    int objLength;\n\t    char *objBytes = TclGetStringFromObj(objPtr, &objLength);\n\n\t    if ((objLength == length) && ((length == 0)\n\t\t    || ((objBytes[0] == bytes[0])\n\t\t    && (memcmp(objBytes, bytes, length) == 0)))) {\n\t\t/*\n\t\t * A literal was found: return it\n\t\t */\n\n\t\tif (newPtr) {\n\t\t    *newPtr = 0;\n\t\t}\n\t\tif (globalPtrPtr) {\n\t\t    *globalPtrPtr = globalPtr;\n\t\t}\n\t\tif (flags & LITERAL_ON_HEAP) {\n\t\t    ckfree(bytes);\n\t\t}\n\t\tglobalPtr->refCount++;\n\t\treturn objPtr;\n\t    }\n\t}\n    }\n    if (!newPtr) {\n\tif ((flags & LITERAL_ON_HEAP)) {\n\t    ckfree(bytes);\n\t}\n\treturn NULL;\n    }\n\n    /*\n     * The literal is new to the interpreter. Add it to the global literal\n     * table.\n     */\n\n    TclNewObj(objPtr);\n    if ((flags & LITERAL_ON_HEAP)) {\n\tobjPtr->bytes = bytes;\n\tobjPtr->length = length;\n    } else {\n\tTclInitStringRep(objPtr, bytes, length);\n    }\n\n    if ((flags & LITERAL_UNSHARED)) {\n\t/*\n\t * Make clear, that no global value is returned\n\t */\n\tif (globalPtrPtr != NULL) {\n\t    *globalPtrPtr = NULL;\n\t}\n\treturn objPtr;\n    }\n\n#ifdef TCL_COMPILE_DEBUG\n    if (LookupLiteralEntry((Tcl_Interp *) iPtr, objPtr) != NULL) {\n\tTcl_Panic(\"%s: literal \\\"%.*s\\\" found globally but shouldn't be\",\n\t\t\"TclRegisterLiteral\", (length>60? 60 : length), bytes);\n    }\n#endif\n\n    globalPtr = (LiteralEntry *)ckalloc(sizeof(LiteralEntry));\n    globalPtr->objPtr = objPtr;\n    Tcl_IncrRefCount(objPtr);\n    globalPtr->refCount = 1;\n    globalPtr->nsPtr = nsPtr;\n    globalPtr->nextPtr = globalTablePtr->buckets[globalHash];\n    globalTablePtr->buckets[globalHash] = globalPtr;\n    globalTablePtr->numEntries++;\n\n    /*\n     * If the global literal table has exceeded a decent size, rebuild it with\n     * more buckets.\n     */\n\n    if (globalTablePtr->numEntries >= globalTablePtr->rebuildSize) {\n\tRebuildLiteralTable(globalTablePtr);\n    }\n\n#ifdef TCL_COMPILE_DEBUG\n    TclVerifyGlobalLiteralTable(iPtr);\n    {\n\tLiteralEntry *entryPtr;\n\tint found, i;\n\n\tfound = 0;\n\tfor (i=0 ; i<globalTablePtr->numBuckets ; i++) {\n\t    for (entryPtr=globalTablePtr->buckets[i]; entryPtr!=NULL ;\n\t\t    entryPtr=entryPtr->nextPtr) {\n\t\tif ((entryPtr == globalPtr) && (entryPtr->objPtr == objPtr)) {\n\t\t    found = 1;\n\t\t}\n\t    }\n\t}\n\tif (!found) {\n\t    Tcl_Panic(\"%s: literal \\\"%.*s\\\" wasn't global\",\n\t\t    \"TclRegisterLiteral\", (length>60? 60 : length), bytes);\n\t}\n    }\n#endif /*TCL_COMPILE_DEBUG*/\n\n#ifdef TCL_COMPILE_STATS\n    iPtr->stats.numLiteralsCreated++;\n    iPtr->stats.totalLitStringBytes += (double) (length + 1);\n    iPtr->stats.currentLitStringBytes += (double) (length + 1);\n    iPtr->stats.literalCount[TclLog2(length)]++;\n#endif /*TCL_COMPILE_STATS*/\n\n    if (globalPtrPtr) {\n\t*globalPtrPtr = globalPtr;\n    }\n    *newPtr = 1;\n    return objPtr;\n}\n",
+    "snippet_sha256": "166b508a51de07f7bb3c61e6c1b8ea374c31728cf4b6cd9ce0828ba84b8133ad",
+    "evidence": "tcl8.6-1"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c",
+    "function": "TclRegisterLiteral",
+    "lines": [
+      381,
+      469
+    ],
+    "source_sha256": "6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005",
+    "snippet": "TclRegisterLiteral(\n    void *ePtr,\t\t/* Points to the CompileEnv in whose object\n\t\t\t\t * array an object is found or created. */\n    char *bytes,\t/* Points to string for which to find or\n\t\t\t\t * create an object in CompileEnv's object\n\t\t\t\t * array. */\n    int length,\t\t\t/* Number of bytes in the string. If < 0, the\n\t\t\t\t * string consists of all bytes up to the\n\t\t\t\t * first null character. */\n    int flags)\t\t\t/* If LITERAL_ON_HEAP then the caller already\n\t\t\t\t * malloc'd bytes and ownership is passed to\n\t\t\t\t * this function. If LITERAL_CMD_NAME then\n\t\t\t\t * the literal should not be shared across\n\t\t\t\t * namespaces. */\n{\n    CompileEnv *envPtr = (CompileEnv *)ePtr;\n    Interp *iPtr = envPtr->iPtr;\n    LiteralTable *localTablePtr = &envPtr->localLitTable;\n    LiteralEntry *globalPtr, *localPtr;\n    Tcl_Obj *objPtr;\n    unsigned hash;\n    int localHash, objIndex, isNew;\n    Namespace *nsPtr;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    hash = HashString(bytes, length);\n\n    /*\n     * Is the literal already in the CompileEnv's local literal array? If so,\n     * just return its index.\n     */\n\n    localHash = (hash & localTablePtr->mask);\n    for (localPtr=localTablePtr->buckets[localHash] ; localPtr!=NULL;\n\t    localPtr = localPtr->nextPtr) {\n\tobjPtr = localPtr->objPtr;\n\tif ((objPtr->length == length) && ((length == 0)\n\t\t|| ((objPtr->bytes[0] == bytes[0])\n\t\t&& (memcmp(objPtr->bytes, bytes, length) == 0)))) {\n\t    if ((flags & LITERAL_ON_HEAP)) {\n\t\tckfree(bytes);\n\t    }\n\t    objIndex = (localPtr - envPtr->literalArrayPtr);\n#ifdef TCL_COMPILE_DEBUG\n\t    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n\n\t    return objIndex;\n\t}\n    }\n\n    /*\n     * The literal is new to this CompileEnv. If it is a command name, avoid\n     * sharing it across namespaces, and try not to share it with non-cmd\n     * literals. Note that FQ command names can be shared, so that we register\n     * the namespace as the interp's global NS.\n     */\n\n    if ((flags & LITERAL_CMD_NAME)) {\n\tif ((length >= 2) && (bytes[0] == ':') && (bytes[1] == ':')) {\n\t    nsPtr = iPtr->globalNsPtr;\n\t} else {\n\t    nsPtr = iPtr->varFramePtr->nsPtr;\n\t}\n    } else {\n\tnsPtr = NULL;\n    }\n\n    /*\n     * Is it in the interpreter's global literal table? If not, create it.\n     */\n\n    globalPtr = NULL;\n    objPtr = TclCreateLiteral(iPtr, bytes, length, hash, &isNew, nsPtr, flags,\n\t    &globalPtr);\n    objIndex = AddLocalLiteralEntry(envPtr, objPtr, localHash);\n\n#ifdef TCL_COMPILE_DEBUG\n    if (globalPtr != NULL && globalPtr->refCount < 1) {\n\tTcl_Panic(\"%s: global literal \\\"%.*s\\\" had bad refCount %d\",\n\t\t\"TclRegisterLiteral\", (length>60? 60 : length), bytes,\n\t\tglobalPtr->refCount);\n    }\n    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n    return objIndex;\n}\n",
+    "snippet_sha256": "deb6171a8a1e41bdebaa14505cd8f3170392394254f796f9c9894a4bf4d0a3fb",
+    "evidence": "tcl8.6-2"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c",
+    "function": "TclReleaseLiteral",
+    "lines": [
+      807,
+      870
+    ],
+    "source_sha256": "6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005",
+    "snippet": "TclReleaseLiteral(\n    Tcl_Interp *interp,\t\t/* Interpreter for which objPtr was created to\n\t\t\t\t * hold a literal. */\n    Tcl_Obj *objPtr)\t/* Points to a literal object that was\n\t\t\t\t * previously created by a call to\n\t\t\t\t * TclRegisterLiteral. */\n{\n    Interp *iPtr = (Interp *) interp;\n    LiteralTable *globalTablePtr;\n    LiteralEntry *entryPtr, *prevPtr;\n    const char *bytes;\n    int length, index;\n\n    if (iPtr == NULL) {\n\tgoto done;\n    }\n\n    globalTablePtr = &iPtr->literalTable;\n    bytes = TclGetStringFromObj(objPtr, &length);\n    index = (HashString(bytes, length) & globalTablePtr->mask);\n\n    /*\n     * Check to see if the object is in the global literal table and remove\n     * this reference. The object may not be in the table if it is a hidden\n     * local literal.\n     */\n\n    for (prevPtr=NULL, entryPtr=globalTablePtr->buckets[index];\n\t    entryPtr!=NULL ; prevPtr=entryPtr, entryPtr=entryPtr->nextPtr) {\n\tif (entryPtr->objPtr == objPtr) {\n\t    entryPtr->refCount--;\n\n\t    /*\n\t     * If the literal is no longer being used by any ByteCode, delete\n\t     * the entry then remove the reference corresponding to the global\n\t     * literal table entry (decrement the ref count of the object).\n\t     */\n\n\t    if (entryPtr->refCount == 0) {\n\t\tif (prevPtr == NULL) {\n\t\t    globalTablePtr->buckets[index] = entryPtr->nextPtr;\n\t\t} else {\n\t\t    prevPtr->nextPtr = entryPtr->nextPtr;\n\t\t}\n\t\tckfree(entryPtr);\n\t\tglobalTablePtr->numEntries--;\n\n\t\tTclDecrRefCount(objPtr);\n\n#ifdef TCL_COMPILE_STATS\n\t\tiPtr->stats.currentLitStringBytes -= (double) (length + 1);\n#endif /*TCL_COMPILE_STATS*/\n\t    }\n\t    break;\n\t}\n    }\n\n    /*\n     * Remove the reference corresponding to the local literal table entry.\n     */\n\n    done:\n    Tcl_DecrRefCount(objPtr);\n}\n",
+    "snippet_sha256": "cd477993b8889f88074d66d056db68635aed97913bc5753e14b03b6fde3a6135",
+    "evidence": "tcl8.6-3"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h",
+    "function": "TclRegisterNewCmdLiteral",
+    "lines": [
+      1249,
+      1250
+    ],
+    "source_sha256": "be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9",
+    "snippet": "#define TclRegisterNewCmdLiteral(envPtr, bytes, length) \\\n    TclRegisterLiteral(envPtr, (char *)(bytes), length, LITERAL_CMD_NAME)\n",
+    "snippet_sha256": "7a1708dba937757428793cea0074b8eb70f3407a0438c3ba500d37e11e214424",
+    "evidence": "tcl8.6-4"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "9.0.4",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompExpr.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c",
+    "function": "CompileExprTree:FUNCTION",
+    "lines": [
+      2335,
+      2360
+    ],
+    "source_sha256": "f82f94056112b9c76292b384ddb0f84b1d4889d1c14c4776fa0929e02767ded1",
+    "snippet": "\t    case FUNCTION: {\n\t\tTcl_DString cmdName;\n\t\tconst char *p;\n\t\tTcl_Size length;\n\n\t\tTcl_DStringInit(&cmdName);\n\t\tTclDStringAppendLiteral(&cmdName, \"tcl::mathfunc::\");\n\t\tp = TclGetStringFromObj(*funcObjv, &length);\n\t\tfuncObjv++;\n\t\tTcl_DStringAppend(&cmdName, p, length);\n\t\tTclEmitPush(TclRegisterLiteral(envPtr,\n\t\t\tTcl_DStringValue(&cmdName),\n\t\t\tTcl_DStringLength(&cmdName), LITERAL_CMD_NAME), envPtr);\n\t\tTcl_DStringFree(&cmdName);\n\n\t\t/*\n\t\t * Start a count of the number of words in this function\n\t\t * command invocation. In case there's already a count in\n\t\t * progress (nested functions), save it in our unused \"left\"\n\t\t * field for restoring later.\n\t\t */\n\n\t\tnodePtr->left = numWords;\n\t\tnumWords = 2;\t/* Command plus one argument */\n\t\tbreak;\n\t    }\n",
+    "snippet_sha256": "b9cb70ad85c90f069054956dfcc65e80d8a6649e6441a31e69c6635b50fbb6ec",
+    "evidence": "tcl9.0-0"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "9.0.4",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c",
+    "function": "TclCreateLiteral",
+    "lines": [
+      177,
+      334
+    ],
+    "source_sha256": "cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4",
+    "snippet": "TclCreateLiteral(\n    Interp *iPtr,\n    const char *bytes,\t/* The start of the string. Note that this is\n\t\t\t\t * not a NUL-terminated string. */\n    Tcl_Size length,\t/* Number of bytes in the string. */\n    size_t hash, /* The string's hash. If the value is\n\t\t\t\t\t * TCL_INDEX_NONE, it will be computed here. */\n    int *newPtr,\n    Namespace *nsPtr,\n    int flags,\n    LiteralEntry **globalPtrPtr)\n{\n    LiteralTable *globalTablePtr = &iPtr->literalTable;\n    LiteralEntry *globalPtr;\n    size_t globalHash;\n    Tcl_Obj *objPtr;\n\n    /*\n     * Is it in the interpreter's global literal table?\n     */\n\n    if (hash == (size_t) TCL_INDEX_NONE) {\n\thash = HashString(bytes, length);\n    }\n    globalHash = (hash & globalTablePtr->mask);\n    for (globalPtr=globalTablePtr->buckets[globalHash] ; globalPtr!=NULL;\n\t    globalPtr = globalPtr->nextPtr) {\n\tobjPtr = globalPtr->objPtr;\n\tif (globalPtr->nsPtr == nsPtr) {\n\t    /*\n\t     * Literals should always have UTF-8 representations... but this\n\t     * is not guaranteed so we need to be careful anyway.\n\t     *\n\t     * https://stackoverflow.com/q/54337750/301832\n\t     */\n\n\t    Tcl_Size objLength;\n\t    const char *objBytes = TclGetStringFromObj(objPtr, &objLength);\n\n\t    if ((objLength == length) && ((length == 0)\n\t\t    || ((objBytes[0] == bytes[0])\n\t\t    && (memcmp(objBytes, bytes, length) == 0)))) {\n\t\t/*\n\t\t * A literal was found: return it\n\t\t */\n\n\t\tif (newPtr) {\n\t\t    *newPtr = 0;\n\t\t}\n\t\tif (globalPtrPtr) {\n\t\t    *globalPtrPtr = globalPtr;\n\t\t}\n\t\tif (flags & LITERAL_ON_HEAP) {\n\t\t    Tcl_Free((void *)bytes);\n\t\t}\n\t\tif (globalPtr->refCount != TCL_INDEX_NONE) {\n\t\t    globalPtr->refCount++;\n\t\t}\n\t\treturn objPtr;\n\t    }\n\t}\n    }\n    if (!newPtr) {\n\tif ((flags & LITERAL_ON_HEAP)) {\n\t    Tcl_Free((void *)bytes);\n\t}\n\treturn NULL;\n    }\n\n    /*\n     * The literal is new to the interpreter.\n     */\n\n    TclNewObj(objPtr);\n    if ((flags & LITERAL_ON_HEAP)) {\n\tobjPtr->bytes = (char *) bytes;\n\tobjPtr->length = length;\n    } else {\n\tTclInitStringRep(objPtr, bytes, length);\n    }\n\n    /* Should the new literal be shared globally? */\n\n    if ((flags & LITERAL_UNSHARED)) {\n\t/*\n\t * No, do *not* add it the global literal table\n\t * Make clear, that no global value is returned\n\t */\n\tif (globalPtrPtr != NULL) {\n\t    *globalPtrPtr = NULL;\n\t}\n\treturn objPtr;\n    }\n\n    /*\n     * Yes, add it to the global literal table.\n     */\n#ifdef TCL_COMPILE_DEBUG\n    if (LookupLiteralEntry((Tcl_Interp *) iPtr, objPtr) != NULL) {\n\tTcl_Panic(\"%s: literal \\\"%.*s\\\" found globally but shouldn't be\",\n\t\t\"TclRegisterLiteral\", (length>60? 60 : (int)length), bytes);\n    }\n#endif\n\n    globalPtr = (LiteralEntry *)Tcl_Alloc(sizeof(LiteralEntry));\n    globalPtr->objPtr = objPtr;\n    Tcl_IncrRefCount(objPtr);\n    globalPtr->refCount = 1;\n    globalPtr->nsPtr = nsPtr;\n    globalPtr->nextPtr = globalTablePtr->buckets[globalHash];\n    globalTablePtr->buckets[globalHash] = globalPtr;\n    globalTablePtr->numEntries++;\n\n    /*\n     * If the global literal table has exceeded a decent size, rebuild it with\n     * more buckets.\n     */\n\n    if (globalTablePtr->numEntries >= globalTablePtr->rebuildSize) {\n\tRebuildLiteralTable(globalTablePtr);\n    }\n\n#ifdef TCL_COMPILE_DEBUG\n    TclVerifyGlobalLiteralTable(iPtr);\n    {\n\tLiteralEntry *entryPtr;\n\tint found;\n\tsize_t i;\n\n\tfound = 0;\n\tfor (i=0 ; i<globalTablePtr->numBuckets ; i++) {\n\t    for (entryPtr=globalTablePtr->buckets[i]; entryPtr!=NULL ;\n\t\t    entryPtr=entryPtr->nextPtr) {\n\t\tif ((entryPtr == globalPtr) && (entryPtr->objPtr == objPtr)) {\n\t\t    found = 1;\n\t\t}\n\t    }\n\t}\n\tif (!found) {\n\t    Tcl_Panic(\"%s: literal \\\"%.*s\\\" wasn't global\",\n\t\t    \"TclRegisterLiteral\", (length>60? 60 : (int)length), bytes);\n\t}\n    }\n#endif /*TCL_COMPILE_DEBUG*/\n\n#ifdef TCL_COMPILE_STATS\n    iPtr->stats.numLiteralsCreated++;\n    iPtr->stats.totalLitStringBytes += (double) (length + 1);\n    iPtr->stats.currentLitStringBytes += (double) (length + 1);\n    iPtr->stats.literalCount[TclLog2(length)]++;\n#endif /*TCL_COMPILE_STATS*/\n\n    if (globalPtrPtr) {\n\t*globalPtrPtr = globalPtr;\n    }\n    *newPtr = 1;\n    return objPtr;\n}\n",
+    "snippet_sha256": "fc2b54f2a3298eba380ebb14563c12013015df30f2a5139053eada1f628c4aa2",
+    "evidence": "tcl9.0-1"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "9.0.4",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c",
+    "function": "TclRegisterLiteral",
+    "lines": [
+      391,
+      486
+    ],
+    "source_sha256": "cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4",
+    "snippet": "TclRegisterLiteral(\n    void *ePtr,\t\t/* Points to the CompileEnv in whose object\n\t\t\t\t * array an object is found or created. */\n    const char *bytes,\t/* Points to string for which to find or\n\t\t\t\t * create an object in CompileEnv's object\n\t\t\t\t * array. */\n    Tcl_Size length,\t\t\t/* Number of bytes in the string. If -1, the\n\t\t\t\t * string consists of all bytes up to the\n\t\t\t\t * first null character. */\n    int flags)\t\t\t/* If LITERAL_ON_HEAP then the caller already\n\t\t\t\t * malloc'd bytes and ownership is passed to\n\t\t\t\t * this function. If LITERAL_CMD_NAME then\n\t\t\t\t * the literal should not be shared across\n\t\t\t\t * namespaces. */\n{\n    CompileEnv *envPtr = (CompileEnv *)ePtr;\n    Interp *iPtr = envPtr->iPtr;\n    LiteralTable *localTablePtr = &envPtr->localLitTable;\n    LiteralEntry *globalPtr, *localPtr;\n    Tcl_Obj *objPtr;\n    size_t hash, localHash, objIndex;\n    int isNew;\n    Namespace *nsPtr;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    hash = HashString(bytes, length);\n\n    /*\n     * Is the literal already in the CompileEnv's local literal array? If so,\n     * just return its index.\n     */\n\n    localHash = (hash & localTablePtr->mask);\n    for (localPtr=localTablePtr->buckets[localHash] ; localPtr!=NULL;\n\t    localPtr = localPtr->nextPtr) {\n\tobjPtr = localPtr->objPtr;\n\tif ((objPtr->length == length) && ((length == 0)\n\t\t|| ((objPtr->bytes[0] == bytes[0])\n\t\t&& (memcmp(objPtr->bytes, bytes, length) == 0)))) {\n\t    if ((flags & LITERAL_ON_HEAP)) {\n\t\tTcl_Free((void *)bytes);\n\t    }\n\t    objIndex = (localPtr - envPtr->literalArrayPtr);\n#ifdef TCL_COMPILE_DEBUG\n\t    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n\n\t    if (objIndex > INT_MAX) {\n\t\tTcl_Panic(\"Literal table index too large. Cannot be handled by TclEmitPush\");\n\t    }\n\t    return objIndex;\n\t}\n    }\n\n    /*\n     * The literal is new to this CompileEnv. If it is a command name, avoid\n     * sharing it across namespaces, and try not to share it with non-cmd\n     * literals. Note that FQ command names can be shared, so that we register\n     * the namespace as the interp's global NS.\n     */\n\n    if ((flags & LITERAL_CMD_NAME)) {\n\tif ((length >= 2) && (bytes[0] == ':') && (bytes[1] == ':')) {\n\t    nsPtr = iPtr->globalNsPtr;\n\t} else {\n\t    nsPtr = iPtr->varFramePtr->nsPtr;\n\t}\n    } else {\n\tnsPtr = NULL;\n    }\n\n    /*\n     * Is it in the interpreter's global literal table? If not, create it.\n     */\n\n    globalPtr = NULL;\n    objPtr = TclCreateLiteral(iPtr, bytes, length, hash, &isNew, nsPtr, flags,\n\t    &globalPtr);\n    objIndex = AddLocalLiteralEntry(envPtr, objPtr, localHash);\n\n#ifdef TCL_COMPILE_DEBUG\n    if (globalPtr != NULL && (globalPtr->refCount + 1 < 2)) {\n\tTcl_Panic(\"%s: global literal \\\"%.*s\\\" had bad refCount %\" TCL_Z_MODIFIER \"u\",\n\t\t\"TclRegisterLiteral\", (length>60? 60 : (int)length), bytes,\n\t\tglobalPtr->refCount);\n    }\n    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n    if (objIndex > INT_MAX) {\n\tTcl_Panic(\n\t    \"Literal table index too large. Cannot be handled by TclEmitPush\");\n    }\n    return objIndex;\n}\n",
+    "snippet_sha256": "b63a1ff274818022eabe9bbacbf08545245afaf9375cd998f9dc9e0a7ff12674",
+    "evidence": "tcl9.0-2"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "9.0.4",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c",
+    "function": "TclReleaseLiteral",
+    "lines": [
+      831,
+      893
+    ],
+    "source_sha256": "cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4",
+    "snippet": "TclReleaseLiteral(\n    Tcl_Interp *interp,\t\t/* Interpreter for which objPtr was created to\n\t\t\t\t * hold a literal. */\n    Tcl_Obj *objPtr)\t/* Points to a literal object that was\n\t\t\t\t * previously created by a call to\n\t\t\t\t * TclRegisterLiteral. */\n{\n    Interp *iPtr = (Interp *) interp;\n    LiteralTable *globalTablePtr;\n    LiteralEntry *entryPtr, *prevPtr;\n    const char *bytes;\n    size_t index;\n    Tcl_Size length;\n\n    if (iPtr == NULL) {\n\tgoto done;\n    }\n\n    globalTablePtr = &iPtr->literalTable;\n    bytes = TclGetStringFromObj(objPtr, &length);\n    index = HashString(bytes, length) & globalTablePtr->mask;\n\n    /*\n     * Check to see if the object is in the global literal table and remove\n     * this reference. The object may not be in the table if it is a hidden\n     * local literal.\n     */\n\n    for (prevPtr=NULL, entryPtr=globalTablePtr->buckets[index];\n\t    entryPtr!=NULL ; prevPtr=entryPtr, entryPtr=entryPtr->nextPtr) {\n\tif (entryPtr->objPtr == objPtr) {\n\t    /*\n\t     * If the literal is no longer being used by any ByteCode, delete\n\t     * the entry then remove the reference corresponding to the global\n\t     * literal table entry (decrement the ref count of the object).\n\t     */\n\n\t    if ((entryPtr->refCount != TCL_INDEX_NONE) && (entryPtr->refCount-- <= 1)) {\n\t\tif (prevPtr == NULL) {\n\t\t    globalTablePtr->buckets[index] = entryPtr->nextPtr;\n\t\t} else {\n\t\t    prevPtr->nextPtr = entryPtr->nextPtr;\n\t\t}\n\t\tTcl_Free(entryPtr);\n\t\tglobalTablePtr->numEntries--;\n\n\t\tTclDecrRefCount(objPtr);\n\n#ifdef TCL_COMPILE_STATS\n\t\tiPtr->stats.currentLitStringBytes -= (double) (length + 1);\n#endif /*TCL_COMPILE_STATS*/\n\t    }\n\t    break;\n\t}\n    }\n\n    /*\n     * Remove the reference corresponding to the local literal table entry.\n     */\n\n    done:\n    Tcl_DecrRefCount(objPtr);\n}\n",
+    "snippet_sha256": "743b8322b5fbe7afcdbe6166471cdbf127db67cfaa187658616591dab9fefefe",
+    "evidence": "tcl9.0-3"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "9.1.0",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompExpr.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c",
+    "function": "CompileExprTree:FUNCTION",
+    "lines": [
+      2343,
+      2361
+    ],
+    "source_sha256": "16191591d5dd04ac05c3e3200799bf27167ec1d90c9985c3dbbed04e3c07d1b0",
+    "snippet": "\t    case FUNCTION: {\n\t\tTcl_Obj *cmdName;\n\n\t\tTclNewLiteralStringObj(cmdName, \"tcl::mathfunc::\");\n\t\tTcl_AppendObjToObj(cmdName, *funcObjv);\n\t\tfuncObjv++;\n\t\tPUSH_OBJ_FLAGS(cmdName, LITERAL_CMD_NAME);\n\n\t\t/*\n\t\t * Start a count of the number of words in this function\n\t\t * command invocation. In case there's already a count in\n\t\t * progress (nested functions), save it in our unused \"left\"\n\t\t * field for restoring later.\n\t\t */\n\n\t\tnodePtr->left = numWords;\n\t\tnumWords = 2;\t/* Command plus one argument */\n\t\tbreak;\n\t    }\n",
+    "snippet_sha256": "8faca22b4f32a9d35cf5fec68033ab25404881a080f637da8fcd5d2cc14afc08",
+    "evidence": "tcl9.1-0"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "9.1.0",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c",
+    "function": "TclCreateLiteral",
+    "lines": [
+      176,
+      334
+    ],
+    "source_sha256": "dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c",
+    "snippet": "TclCreateLiteral(\n    Interp *iPtr,\n    const char *bytes,\t\t/* The start of the string. Note that this is\n\t\t\t\t * not a NUL-terminated string. */\n    Tcl_Size length,\t\t/* Number of bytes in the string. */\n    size_t hash,\t\t/* The string's hash. If the value is\n\t\t\t\t * TCL_INDEX_NONE, it will be computed here. */\n    int *newPtr,\n    Namespace *nsPtr,\n    int flags,\n    LiteralEntry **globalPtrPtr)\n{\n    LiteralTable *globalTablePtr = &iPtr->literalTable;\n    LiteralEntry *globalPtr;\n    size_t globalHash;\n    Tcl_Obj *objPtr;\n\n    /*\n     * Is it in the interpreter's global literal table?\n     */\n\n    if (hash == (size_t) TCL_INDEX_NONE) {\n\thash = HashString(bytes, length);\n    }\n    globalHash = (hash & globalTablePtr->mask);\n    for (globalPtr=globalTablePtr->buckets[globalHash] ; globalPtr!=NULL;\n\t    globalPtr = globalPtr->nextPtr) {\n\tobjPtr = globalPtr->objPtr;\n\tif (globalPtr->nsPtr == nsPtr) {\n\t    /*\n\t     * Literals should always have UTF-8 representations... but this\n\t     * is not guaranteed so we need to be careful anyway.\n\t     *\n\t     * https://stackoverflow.com/q/54337750/301832\n\t     */\n\n\t    Tcl_Size objLength;\n\t    const char *objBytes = TclGetStringFromObj(objPtr, &objLength);\n\n\t    if ((objLength == length) && ((length == 0)\n\t\t    || ((objBytes[0] == bytes[0])\n\t\t    && (memcmp(objBytes, bytes, length) == 0)))) {\n\t\t/*\n\t\t * A literal was found: return it\n\t\t */\n\n\t\tif (newPtr) {\n\t\t    *newPtr = 0;\n\t\t}\n\t\tif (globalPtrPtr) {\n\t\t    *globalPtrPtr = globalPtr;\n\t\t}\n\t\tif (flags & LITERAL_ON_HEAP) {\n\t\t    Tcl_Free((void *)bytes);\n\t\t}\n\t\tif (globalPtr->refCount != TCL_INDEX_NONE) {\n\t\t    globalPtr->refCount++;\n\t\t}\n\t\treturn objPtr;\n\t    }\n\t}\n    }\n    if (!newPtr) {\n\tif ((flags & LITERAL_ON_HEAP)) {\n\t    Tcl_Free((void *)bytes);\n\t}\n\treturn NULL;\n    }\n\n    /*\n     * The literal is new to the interpreter.\n     */\n\n    TclNewObj(objPtr);\n    if ((flags & LITERAL_ON_HEAP)) {\n\tobjPtr->bytes = (char *) bytes;\n\tobjPtr->length = length;\n    } else if (!TclAttemptInitStringRep(objPtr, bytes, length)) {\n\tTcl_DecrRefCount(objPtr);\n\treturn NULL;\n    }\n\n    /* Should the new literal be shared globally? */\n\n    if ((flags & LITERAL_UNSHARED)) {\n\t/*\n\t * No, do *not* add it the global literal table\n\t * Make clear, that no global value is returned\n\t */\n\tif (globalPtrPtr != NULL) {\n\t    *globalPtrPtr = NULL;\n\t}\n\treturn objPtr;\n    }\n\n    /*\n     * Yes, add it to the global literal table.\n     */\n#ifdef TCL_COMPILE_DEBUG\n    if (LookupLiteralEntry((Tcl_Interp *) iPtr, objPtr) != NULL) {\n\tTcl_Panic(\"%s: literal \\\"%.*s\\\" found globally but shouldn't be\",\n\t\t\"TclRegisterLiteral\", (length>60? 60 : (int)length), bytes);\n    }\n#endif\n\n    globalPtr = (LiteralEntry *)Tcl_Alloc(sizeof(LiteralEntry));\n    globalPtr->objPtr = objPtr;\n    Tcl_IncrRefCount(objPtr);\n    globalPtr->refCount = 1;\n    globalPtr->nsPtr = nsPtr;\n    globalPtr->nextPtr = globalTablePtr->buckets[globalHash];\n    globalTablePtr->buckets[globalHash] = globalPtr;\n    globalTablePtr->numEntries++;\n\n    /*\n     * If the global literal table has exceeded a decent size, rebuild it with\n     * more buckets.\n     */\n\n    if (globalTablePtr->numEntries >= globalTablePtr->rebuildSize) {\n\tRebuildLiteralTable(globalTablePtr);\n    }\n\n#ifdef TCL_COMPILE_DEBUG\n    TclVerifyGlobalLiteralTable(iPtr);\n    {\n\tLiteralEntry *entryPtr;\n\tint found;\n\tsize_t i;\n\n\tfound = 0;\n\tfor (i=0 ; i<globalTablePtr->numBuckets ; i++) {\n\t    for (entryPtr=globalTablePtr->buckets[i]; entryPtr!=NULL ;\n\t\t    entryPtr=entryPtr->nextPtr) {\n\t\tif ((entryPtr == globalPtr) && (entryPtr->objPtr == objPtr)) {\n\t\t    found = 1;\n\t\t}\n\t    }\n\t}\n\tif (!found) {\n\t    Tcl_Panic(\"%s: literal \\\"%.*s\\\" wasn't global\",\n\t\t    \"TclRegisterLiteral\", (length>60? 60 : (int)length), bytes);\n\t}\n    }\n#endif /*TCL_COMPILE_DEBUG*/\n\n#ifdef TCL_COMPILE_STATS\n    iPtr->stats.numLiteralsCreated++;\n    iPtr->stats.totalLitStringBytes += (double) (length + 1);\n    iPtr->stats.currentLitStringBytes += (double) (length + 1);\n    iPtr->stats.literalCount[TclLog2(length)]++;\n#endif /*TCL_COMPILE_STATS*/\n\n    if (globalPtrPtr) {\n\t*globalPtrPtr = globalPtr;\n    }\n    *newPtr = 1;\n    return objPtr;\n}\n",
+    "snippet_sha256": "17dfb51ebd5b74ec000f74de485b5e398b1577642e640415eda6b32193988a09",
+    "evidence": "tcl9.1-1"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "9.1.0",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c",
+    "function": "TclRegisterLiteral",
+    "lines": [
+      391,
+      486
+    ],
+    "source_sha256": "dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c",
+    "snippet": "TclRegisterLiteral(\n    void *ePtr,\t\t\t/* Points to the CompileEnv in whose object\n\t\t\t\t * array an object is found or created. */\n    const char *bytes,\t\t/* Points to string for which to find or\n\t\t\t\t * create an object in CompileEnv's object\n\t\t\t\t * array. */\n    Tcl_Size length,\t\t/* Number of bytes in the string. If -1, the\n\t\t\t\t * string consists of all bytes up to the\n\t\t\t\t * first null character. */\n    int flags)\t\t\t/* If LITERAL_ON_HEAP then the caller already\n\t\t\t\t * malloc'd bytes and ownership is passed to\n\t\t\t\t * this function. If LITERAL_CMD_NAME then\n\t\t\t\t * the literal should not be shared across\n\t\t\t\t * namespaces. */\n{\n    CompileEnv *envPtr = (CompileEnv *)ePtr;\n    Interp *iPtr = envPtr->iPtr;\n    LiteralTable *localTablePtr = &envPtr->localLitTable;\n    LiteralEntry *globalPtr, *localPtr;\n    Tcl_Obj *objPtr;\n    size_t hash, localHash, objIndex;\n    int isNew;\n    Namespace *nsPtr;\n\n    if (length < 0) {\n\tlength = (bytes ? strlen(bytes) : 0);\n    }\n    hash = HashString(bytes, length);\n\n    /*\n     * Is the literal already in the CompileEnv's local literal array? If so,\n     * just return its index.\n     */\n\n    localHash = (hash & localTablePtr->mask);\n    for (localPtr=localTablePtr->buckets[localHash] ; localPtr!=NULL;\n\t    localPtr = localPtr->nextPtr) {\n\tobjPtr = localPtr->objPtr;\n\tif ((objPtr->length == length) && ((length == 0)\n\t\t|| ((objPtr->bytes[0] == bytes[0])\n\t\t&& (memcmp(objPtr->bytes, bytes, length) == 0)))) {\n\t    if ((flags & LITERAL_ON_HEAP)) {\n\t\tTcl_Free((void *)bytes);\n\t    }\n\t    objIndex = (localPtr - envPtr->literalArrayPtr);\n#ifdef TCL_COMPILE_DEBUG\n\t    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n\n\t    if (objIndex > INT_MAX) {\n\t\tTcl_Panic(\"Literal table index too large. Cannot be handled by TclEmitPush\");\n\t    }\n\t    return (int)objIndex;\n\t}\n    }\n\n    /*\n     * The literal is new to this CompileEnv. If it is a command name, avoid\n     * sharing it across namespaces, and try not to share it with non-cmd\n     * literals. Note that FQ command names can be shared, so that we register\n     * the namespace as the interp's global NS.\n     */\n\n    if ((flags & LITERAL_CMD_NAME)) {\n\tif ((length >= 2) && (bytes[0] == ':') && (bytes[1] == ':')) {\n\t    nsPtr = iPtr->globalNsPtr;\n\t} else {\n\t    nsPtr = iPtr->varFramePtr->nsPtr;\n\t}\n    } else {\n\tnsPtr = NULL;\n    }\n\n    /*\n     * Is it in the interpreter's global literal table? If not, create it.\n     */\n\n    globalPtr = NULL;\n    objPtr = TclCreateLiteral(iPtr, bytes, length, hash, &isNew, nsPtr, flags,\n\t    &globalPtr);\n    objIndex = AddLocalLiteralEntry(envPtr, objPtr, localHash);\n\n#ifdef TCL_COMPILE_DEBUG\n    if (globalPtr != NULL && (globalPtr->refCount + 1 < 2)) {\n\tTcl_Panic(\"%s: global literal \\\"%.*s\\\" had bad refCount %\" TCL_Z_MODIFIER \"u\",\n\t\t\"TclRegisterLiteral\", (length>60? 60 : (int)length), bytes,\n\t\tglobalPtr->refCount);\n    }\n    TclVerifyLocalLiteralTable(envPtr);\n#endif /*TCL_COMPILE_DEBUG*/\n    if (objIndex > INT_MAX) {\n\tTcl_Panic(\"Literal table index too large. \"\n\t\t\"Cannot be handled by TclEmitPush\");\n    }\n    return (int)objIndex;\n}\n",
+    "snippet_sha256": "0aae02e62962d33019e1a2c39e66ad029dd52182c1351279d156c6a178bc2ec3",
+    "evidence": "tcl9.1-2"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "9.1.0",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c",
+    "retained_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c",
+    "function": "TclReleaseLiteral",
+    "lines": [
+      873,
+      935
+    ],
+    "source_sha256": "dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c",
+    "snippet": "TclReleaseLiteral(\n    Tcl_Interp *interp,\t\t/* Interpreter for which objPtr was created to\n\t\t\t\t * hold a literal. */\n    Tcl_Obj *objPtr)\t\t/* Points to a literal object that was\n\t\t\t\t * previously created by a call to\n\t\t\t\t * TclRegisterLiteral. */\n{\n    Interp *iPtr = (Interp *) interp;\n    LiteralTable *globalTablePtr;\n    LiteralEntry *entryPtr, *prevPtr;\n    const char *bytes;\n    size_t index;\n    Tcl_Size length;\n\n    if (iPtr == NULL) {\n\tgoto done;\n    }\n\n    globalTablePtr = &iPtr->literalTable;\n    bytes = TclGetStringFromObj(objPtr, &length);\n    index = HashString(bytes, length) & globalTablePtr->mask;\n\n    /*\n     * Check to see if the object is in the global literal table and remove\n     * this reference. The object may not be in the table if it is a hidden\n     * local literal.\n     */\n\n    for (prevPtr=NULL, entryPtr=globalTablePtr->buckets[index];\n\t    entryPtr!=NULL ; prevPtr=entryPtr, entryPtr=entryPtr->nextPtr) {\n\tif (entryPtr->objPtr == objPtr) {\n\t    /*\n\t     * If the literal is no longer being used by any ByteCode, delete\n\t     * the entry then remove the reference corresponding to the global\n\t     * literal table entry (decrement the ref count of the object).\n\t     */\n\n\t    if ((entryPtr->refCount != TCL_INDEX_NONE) && (entryPtr->refCount-- <= 1)) {\n\t\tif (prevPtr == NULL) {\n\t\t    globalTablePtr->buckets[index] = entryPtr->nextPtr;\n\t\t} else {\n\t\t    prevPtr->nextPtr = entryPtr->nextPtr;\n\t\t}\n\t\tTcl_Free(entryPtr);\n\t\tglobalTablePtr->numEntries--;\n\n\t\tTclDecrRefCount(objPtr);\n\n#ifdef TCL_COMPILE_STATS\n\t\tiPtr->stats.currentLitStringBytes -= (double) (length + 1);\n#endif /*TCL_COMPILE_STATS*/\n\t    }\n\t    break;\n\t}\n    }\n\n    /*\n     * Remove the reference corresponding to the local literal table entry.\n     */\n\n    done:\n    Tcl_DecrRefCount(objPtr);\n}\n",
+    "snippet_sha256": "ea17b1d2694c6dc790d677f5e987d19cc8a38d6dded1864fb4cb7758121dad9a",
+    "evidence": "tcl9.1-3"
+  }
+]

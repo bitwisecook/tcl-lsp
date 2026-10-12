@@ -1,0 +1,15 @@
+
+running 1 test
+test command::tests::formal_activation_obeys_the_selected_native_plan ... 
+thread 'command::tests::formal_activation_obeys_the_selected_native_plan' (1358054) panicked at rust/tcl-vm/src/command.rs:5436:53:
+called `Result::unwrap()` on an `Err` value: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("selected original namespace evaluation holder"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::formal_activation_obeys_the_selected_native_plan
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 43.97s
+

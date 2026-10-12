@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "proof": "naming.namespace.original-fresh-namespace-deletion",
+  "source_anchors": [
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.4.20/generic/tclNamesp.c",
+      "function": "NamespaceDeleteCmd",
+      "lines": [
+        2870,
+        2916
+      ],
+      "source_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "snippet": "NamespaceDeleteCmd(dummy, interp, objc, objv)\n    ClientData dummy;\t\t/* Not used. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    Tcl_Namespace *namespacePtr;\n    char *name;\n    register int i;\n\n    if (objc < 2) {\n        Tcl_WrongNumArgs(interp, 2, objv, \"?name name...?\");\n        return TCL_ERROR;\n    }\n\n    /*\n     * Destroying one namespace may cause another to be destroyed. Break\n     * this into two passes: first check to make sure that all namespaces on\n     * the command line are valid, and report any errors.\n     */\n\n    for (i = 2;  i < objc;  i++) {\n        name = Tcl_GetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name,\n\t\t(Tcl_Namespace *) NULL, /*flags*/ 0);\n\tif (namespacePtr == NULL) {\n\t    Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),\n                    \"unknown namespace \\\"\", Tcl_GetString(objv[i]),\n\t\t    \"\\\" in namespace delete command\", (char *) NULL);\n            return TCL_ERROR;\n        }\n    }\n\n    /*\n     * Okay, now delete each namespace.\n     */\n\n    for (i = 2;  i < objc;  i++) {\n        name = Tcl_GetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name,\n\t    (Tcl_Namespace *) NULL, /* flags */ 0);\n\tif (namespacePtr) {\n            Tcl_DeleteNamespace(namespacePtr);\n        }\n    }\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "dd823315076c14b8bdc59661daaa6c0d5093202a207de84ad4acd6d52ecfdeb2",
+      "evidence": "delete-source-0"
+    },
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.4.20/generic/tclNamesp.c",
+      "function": "Tcl_DeleteNamespace",
+      "lines": [
+        576,
+        656
+      ],
+      "source_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "snippet": "Tcl_DeleteNamespace(namespacePtr)\n    Tcl_Namespace *namespacePtr;   /* Points to the namespace to delete. */\n{\n    register Namespace *nsPtr = (Namespace *) namespacePtr;\n    Interp *iPtr = (Interp *) nsPtr->interp;\n    Namespace *globalNsPtr =\n\t    (Namespace *) Tcl_GetGlobalNamespace((Tcl_Interp *) iPtr);\n    Tcl_HashEntry *entryPtr;\n\n    /*\n     * If the namespace is on the call frame stack, it is marked as \"dying\"\n     * (NS_DYING is OR'd into its flags): the namespace can't be looked up\n     * by name but its commands and variables are still usable by those\n     * active call frames. When all active call frames referring to the\n     * namespace have been popped from the Tcl stack, Tcl_PopCallFrame will\n     * call this procedure again to delete everything in the namespace.\n     * If no nsName objects refer to the namespace (i.e., if its refCount \n     * is zero), its commands and variables are deleted and the storage for\n     * its namespace structure is freed. Otherwise, if its refCount is\n     * nonzero, the namespace's commands and variables are deleted but the\n     * structure isn't freed. Instead, NS_DEAD is OR'd into the structure's\n     * flags to allow the namespace resolution code to recognize that the\n     * namespace is \"deleted\". The structure's storage is freed by\n     * FreeNsNameInternalRep when its refCount reaches 0.\n     */\n\n    if (nsPtr->activationCount > 0) {\n        nsPtr->flags |= NS_DYING;\n        if (nsPtr->parentPtr != NULL) {\n            entryPtr = Tcl_FindHashEntry(&nsPtr->parentPtr->childTable,\n\t\t    nsPtr->name);\n            if (entryPtr != NULL) {\n                Tcl_DeleteHashEntry(entryPtr);\n            }\n        }\n        nsPtr->parentPtr = NULL;\n    } else if (!(nsPtr->flags & NS_KILLED)) {\n\t/*\n\t * Delete the namespace and everything in it. If this is the global\n\t * namespace, then clear it but don't free its storage unless the\n\t * interpreter is being torn down. Set the NS_KILLED flag to avoid\n\t * recursive calls here - if the namespace is really in the process of\n\t * being deleted, ignore any second call.\n\t */\n\n\tnsPtr->flags |= (NS_DYING|NS_KILLED);\n\t\n        TclTeardownNamespace(nsPtr);\n\n        if ((nsPtr != globalNsPtr) || (iPtr->flags & DELETED)) {\n            /*\n\t     * If this is the global namespace, then it may have residual\n             * \"errorInfo\" and \"errorCode\" variables for errors that\n             * occurred while it was being torn down.  Try to clear the\n             * variable list one last time.\n\t     */\n\n            TclDeleteNamespaceVars(nsPtr);\n\t    \n            Tcl_DeleteHashTable(&nsPtr->childTable);\n            Tcl_DeleteHashTable(&nsPtr->cmdTable);\n\n            /*\n             * If the reference count is 0, then discard the namespace.\n             * Otherwise, mark it as \"dead\" so that it can't be used.\n             */\n\n            if (nsPtr->refCount == 0) {\n                NamespaceFree(nsPtr);\n            } else {\n                nsPtr->flags |= NS_DEAD;\n            }\n        } else {\n\t    /*\n\t     * We didn't really kill it, so remove the KILLED marks, so\n\t     * it can get killed later, avoiding mem leaks\n\t     */\n\t     nsPtr->flags &= ~(NS_DYING|NS_KILLED);\n\t}\n    }\n}\n",
+      "snippet_sha256": "f8b63c78ebc07621717f46199046e1e69fbdcbff1785f4e34a072cb5d4438843",
+      "evidence": "delete-source-1"
+    },
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.4.20/generic/tclProc.c",
+      "function": "TclProcDeleteProc",
+      "lines": [
+        1605,
+        1614
+      ],
+      "source_sha256": "bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879",
+      "snippet": "TclProcDeleteProc(clientData)\n    ClientData clientData;\t\t/* Procedure to be deleted. */\n{\n    Proc *procPtr = (Proc *) clientData;\n\n    procPtr->refCount--;\n    if (procPtr->refCount <= 0) {\n\tTclProcCleanupProc(procPtr);\n    }\n}\n",
+      "snippet_sha256": "7b5b030e47c17f1d3dde75c7fde84d143eadd87e8d4c73d3cab9b5d02e9567d4",
+      "evidence": "delete-source-2"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.5.19/generic/tclNamesp.c",
+      "function": "NamespaceDeleteCmd",
+      "lines": [
+        3177,
+        3224
+      ],
+      "source_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "snippet": "NamespaceDeleteCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_Namespace *namespacePtr;\n    char *name;\n    register int i;\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 2, objv, \"?name name...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Destroying one namespace may cause another to be destroyed. Break this\n     * into two passes: first check to make sure that all namespaces on the\n     * command line are valid, and report any errors.\n     */\n\n    for (i = 2;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /*flags*/ 0);\n\tif ((namespacePtr == NULL)\n\t\t|| (((Namespace *)namespacePtr)->flags & NS_KILLED)) {\n\t    Tcl_AppendResult(interp, \"unknown namespace \\\"\",\n\t\t    TclGetString(objv[i]),\n\t\t    \"\\\" in namespace delete command\", NULL);\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"NAMESPACE\",\n\t\t    TclGetString(objv[i]), NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Okay, now delete each namespace.\n     */\n\n    for (i = 2;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /* flags */ 0);\n\tif (namespacePtr) {\n\t    Tcl_DeleteNamespace(namespacePtr);\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "d024fde7fa0afa81770b0d31ec2ada21c8c20a9821a5897e9e0ae0126bf6b8f9",
+      "evidence": "delete-source-3"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.5.19/generic/tclNamesp.c",
+      "function": "Tcl_DeleteNamespace",
+      "lines": [
+        945,
+        1062
+      ],
+      "source_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "snippet": "Tcl_DeleteNamespace(\n    Tcl_Namespace *namespacePtr)/* Points to the namespace to delete. */\n{\n    register Namespace *nsPtr = (Namespace *) namespacePtr;\n    Interp *iPtr = (Interp *) nsPtr->interp;\n    Namespace *globalNsPtr = (Namespace *)\n\t    TclGetGlobalNamespace((Tcl_Interp *) iPtr);\n    Tcl_HashEntry *entryPtr;\n\n    /*\n     * If the namespace has associated ensemble commands, delete them first.\n     * This leaves the actual contents of the namespace alone (unless they are\n     * linked ensemble commands, of course). Note that this code is actually\n     * reentrant so command delete traces won't purturb things badly.\n     */\n\n    while (nsPtr->ensembles != NULL) {\n\tEnsembleConfig *ensemblePtr = (EnsembleConfig *) nsPtr->ensembles;\n\n\t/*\n\t * Splice out and link to indicate that we've already been killed.\n\t */\n\n\tnsPtr->ensembles = (Tcl_Ensemble *) ensemblePtr->next;\n\tensemblePtr->next = ensemblePtr;\n\tTcl_DeleteCommandFromToken(nsPtr->interp, ensemblePtr->token);\n    }\n\n    /*\n     * If the namespace has a registered unknown handler (TIP 181), then free\n     * it here.\n     */\n\n    if (nsPtr->unknownHandlerPtr != NULL) {\n\tTcl_DecrRefCount(nsPtr->unknownHandlerPtr);\n\tnsPtr->unknownHandlerPtr = NULL;\n    }\n\n    /*\n     * If the namespace is on the call frame stack, it is marked as \"dying\"\n     * (NS_DYING is OR'd into its flags): the namespace can't be looked up by\n     * name but its commands and variables are still usable by those active\n     * call frames. When all active call frames referring to the namespace\n     * have been popped from the Tcl stack, Tcl_PopCallFrame will call this\n     * function again to delete everything in the namespace. If no nsName\n     * objects refer to the namespace (i.e., if its refCount is zero), its\n     * commands and variables are deleted and the storage for its namespace\n     * structure is freed. Otherwise, if its refCount is nonzero, the\n     * namespace's commands and variables are deleted but the structure isn't\n     * freed. Instead, NS_DEAD is OR'd into the structure's flags to allow the\n     * namespace resolution code to recognize that the namespace is \"deleted\".\n     * The structure's storage is freed by FreeNsNameInternalRep when its\n     * refCount reaches 0.\n     */\n\n    if (nsPtr->activationCount - (nsPtr == globalNsPtr) > 0) {\n\tnsPtr->flags |= NS_DYING;\n\tif (nsPtr->parentPtr != NULL) {\n\t    entryPtr = Tcl_FindHashEntry(&nsPtr->parentPtr->childTable,\n\t\t    nsPtr->name);\n\t    if (entryPtr != NULL) {\n\t\tTcl_DeleteHashEntry(entryPtr);\n\t    }\n\t}\n\tnsPtr->parentPtr = NULL;\n    } else if (!(nsPtr->flags & NS_KILLED)) {\n\t/*\n\t * Delete the namespace and everything in it. If this is the global\n\t * namespace, then clear it but don't free its storage unless the\n\t * interpreter is being torn down. Set the NS_KILLED flag to avoid\n\t * recursive calls here - if the namespace is really in the process of\n\t * being deleted, ignore any second call.\n\t */\n\n\tnsPtr->flags |= (NS_DYING|NS_KILLED);\n\n\tTclTeardownNamespace(nsPtr);\n\n\tif ((nsPtr != globalNsPtr) || (iPtr->flags & DELETED)) {\n\t    /*\n\t     * If this is the global namespace, then it may have residual\n\t     * \"errorInfo\" and \"errorCode\" variables for errors that occurred\n\t     * while it was being torn down. Try to clear the variable list\n\t     * one last time.\n\t     */\n\n\t    TclDeleteNamespaceVars(nsPtr);\n\n\t    Tcl_DeleteHashTable(&nsPtr->childTable);\n\t    Tcl_DeleteHashTable(&nsPtr->cmdTable);\n\n\t    /*\n\t     * If the reference count is 0, then discard the namespace.\n\t     * Otherwise, mark it as \"dead\" so that it can't be used.\n\t     */\n\n\t    if (nsPtr->refCount == 0) {\n\t\tNamespaceFree(nsPtr);\n\t    } else {\n\t\tnsPtr->flags |= NS_DEAD;\n\t    }\n\t} else {\n\t    /*\n\t     * Restore the ::errorInfo and ::errorCode traces.\n\t     */\n\n\t    EstablishErrorInfoTraces(NULL, nsPtr->interp, NULL, NULL, 0);\n\t    EstablishErrorCodeTraces(NULL, nsPtr->interp, NULL, NULL, 0);\n\n\t    /*\n\t     * We didn't really kill it, so remove the KILLED marks, so it can\n\t     * get killed later, avoiding mem leaks.\n\t     */\n\n\t    nsPtr->flags &= ~(NS_DYING|NS_KILLED);\n\t}\n    }\n}\n",
+      "snippet_sha256": "a13b9b9393b1f4818381bf426cda0ee888d8816b54f989f63233a81aae6c0342",
+      "evidence": "delete-source-4"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.5.19/generic/tclProc.c",
+      "function": "TclProcDeleteProc",
+      "lines": [
+        2130,
+        2139
+      ],
+      "source_sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+      "snippet": "TclProcDeleteProc(\n    ClientData clientData)\t/* Procedure to be deleted. */\n{\n    Proc *procPtr = (Proc *) clientData;\n\n    procPtr->refCount--;\n    if (procPtr->refCount <= 0) {\n\tTclProcCleanupProc(procPtr);\n    }\n}\n",
+      "snippet_sha256": "f44ba1ba2b25da80d92c5182de7839e3fb10f877781652f8a602362543d030c6",
+      "evidence": "delete-source-5"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.6.18/generic/tclNamesp.c",
+      "function": "NamespaceDeleteCmd",
+      "lines": [
+        3185,
+        3232
+      ],
+      "source_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "snippet": "NamespaceDeleteCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_Namespace *namespacePtr;\n    const char *name;\n    int i;\n\n    if (objc < 1) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?name name...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Destroying one namespace may cause another to be destroyed. Break this\n     * into two passes: first check to make sure that all namespaces on the\n     * command line are valid, and report any errors.\n     */\n\n    for (i = 1;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /*flags*/ 0);\n\tif ((namespacePtr == NULL)\n\t\t|| (((Namespace *) namespacePtr)->flags & NS_KILLED)) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"unknown namespace \\\"%s\\\" in namespace delete command\",\n\t\t    TclGetString(objv[i])));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"NAMESPACE\",\n\t\t    TclGetString(objv[i]), (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Okay, now delete each namespace.\n     */\n\n    for (i = 1;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /* flags */ 0);\n\tif (namespacePtr) {\n\t    Tcl_DeleteNamespace(namespacePtr);\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "d15a5140e95b53e0193c02372e1e51843801c74a298c2cd36fa40b37f31d8d1e",
+      "evidence": "delete-source-6"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.6.18/generic/tclNamesp.c",
+      "function": "Tcl_DeleteNamespace",
+      "lines": [
+        882,
+        1040
+      ],
+      "source_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "snippet": "Tcl_DeleteNamespace(\n    Tcl_Namespace *namespacePtr)/* Points to the namespace to delete. */\n{\n    Namespace *nsPtr = (Namespace *) namespacePtr;\n    Tcl_Interp *interp = nsPtr->interp;\n    Namespace *globalNsPtr = (Namespace *) TclGetGlobalNamespace(interp);\n    Tcl_HashEntry *entryPtr;\n    Tcl_HashSearch search;\n    Command *cmdPtr;\n\n    /*\n     * Ensure that this namespace doesn't get deallocated in the meantime.\n     */\n    nsPtr->refCount++;\n\n    /*\n     * Give anyone interested - notably TclOO - a chance to use this namespace\n     * normally despite the fact that the namespace is going to go. Allows the\n     * calling of destructors. Will only be called once (unless re-established\n     * by the called function). [Bug 2950259]\n     *\n     * Note that setting this field requires access to the internal definition\n     * of namespaces, so it should only be accessed by code that knows about\n     * being careful with reentrancy.\n     */\n\n    if (nsPtr->earlyDeleteProc != NULL) {\n\tTcl_NamespaceDeleteProc *earlyDeleteProc = nsPtr->earlyDeleteProc;\n\n\tnsPtr->earlyDeleteProc = NULL;\n\tnsPtr->activationCount++;\n\tearlyDeleteProc(nsPtr->clientData);\n\tnsPtr->activationCount--;\n    }\n\n    /*\n     * Delete all coroutine commands now: break the circular ref cycle between\n     * the namespace and the coroutine command [Bug 2724403]. This code is\n     * essentially duplicated in TclTeardownNamespace() for all other\n     * commands. Don't optimize to Tcl_NextHashEntry() because of traces.\n     *\n     * NOTE: we could avoid traversing the ns's command list by keeping a\n     * separate list of coros.\n     */\n\n    for (entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);\n\t    entryPtr != NULL;) {\n\tcmdPtr = (Command *)Tcl_GetHashValue(entryPtr);\n\tif (cmdPtr->nreProc == TclNRInterpCoroutine) {\n\t    Tcl_DeleteCommandFromToken(interp, (Tcl_Command) cmdPtr);\n\t    entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);\n\t} else {\n\t    entryPtr = Tcl_NextHashEntry(&search);\n\t}\n    }\n\n    /*\n     * If the namespace has associated ensemble commands, delete them first.\n     * This leaves the actual contents of the namespace alone (unless they are\n     * linked ensemble commands, of course). Note that this code is actually\n     * reentrant so command delete traces won't purturb things badly.\n     */\n\n    while (nsPtr->ensembles != NULL) {\n\tEnsembleConfig *ensemblePtr = (EnsembleConfig *) nsPtr->ensembles;\n\n\t/*\n\t * Splice out and link to indicate that we've already been killed.\n\t */\n\n\tnsPtr->ensembles = (Tcl_Ensemble *) ensemblePtr->next;\n\tensemblePtr->next = ensemblePtr;\n\tTcl_DeleteCommandFromToken(interp, ensemblePtr->token);\n    }\n\n    /*\n     * If the namespace has a registered unknown handler (TIP 181), then free\n     * it here.\n     */\n\n    if (nsPtr->unknownHandlerPtr != NULL) {\n\tTcl_DecrRefCount(nsPtr->unknownHandlerPtr);\n\tnsPtr->unknownHandlerPtr = NULL;\n    }\n\n    /*\n     * If the namespace is on the call frame stack, it is marked as \"dying\"\n     * (NS_DYING is OR'd into its flags):  Contents of the namespace are\n     * still available and visible until the namespace is later marked as\n     * NS_DEAD, and its commands and variables are still usable by any\n     * active call frames referring to th namespace. When all active call\n     * frames referring to the namespace have been popped from the Tcl\n     * stack, Tcl_PopCallFrame calls Tcl_DeleteNamespace again. If no\n     * nsName objects refer to the namespace (i.e., if its refCount is\n     * zero), its commands and variables are deleted and the storage for\n     * its namespace structure is freed.  Otherwise, if its refCount is\n     * nonzero, the namespace's commands and variables are deleted but the\n     * structure isn't freed. Instead, NS_DEAD is OR'd into the structure's\n     * flags to allow the namespace resolution code to recognize that the\n     * namespace is \"deleted\".  The structure's storage is freed by\n     * FreeNsNameInternalRep when its refCount reaches 0.\n     */\n\n    if (nsPtr->activationCount > (nsPtr == globalNsPtr)) {\n\tnsPtr->flags |= NS_DYING;\n\tif (nsPtr->parentPtr != NULL) {\n\t    entryPtr = Tcl_FindHashEntry(\n\t\t    TclGetNamespaceChildTable((Tcl_Namespace *)\n\t\t\t    nsPtr->parentPtr), nsPtr->name);\n\t    if (entryPtr != NULL) {\n\t\tTcl_DeleteHashEntry(entryPtr);\n\t    }\n\t}\n\tnsPtr->parentPtr = NULL;\n    } else if (!(nsPtr->flags & NS_KILLED)) {\n\t/*\n\t * Delete the namespace and everything in it. If this is the global\n\t * namespace, then clear it but don't free its storage unless the\n\t * interpreter is being torn down. Set the NS_KILLED flag to avoid\n\t * recursive calls here - if the namespace is really in the process of\n\t * being deleted, ignore any second call.\n\t */\n\n\tnsPtr->flags |= (NS_DYING | NS_KILLED);\n\n\tTclTeardownNamespace(nsPtr);\n\n\tif ((nsPtr != globalNsPtr) || (((Interp *) interp)->flags & DELETED)) {\n\t    /*\n\t     * If this is the global namespace, then it may have residual\n\t     * \"errorInfo\" and \"errorCode\" variables for errors that occurred\n\t     * while it was being torn down. Try to clear the variable list\n\t     * one last time.\n\t     */\n\n\t    TclDeleteNamespaceVars(nsPtr);\n\n\t    Tcl_DeleteHashTable(&nsPtr->childTable);\n\t    Tcl_DeleteHashTable(&nsPtr->cmdTable);\n\n\t    nsPtr ->flags |= NS_DEAD;\n\t} else {\n\t    /*\n\t     * Restore the ::errorInfo and ::errorCode traces.\n\t     */\n\n\t    EstablishErrorInfoTraces(NULL, interp, NULL, NULL, 0);\n\t    EstablishErrorCodeTraces(NULL, interp, NULL, NULL, 0);\n\n\t    /*\n\t     * We didn't really kill it, so remove the KILLED marks, so it can\n\t     * get killed later, avoiding mem leaks.\n\t     */\n\n\t    nsPtr->flags &= ~(NS_DYING|NS_KILLED);\n\t}\n    }\n    TclNsDecrRefCount(nsPtr);\n}\n",
+      "snippet_sha256": "e29adfd56e61548caa6529324244f690dc3c9984a23e341d378e54d01552e837",
+      "evidence": "delete-source-7"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl8.6.18/generic/tclProc.c",
+      "function": "TclProcDeleteProc",
+      "lines": [
+        2106,
+        2114
+      ],
+      "source_sha256": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+      "snippet": "TclProcDeleteProc(\n    ClientData clientData)\t/* Procedure to be deleted. */\n{\n    Proc *procPtr = (Proc *)clientData;\n\n    if (procPtr->refCount-- <= 1) {\n\tTclProcCleanupProc(procPtr);\n    }\n}\n",
+      "snippet_sha256": "dec1e7fcb9de3af28b8e02be00acf2750cc82af95386a5ebf3189d1cffd1038d",
+      "evidence": "delete-source-8"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.0.4/generic/tclNamesp.c",
+      "function": "NamespaceDeleteCmd",
+      "lines": [
+        3391,
+        3438
+      ],
+      "source_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "snippet": "NamespaceDeleteCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_Namespace *namespacePtr;\n    const char *name;\n    int i;\n\n    if (objc < 1) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?name name...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Destroying one namespace may cause another to be destroyed. Break this\n     * into two passes: first check to make sure that all namespaces on the\n     * command line are valid, and report any errors.\n     */\n\n    for (i = 1;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /*flags*/ 0);\n\tif ((namespacePtr == NULL)\n\t\t|| (((Namespace *) namespacePtr)->flags & NS_TEARDOWN)) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"unknown namespace \\\"%s\\\" in namespace delete command\",\n\t\t    TclGetString(objv[i])));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"NAMESPACE\",\n\t\t    TclGetString(objv[i]), (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Okay, now delete each namespace.\n     */\n\n    for (i = 1;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /* flags */ 0);\n\tif (namespacePtr) {\n\t    Tcl_DeleteNamespace(namespacePtr);\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "aff64b3315c8da516cf06d7b6054e5397ea067c32a6a4b5f771f3bc4340ef0ce",
+      "evidence": "delete-source-9"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.0.4/generic/tclNamesp.c",
+      "function": "Tcl_DeleteNamespace",
+      "lines": [
+        1012,
+        1175
+      ],
+      "source_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "snippet": "Tcl_DeleteNamespace(\n    Tcl_Namespace *namespacePtr)/* Points to the namespace to delete. */\n{\n    Namespace *nsPtr = (Namespace *) namespacePtr;\n    Tcl_Interp *interp = nsPtr->interp;\n    Namespace *globalNsPtr = (Namespace *) TclGetGlobalNamespace(interp);\n    Tcl_HashEntry *entryPtr;\n    Tcl_HashSearch search;\n    Command *cmdPtr;\n\n    /*\n     * Ensure that this namespace doesn't get deallocated in the meantime.\n     */\n    nsPtr->refCount++;\n\n    /*\n     * Give anyone interested - notably TclOO - a chance to use this namespace\n     * normally despite the fact that the namespace is going to go. Allows the\n     * calling of destructors. Will only be called once (unless re-established\n     * by the called function). [Bug 2950259]\n     *\n     * Note that setting this field requires access to the internal definition\n     * of namespaces, so it should only be accessed by code that knows about\n     * being careful with reentrancy.\n     */\n\n    if (nsPtr->earlyDeleteProc != NULL) {\n\tTcl_NamespaceDeleteProc *earlyDeleteProc = nsPtr->earlyDeleteProc;\n\n\tnsPtr->earlyDeleteProc = NULL;\n\tnsPtr->activationCount++;\n\tearlyDeleteProc(nsPtr->clientData);\n\tnsPtr->activationCount--;\n    }\n\n    /*\n     * Delete all coroutine commands now: break the circular ref cycle between\n     * the namespace and the coroutine command [Bug 2724403]. This code is\n     * essentially duplicated in TclTeardownNamespace() for all other\n     * commands. Don't optimize to Tcl_NextHashEntry() because of traces.\n     *\n     * NOTE: we could avoid traversing the ns's command list by keeping a\n     * separate list of coros.\n     */\n\n    for (entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);\n\t    entryPtr != NULL;) {\n\tcmdPtr = (Command *) Tcl_GetHashValue(entryPtr);\n\tif (cmdPtr->nreProc == TclNRInterpCoroutine) {\n\t    Tcl_DeleteCommandFromToken(interp, (Tcl_Command) cmdPtr);\n\t    entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);\n\t} else {\n\t    entryPtr = Tcl_NextHashEntry(&search);\n\t}\n    }\n\n    /*\n     * If the namespace has associated ensemble commands, delete them first.\n     * This leaves the actual contents of the namespace alone (unless they are\n     * linked ensemble commands, of course). Note that this code is actually\n     * reentrant so command delete traces won't purturb things badly.\n     */\n\n    while (nsPtr->ensembles != NULL) {\n\tEnsembleConfig *ensemblePtr = (EnsembleConfig *) nsPtr->ensembles;\n\n\t/*\n\t * Splice out and link to indicate that we've already been killed.\n\t */\n\n\tnsPtr->ensembles = (Tcl_Ensemble *) ensemblePtr->next;\n\tensemblePtr->next = ensemblePtr;\n\tTcl_DeleteCommandFromToken(interp, ensemblePtr->token);\n    }\n\n    /*\n     * If the namespace has a registered unknown handler (TIP 181), then free\n     * it here.\n     */\n\n    if (nsPtr->unknownHandlerPtr != NULL) {\n\tTcl_DecrRefCount(nsPtr->unknownHandlerPtr);\n\tnsPtr->unknownHandlerPtr = NULL;\n    }\n\n    /*\n     * If the namespace is on the call frame stack, it is marked as \"dying\"\n     * (NS_DYING is OR'd into its flags):  Contents of the namespace are\n     * still available and visible until the namespace is later marked as\n     * NS_DEAD, and its commands and variables are still usable by any\n     * active call frames referring to th namespace. When all active call\n     * frames referring to the namespace have been popped from the Tcl\n     * stack, Tcl_PopCallFrame calls Tcl_DeleteNamespace again. If no\n     * nsName objects refer to the namespace (i.e., if its refCount is\n     * zero), its commands and variables are deleted and the storage for\n     * its namespace structure is freed.  Otherwise, if its refCount is\n     * nonzero, the namespace's commands and variables are deleted but the\n     * structure isn't freed. Instead, NS_DEAD is OR'd into the structure's\n     * flags to allow the namespace resolution code to recognize that the\n     * namespace is \"deleted\".  The structure's storage is freed by\n     * FreeNsNameInternalRep when its refCount reaches 0.\n     */\n\n    if (nsPtr->activationCount > (nsPtr == globalNsPtr)) {\n\tnsPtr->flags |= NS_DYING;\n\tif (nsPtr->parentPtr != NULL) {\n\t    entryPtr = FindChildEntry(nsPtr->parentPtr, nsPtr->name);\n\t    if (entryPtr != NULL) {\n\t\tTcl_DeleteHashEntry(entryPtr);\n\t    }\n\t}\n\tnsPtr->parentPtr = NULL;\n    } else if (!(nsPtr->flags & NS_TEARDOWN)) {\n\t/*\n\t * Delete the namespace and everything in it. If this is the global\n\t * namespace, then clear it but don't free its storage unless the\n\t * interpreter is being torn down. Set the NS_TEARDOWN flag to avoid\n\t * recursive calls here - if the namespace is really in the process of\n\t * being deleted, ignore any second call.\n\t */\n\n\tnsPtr->flags |= NS_DYING | NS_TEARDOWN;\n\n\tTclTeardownNamespace(nsPtr);\n\n\tif ((nsPtr != globalNsPtr) || (((Interp *) interp)->flags & DELETED)) {\n\t    /*\n\t     * If this is the global namespace, then it may have residual\n\t     * \"errorInfo\" and \"errorCode\" variables for errors that occurred\n\t     * while it was being torn down. Try to clear the variable list\n\t     * one last time.\n\t     */\n\n\t    TclDeleteNamespaceVars(nsPtr);\n\n#ifndef BREAK_NAMESPACE_COMPAT\n\t    Tcl_DeleteHashTable(&nsPtr->childTable);\n#else\n\t    if (nsPtr->childTablePtr != NULL) {\n\t\tTcl_DeleteHashTable(nsPtr->childTablePtr);\n\t\tTcl_Free(nsPtr->childTablePtr);\n\t    }\n#endif\n\t    Tcl_DeleteHashTable(&nsPtr->cmdTable);\n\n\t    nsPtr ->flags |= NS_DEAD;\n\t} else {\n\t    /*\n\t     * Restore the ::errorInfo and ::errorCode traces.\n\t     */\n\n\t    EstablishErrorInfoTraces(NULL, interp, NULL, NULL, 0);\n\t    EstablishErrorCodeTraces(NULL, interp, NULL, NULL, 0);\n\n\t    /*\n\t     * We didn't really kill it, so remove the KILLED marks, so it can\n\t     * get killed later, avoiding mem leaks.\n\t     */\n\n\t    nsPtr->flags &= ~(NS_DYING|NS_TEARDOWN);\n\t}\n    }\n    TclNsDecrRefCount(nsPtr);\n}\n",
+      "snippet_sha256": "8bc75e485083864ec8cf1307512f59d3545d7d2632447debf34988382de6e7ae",
+      "evidence": "delete-source-10"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.0.4/generic/tclProc.c",
+      "function": "TclProcDeleteProc",
+      "lines": [
+        2124,
+        2132
+      ],
+      "source_sha256": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110",
+      "snippet": "TclProcDeleteProc(\n    void *clientData)\t\t/* Procedure to be deleted. */\n{\n    Proc *procPtr = (Proc *)clientData;\n\n    if (procPtr->refCount-- <= 1) {\n\tTclProcCleanupProc(procPtr);\n    }\n}\n",
+      "snippet_sha256": "17200e534b0f3185ba7cb1f6b896c812094a24b1daaf034824259fb69b97102c",
+      "evidence": "delete-source-11"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.1.0/generic/tclNamesp.c",
+      "function": "NamespaceDeleteCmd",
+      "lines": [
+        3363,
+        3410
+      ],
+      "source_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "snippet": "NamespaceDeleteCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    Tcl_Namespace *namespacePtr;\n    const char *name;\n    Tcl_Size i;\n\n    if (objc < 1) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?name name...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Destroying one namespace may cause another to be destroyed. Break this\n     * into two passes: first check to make sure that all namespaces on the\n     * command line are valid, and report any errors.\n     */\n\n    for (i = 1;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /*flags*/ 0);\n\tif ((namespacePtr == NULL)\n\t\t|| (((Namespace *) namespacePtr)->flags & NS_TEARDOWN)) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"unknown namespace \\\"%s\\\" in namespace delete command\",\n\t\t    TclGetString(objv[i])));\n\t    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"NAMESPACE\",\n\t\t    TclGetString(objv[i]), (char *)NULL);\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /*\n     * Okay, now delete each namespace.\n     */\n\n    for (i = 1;  i < objc;  i++) {\n\tname = TclGetString(objv[i]);\n\tnamespacePtr = Tcl_FindNamespace(interp, name, NULL, /* flags */ 0);\n\tif (namespacePtr) {\n\t    Tcl_DeleteNamespace(namespacePtr);\n\t}\n    }\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "2ea84b5b6d7c10b50af49cfd740f1859ab8641fc19fb6b32a4fc4aec2ed4df1d",
+      "evidence": "delete-source-12"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.1.0/generic/tclNamesp.c",
+      "function": "Tcl_DeleteNamespace",
+      "lines": [
+        1011,
+        1174
+      ],
+      "source_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "snippet": "Tcl_DeleteNamespace(\n    Tcl_Namespace *namespacePtr)/* Points to the namespace to delete. */\n{\n    Namespace *nsPtr = (Namespace *) namespacePtr;\n    Tcl_Interp *interp = nsPtr->interp;\n    Namespace *globalNsPtr = (Namespace *) TclGetGlobalNamespace(interp);\n    Tcl_HashEntry *entryPtr;\n    Tcl_HashSearch search;\n    Command *cmdPtr;\n\n    /*\n     * Ensure that this namespace doesn't get deallocated in the meantime.\n     */\n    nsPtr->refCount++;\n\n    /*\n     * Give anyone interested - notably TclOO - a chance to use this namespace\n     * normally despite the fact that the namespace is going to go. Allows the\n     * calling of destructors. Will only be called once (unless re-established\n     * by the called function). [Bug 2950259]\n     *\n     * Note that setting this field requires access to the internal definition\n     * of namespaces, so it should only be accessed by code that knows about\n     * being careful with reentrancy.\n     */\n\n    if (nsPtr->earlyDeleteProc != NULL) {\n\tTcl_NamespaceDeleteProc *earlyDeleteProc = nsPtr->earlyDeleteProc;\n\n\tnsPtr->earlyDeleteProc = NULL;\n\tnsPtr->activationCount++;\n\tearlyDeleteProc(nsPtr->clientData);\n\tnsPtr->activationCount--;\n    }\n\n    /*\n     * Delete all coroutine commands now: break the circular ref cycle between\n     * the namespace and the coroutine command [Bug 2724403]. This code is\n     * essentially duplicated in TclTeardownNamespace() for all other\n     * commands. Don't optimize to Tcl_NextHashEntry() because of traces.\n     *\n     * NOTE: we could avoid traversing the ns's command list by keeping a\n     * separate list of coros.\n     */\n\n    for (entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);\n\t    entryPtr != NULL;) {\n\tcmdPtr = (Command *) Tcl_GetHashValue(entryPtr);\n\tif (cmdPtr->nreProc2 == TclNRInterpCoroutine) {\n\t    Tcl_DeleteCommandFromToken(interp, (Tcl_Command) cmdPtr);\n\t    entryPtr = Tcl_FirstHashEntry(&nsPtr->cmdTable, &search);\n\t} else {\n\t    entryPtr = Tcl_NextHashEntry(&search);\n\t}\n    }\n\n    /*\n     * If the namespace has associated ensemble commands, delete them first.\n     * This leaves the actual contents of the namespace alone (unless they are\n     * linked ensemble commands, of course). Note that this code is actually\n     * reentrant so command delete traces won't purturb things badly.\n     */\n\n    while (nsPtr->ensembles != NULL) {\n\tEnsembleConfig *ensemblePtr = (EnsembleConfig *) nsPtr->ensembles;\n\n\t/*\n\t * Splice out and link to indicate that we've already been killed.\n\t */\n\n\tnsPtr->ensembles = (Tcl_Ensemble *) ensemblePtr->next;\n\tensemblePtr->next = ensemblePtr;\n\tTcl_DeleteCommandFromToken(interp, ensemblePtr->token);\n    }\n\n    /*\n     * If the namespace has a registered unknown handler (TIP 181), then free\n     * it here.\n     */\n\n    if (nsPtr->unknownHandlerPtr != NULL) {\n\tTcl_DecrRefCount(nsPtr->unknownHandlerPtr);\n\tnsPtr->unknownHandlerPtr = NULL;\n    }\n\n    /*\n     * If the namespace is on the call frame stack, it is marked as \"dying\"\n     * (NS_DYING is OR'd into its flags):  Contents of the namespace are\n     * still available and visible until the namespace is later marked as\n     * NS_DEAD, and its commands and variables are still usable by any\n     * active call frames referring to th namespace. When all active call\n     * frames referring to the namespace have been popped from the Tcl\n     * stack, Tcl_PopCallFrame calls Tcl_DeleteNamespace again. If no\n     * nsName objects refer to the namespace (i.e., if its refCount is\n     * zero), its commands and variables are deleted and the storage for\n     * its namespace structure is freed.  Otherwise, if its refCount is\n     * nonzero, the namespace's commands and variables are deleted but the\n     * structure isn't freed. Instead, NS_DEAD is OR'd into the structure's\n     * flags to allow the namespace resolution code to recognize that the\n     * namespace is \"deleted\".  The structure's storage is freed by\n     * FreeNsNameInternalRep when its refCount reaches 0.\n     */\n\n    if (nsPtr->activationCount > (nsPtr == globalNsPtr)) {\n\tnsPtr->flags |= NS_DYING;\n\tif (nsPtr->parentPtr != NULL) {\n\t    entryPtr = FindChildEntry(nsPtr->parentPtr, nsPtr->name);\n\t    if (entryPtr != NULL) {\n\t\tTcl_DeleteHashEntry(entryPtr);\n\t    }\n\t}\n\tnsPtr->parentPtr = NULL;\n    } else if (!(nsPtr->flags & NS_TEARDOWN)) {\n\t/*\n\t * Delete the namespace and everything in it. If this is the global\n\t * namespace, then clear it but don't free its storage unless the\n\t * interpreter is being torn down. Set the NS_TEARDOWN flag to avoid\n\t * recursive calls here - if the namespace is really in the process of\n\t * being deleted, ignore any second call.\n\t */\n\n\tnsPtr->flags |= NS_DYING | NS_TEARDOWN;\n\n\tTclTeardownNamespace(nsPtr);\n\n\tif ((nsPtr != globalNsPtr) || (((Interp *) interp)->flags & DELETED)) {\n\t    /*\n\t     * If this is the global namespace, then it may have residual\n\t     * \"errorInfo\" and \"errorCode\" variables for errors that occurred\n\t     * while it was being torn down. Try to clear the variable list\n\t     * one last time.\n\t     */\n\n\t    TclDeleteNamespaceVars(nsPtr);\n\n#ifndef BREAK_NAMESPACE_COMPAT\n\t    Tcl_DeleteHashTable(&nsPtr->childTable);\n#else\n\t    if (nsPtr->childTablePtr != NULL) {\n\t\tTcl_DeleteHashTable(nsPtr->childTablePtr);\n\t\tTcl_Free(nsPtr->childTablePtr);\n\t    }\n#endif\n\t    Tcl_DeleteHashTable(&nsPtr->cmdTable);\n\n\t    nsPtr ->flags |= NS_DEAD;\n\t} else {\n\t    /*\n\t     * Restore the ::errorInfo and ::errorCode traces.\n\t     */\n\n\t    EstablishErrorInfoTraces(NULL, interp, NULL, NULL, 0);\n\t    EstablishErrorCodeTraces(NULL, interp, NULL, NULL, 0);\n\n\t    /*\n\t     * We didn't really kill it, so remove the KILLED marks, so it can\n\t     * get killed later, avoiding mem leaks.\n\t     */\n\n\t    nsPtr->flags &= ~(NS_DYING|NS_TEARDOWN);\n\t}\n    }\n    TclNsDecrRefCount(nsPtr);\n}\n",
+      "snippet_sha256": "f50a1411dda58926a03dc4ef88d4048b3ebcb9c9c5b39bbe0d5aaaf7108639dc",
+      "evidence": "delete-source-13"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Retained release source identified by complete file digest",
+      "original_path": "tmp/tcl9.1.0/generic/tclProc.c",
+      "function": "TclProcDeleteProc",
+      "lines": [
+        2122,
+        2130
+      ],
+      "source_sha256": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+      "snippet": "TclProcDeleteProc(\n    void *clientData)\t\t/* Procedure to be deleted. */\n{\n    Proc *procPtr = (Proc *)clientData;\n\n    if (procPtr->refCount-- <= 1) {\n\tTclProcCleanupProc(procPtr);\n    }\n}\n",
+      "snippet_sha256": "17200e534b0f3185ba7cb1f6b896c812094a24b1daaf034824259fb69b97102c",
+      "evidence": "delete-source-14"
+    }
+  ]
+}

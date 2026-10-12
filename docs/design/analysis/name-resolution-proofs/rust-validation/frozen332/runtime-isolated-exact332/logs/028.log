@@ -1,0 +1,17 @@
+
+running 1 test
+test capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives ... 
+thread 'capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives' (1215161) panicked at src/capi/scalar/tests.rs:432:5:
+assertion `left == right` failed: tcl8.4: {"after": "NULL", "before": "NULL", "case": "16", "code": "1", "double_bits": "40884a0000000000", "errno": "0", "error_code": "53454544454420434f4445", "getter": "3", "input_after_observers": "626164", "int": "777", "long": "777", "mode": "live", "result": "657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202262616422", "string_after": "1", "string_before": "1", "string_same": "1", "wide": "777"}
+  left: "4088480000000000"
+ right: "40884a0000000000"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.63s
+

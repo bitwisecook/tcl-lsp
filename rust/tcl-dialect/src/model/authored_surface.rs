@@ -202,7 +202,7 @@ macro_rules! surface {
 /// about a target release: `introduced <= floor < retired`. `None` is a
 /// package the context carries and names no release of, which admits every
 /// window rather than none — a floor nobody stated cannot rule a row out.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PackageFloor<'a> {
     /// The package, spelled as a [`SpecProvider::Package`] row spells it.
     pub name: &'a str,
@@ -309,6 +309,17 @@ impl<'a> CorePoints<'a> {
     }
 }
 
+/// The host phase whose command availability is being queried.
+/// This does not establish an engine/compiler identity or an entered body.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InvocationRealm {
+    /// Authored source is subject to the host's rule-loader command policy.
+    #[default]
+    RuleLoader,
+    /// An audited evaluated-script entry selects the interpreter command table.
+    InterpreterRuntime,
+}
+
 /// The point a surface question is asked at — the replacement for the retired
 /// availability point (Q13).
 ///
@@ -318,6 +329,8 @@ impl<'a> CorePoints<'a> {
 /// no bit for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceQuery<'a> {
+    /// Explicit availability phase, independent of source-origin kind.
+    pub realm: InvocationRealm,
     /// The core points the context resolves to, nearest first, each a
     /// family and the release on its ladder. Empty is a context with no
     /// core runtime of its own — the BIG-IP config surface, the permissive
@@ -335,6 +348,7 @@ impl<'a> SurfaceQuery<'a> {
     #[must_use]
     pub const fn core(family: Family, release: &'a str) -> Self {
         Self {
+            realm: InvocationRealm::RuleLoader,
             core: CorePoints::one(family, Some(release)),
             packages: &[],
         }
@@ -344,9 +358,28 @@ impl<'a> SurfaceQuery<'a> {
     #[must_use]
     pub const fn any_release(family: Family) -> Self {
         Self {
+            realm: InvocationRealm::RuleLoader,
             core: CorePoints::one(family, None),
             packages: &[],
         }
+    }
+
+    /// Select a host availability phase. iRules' runtime command table is
+    /// anchored in the shared fork point; its closed roster is applied by the
+    /// registry, independently of the native compiler protocol.
+    #[must_use]
+    pub fn with_realm(mut self, realm: InvocationRealm) -> Self {
+        self.realm = realm;
+        if let Some((Family::F5Irules, release)) = self.core.nearest() {
+            self.core = match realm {
+                InvocationRealm::RuleLoader => CorePoints::one(Family::F5Irules, release),
+                InvocationRealm::InterpreterRuntime => CorePoints::two(
+                    (Family::F5Irules, release),
+                    (Family::Tcl, Some(Family::F5_FORK_POINT)),
+                ),
+            };
+        }
+        self
     }
 
     /// A query carrying `packages` as well as this one's core.
@@ -728,6 +761,7 @@ mod tests {
 
     fn jim_then_tcl() -> SurfaceQuery<'static> {
         SurfaceQuery {
+            realm: crate::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
             packages: &[],
         }
@@ -756,6 +790,7 @@ mod tests {
     #[test]
     fn a_window_on_the_own_family_is_met_only_within_it() {
         let pinned = |release| SurfaceQuery {
+            realm: crate::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, Some(release)), (Family::Tcl, Some("8.6"))),
             packages: &[],
         };

@@ -1,0 +1,102 @@
+{
+  "source": "/workspace/.proofs/2286-root-error-special-frames.c",
+  "source_sha256": "1a23c4fa68e0f94fd327c61568c8e7396ed29d2d53c11b24dc4d1a1caa06116e",
+  "runs": [
+    {
+      "version": "8.6.18",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-root-error-special-frames.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-error-special-frames-8.6.18"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-error-special-frames-8.6.18",
+      "binary_sha256": "6c9e59c9a41fac038b9e68c48ba220f5fb6246417223260fb1154363187a2101",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "log": "/workspace/.proofs/2286-root-error-special-frames-8.6.18.log",
+      "log_sha256": "153131c2d07ca171d85f475c7306904f0c23a3910de4f43f4e0ae271cb9fe902",
+      "observations": [
+        "root|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "special-shift|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "special-same|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "nested-shift|0|{INNER {returnImm BODY {}} UP 2 CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}"
+      ]
+    },
+    {
+      "version": "9.0.4",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-root-error-special-frames.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-error-special-frames-9.0.4"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-error-special-frames-9.0.4",
+      "binary_sha256": "a46d93ba7c0a1bdc1be47841ef87deb9f2ff771360ff54892afaac25a5e9401b",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "log": "/workspace/.proofs/2286-root-error-special-frames-9.0.4.log",
+      "log_sha256": "153131c2d07ca171d85f475c7306904f0c23a3910de4f43f4e0ae271cb9fe902",
+      "observations": [
+        "root|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "special-shift|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "special-same|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "nested-shift|0|{INNER {returnImm BODY {}} UP 2 CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}"
+      ]
+    },
+    {
+      "version": "9.1.0",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-root-error-special-frames.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-error-special-frames-9.1.0"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-error-special-frames-9.1.0",
+      "binary_sha256": "e53ed76c99769a0546dbb922390b2a03654a1a2b74ff29eb2ae7f86aac3815ba",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "log": "/workspace/.proofs/2286-root-error-special-frames-9.1.0.log",
+      "log_sha256": "153131c2d07ca171d85f475c7306904f0c23a3910de4f43f4e0ae271cb9fe902",
+      "observations": [
+        "root|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "special-shift|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "special-same|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}",
+        "nested-shift|0|{INNER {returnImm BODY {}} UP 2 CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+     */
+
+    Tcl_Obj *result;
+    if (all) {
+	result = GetAllObjectProperties(oPtr, writable);
+    } else {
+	if (writable) {
+	    result = TclOOGetPropertyList(&oPtr->properties.writable);
+	} else {
+	    result = TclOOGetPropertyList(&oPtr->properties.readable);
+	}
+	SortPropList(result);
+    }
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOReleasePropertyStorage --
+ *
+ *	Delete the memory associated with a class or object's properties.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+ReleasePropertyList(
+    PropertyList *propList)
+{
+    Tcl_Obj *propertyObj;
+    Tcl_Size i;
+
+    FOREACH(propertyObj, *propList) {
+	Tcl_DecrRefCount(propertyObj);
+    }
+    Tcl_Free(propList->list);
+    propList->list = NULL;
+    propList->num = 0;
+}
+
+void
+TclOOReleasePropertyStorage(
+    PropertyStorage *propsPtr)
+{
+    if (propsPtr->allReadableCache) {
+	Tcl_DecrRefCount(propsPtr->allReadableCache);
+    }
+    if (propsPtr->allWritableCache) {
+	Tcl_DecrRefCount(propsPtr->allWritableCache);
+    }
+    if (propsPtr->readable.num) {
+	ReleasePropertyList(&propsPtr->readable);
+    }
+    if (propsPtr->writable.num) {
+	ReleasePropertyList(&propsPtr->writable);
+    }
+}
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */

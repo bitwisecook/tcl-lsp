@@ -39,76 +39,18 @@
 //! their runtime builtins), so the whole traced call tree — not just the
 //! directly-traced proc — becomes trace-visible.
 //!
-//! Every vector's stdout is compared against the bytecode VM **and** — when
-//! installed — real `tclsh8.6` / `tclsh9.0` (`TCL_LSP_TCLSH86` /
-//! `TCL_LSP_TCLSH90` override the binaries).
+//! Every vector's stdout is compared against the matching physical-core VM and
+//! both pinned C8.6/C9.0 engines through the shared strict oracle runner. Older C
+//! releases retain their measured step-trace and absent-core-feature controls;
+//! Jim's unsupported execution-trace surface is checked independently.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
+use tcl_dialect::TclVersion;
+use tcl_test_support::{JimCapability, require_jimsh, required_tclshs};
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Run `src` in the VM; the script's `puts` output is returned (trimmed).
-fn vm_output(src: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-
-    let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let _ = vm.run_module(&asm);
-    String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
-}
-
-/// Run `src` under a real tclsh, or `None` when that binary isn't available.
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut candidates: Vec<String> = Vec::new();
-    if let Ok(explicit) = std::env::var(bin_env) {
-        candidates.push(explicit);
-    }
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(&name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write");
-        let out = child.wait_with_output().expect("run");
-        if out.status.success() {
-            return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-        }
-    }
-    None
+fn vm_output(source: &str) -> String {
+    common::vm_output(source, "tcl9.0")
 }
 
 /// One behaviour vector: the script prints its observations; `want` is the
@@ -362,31 +304,79 @@ const VECTORS: &[Vector] = &[
 
 #[test]
 fn vm_matches_the_pinned_step_trace_vectors() {
-    for v in VECTORS {
-        assert_eq!(vm_output(v.script), v.want, "{}", v.name);
+    for version in [TclVersion::V8_6, TclVersion::V9_0] {
+        for vector in VECTORS {
+            assert_eq!(
+                common::vm_output(vector.script, version.dialect_name()),
+                vector.want,
+                "{version:?}: {}",
+                vector.name
+            );
+        }
     }
 }
 
 /// The table is pinned to C Tcl: every vector's `want` must match what the
-/// real tclsh prints (8.6 and 9.0 agree on all of these). Skips per-binary
-/// when the interpreter is not installed.
+/// exact pinned C8.6 and C9.0 interpreters print; both are required.
 #[test]
 fn step_trace_vectors_match_real_tclsh() {
-    let mut ran = 0;
-    for v in VECTORS {
-        for (env, names) in [
-            ("TCL_LSP_TCLSH86", &["tclsh8.6"][..]),
-            ("TCL_LSP_TCLSH90", &["tclsh9.0"][..]),
-        ] {
-            if let Some(got) = tclsh_output(env, names, v.script) {
-                assert_eq!(got, v.want, "[{env}] {}", v.name);
-                ran += 1;
-            }
+    let oracles = required_tclshs(&[TclVersion::V8_6, TclVersion::V9_0])
+        .expect("both pinned step-trace engines");
+    for oracle in oracles {
+        for vector in VECTORS {
+            assert_eq!(
+                common::oracle_output(&oracle.path, vector.script),
+                vector.want,
+                "{}: {}",
+                oracle.patchlevel,
+                vector.name
+            );
         }
     }
-    if ran == 0 {
-        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
+}
+
+#[test]
+fn step_trace_operand_substitution_matches_all_five_native_engines() {
+    const SOURCE: &str = "proc p {} {set x 1; incr x; return $x}\nproc step {cmd op} {puts [list $cmd $op]}\ntrace add execution p enterstep step\nputs [p]\n";
+    const EXPECTED: &str = "{set x 1} enterstep\n{incr x} enterstep\n{return 2} enterstep\n2";
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned step-trace engines") {
+        assert_eq!(
+            common::oracle_output(&oracle.path, SOURCE),
+            EXPECTED,
+            "{}",
+            oracle.patchlevel
+        );
+        assert_eq!(
+            common::vm_output(SOURCE, oracle.version.dialect_name()),
+            EXPECTED,
+            "{:?}",
+            oracle.version
+        );
     }
+}
+
+#[test]
+fn older_step_trace_engines_do_not_supply_coroutine_tailcall_or_core_tcloo() {
+    let source = "puts [list [llength [info commands ::coroutine]] [llength [info commands ::tailcall]] [llength [info commands ::oo::class]]]\n";
+    for oracle in required_tclshs(&[TclVersion::V8_4, TclVersion::V8_5])
+        .expect("both pinned older step-trace engines")
+    {
+        assert_eq!(common::oracle_output(&oracle.path, source), "0 0 0");
+        assert_eq!(
+            common::vm_output(source, oracle.version.dialect_name()),
+            "0 0 0"
+        );
+    }
+}
+
+#[test]
+fn jim_execution_traces_are_explicitly_unsupported() {
+    let oracle = require_jimsh().expect("pinned Jim execution-trace surface");
+    assert!(!oracle.supports(JimCapability::ExecutionTrace));
+    let source = "puts [catch {trace add execution p enterstep list} message]\nputs $message\n";
+    let expected = "1\ninvalid command name \"trace\"";
+    assert_eq!(common::oracle_output(&oracle.path, source), expected);
+    assert_eq!(common::vm_output(source, "jim"), expected);
 }
 
 /// Documented divergence from C, narrow in scope: C's interp-wide step trace

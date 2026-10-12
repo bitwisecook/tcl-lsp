@@ -1,0 +1,19 @@
+{
+  "ordinal": 211,
+  "selector": "interp::bootstrap_context_tests::original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::bootstrap_context_tests::original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 2.8490185889822897,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.84s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/211.log",
+  "log_sha256": "a36fa95f271d1dfda5bd94f54056d02aadd6b42fb51316e8ef391ca8a5b574b2"
+}

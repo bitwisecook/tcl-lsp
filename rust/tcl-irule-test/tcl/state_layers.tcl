@@ -924,7 +924,11 @@ namespace eval ::state {
     proc reset_connection_state {} {
         # Reset per-connection state (between test connections).
         # Does NOT reset ::static:: variables (they persist across connections,
-        # just like on real TMM where RULE_INIT fires once per device load).
+        # within the current worker lifetime).
+        if {![catch {::tmm::_orig_info commands ::itest::reset_connection_frame} commands] &&
+            [llength $commands]} {
+            ::itest::reset_connection_frame
+        }
         connection::reset
         tls::reset
         http::reset
@@ -955,6 +959,9 @@ namespace eval ::state {
     }
 
     proc reset_statics {} {
+        if {[llength [::info commands ::tmm::_static_reset_domain]]} {
+            ::tmm::_static_reset_domain
+        }
         # Clear all static:: variables (for full test reset)
         foreach var [::info vars ::static::*] {
             catch { unset $var }
@@ -965,7 +972,7 @@ namespace eval ::state {
 # ── static:: namespace ────────────────────────────────────────────
 #
 # iRules use `set static::varname value` to set variables that persist
-# across all connections (RULE_INIT fires once per device load).
+# across connections in a worker; loaded rules share each worker's namespace.
 # We provide the namespace so these variables resolve normally.
 
 namespace eval ::static {}

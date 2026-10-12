@@ -1,0 +1,20 @@
+literal 0 {FIRST+ FIRST++}
+copy 0 {OLD NEW}
+captured 0 NEW
+recreated 0 {OLD NEW}
+shadow 0 {PARAM PARAM}
+localshadow 0 {LOCAL LOCAL}
+afterframe 0 KEEP
+afterrename 0 {1 2}
+redefine 0 {1 11}
+targetalias 0 {NEW NEW}
+arraycopy 1 {Can't initialise array element "a(k)"}
+arrayref 1 {Can't link to array element "a(k)"}
+missing 1 {variable for initialization of static "absent" not found in the local context}
+duplicate 1 {static variable name "x" duplicated in statics list}
+unsetstatic 1 {can't unset "x": no such variable}
+defaultstatic 0 {DEFAULT DEFAULT}
+copyarray 0 {{k VALUE} {k NEW}}
+capturedarray 0 {OLD NEW}
+copyarrayelementunset 0 {0 V}
+capturedarrayelementunset 0 {0 0}

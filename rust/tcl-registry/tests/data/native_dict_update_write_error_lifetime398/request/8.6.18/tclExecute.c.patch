@@ -1,0 +1,30 @@
+--- original/tclExecute.c
++++ observed/tclExecute.c
+@@ -16,6 +16,14 @@
+  */
+ 
+ #include "tclInt.h"
++/* Independent integer observer; no Tcl allocation or ownership mutation. */
++Tcl_Obj *tclLspDictReleaseWatch = NULL;
++int tclLspDictErrorObserved = 0;
++int tclLspDictErrorRefcount = -1;
++int tclLspDictErrorSameCell = -1;
++int tclLspDictErrorDefinedScalar = -1;
++int tclLspDictFinalFreeObserved = 0;
++
+ #include "tclCompile.h"
+ #include "tclOOInt.h"
+ #include "tommath.h"
+@@ -7807,6 +7815,12 @@
+ 	    CACHE_STACK_INFO();
+ 	    if (objResultPtr == NULL) {
+ 		if (allocdict) {
++                    tclLspDictErrorObserved++;
++                    tclLspDictErrorRefcount = dictPtr->refCount;
++                    tclLspDictErrorSameCell = (varPtr->value.objPtr == dictPtr);
++                    tclLspDictErrorDefinedScalar =
++                        TclIsVarScalar(varPtr) && !TclIsVarUndefined(varPtr);
++                    tclLspDictReleaseWatch = dictPtr;
+ 		    TclDecrRefCount(dictPtr);
+ 		}
+ 		TRACE_ERROR(interp);

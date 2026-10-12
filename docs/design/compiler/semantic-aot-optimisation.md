@@ -109,7 +109,7 @@ The current control surface is `SemanticOptimisationPassId`:
 |---|---|
 | `LegacyAnalysisSpecialisation` | retain the pre-common-proof structured-WASM compatibility tier behind an explicit opt-in |
 | `GuardedIntrinsic` | select the bounded boxed intrinsic plus its live guard and exact argv fallback |
-| `CachedBoxedSlot` | reserve authorisation for a future cached boxed Tcl-object slot; no emitter consumes it today |
+| `CachedBoxedSlot` | explicit cached boxed Tcl-object slot control; no cached-slot emitter consumes it |
 | `MaterialisableSlot` | authorise common materialisable-slot evidence; currently consumed only as one premise of the sealed native add |
 | `DirectProc` | authorise common direct-procedure evidence; currently consumed only by the sealed native add |
 | `NativeInteger` | authorise native-integer proof; currently consumed only by the exact i64 addition |
@@ -118,7 +118,7 @@ The current control surface is `SemanticOptimisationPassId`:
 | `NativeLowering` | lower a function through the native lowered IR (`native_lowering`) and let a backend emit it; a function the lowering declines stays on the general path with a typed reason |
 | `RepresentationInference` | keep values in the representation lattice (`NativeInt`/`NativeDouble`/`NativeBool`) between operations; disabled, every value is boxed and every operation dynamic with a runtime slow edge |
 | `TraceBarrierElision` | let a value stay in a native shadow across cell accesses the module's variable-trace ledger proves unobserved; disabled, every cell access keeps its barrier and every read goes to the runtime |
-| `CellDemotion` | demote a proven-local procedure variable from a named cell to an indexed slot (decision recorded; slot emission not yet implemented) |
+| `CellDemotion` | record whether a procedure variable qualifies for local-slot storage; emission keeps named cells and does not consume these slot decisions |
 
 `WasmCompileOptions::native_tier()` is the aggregate profile that enables the
 four native-tier controls together; it is shorthand for the explicit set and

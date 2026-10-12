@@ -1,0 +1,58 @@
+
+running 34 tests
+test caller_frame::caller_frame_navigation_tests::a_fully_qualified_upvar_target_navigates_from_word_and_read ... 
+thread 'caller_frame::caller_frame_navigation_tests::a_fully_qualified_upvar_target_navigates_from_word_and_read' (532534) panicked at rust/tcl-lsp-core/src/caller_frame.rs:1773:13:
+assertion `left == right` failed: upvar-othervar: the cell's own two spellings — the `upvar` otherVar word and the sibling proc's read — then the two occurrences of the `data` alias it introduces: [LspRange { start_line: 2, start_character: 10, end_line: 2, end_character: 33 }, LspRange { start_line: 7, start_character: 21, end_line: 7, end_character: 44 }, LspRange { start_line: 8, start_character: 18, end_line: 8, end_character: 42 }]
+  left: [(2, 10), (7, 21), (8, 18)]
+ right: [(2, 10), (8, 18), (2, 34), (3, 12)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation ... ok
+test caller_frame::caller_frame_navigation_tests::an_unbound_dollar_read_never_resolves_to_a_same_named_method ... ok
+test caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word ... ok
+test caller_frame::caller_frame_navigation_tests::hover_on_a_caller_frame_read_names_the_creating_call ... ok
+test caller_frame::caller_frame_navigation_tests::navigation_resolves_a_literal_upvar_target_to_the_creating_call ... ok
+test caller_frame::caller_frame_navigation_tests::read_only_call_sites_survive_without_declarations ... ok
+test caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read ... ok
+test caller_frame::caller_frame_navigation_tests::the_call_head_word_still_navigates_as_a_command ... ok
+test caller_frame::tests::a_binding_in_another_frame_is_not_visible_here ... ok
+test caller_frame::tests::a_binding_inside_a_fresh_frame_body_does_not_leak_out ... ok
+test caller_frame::tests::a_binding_inside_a_same_frame_body_is_visible_here ... ok
+test caller_frame::tests::a_commented_read_is_not_a_reference ... ok
+test caller_frame::tests::a_literal_target_at_a_non_caller_level_binds_nothing ... ok
+test caller_frame::tests::a_literal_upvar_target_binds_at_the_call_head ... ok
+test caller_frame::tests::a_mixin_method_binds_only_the_name_its_upvar_spells ... ok
+test caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target ... CALLER_METHOD_SOURCE heads=[(0, "oo::class"), (31, "method"), (79, "upvar"), (103, "set"), (128, "oo::class"), (158, "mixin"), (176, "constructor"), (210, "my"), (237, "self"), (258, "puts")]
+CALLER_METHOD_BINDING offset=210 binding=true info=Some((ReceiverMethod { identity: "source:31:176/source:31/site:0" }, true, true, [], None)) template=false
+
+thread 'caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target' (533027) panicked at rust/tcl-lsp-core/src/caller_frame.rs:1520:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test caller_frame::tests::a_mixin_method_without_an_upvar_binds_nothing ... ok
+test caller_frame::tests::a_next_dispatch_binds_nothing ... ok
+test caller_frame::tests::a_plain_value_argument_binds_nothing ... ok
+test caller_frame::tests::a_qualified_literal_target_is_not_a_caller_frame_binding ... ok
+test caller_frame::tests::a_read_only_literal_target_is_a_reference_not_a_creation ... ok
+test caller_frame::tests::a_substituted_call_site_word_binds_nothing ... ok
+test caller_frame::tests::an_escaped_dollar_is_not_a_read_but_an_escaped_backslash_leaves_one ... ok
+test caller_frame::tests::call_site_argument_binds_the_caller_frame_variable ... ok
+test caller_frame::tests::caller_templates_decode_original_literal_arguments ... ok
+test caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions ... ok
+test caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes ... ok
+test caller_frame::tests::dollar_escape_parity_matches_c_tcl ... ok
+test caller_frame::tests::namespace_upvar_binds_nothing_in_the_calling_frame ... ok
+test caller_frame::tests::only_a_caller_frame_upvar_level_binds_here ... ok
+test caller_frame::tests::original_caller_reference_geometry_does_not_cross_a_nested_frame ... ok
+test caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency ... ok
+test caller_frame::tests::reference_spans_cover_the_call_site_word_and_the_reads ... ok
+
+failures:
+
+failures:
+    caller_frame::caller_frame_navigation_tests::a_fully_qualified_upvar_target_navigates_from_word_and_read
+    caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target
+
+test result: FAILED. 32 passed; 2 failed; 0 ignored; 0 measured; 2594 filtered out; finished in 170.14s
+

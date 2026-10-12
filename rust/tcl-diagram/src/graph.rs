@@ -81,9 +81,19 @@ impl Builder {
         let label = node.get("label").and_then(Value::as_str).unwrap_or("");
         match kind {
             "action" => {
-                let cmd = node.get("command").and_then(Value::as_str).unwrap_or("");
                 let id = self.node(&incoming, "action", label);
-                if is_terminal(cmd) {
+                if matches!(
+                    node.get("completion").and_then(Value::as_str),
+                    Some(
+                        "error"
+                            | "return"
+                            | "break"
+                            | "continue"
+                            | "process_exit"
+                            | "terminal"
+                            | "custom"
+                    )
+                ) {
                     Vec::new() // control leaves the event
                 } else {
                     vec![(id, String::new())]
@@ -217,14 +227,6 @@ impl Builder {
     }
 }
 
-/// Commands that end an event's control flow.
-fn is_terminal(command: &str) -> bool {
-    matches!(
-        command.to_ascii_lowercase().as_str(),
-        "return" | "drop" | "reject" | "discard"
-    )
-}
-
 /// Normalise a node/edge label for display: collapse newlines/tabs to spaces,
 /// spell out `&&` / `||` as words, and cap the length. JSON string escaping is
 /// handled by the serialiser, so no quote escaping is needed here.
@@ -296,7 +298,7 @@ pub fn irule_flowchart_graph(source: &str, registry: &CommandRegistry) -> String
         let name = pr.get("name").and_then(Value::as_str).unwrap_or("proc");
         let pr_id = b.node(&[], "proc", &format!("proc {name}"));
         let body = pr
-            .get("body")
+            .get("flow")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
@@ -332,5 +334,25 @@ mod tests {
     fn flowchart_empty_source_is_blank() {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         assert_eq!(irule_flowchart_graph("# just a comment\n", registry), "");
+    }
+}
+
+#[cfg(test)]
+mod original_completion_tests {
+    use super::*;
+
+    #[test]
+    fn original_diagram_renderer_does_not_infer_completion_from_action_labels() {
+        // Implementation contract: naming.consumer.original-structural-diagrams
+        // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
+        let mut builder = Builder {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            n: 0,
+        };
+        let action = serde_json::json!({"kind":"action", "command":"drop", "label":"drop"});
+        assert_eq!(builder.render(&action, Vec::new()).len(), 1);
+        let action = serde_json::json!({"kind":"action", "command":"counterfactual", "label":"continued", "completion":"terminal"});
+        assert!(builder.render(&action, Vec::new()).is_empty());
     }
 }

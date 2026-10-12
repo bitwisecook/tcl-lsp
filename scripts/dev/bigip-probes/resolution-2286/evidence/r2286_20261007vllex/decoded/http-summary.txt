@@ -1,0 +1,10 @@
+input=/tmp/r2286-decode/http.body
+envelope_sha256_external=RECORD_WITH_SHA256SUM
+export_rc=0
+export_result_hex=31
+context=HTTP_REQUEST
+identity_hex=30203020302030
+declared_rows=1044
+decoded_rows=1044
+unique_keys=1044
+decoded_transcript_bytes=618587

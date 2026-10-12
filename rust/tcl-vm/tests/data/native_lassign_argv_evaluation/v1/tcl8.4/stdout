@@ -1,0 +1,6 @@
+VERSION 8.4.20
+AVAILABLE 0
+UNAVAILABLE inline 0 lassign
+UNAVAILABLE inline 1 lassign
+UNAVAILABLE generic 0 lassign
+UNAVAILABLE generic 1 lassign

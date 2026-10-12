@@ -1,0 +1,16 @@
+{
+  "command": [
+    "cargo",
+    "metadata",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--offline",
+    "--format-version",
+    "1"
+  ],
+  "exit": 0,
+  "seconds": 0.23755745100788772,
+  "before_sha256": "d3659b2156717bd3dc610d596c902c59d309b022f30b9ab34c4c547a8ca2cc06",
+  "after_sha256": "c27cda1e5366a090fe157613e59422e47db631a3e82ea8c9c03817981a644764",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/pinned-vm286.elf.gz",
+  "stored_sha256": "047cb62cafb9e8fb9adc7ca69f38c8670930a105bf3a021cda1c13e0d282a937",
+  "stored_bytes": 19851715,
+  "original_sha256": "d3dbfecf99c8a1085c779d32202453fcffaa4355f440cfe0233d42e657eef5f0",
+  "original_bytes": 101562216,
+  "original_recorded_executable": "/workspace/.proofs/pinned-vm286.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/pinned-vm286.json",
+  "pin_metadata_sha256": "9ba487fff5b4eeee6777edd1285e35ba7cf2d924fc909e7263ff7adc5d748b33",
+  "build_receipt_id": "rust.frozen286.integration-vm-own-test-build286",
+  "build_receipt_sha256": "a0dd75d9f81b6a4410b309f0b3b2a70c628c5d3d96a148506d0e891a24adac99",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/source-snapshot.json.gz",
+    "sha256": "e44a81338ee7658ee866eac7b12d090ed71378890fb2d8238352f1402973b049",
+    "compression": "gzip",
+    "uncompressed_sha256": "1b79eb499578670488aa27d380a6ff5b5483a7ed125b87106dea2dfd10ad13e4"
+  },
+  "verification": "Exact original metadata/successful producer retained. Gzip decompressed and completely byte-compared with measured original ELF digest and independent byte length. No new build or run."
+}

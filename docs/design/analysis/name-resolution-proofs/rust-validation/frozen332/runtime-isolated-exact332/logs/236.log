@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_operation_currency::tests::unchanged_pin_and_exhausted_context_epoch_keep_distinct_admission ... 
+thread 'interp::native_operation_currency::tests::unchanged_pin_and_exhausted_context_epoch_keep_distinct_admission' (1218241) panicked at src/interp.rs:5750:14:
+fresh tcl_platform array: NameProtocolUnavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_operation_currency::tests::unchanged_pin_and_exhausted_context_epoch_keep_distinct_admission
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.36s
+

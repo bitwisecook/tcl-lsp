@@ -1,0 +1,194 @@
+Tue Oct  6 11:40:29 UTC 2026
+Use the TMOS shell utility to make changes to the system configuration.
+For more information, see "tmsh help sys global-settings."
+uid=0(root) gid=500(webusers) groups=500(webusers),995(sdm) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+
+Sys::Version
+Main Package 
+  Product      BIG-IP
+  Version      21.1.0.1
+  Build        0.0.26
+  Edition      Point Release 1
+  Date         Tue Jul 14 05:03:24 PDT 2026
+  FIPS Module  Cryptographic Module for BIG-IP
+
+
+Sys::Hardware
+Chassis Information
+  Maximum MAC Count  1
+  Registration Key   -
+
+Hardware Version Information
+  Name        cpus        
+  Type        base-board  
+  Model       Intel(R) Core(TM) Ultra 7 265K
+  Parameters  --            --
+              cache size    16384 KB
+              cores         4  (physical:4)
+              cpu MHz       3878.400
+              cpu sockets   1
+              cpu stepping  2
+            
+
+Platform
+  Name  BIG-IP Virtual Edition
+  BIOS Revision   
+  Base MAC       bc:24:11:4a:88:ae
+  Hypervisor     Standard PC (Q35 + ICH9, 2009)
+  Cloud           
+
+System Information         
+  Type                       Z100
+  Chassis Serial             acd75a47-2eee-0848-7d953b412c37
+  Level 200/400 Part          
+  Switchboard Serial          
+  Switchboard Part Revision   
+  Host Board Serial           
+  Host Board Part Revision    
+
+
+---------------------------
+Sys::TMM: 0.0      
+---------------------------
+Global             
+  TMM Process Id      28022
+  Running TMM Id          0
+  TMM Count               1
+  CPU Id                  0
+                   
+Memory (bytes)     
+  Total               13.5G
+  Used               392.0M
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds          0
+  Last 1 Minute           0
+  Last 5 Minutes          0
+
+--------------------------
+Sys::TMM: 0.1      
+--------------------------
+Global             
+  TMM Process Id     28022
+  Running TMM Id         1
+  TMM Count              1
+  CPU Id                 1
+                   
+Memory (bytes)     
+  Total                  0
+  Used                   0
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds         0
+  Last 1 Minute          0
+  Last 5 Minutes         0
+
+--------------------------
+Sys::TMM: 0.2      
+--------------------------
+Global             
+  TMM Process Id     28022
+  Running TMM Id         2
+  TMM Count              1
+  CPU Id                 2
+                   
+Memory (bytes)     
+  Total                  0
+  Used                   0
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds         0
+  Last 1 Minute          0
+  Last 5 Minutes         0
+
+--------------------------
+Sys::TMM: 0.3      
+--------------------------
+Global             
+  TMM Process Id     28022
+  Running TMM Id         3
+  TMM Count              1
+  CPU Id                 3
+                   
+Memory (bytes)     
+  Total                  0
+  Used                   0
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds         0
+  Last 1 Minute          0
+  Last 5 Minutes         0
+
+
+-------------------------------------------
+CM::Failover Status
+-------------------------------------------
+Color    green
+Status   ACTIVE
+Summary  1/1 active
+Details
+         active for /Common/traffic-group-1
+
+01020036:3: The requested iRule (one-line) was not found.
+lrwxrwxrwx. 1 root root    8 Aug  2 11:32 /usr/bin/tclsh -> tclsh8.5
+-rwxr-xr-x. 1 root root 7192 Jul 10 12:46 /usr/bin/tclsh8.4
+-rwxr-xr-x. 1 root root 7192 Jul 10 13:00 /usr/bin/tclsh8.5
+20234 /etc/bigstart/scripts/tmm.start /var/run 4 4 0 --platform Z100 -m -s 14072
+28022 tmm.0 -T 4 --tmid 0 --npus 4 --platform Z100 -m -s 14072       
+tmctl: tmm/cluster_status: No such table.
+slot_id cpu_id user nice system  idle iowait irq softirq stolen ratio
+------- ------ ---- ---- ------ ----- ------ --- ------- ------ -----
+      0      0 6863   72   4871 87946    808   0      22      0    20
+      0      1 7441   69   4785 87572    671   0      18      0    24
+      0      2 7196   44   4698 87885    660   0      15      0    16
+      0      3 7703   57   5049 86868    789   0      15      0    23
+
+five_sec_avg.user five_sec_avg.nice five_sec_avg.system five_sec_avg.idle
+----------------- ----------------- ------------------- -----------------
+                5                 0                   3                87
+                6                 0                   2                88
+                5                 0                   2                89
+                6                 0                   3                86
+
+five_sec_avg.iowait five_sec_avg.irq five_sec_avg.softirq five_sec_avg.stolen
+------------------- ---------------- -------------------- -------------------
+                  1                0                    0                   0
+                  0                0                    0                   0
+                  0                0                    0                   0
+                  1                0                    0                   0
+
+five_sec_avg.ratio one_min_avg.user one_min_avg.nice one_min_avg.system
+------------------ ---------------- ---------------- ------------------
+                 9                3                0                  2
+                 9                4                0                  2
+                 8                3                0                  2
+                10                3                0                  2
+
+one_min_avg.idle one_min_avg.iowait one_min_avg.irq one_min_avg.softirq
+---------------- ------------------ --------------- -------------------
+              90                  0               0                   0
+              90                  0               0                   0
+              90                  0               0                   0
+              90                  0               0                   0
+
+one_min_avg.stolen one_min_avg.ratio five_min_avg.user five_min_avg.nice
+------------------ ----------------- ----------------- -----------------
+                 0                 6                 3                 0
+                 0                 7                 3                 0
+                 0                 6                 4                 0
+                 0                 6                 4                 0
+
+five_min_avg.system five_min_avg.idle five_min_avg.iowait five_min_avg.irq
+------------------- ----------------- ------------------- ----------------
+                  2                90                   0                0
+                  2                90                   0                0
+                  2                90                   0                0
+                  2                90                   0                0
+
+five_min_avg.softirq five_min_avg.stolen five_min_avg.ratio plane_name
+-------------------- ------------------- ------------------ ----------
+                   0                   0                  6 control   
+                   0                   0                  6 control   
+                   0                   0                  6 control   
+                   0                   0                  6 control   
+

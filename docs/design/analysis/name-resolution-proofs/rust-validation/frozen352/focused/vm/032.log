@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_regexp::original_object_tests::original_regexp_each_match_and_first_failure_match_native_controls ... 
+thread 'cmd_regexp::original_object_tests::original_regexp_each_match_and_first_failure_match_native_controls' (1356941) panicked at rust/tcl-vm/src/cmd_regexp.rs:1125:21:
+assertion `left == right` failed: tcl8.6
+  left: []
+ right: [99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 109, 34, 58, 32, 83, 84, 79, 80]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_regexp::original_object_tests::original_regexp_each_match_and_first_failure_match_native_controls
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 1.71s
+

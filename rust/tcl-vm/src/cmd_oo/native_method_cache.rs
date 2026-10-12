@@ -1,0 +1,993 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Original `TclOO` method records retained by table and reached call-chain owners.
+use super::{
+    BTreeMap, Code, Completion, Method, OoId, OoState, Rc, RefCell, Step, Value, Vm, err,
+    method_report_bytes, native_method_key_for_target, ok, original_name_operands,
+};
+use std::ops::Deref;
+use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+
+pub(super) type MethodOwner = Rc<RefCell<Method>>;
+#[derive(Default)]
+pub(super) struct MethodSlot(Option<MethodOwner>);
+impl Clone for MethodSlot {
+    fn clone(&self) -> Self {
+        Self(
+            self.0
+                .as_ref()
+                .map(|owner| Rc::new(RefCell::new(owner.borrow().duplicate_native_payload()))),
+        )
+    }
+}
+impl MethodSlot {
+    pub(super) fn is_some(&self) -> bool {
+        self.0.is_some()
+    }
+    pub(super) fn take(&mut self) -> Option<MethodOwner> {
+        self.0.take()
+    }
+    pub(super) fn owner(&self) -> Option<MethodOwner> {
+        self.0.clone()
+    }
+    pub(super) fn get(&self) -> Option<Method> {
+        self.0.as_ref().map(|owner| owner.borrow().clone())
+    }
+    pub(super) fn install(&mut self, method: Method) {
+        drop(self.install_for_retirement(method));
+    }
+    pub(super) fn install_for_retirement(&mut self, method: Method) -> Option<MethodOwner> {
+        // Transfer only the real replaced slot role; callers retire it outside
+        // their actual OO access before checking the original continuation.
+        self.0.replace(Rc::new(RefCell::new(method)))
+    }
+}
+
+#[derive(Default)]
+pub(super) struct MethodTable(BTreeMap<String, MethodOwner>, bool);
+impl Clone for MethodTable {
+    fn clone(&self) -> Self {
+        Self(
+            self.0
+                .iter()
+                .map(|(key, owner)| {
+                    (
+                        key.clone(),
+                        Rc::new(RefCell::new(owner.borrow().duplicate_native_payload())),
+                    )
+                })
+                .collect(),
+            self.1,
+        )
+    }
+}
+impl Deref for MethodTable {
+    type Target = BTreeMap<String, MethodOwner>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl MethodTable {
+    pub(super) fn get(&self, key: &str) -> Option<Method> {
+        self.0.get(key).map(|owner| owner.borrow().clone())
+    }
+    pub(super) fn owner(&self, key: &str) -> Option<MethodOwner> {
+        self.0.get(key).cloned()
+    }
+    pub(super) fn mark_allocated(&mut self) {
+        self.1 = true;
+    }
+    pub(super) fn allocated(&self) -> bool {
+        self.1
+    }
+    pub(super) fn insert(&mut self, key: String, method: Method) {
+        drop(self.insert_for_retirement(key, method));
+    }
+    pub(super) fn insert_for_retirement(&mut self, key: String, method: Method) -> Option<Method> {
+        self.1 = true;
+        if let Some(owner) = self.0.get(&key) {
+            let mut current = owner.borrow_mut();
+            Some(std::mem::replace(&mut *current, method))
+        } else {
+            self.0.insert(key, Rc::new(RefCell::new(method)));
+            None
+        }
+    }
+    pub(super) fn remove(&mut self, key: &str) -> Option<MethodOwner> {
+        self.0.remove(key)
+    }
+    pub(super) fn insert_owner(&mut self, key: String, owner: MethodOwner) {
+        self.1 = true;
+        self.0.insert(key, owner);
+    }
+}
+
+pub(super) fn retain_owners(
+    state: &OoState,
+    mut chain: Vec<Step>,
+    method: &str,
+    role: NativeTclooMethodReportRole,
+) -> Vec<Step> {
+    for step in &mut chain {
+        step.method_owner = if role == NativeTclooMethodReportRole::Constructor {
+            state
+                .classes
+                .get(&step.provider)
+                .and_then(|class| class.constructor.owner())
+        } else if role == NativeTclooMethodReportRole::Destructor {
+            state
+                .classes
+                .get(&step.provider)
+                .and_then(|class| class.destructor.owner())
+        } else if step.is_object {
+            state
+                .objects
+                .get(&step.provider)
+                .and_then(|object| object.methods.owner(method))
+        } else {
+            state
+                .classes
+                .get(&step.provider)
+                .and_then(|class| class.methods.owner(method))
+        };
+    }
+    chain
+}
+
+use std::rc::Weak;
+use tcl_registry::native_tcloo_method_cache::{
+    NativeTclOoMethodCacheProtocol, NativeTclOoMethodCacheStamp,
+};
+
+pub(crate) struct NativeMethodChain {
+    origin: Weak<()>,
+    stamp: NativeTclOoMethodCacheStamp,
+    steps: Vec<CachedStep>,
+}
+// Idle cache observations hold no strong Method/clientData role.
+struct CachedStep {
+    method_owner: Weak<RefCell<Method>>,
+    provider: OoId,
+    is_object: bool,
+}
+impl CachedStep {
+    fn capture(step: &Step) -> Option<Self> {
+        Some(Self {
+            method_owner: Rc::downgrade(step.method_owner.as_ref()?),
+            provider: step.provider,
+            is_object: step.is_object,
+        })
+    }
+    fn enter(&self) -> Option<Step> {
+        Some(Step {
+            method_owner: Some(self.method_owner.upgrade()?),
+            provider: self.provider,
+            is_object: self.is_object,
+        })
+    }
+}
+// One native call context owns one chain reference; next frames share that context.
+struct NativeMethodContext {
+    _chain: Rc<NativeMethodChain>,
+}
+#[derive(Clone)]
+pub(super) struct ReachedMethodChain {
+    steps: Rc<Vec<Step>>,
+    _context: Option<Rc<NativeMethodContext>>,
+    report_role: NativeTclooMethodReportRole,
+}
+impl ReachedMethodChain {
+    pub(super) fn with_report_role(mut self, role: NativeTclooMethodReportRole) -> Self {
+        self.report_role = role;
+        self
+    }
+    pub(super) fn report_role(&self) -> NativeTclooMethodReportRole {
+        self.report_role
+    }
+    /// Observe the actual entered chain without retaining Method payload roles.
+    pub(super) fn original_steps(&self) -> Weak<Vec<Step>> {
+        Rc::downgrade(&self.steps)
+    }
+    fn from_cached(chain: Rc<NativeMethodChain>) -> Option<Self> {
+        // InvokeContext retains ALL original records before the first Method.
+        // A missing weak record cannot be reconstructed from its method name.
+        let steps = chain
+            .steps
+            .iter()
+            .map(CachedStep::enter)
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self {
+            steps: Rc::new(steps),
+            _context: Some(Rc::new(NativeMethodContext { _chain: chain })),
+            report_role: NativeTclooMethodReportRole::Named,
+        })
+    }
+}
+impl Deref for ReachedMethodChain {
+    type Target = Vec<Step>;
+    fn deref(&self) -> &Self::Target {
+        &self.steps
+    }
+}
+impl From<Vec<Step>> for ReachedMethodChain {
+    fn from(steps: Vec<Step>) -> Self {
+        Self {
+            steps: Rc::new(steps),
+            _context: None,
+            report_role: NativeTclooMethodReportRole::Named,
+        }
+    }
+}
+impl From<Rc<Vec<Step>>> for ReachedMethodChain {
+    fn from(steps: Rc<Vec<Step>>) -> Self {
+        Self {
+            steps,
+            _context: None,
+            report_role: NativeTclooMethodReportRole::Named,
+        }
+    }
+}
+
+pub(super) struct RetiredMethodTable {
+    _entries: BTreeMap<String, CacheEntry>,
+}
+struct CacheEntry {
+    _original: Value,
+    chain: Option<Rc<NativeMethodChain>>,
+}
+#[derive(Default)]
+pub(super) struct NativeMethodWorld {
+    origin: Rc<()>,
+    foundation: u64,
+    epochs: BTreeMap<OoId, u64>,
+    class_flags: BTreeMap<OoId, bool>,
+    tables: BTreeMap<OoId, BTreeMap<String, CacheEntry>>,
+}
+impl NativeMethodWorld {
+    pub(super) fn observation_epochs(&self, target: OoId) -> (u64, u64) {
+        (
+            self.foundation,
+            self.epochs.get(&target).copied().unwrap_or(0),
+        )
+    }
+    pub(super) fn instance_table_created(&mut self, target: OoId) {
+        self.class_flags.insert(target, false);
+    }
+    pub(super) fn method_created_checked(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        if class {
+            self.foundation = self.foundation.checked_add(1).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original OO method Foundation epoch",
+                ),
+            )?;
+        } else {
+            self.bump_object_checked(target)?;
+            self.class_flags.insert(target, false);
+        }
+        Ok(())
+    }
+
+    pub(super) fn structure_changed_checked(
+        &mut self,
+        target: OoId,
+        class: bool,
+        dependents: bool,
+        representative_mixins: bool,
+    ) -> Result<Option<RetiredMethodTable>, tcl_syntax::value::ValueError> {
+        if !class {
+            self.bump_object_checked(target)?;
+        } else if dependents {
+            self.foundation = self.foundation.checked_add(1).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original OO method Foundation epoch",
+                ),
+            )?;
+        } else if representative_mixins {
+            self.bump_object_checked(target)?;
+            return Ok(self
+                .tables
+                .remove(&target)
+                .map(|entries| RetiredMethodTable { _entries: entries }));
+        }
+        Ok(None)
+    }
+
+    fn bump_object_checked(&mut self, target: OoId) -> Result<(), tcl_syntax::value::ValueError> {
+        let epoch = self.epochs.entry(target).or_default();
+        *epoch = epoch.checked_add(1).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original OO method object epoch",
+            ),
+        )?;
+        Ok(())
+    }
+    pub(super) fn retire(&mut self, target: OoId) -> Option<RetiredMethodTable> {
+        let retired = self
+            .tables
+            .remove(&target)
+            .map(|entries| RetiredMethodTable { _entries: entries });
+        self.epochs.remove(&target);
+        self.class_flags.remove(&target);
+        retired
+    }
+}
+fn selected_stamp(
+    state: &OoState,
+    target: OoId,
+    external: bool,
+    protocol: NativeTclOoMethodCacheProtocol,
+) -> Option<(OoId, NativeTclOoMethodCacheStamp)> {
+    let object = state.objects.get(&target)?;
+    let class_cache = state
+        .native_methods
+        .class_flags
+        .get(&target)
+        .copied()
+        .unwrap_or_else(|| !object.methods.allocated() && object.mixins.is_empty());
+    let owner = if class_cache { object.class } else { target };
+    let receiver = state.objects.get(&owner)?;
+    Some((
+        owner,
+        NativeTclOoMethodCacheStamp {
+            creation: receiver.creation_id,
+            foundation: state.native_methods.foundation,
+            object: state
+                .native_methods
+                .epochs
+                .get(&owner)
+                .copied()
+                .unwrap_or(0),
+            flags: protocol.flags(external, class_cache),
+        },
+    ))
+}
+fn valid(
+    state: &OoState,
+    chain: &NativeMethodChain,
+    stamp: NativeTclOoMethodCacheStamp,
+    protocol: NativeTclOoMethodCacheProtocol,
+) -> bool {
+    chain
+        .origin
+        .ptr_eq(&Rc::downgrade(&state.native_methods.origin))
+        && protocol.reusable(chain.stamp, stamp)
+}
+impl OoState {
+    pub(super) fn recompute_native_method_class_cache(&mut self, target: OoId) {
+        if let Some(object) = self.objects.get(&target) {
+            self.native_methods.class_flags.insert(
+                target,
+                object.methods.is_empty() && object.mixins.is_empty(),
+            );
+        }
+    }
+}
+
+use crate::interp::native_operation_currency::NativeOperationScope;
+use tcl_cmd_core::CmdError;
+
+struct OriginalCacheWorld {
+    origin: Rc<()>,
+    target_creation: u64,
+    target_class: OoId,
+    target_namespace: Option<super::NsId>,
+    target_destroyed: bool,
+    table_owner: OoId,
+    stamp: NativeTclOoMethodCacheStamp,
+}
+impl OriginalCacheWorld {
+    fn unavailable() -> CmdError {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original VM TclOO method-cache world",
+        )
+        .into()
+    }
+    fn capture(
+        vm: &Vm,
+        target: OoId,
+        external: bool,
+        protocol: NativeTclOoMethodCacheProtocol,
+    ) -> Result<Self, CmdError> {
+        let object = vm.oo.objects.get(&target).ok_or_else(Self::unavailable)?;
+        let (table_owner, stamp) =
+            selected_stamp(&vm.oo, target, external, protocol).ok_or_else(Self::unavailable)?;
+        Ok(Self {
+            origin: Rc::clone(&vm.oo.native_methods.origin),
+            target_creation: object.creation_id,
+            target_class: object.class,
+            target_namespace: object.namespace_token,
+            target_destroyed: object.destroyed,
+            table_owner,
+            stamp,
+        })
+    }
+    fn check(
+        &self,
+        vm: &mut Vm,
+        scope: &NativeOperationScope,
+        target: OoId,
+        external: bool,
+        protocol: NativeTclOoMethodCacheProtocol,
+        original: &Value,
+    ) -> Result<(), CmdError> {
+        scope.check(vm)?;
+        original.check_native_header()?;
+        let object = vm.oo.objects.get(&target).ok_or_else(Self::unavailable)?;
+        if !Rc::ptr_eq(&self.origin, &vm.oo.native_methods.origin)
+            || (
+                object.creation_id,
+                object.class,
+                object.namespace_token,
+                object.destroyed,
+            ) != (
+                self.target_creation,
+                self.target_class,
+                self.target_namespace,
+                self.target_destroyed,
+            )
+            || vm
+                .actual_native_invocation_dialect()
+                .native_tcloo_method_cache_protocol()
+                .map(|selected| selected.strings())
+                != Some(protocol.strings())
+            || selected_stamp(&vm.oo, target, external, protocol)
+                != Some((self.table_owner, self.stamp))
+        {
+            return Err(Self::unavailable());
+        }
+        Ok(())
+    }
+}
+pub(super) fn lookup(
+    vm: &mut Vm,
+    target: OoId,
+    method: &str,
+    original: &Value,
+    external: bool,
+) -> Result<Option<ReachedMethodChain>, CmdError> {
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_tcloo_method_cache_protocol()
+    else {
+        return Ok(None);
+    };
+    let scope = NativeOperationScope::enter(vm)?;
+    original.check_native_header()?;
+    let original_lifetime = original.native_lifetime_lease();
+    let world = OriginalCacheWorld::capture(vm, target, external, protocol)?;
+    world.check(
+        vm,
+        &scope,
+        target,
+        external,
+        protocol,
+        original_lifetime.value(),
+    )?;
+    if let Some(chain) = original.native_method_name_chain() {
+        if valid(&vm.oo, &chain, world.stamp, protocol) {
+            let entered = ReachedMethodChain::from_cached(chain)
+                .ok_or_else(OriginalCacheWorld::unavailable)?;
+            world.check(
+                vm,
+                &scope,
+                target,
+                external,
+                protocol,
+                original_lifetime.value(),
+            )?;
+            return Ok(Some(entered));
+        }
+        original.clear_native_method_name();
+        world.check(
+            vm,
+            &scope,
+            target,
+            external,
+            protocol,
+            original_lifetime.value(),
+        )?;
+    }
+    let chain = vm
+        .oo
+        .native_methods
+        .tables
+        .get(&world.table_owner)
+        .and_then(|table| table.get(method))
+        .and_then(|entry| entry.chain.clone());
+    let Some(chain) = chain else { return Ok(None) };
+    if valid(&vm.oo, &chain, world.stamp, protocol) {
+        let entered =
+            ReachedMethodChain::from_cached(chain).ok_or_else(OriginalCacheWorld::unavailable)?;
+        world.check(
+            vm,
+            &scope,
+            target,
+            external,
+            protocol,
+            original_lifetime.value(),
+        )?;
+        return Ok(Some(entered));
+    }
+    let retired = vm
+        .oo
+        .native_methods
+        .tables
+        .get_mut(&world.table_owner)
+        .and_then(|table| table.get_mut(method))
+        .and_then(|entry| entry.chain.take());
+    drop(retired);
+    world.check(
+        vm,
+        &scope,
+        target,
+        external,
+        protocol,
+        original_lifetime.value(),
+    )?;
+    Ok(None)
+}
+pub(super) fn remember(
+    vm: &mut Vm,
+    target: OoId,
+    method: &str,
+    original: &Value,
+    external: bool,
+    steps: Rc<Vec<Step>>,
+) -> Result<ReachedMethodChain, CmdError> {
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_tcloo_method_cache_protocol()
+    else {
+        return Ok(steps.into());
+    };
+    let scope = NativeOperationScope::enter(vm)?;
+    original.check_native_header()?;
+    let original_lifetime = original.native_lifetime_lease();
+    let world = OriginalCacheWorld::capture(vm, target, external, protocol)?;
+    let chain = Rc::new(NativeMethodChain {
+        origin: Rc::downgrade(&world.origin),
+        stamp: world.stamp,
+        steps: steps
+            .iter()
+            .map(CachedStep::capture)
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(OriginalCacheWorld::unavailable)?,
+    });
+    // Original StashCallChain reaches String/primary retirement before
+    // InvokeContext acquires the ALL-record entered role. Do not protect the
+    // earlier callback stage by donating those later record holds.
+    drop(steps);
+    original.retain_native_method_name(
+        Rc::clone(&chain),
+        vm,
+        &mut |vm| {
+            let reached = (|| {
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?
+                    .string(original_lifetime.value(), protocol.strings())
+            })();
+            if let Err(error) = &reached
+                && let Some(first) = error.native_execution_refusal()
+            {
+                vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+            }
+            reached
+        },
+        &mut |vm| {
+            world.check(
+                vm,
+                &scope,
+                target,
+                external,
+                protocol,
+                original_lifetime.value(),
+            )
+        },
+    )?;
+    world.check(
+        vm,
+        &scope,
+        target,
+        external,
+        protocol,
+        original_lifetime.value(),
+    )?;
+    let entered = ReachedMethodChain::from_cached(Rc::clone(&chain))
+        .ok_or_else(OriginalCacheWorld::unavailable)?;
+    let table = vm
+        .oo
+        .native_methods
+        .tables
+        .entry(world.table_owner)
+        .or_default();
+    let retired = if let Some(entry) = table.get_mut(method) {
+        entry.chain.replace(chain)
+    } else {
+        table.insert(
+            method.to_owned(),
+            CacheEntry {
+                _original: original.clone(),
+                chain: Some(chain),
+            },
+        );
+        None
+    };
+    drop(retired);
+    world.check(
+        vm,
+        &scope,
+        target,
+        external,
+        protocol,
+        original_lifetime.value(),
+    )?;
+    Ok(entered)
+}
+impl Vm {
+    pub(super) fn native_method_created(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        super::native_properties::mutation::method_invalidation(self, target, class, true)
+    }
+    pub(super) fn native_method_structure_changed(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        super::native_properties::mutation::method_invalidation(self, target, class, false)
+    }
+}
+
+fn table_mut(state: &mut OoState, target: OoId, class: bool) -> Option<&mut MethodTable> {
+    if class {
+        state
+            .classes
+            .get_mut(&target)
+            .map(|class| &mut class.methods)
+    } else {
+        state
+            .objects
+            .get_mut(&target)
+            .map(|object| &mut object.methods)
+    }
+}
+pub(super) fn delete_method(
+    vm: &mut Vm,
+    class: bool,
+    target: OoId,
+    args: &[Value],
+) -> Completion<Value> {
+    original_name_operands::run(vm, Some((class, target)), |vm, original_names| {
+        if args.is_empty() {
+            return crate::command::native_wrong_args(vm, "deletemethod name ?name ...?");
+        }
+        for original in args {
+            let key = match native_method_key_for_target(vm, original, Some((class, target))) {
+                Ok(key) => key,
+                Err(error) => return error,
+            };
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let owner = table_mut(&mut vm.oo, target, class).and_then(|table| table.remove(&key));
+            let Some(owner) = owner else {
+                let mut message = b"method ".to_vec();
+                message.extend_from_slice(&method_report_bytes(vm, &key));
+                message.extend_from_slice(b" does not exist");
+                return Completion::new(
+                    Code::Error,
+                    Value::from_native_string_bytes(message),
+                    Value::empty(),
+                );
+            };
+            if class {
+                if let Some(class) = vm.oo.classes.get_mut(&target) {
+                    class.exported.remove(&key);
+                    class.unexported.remove(&key);
+                }
+            } else if let Some(object) = vm.oo.objects.get_mut(&target) {
+                object.exported.remove(&key);
+                object.unexported.remove(&key);
+            }
+            if let Err(error) = vm.native_property_structure_changed(target, class) {
+                drop(owner);
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            drop(owner);
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+        }
+        ok(Value::empty())
+    })
+}
+/// Observe the selected table record without retaining a Method/clientData role.
+struct OriginalMethodRenameSource {
+    class: bool,
+    target: OoId,
+    owner: Weak<RefCell<Method>>,
+}
+impl OriginalMethodRenameSource {
+    fn capture(state: &OoState, class: bool, target: OoId, key: &str) -> Option<Self> {
+        let table = if class {
+            &state.classes.get(&target)?.methods
+        } else {
+            &state.objects.get(&target)?.methods
+        };
+        let (_, owner) = table.get_key_value(key)?;
+        Some(Self {
+            class,
+            target,
+            owner: Rc::downgrade(owner),
+        })
+    }
+    fn check_at(
+        &self,
+        vm: &mut Vm,
+        original_names: &original_name_operands::OriginalOoNameScope,
+        key: &str,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let table = if self.class {
+            vm.oo.classes.get(&self.target).map(|class| &class.methods)
+        } else {
+            vm.oo
+                .objects
+                .get(&self.target)
+                .map(|object| &object.methods)
+        };
+        let current = table
+            .and_then(|table| table.get_key_value(key))
+            .is_some_and(|(_, owner)| Rc::as_ptr(owner) == self.owner.as_ptr());
+        original_names.require_method_record(vm, current)
+    }
+}
+
+pub(super) fn rename_method(
+    vm: &mut Vm,
+    class: bool,
+    target: OoId,
+    args: &[Value],
+) -> Completion<Value> {
+    original_name_operands::run(vm, Some((class, target)), |vm, original_names| {
+        let [from, to] = args else {
+            return crate::command::native_wrong_args(vm, "renamemethod oldName newName");
+        };
+        let from = match native_method_key_for_target(vm, from, Some((class, target))) {
+            Ok(key) => key,
+            Err(error) => return error,
+        };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        // Find the original source before any destination String getter, as the
+        // selected C worker does. This Weak observation adds no entered owner.
+        let Some(source) = OriginalMethodRenameSource::capture(&vm.oo, class, target, &from) else {
+            return err("method does not exist");
+        };
+        let to = match native_method_key_for_target(vm, to, Some((class, target))) {
+            Ok(key) => key,
+            Err(error) => return error,
+        };
+        if let Err(error) = source.check_at(vm, original_names, &from) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if from == to {
+            return err("cannot rename method to itself");
+        }
+        let Some(table) = table_mut(&mut vm.oo, target, class) else {
+            return err("attempt to misuse API");
+        };
+        if table.contains_key(&to) {
+            return err("method already exists");
+        }
+        let owner = table.remove(&from).expect("checked original method record");
+        table.insert_owner(to.clone(), owner);
+        let (exported, unexported) = if class {
+            let class = vm.oo.classes.get_mut(&target).expect("retained class");
+            (&mut class.exported, &mut class.unexported)
+        } else {
+            let object = vm.oo.objects.get_mut(&target).expect("retained object");
+            (&mut object.exported, &mut object.unexported)
+        };
+        if exported.remove(&from) {
+            exported.insert(to.clone());
+        }
+        if unexported.remove(&from) {
+            unexported.insert(to.clone());
+        }
+        if let Err(error) = vm.native_property_structure_changed(target, class) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if let Err(error) = source.check_at(vm, original_names, &to) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        ok(Value::empty())
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cmd_oo::{oo_invoke_value, resolve_object_value};
+    fn vm(version: tcl_dialect::TclVersion) -> Vm {
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::sink()),
+            Rc::new(crate::host_native::NativeHost::new()),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: Vec::new(),
+                default_library: None,
+            },
+        )
+        .unwrap();
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm
+    }
+    fn source(vm: &mut Vm, text: &str) {
+        let completion = vm.eval_source(text).unwrap();
+        assert_eq!(
+            completion.code,
+            Code::Ok,
+            "{text}: {}",
+            completion.result.to_str()
+        );
+    }
+    fn call(vm: &mut Vm, object: OoId, original: &Value) -> Value {
+        let invoked = Value::string("obj");
+        let completion = oo_invoke_value(vm, object, "m", original, &[], true, &invoked);
+        assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
+        completion.result
+    }
+    #[test]
+    fn original_method_primary_and_table_keys_share_the_actual_chain() {
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let mut vm = vm(version);
+            source(&mut vm, "oo::class create C {method m {} {return FIRST}}");
+            source(&mut vm, "C create obj");
+            let object = resolve_object_value(&mut vm, &Value::string("obj"))
+                .unwrap()
+                .unwrap();
+            let original = Value::string("m");
+            assert_eq!(call(&mut vm, object, &original).to_str().as_ref(), "FIRST");
+            assert_eq!(original.native_object_type_name(), "TclOO method name");
+            assert_eq!(original.native_object_reference_count(), 2);
+            let chain = original.native_method_name_chain().unwrap();
+            let weak = Rc::downgrade(&chain);
+            drop(chain);
+            assert_eq!(weak.strong_count(), 2);
+            let reached = lookup(&mut vm, object, "m", &original, true).unwrap().unwrap();
+            assert_eq!(weak.strong_count(), 3);
+            let next_frame = reached.clone();
+            assert_eq!(weak.strong_count(), 3);
+            drop(reached);
+            drop(next_frame);
+            assert_eq!(weak.strong_count(), 2);
+            let equal = Value::string("m");
+            call(&mut vm, object, &equal);
+            assert_eq!(equal.native_object_type_name(), "none");
+            assert_eq!(equal.native_object_reference_count(), 1);
+            let duplicate = original.duplicate_native_object();
+            assert!(Rc::ptr_eq(
+                &original.native_method_name_chain().unwrap(),
+                &duplicate.native_method_name_chain().unwrap()
+            ));
+            assert_eq!(weak.strong_count(), 3);
+            source(&mut vm, "rename obj renamed");
+            call(&mut vm, object, &original);
+            assert!(Rc::ptr_eq(
+                &weak.upgrade().unwrap(),
+                &original.native_method_name_chain().unwrap()
+            ));
+            source(&mut vm, "oo::define C method m {} {return SECOND}");
+            assert_eq!(call(&mut vm, object, &original).to_str().as_ref(), "SECOND");
+            assert!(!Rc::ptr_eq(
+                &weak.upgrade().unwrap(),
+                &original.native_method_name_chain().unwrap()
+            ));
+            source(&mut vm, "oo::objdefine renamed method m {} {return LOCAL}");
+            assert_eq!(call(&mut vm, object, &original).to_str().as_ref(), "LOCAL");
+            assert_eq!(original.native_method_name_chain().unwrap().stamp.flags, 1);
+            source(&mut vm, "oo::objdefine renamed deletemethod m");
+            assert_eq!(call(&mut vm, object, &original).to_str().as_ref(), "SECOND");
+            assert_eq!(original.native_method_name_chain().unwrap().stamp.flags, 1);
+            source(&mut vm, "oo::objdefine renamed mixin");
+            call(&mut vm, object, &original);
+            assert!(original.native_method_name_chain().is_none());
+            let class = vm.oo.objects.get(&object).unwrap().class;
+            let chain = vm.oo.native_methods.tables[&class]["m"]
+                .chain
+                .as_ref()
+                .unwrap();
+            assert_eq!(chain.stamp.flags, 0x4001);
+        }
+    }
+    #[test]
+    fn reached_method_records_distinguish_replacement_from_recreation() {
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            for (mutation, expected) in [
+                ("oo::define B deletemethod m", "BASE"),
+                ("oo::define B method m {} {return REPLACED}", "REPLACED"),
+                (
+                    "oo::define B deletemethod m; oo::define B method m {} {return NEW_RECORD}",
+                    "BASE",
+                ),
+            ] {
+                let mut vm = vm(version);
+                source(&mut vm, "oo::class create B {method m {} {return BASE}}");
+                source(
+                    &mut vm,
+                    &format!(
+                        "oo::class create C {{superclass B; method m {{}} {{{mutation}; next}}}}"
+                    ),
+                );
+                source(&mut vm, "C create obj");
+                let object = resolve_object_value(&mut vm, &Value::string("obj"))
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    call(&mut vm, object, &Value::string("m")).to_str().as_ref(),
+                    expected
+                );
+            }
+        }
+    }
+    #[test]
+    fn foreign_cache_and_missing_methods_cannot_supply_an_owner() {
+        let mut first = vm(tcl_dialect::TclVersion::V8_6);
+        let mut second = vm(tcl_dialect::TclVersion::V8_6);
+        for vm in [&mut first, &mut second] {
+            source(vm, "oo::class create C {method m {} {return RESULT}}");
+            source(vm, "C create obj");
+        }
+        let object = resolve_object_value(&mut first, &Value::string("obj"))
+            .unwrap()
+            .unwrap();
+        let original = Value::string("m");
+        call(&mut first, object, &original);
+        let before = original.native_method_name_chain().unwrap();
+        let second_object = resolve_object_value(&mut second, &Value::string("obj"))
+            .unwrap()
+            .unwrap();
+        call(&mut second, second_object, &original);
+        assert!(!Rc::ptr_eq(
+            &before,
+            &original.native_method_name_chain().unwrap()
+        ));
+        let missing = Value::string("absent");
+        let result = oo_invoke_value(
+            &mut second,
+            second_object,
+            "absent",
+            &missing,
+            &[],
+            true,
+            &Value::string("obj"),
+        );
+        assert_eq!(result.code, Code::Error);
+        assert!(missing.native_method_name_chain().is_none());
+    }
+}
+
+#[cfg(test)]
+mod owner_tests;
+
+#[cfg(test)]
+mod rename_tests;
+
+#[cfg(test)]
+mod string_stage_tests;

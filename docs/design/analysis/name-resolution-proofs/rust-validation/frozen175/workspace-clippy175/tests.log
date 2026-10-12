@@ -1,0 +1,21 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+error: missing documentation for a struct field
+  --> rust/tcl-registry/src/clause_shape.rs:78:26
+   |
+78 |     MergeTrailingWords { body: usize },
+   |                          ^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> rust/tcl-registry/src/lib.rs:48:9
+   |
+48 | #![deny(missing_docs)]
+   |         ^^^^^^^^^^^^
+
+error: missing documentation for a struct field
+  --> rust/tcl-registry/src/clause_shape.rs:80:28
+   |
+80 |     RemoveTrailingClause { keyword: usize },
+   |                            ^^^^^^^^^^^^^^
+
+error: could not compile `tcl-registry` (lib) due to 2 previous errors

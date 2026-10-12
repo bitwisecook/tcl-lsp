@@ -1,0 +1,6 @@
+
+running 1 test
+test capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 11.60s
+

@@ -79,6 +79,19 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "emitter verb: `role IDX ROLE`. Silence means no roles — fall back to the `arg` rows. Also derivable: `from-manufacturers` (look words[0] up in this spec's own `manufacturer` rows and emit `role N Body` for its `-definition-body-at N`, bounds-checked, Body only), or implied by `clause_grammar`.",
             "Resolve argument roles for a variable-layout command.",
         ),
+        CommandSpec {
+            arity: Arity::exact(2),
+            // -native ID names an installed Rust descriptor, not a Tcl body.
+            // A script hook is rejected at authoring ingress until typed
+            // cardinality can be supplied by the hook evaluator.
+            arg_roles: &[],
+            ..hook_statement(
+                "arg_role_count_resolver",
+                "Only `-native ID` is supported. The descriptor receives exact evaluated argument cardinality, independently of operand values; unknown expansion cardinality retains unknown roles.",
+                "The native descriptor must exist. Tcl count hook bodies are rejected until the hook evaluator supports typed cardinality input; no empty operand strings are invented.",
+                "Resolve argument roles using only argument count.",
+            )
+        },
         hook_statement(
             "command_prefix_resolver",
             CALLING_CONVENTION,

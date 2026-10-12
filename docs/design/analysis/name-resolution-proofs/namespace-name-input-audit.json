@@ -1,0 +1,60 @@
+{
+  "scope": "Exact original source/projection/full-stream digest reconciliation; no native or Rust launch.",
+  "checks": [
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.txt",
+      "sha256": "e37094ea5691ea012f350a21b4d23d2d524a00351a61e10d1ed2b7fd8d6210a8",
+      "check": "Exactly100 C and3 Jim retained result/input-primary projection rows; no inference of532 unretained JSONL lines or original reference-count fields."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/children-8.4.20.stdout",
+      "sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/children-8.5.19.stdout",
+      "sha256": "767b30056126cb1171a27b66d1219b2bbdf65b08573ae799d046ea0aa5ae1a99",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/children-8.6.18.stdout",
+      "sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/children-9.0.4.stdout",
+      "sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/children-9.1.0.stdout",
+      "sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.4.20.stdout",
+      "sha256": "621dbb847f385d1da84200db5023f644645316c81ad8ba1ac27a6a1e1f51252e",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.5.19.stdout",
+      "sha256": "621dbb847f385d1da84200db5023f644645316c81ad8ba1ac27a6a1e1f51252e",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.6.18.stdout",
+      "sha256": "621dbb847f385d1da84200db5023f644645316c81ad8ba1ac27a6a1e1f51252e",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.0.4.stdout",
+      "sha256": "621dbb847f385d1da84200db5023f644645316c81ad8ba1ac27a6a1e1f51252e",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.1.0.stdout",
+      "sha256": "621dbb847f385d1da84200db5023f644645316c81ad8ba1ac27a6a1e1f51252e",
+      "check": "Complete original stream byte reconstruction matches recorded original log SHA256; no new execution."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-active-unset138/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.007550748996436596,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "f6f829d0e5be788f72196fbab3db9d5eb0e7db6bc0c288b57ebf8bdcfd0d58ed",
+  "runner_sha256": "af789c1544b1f2c8c36907ad35ac155d010b2c8acb857f8ff1afb971d714fcc1",
+  "stdout_sha256": "0df2f141b034a0cf151260a5642cc0d6b55c61dd30d3764f904c0e73b59fcbde",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "PATCHLEVEL 9.1.0",
+    "SETUP 0 ",
+    "OBSERVATION 0 372037207b7265616420756e7365747d207b7d"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Active read callback unsets/recreates original scalar, with separately registered unset observer, later read and trace inventory. Trace registration failures are explicit unsupported SETUP observations, not callback answers. No physical object/header, compiler admission, cache or BIG-IP claim."
+}

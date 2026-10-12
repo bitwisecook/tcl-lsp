@@ -1,0 +1,10 @@
+VERSION|0|382e362e3138
+OBJECT_ROOT|0|class=1|command_client_object=1|public_class_same=1|public_namespace_same=1|foundation_object=1|foundation_class=0|self_class_root=1|object_mixins=0|object_filters=0|class_mixins=0|class_filters=0|superclasses=0|super_object=0|super_class=0|epoch=0|creation=1
+OBJECT_ROOT_CONSTRUCTOR_TYPE|0|414253454e54
+OBJECT_ROOT_DESTRUCTOR_TYPE|0|414253454e54
+OBJECT_ROOT_PRIVATE_NAMESPACE|0|3a3a6f6f3a3a4f626a31|2|3a3a6f6f3a3a48656c70657273|3a3a6f6f
+CLASS_ROOT|0|class=1|command_client_object=1|public_class_same=1|public_namespace_same=1|foundation_object=0|foundation_class=1|self_class_root=1|object_mixins=0|object_filters=0|class_mixins=0|class_filters=0|superclasses=1|super_object=1|super_class=0|epoch=1|creation=2
+CLASS_ROOT_CONSTRUCTOR_TYPE|0|6f6f3a3a636c61737320636f6e7374727563746f72
+CLASS_ROOT_DESTRUCTOR_TYPE|0|414253454e54
+CLASS_ROOT_PRIVATE_NAMESPACE|0|3a3a6f6f3a3a4f626a32|2|3a3a6f6f3a3a48656c70657273|3a3a6f6f
+CONFIGURABLE|0|UNAVAILABLE

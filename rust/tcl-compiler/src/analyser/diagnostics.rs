@@ -66,6 +66,7 @@
 //!   def site; seen-offsets dedup avoids duplicates across SSA
 //!   versions.
 
+use self::helpers::collect_existence_guards;
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
@@ -79,10 +80,23 @@ use helpers::{
 use super::state::Analyser;
 use super::types::Severity;
 
+/// Normal-reachable blocks used by diagnostic consumers. An unavailable
+/// projection preserves the existing all-blocks analysis fallback.
+fn semantic_diagnostic_blocks(
+    function_unit: &crate::compilation_unit::FunctionUnit,
+) -> HashSet<crate::cfg::BlockId> {
+    let facts = function_unit.diagnostic_value_facts();
+    if facts.executable_blocks().is_empty() {
+        function_unit.ssa.blocks.keys().copied().collect()
+    } else {
+        facts.executable_blocks().clone()
+    }
+}
+
 // Re-export the sibling analyser modules the family submodules reference by
 // relative path (`super::types::Diagnostic`, `super::utils::…`, …) so those
 // references resolve from `analyser::diagnostics::<family>`.
-pub(super) use super::{class_hierarchy, confusables_table, dispatch, state, types, utils};
+pub(super) use super::{class_hierarchy, confusables_table, state, types, utils};
 
 // Re-export the family helpers exercised by this module's unit tests so the
 // `tests` submodule reaches them through its `use super::*`.
@@ -100,8 +114,8 @@ pub(in crate::analyser::diagnostics) use usage::{
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use validity::contains_gated_word;
 pub(in crate::analyser) use validity::{
-    emit_invalid_formal_parameter_list_diagnostics, emit_invalid_lambda_parameter_list_diagnostics,
-    emit_invalid_static_variable_list_diagnostics,
+    ArityWords, emit_invalid_formal_parameter_list_diagnostics,
+    emit_invalid_lambda_parameter_list_diagnostics, emit_invalid_static_variable_list_diagnostics,
 };
 
 // The W110 operator-anchor selector is consumed by the EXPR-argument
@@ -112,6 +126,11 @@ pub(in crate::analyser) use usage::W110Anchor;
 mod const_dispatch;
 mod dataflow;
 pub(in crate::analyser) mod helpers;
+#[cfg(test)]
+mod original_control_advice;
+#[cfg(test)]
+mod original_positioned_callee;
+mod original_roles;
 mod proven;
 mod security;
 mod unresolved;
@@ -121,95 +140,132 @@ mod var_command;
 pub(in crate::analyser) mod version_gate;
 pub(in crate::analyser) mod widget_command;
 
-/// Whether a command head names something **this compilation unit can
-/// resolve** — a registry command the active dialect enables, or a
-/// definition the document makes itself.
-///
-/// The complement is what matters: a head this answers `false` for is a
-/// callee whose body is simply not here (the split-file layout of a helper in
-/// `utils.tcl` called from `options.tcl`), so nothing in this unit can say
-/// whether it writes the
-/// caller's frame through `upvar`.
-/// [`crate::interprocedural::collect_opaque_callee_name_args`] turns that
-/// into the per-frame abstention the read-before-set emitters honour.
-///
-/// Resolution mirrors Tcl's own: an absolute head is looked up as written,
-/// a relative one may name a definition in any namespace this document
-/// declares (the leaf spellings), and the registry half goes through the
-/// dialect profile — exactly the availability query
-/// [`Analyser::build_w123_known_names`](super::state::Analyser) uses, so
-/// "unknown command" and "opaque callee" cannot disagree about the same
-/// head.  No command name appears here.
+/// Local body availability at the original invocation, separate from effects.
+/// Execution rows use the retained implementation allocation/Registry identity.
+/// Logical rows require a closed original call and its complete retained input;
+/// reporting procedure names corroborate that target without selecting one.
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     generation: std::sync::Arc<tcl_registry::model::ContextRegistry>,
-    /// Every spelling under which this document's own definitions —
-    /// procedures, classes, `interp alias` / `rename` targets, declared
-    /// stubs, and created object-instance commands — can be called.
-    defined: HashSet<String>,
+    procedures: HashSet<crate::command_binding::CommandAllocationSite>,
+    logical_definitions: Option<HashSet<String>>,
+    logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    logical_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
 }
 
 impl UnitCommandResolver<'_> {
-    fn resolves(&self, command: &str) -> bool {
-        if self.defined.contains(command) {
-            return true;
+    fn resolves(&self, statement: &crate::ir::Statement) -> bool {
+        if let Some(target) = statement
+            .tokens()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+        {
+            if target.registry_backed {
+                return target.registry_identity().is_some_and(|identity| {
+                    self.generation
+                        .context()
+                        .resolve_spec(self.registry, identity)
+                        .is_some()
+                });
+            }
+            return target.kind == crate::command_binding::BindingKind::Proc
+                && target
+                    .implementation_allocation
+                    .as_ref()
+                    .is_some_and(|allocation| self.procedures.contains(&allocation.site));
         }
-        let bare = command.trim_start_matches(':');
-        if self.defined.contains(bare) {
-            return true;
+        let Some(input) = &self.logical_input else {
+            return false;
+        };
+        let Some(realm) = &self.logical_realm else {
+            return false;
+        };
+        if !realm.matches_resolved_analysis_input(input) {
+            return false;
         }
-        self.generation
-            .context()
-            .resolve_spec(self.registry, command)
-            .is_some()
+        let Some(tokens) = statement.tokens() else {
+            return false;
+        };
+        let Some(binding) = &tokens.source_binding else {
+            return false;
+        };
+        let Some(site) = binding.invocation_site() else {
+            return false;
+        };
+        if !realm.matches_original_source_image(site.source.source_image(), input.lexer_config()) {
+            return false;
+        }
+        let Some(metadata) =
+            binding.original_invocation_metadata_for_input(tokens, input, self.registry)
+        else {
+            return false;
+        };
+        if binding.original_invocation_source_purpose(tokens, metadata, self.registry)
+            != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            || metadata.context() != self.generation.context()
+        {
+            return false;
+        }
+        let Some(targets) =
+            binding.original_logical_declaration_call_targets(tokens, input, self.registry)
+        else {
+            return false;
+        };
+        let [target] = targets.as_slice() else {
+            return false;
+        };
+        // The original table selects the callee. The retained unit inventory
+        // only establishes that its body is available for diagnostic analysis;
+        // missing source ownership never retries a reporting-name lookup.
+        if target.registry_backed {
+            return target.registry_identity().is_some_and(|identity| {
+                metadata
+                    .context()
+                    .resolve_spec(self.registry, identity)
+                    .is_some()
+            });
+        }
+        target.kind == crate::command_binding::BindingKind::Proc
+            && self
+                .procedures
+                .contains(&crate::command_binding::CommandAllocationSite {
+                    source: std::sync::Arc::clone(&site.source),
+                    offset: target.implementation_generation,
+                })
+            && self
+                .logical_definitions
+                .as_ref()
+                .is_some_and(|definitions| definitions.contains(&target.command))
     }
 }
 
 impl Analyser {
-    /// Build the [`UnitCommandResolver`] for the document just walked.
     fn unit_command_resolver<'a>(
         &self,
         registry: &'a tcl_registry::CommandRegistry,
     ) -> UnitCommandResolver<'a> {
-        let mut defined: HashSet<String> = HashSet::new();
-        let mut add = |name: &str| {
-            let bare = name.trim_start_matches(':');
-            if bare.is_empty() {
-                return;
-            }
-            defined.insert(name.to_owned());
-            defined.insert(bare.to_owned());
-            if let Some(leaf) = bare.rsplit("::").next() {
-                defined.insert(leaf.to_owned());
-            }
-        };
-        for name in self.result.all_procs.keys() {
-            add(name);
-        }
-        for name in self.result.all_classes.keys() {
-            add(name);
-        }
-        for name in self.result.command_aliases.keys() {
-            add(name);
-        }
-        for name in self.result.renamed_commands.keys() {
-            add(name);
-        }
-        for stub in &self.result.stub_commands {
-            add(&stub.name);
-        }
-        if let Some(declared) = &self.declared_commands {
-            for (name, _) in declared.iter() {
-                add(name);
-            }
-        }
-        for name in &self.result.created_instance_commands {
-            add(name);
-        }
         UnitCommandResolver {
             registry,
             generation: self.analysis_context(),
-            defined,
+            procedures: self
+                .result
+                .original_procedure_declarations()
+                .map(|procedure| procedure.declaration_site().clone())
+                .collect(),
+            logical_definitions: self
+                .result
+                .allows_retained_logical_declaration_advice()
+                .then(|| self.result.all_procs.keys().cloned().collect()),
+            logical_input: self
+                .result
+                .allows_retained_logical_declaration_advice()
+                .then(|| self.result.resolved_input.clone())
+                .flatten(),
+            logical_realm: self
+                .result
+                .allows_retained_logical_declaration_advice()
+                .then(|| self.result.retained_command_realm_arc().cloned())
+                .flatten(),
         }
     }
 }
@@ -273,13 +329,8 @@ fn when_proc_cross_event_names(
         return (HashSet::new(), HashSet::new());
     };
     (
-        scope
-            .cross_event_defs
-            .iter()
-            .chain(scope.cross_event_imports.iter())
-            .cloned()
-            .collect(),
-        scope.cross_event_imports.iter().cloned().collect(),
+        scope.handler_source_names(qname, false),
+        scope.handler_source_names(qname, true),
     )
 }
 
@@ -323,8 +374,33 @@ impl Analyser {
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        let generation = self.analysis_context();
+        let Some(input) = self.result.resolved_input.clone() else {
+            return;
+        };
+        let Ok(generation) = self.try_analysis_context() else {
+            return;
+        };
         let registry = generation.commands().as_ref();
+        if self.source.as_bytes() != source.as_bytes()
+            || input.borrowed_context_registry().context() != generation.context()
+            || self
+                .resolved_input
+                .as_ref()
+                .is_some_and(|current| current != &input)
+            || crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                &input,
+                self.file_lexer_config(),
+                self.unit_profile,
+            )
+            .is_none()
+            || !self.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(source),
+                input.lexer_config(),
+            )
+        {
+            return;
+        }
         // Seed each proc's SCCP with caller-side parameter constants so a
         // branch on a param every caller passes the same literal folds (the
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
@@ -337,8 +413,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
             return;
         }
-        // The profile name is `&'static str`, so no borrow of `self` is held
-        // across the firewall closure below (which needs `&mut self`).
+        // The actual input clone retains the same immutable generation across
+        // construction and emission. It does not supply the independent entry.
         // Firewall the lowering→CFG→SSA→interprocedural build (and the
         // emission that consumes it). A panic on adversarial input is contained
         // to "no CFG/SSA diagnostics for this document" instead of crashing the
@@ -347,7 +423,7 @@ impl Analyser {
         // overflow is separately bounded by the lowering depth guards;
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let dialect_opt = self.unit_profile;
+            let dialect_opt = Some(input.unit_profile());
             // Build under the analyser's own dialect, not a blind default: the
             // lowering needs it to parse a dialect-only operator (an iRules
             // `contains` condition) as an operator, and the lattice pipeline
@@ -363,36 +439,68 @@ impl Analyser {
             // `${a{b}c}` close rule and 9.0 escape decoding, and an iRules
             // document with `{*}` expansion and no F5 word break
             // (redesign §11.4 row E1, §9.1 defect 1).
-            let cu = crate::compilation_unit::CompilationUnit::build_with_options(
+            let options = crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: self.file_lexer_config(),
+                dialect: dialect_opt,
+                external_call_sites: None,
+                // The document's own stub declarations, so the CFG/SSA
+                // tail lowers a stubbed command's `body` / `var` words
+                // exactly as a registry spec's would — the `defs` a
+                // `var`-role stub contributes are what keep W210 off a
+                // variable the command writes.
+                declared_commands: self.declared_commands.as_ref(),
+            };
+            let cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
                 source,
-                crate::compilation_unit::UnitBuildOptions {
-                    registry,
-                    defer_top_level: false,
-                    config: self.file_lexer_config(),
-                    dialect: dialect_opt,
-                    external_call_sites: None,
-                    // The document's own stub declarations, so the CFG/SSA
-                    // tail lowers a stubbed command's `body` / `var` words
-                    // exactly as a registry spec's would — the `defs` a
-                    // `var`-role stub contributes are what keep W210 off a
-                    // variable the command writes.
-                    declared_commands: self.declared_commands.as_ref(),
-                },
+                options,
+                self.source_analysis_entry.as_deref(),
+                &input,
             )
             .with_interprocedural(registry, dialect_opt);
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
         }));
     }
 
-    /// The compilation-unit-derived object-fact seam, run before any emitter
-    /// that reads those facts.
-    ///
-    /// The pending `$class`-headed `TclOO`
-    /// instance-creation sites must settle against `cu`'s flow-sensitive value
-    /// model **first** — `emit_var_command_diagnostics` reads
-    /// `instance_classes` to suppress W307 / validate W308, so the settle must
-    /// land before that read, not after (unlike `settle_const_dispatches`,
-    /// which only feeds `command_invocations` and has no such in-pass reader).
+    /// Explicit legacy fixture ingress without a supplied source analysis.
+    /// Actual production callers use the checked complete-input method above.
+    #[cfg(test)]
+    fn emit_cfg_ssa_diagnostics_standalone_for_test(&mut self, source: &str) {
+        let generation = self.analysis_context();
+        let registry = generation.commands().as_ref();
+        if let Some(cu) = self.cu_override.take() {
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+            return;
+        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dialect = Some(self.unit_profile.unwrap_or_else(|| {
+                crate::environment_ingress::resolve_environment(self.profile.name).unit_profile()
+            }));
+            let options = crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: self.file_lexer_config(),
+                dialect,
+                external_call_sites: None,
+                declared_commands: self.declared_commands.as_ref(),
+            };
+            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                options,
+                self.source_analysis_entry.as_deref(),
+                std::sync::Arc::clone(&generation),
+            )
+            .with_interprocedural(registry, dialect);
+            self.emit_cfg_ssa_diagnostics_with_cu(&unit, registry);
+        }));
+    }
+
+    /// Settle explicitly Logical constructor reporting labels, then produce
+    /// typed object-handle facts from this compilation unit before diagnostics
+    /// consume them. W307/W308 read `object_handle_facts`, whose implementation
+    /// and construction obligations remain separate from reporting labels.
+    /// `instance_classes` supplies no Native diagnostic admission.
     fn settle_cu_derived_object_facts(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
@@ -432,6 +540,25 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(any(test, debug_assertions))]
+        let trace_phase = |stage: &'static str| {
+            if let Some(start) = phase_start {
+                eprintln!(
+                    "DIAGNOSTIC_CFG_EMISSION_PHASE bytes={} procedures={} methods={} body_units={} stage={stage} us={}",
+                    cu.source.len(),
+                    cu.procedures.len(),
+                    cu.methods.len(),
+                    cu.body_units.len(),
+                    start.elapsed().as_micros()
+                );
+            }
+        };
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("initial");
         self.settle_cu_derived_object_facts(cu, registry);
         self.settle_w123_widening(cu);
         self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::of(&cu.ir_module);
@@ -440,13 +567,20 @@ impl Analyser {
         // deleted earlier in the file via the flow-sensitive
         // command-binding lattice.  Independent of the CFG/SSA dead-store
         // machinery below, so run it up front against the same `cu`.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("object-facts");
         self.emit_w128_renamed_command(cu, registry);
 
         // Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)
         // is suppressed for these variables — a helper proc may
         // populate them before the top-level read fires.
-        let globals_written = globals_written_by_procs(cu, registry);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("command-binding");
+        let cell_facts = helpers::DiagnosticCellFacts {
+            known_defined: globals_written_by_procs(cu, registry),
+            externally_read: globals_read_by_procs(cu, registry),
+        };
 
         // **FP-DS-04 cross-scope traces.** A `::`-qualified global with a write
         // trace anywhere in the module is observable across scopes, so a
@@ -455,8 +589,14 @@ impl Analyser {
         // per-function `scan_scope_aliases` only sees a function's own traces;
         // fold the module-wide traced globals into every function's
         // suppression context (which already covers both W211 and W220).
+        let trace_context =
+            crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
         let mut traced_globals =
-            crate::optimiser::elimination::scan_module_traced_globals(cu, registry);
+            crate::optimiser::elimination::scan_module_traced_globals_with_metadata_context(
+                cu,
+                registry,
+                trace_context.as_deref().map(Into::into),
+            );
         // The registry-driven whole-module fact stores the canonical
         // (`::`-stripped) spelling, so an *unqualified* top-level store
         // (`set g 1`, chain key `g`) is also suppressed when the trace
@@ -464,32 +604,9 @@ impl Analyser {
         // O109 gates consult.
         traced_globals.extend(cu.ir_module.traced_variables.iter().cloned());
 
-        // **W220 call-by-name suppression.** Build the
-        // interprocedural proc-index once so a caller-local passed *by
-        // name* to a proc that consumes it via `upvar` (`set tag "";
-        // asnPeekTag data tag type dummy`) is not flagged as a dead
-        // store.  `collect_call_by_name_reads` then yields the suppressed
-        // names per function, merged into the dead-store `cross_event_vars`.
-        let cbn_proc_index = if let Some(ia) = cu.interproc.as_ref() {
-            crate::interprocedural::build_proc_index_from_summaries(ia)
-        } else {
-            // The call-by-name proc index (W220) needs only direct proc→proc
-            // reachability, not object-instance callback edges, so no
-            // object-type map is threaded here. A caller supplying a baseline
-            // unit may not have populated `interproc`, so retain the standalone
-            // fallback for that compatibility path.
-            let ia = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-                &cu.ir_module,
-                registry,
-                Some(self.profile),
-                crate::interprocedural::ObjectTypeMap::none(),
-                &self.head_identities,
-                Some(&cu.declared_commands),
-                &cu.cfg_module,
-            );
-            crate::interprocedural::build_proc_index_from_summaries(&ia)
-        };
-
+        // Caller-local warning suppression uses the exact original callee,
+        // its native formal bindings and registry-owned caller-frame links.
+        // These diagnostic names grant no store-removal or execution proof.
         // pkgIndex.tcl files have ``$dir`` set by the package
         // loader before the script body runs — suppress dead-
         // store / unused-variable diagnostics for it at the
@@ -507,33 +624,16 @@ impl Analyser {
                 HashSet::new()
             };
         let mut top_level_cross_event_vars: HashSet<String> = pkgindex_implicit_vars.clone();
-        top_level_cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
-            &cu.top_level.cfg,
-            &cbn_proc_index,
-        ));
+        top_level_cross_event_vars.extend(
+            crate::interprocedural::collect_positioned_call_by_name_reads(
+                &cu.top_level.cfg,
+                registry,
+                &self.head_identities,
+            ),
+        );
         top_level_cross_event_vars.extend(traced_globals.iter().cloned());
-        // A global a helper proc *reads* (`proc f {} { global cfg; return $cfg
-        // }` or `$::cfg`) consumes the top-level `set cfg …` that runs in the
-        // shared global namespace — the read-side mirror of `globals_written`
-        // above. Fold those names in so the top-level assignment is neither a
-        // dead store (W220) nor an unused variable (W211): both emitters honour
-        // this set (W211 via `textually_referenced.extend(cross_event_vars)`).
-        top_level_cross_event_vars.extend(globals_read_by_procs(cu, registry));
-
-        // pkgIndex.tcl's ``$dir`` is set by the package loader before the
-        // index script runs, so a read of it is not read-before-set (W210).
-        // `cross_event_vars` only reaches the dead-store / unused checks, so
-        // fold the implicit set into `extra_known_defined` too — that is the
-        // argument the W210 emitters consult.
-        let mut top_level_known_defined: HashSet<String> = if pkgindex_implicit_vars.is_empty() {
-            globals_written.clone()
-        } else {
-            globals_written
-                .iter()
-                .chain(pkgindex_implicit_vars.iter())
-                .cloned()
-                .collect()
-        };
+        // Exact cross-procedure facts stay separate from authored name advice.
+        let mut top_level_known_defined = pkgindex_implicit_vars.clone();
 
         // **W210 opaque-callee abstention.** A call to a command whose body
         // this unit does not hold — a cross-file helper, say — may create any
@@ -543,9 +643,10 @@ impl Analyser {
         // still reports.
         let unit_commands = self.unit_command_resolver(registry);
         let opaque_callee_defs = |fu: &crate::compilation_unit::FunctionUnit| {
-            crate::interprocedural::collect_opaque_callee_name_args(&fu.cfg, &|cmd: &str| {
-                unit_commands.resolves(cmd)
-            })
+            crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                &fu.cfg,
+                &|statement| unit_commands.resolves(statement),
+            )
         };
         top_level_known_defined.extend(opaque_callee_defs(&cu.top_level));
 
@@ -554,14 +655,75 @@ impl Analyser {
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("module-suppression");
         let module = crate::interprocedural::ModuleProcedures::of_unit(cu, registry);
-        self.emit_cfg_ssa_diagnostics_for_function_full(
+        self.emit_cfg_ssa_diagnostics_for_function_with_cells(
             &cu.top_level,
             BodyFrame::TopLevel,
-            (&top_level_known_defined, &top_level_cross_event_vars),
+            &top_level_known_defined,
+            &top_level_cross_event_vars,
+            &cell_facts,
             Some(&module),
         );
-        self.emit_channel_diagnostics(&cu.top_level, registry);
+        self.emit_channel_diagnostics(&cu.top_level);
+        self.emit_irules_cell_diagnostics(&cu.top_level, "::top", registry);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("top-level");
+        self.emit_procedure_body_diagnostics(
+            cu,
+            registry,
+            &traced_globals,
+            (&unit_commands, &module),
+        );
+
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("procedures");
+        self.emit_fresh_frame_body_diagnostics(
+            cu,
+            registry,
+            &traced_globals,
+            (&unit_commands, &module),
+        );
+
+        // Cross-function post-pass: resolve $var-as-command sites
+        // collected during the walk.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("fresh-bodies");
+        self.emit_var_command_diagnostics(cu, registry);
+
+        // W250 — instantiating an `oo::abstract` class.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("variable-command");
+        self.emit_abstract_instantiation_diagnostics(cu);
+
+        // Resolve the constant-`$cmd` dispatch sites against the
+        // flow-sensitive value model,
+        // emitting the indirect head references and their writable
+        // literal-anchored twins.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("abstract-factory");
+        self.settle_const_dispatches(cu);
+        self.emit_w102_template_plans(cu);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("constant-dispatch-and-template");
+        self.emit_proven_word_diagnostics(cu);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("complete");
+    }
+
+    /// Emit per-procedure diagnostics using the same prepared cross-function
+    /// evidence as top-level, fresh-frame, and method-body diagnostics.
+    fn emit_procedure_body_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        traced_globals: &HashSet<String>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
+    ) {
         for (qname, fu) in &cu.procedures {
             // For ``::when::*`` procs, threaded
             // ``cross_event_defs | cross_event_imports`` from the
@@ -570,13 +732,21 @@ impl Analyser {
             // different iRule event.
             let (mut cross_event_vars, mut extra_known_defined) =
                 when_proc_cross_event_names(cu, qname);
-            extra_known_defined.extend(opaque_callee_defs(fu));
+            extra_known_defined.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &fu.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
             // Suppress dead-store on caller-locals this
             // proc passes by name to an upvar callee.
-            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
-                &fu.cfg,
-                &cbn_proc_index,
-            ));
+            cross_event_vars.extend(
+                crate::interprocedural::collect_positioned_call_by_name_reads(
+                    &fu.cfg,
+                    registry,
+                    &self.head_identities,
+                ),
+            );
             cross_event_vars.extend(traced_globals.iter().cloned());
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
@@ -587,62 +757,42 @@ impl Analyser {
                 (&extra_known_defined, &cross_event_vars),
                 Some(&module),
             );
-            self.emit_channel_diagnostics(fu, registry);
+            self.emit_channel_diagnostics(fu);
+            self.emit_irules_cell_diagnostics(fu, qname, registry);
+            if qname.starts_with("::when::")
+                && let Some(concerns) = cu
+                    .connection_scope
+                    .as_ref()
+                    .and_then(|scope| scope.scope_concerns.get(qname))
+            {
+                self.emit_connection_scope_concerns(
+                    fu,
+                    crate::ir::when_event_name(qname),
+                    concerns,
+                    registry,
+                    &cu.ir_module,
+                );
+            }
             // IRULE4005 — racy ``static::``
             // cross-event flow.  Only fires for non-RULE_INIT
             // ``when`` procs when ``ConnectionScope::racy_static_defs``
             // is non-empty.
             if let Some(scope) = cu.connection_scope.as_ref()
                 && qname.starts_with("::when::")
-                && !scope.racy_static_defs.is_empty()
+                && !scope.racy_static_cells.is_empty()
             {
                 let event = crate::ir::when_event_name(qname);
                 if event != "RULE_INIT" {
-                    self.emit_racy_static_diagnostics(fu, &scope.racy_static_defs);
+                    self.emit_racy_static_diagnostics(
+                        fu,
+                        event,
+                        &scope.racy_static_cells,
+                        registry,
+                        &cu.ir_module,
+                    );
                 }
             }
         }
-
-        self.emit_fresh_frame_body_diagnostics(
-            cu,
-            registry,
-            &cbn_proc_index,
-            &traced_globals,
-            (&unit_commands, &module),
-        );
-
-        self.emit_cross_function_diagnostics(cu, registry);
-    }
-
-    /// The post-passes over the whole unit's walk-collected sites, run once
-    /// every function's own pass has.
-    fn emit_cross_function_diagnostics(
-        &mut self,
-        cu: &crate::compilation_unit::CompilationUnit,
-        registry: &tcl_registry::CommandRegistry,
-    ) {
-        // Cross-function post-pass: resolve $var-as-command sites
-        // collected during the walk.
-        self.emit_var_command_diagnostics(cu, registry);
-
-        // W250 — instantiating an `oo::abstract` class.
-        self.emit_abstract_instantiation_diagnostics(cu);
-
-        // Suppress W123 for command-name
-        // heads with partial interpolations like ``foo$suffix``
-        // when ``$suffix`` resolves cleanly to a finite set of
-        // known commands via SCCP.
-        self.resolve_interpolated_w123_diagnostics(cu);
-
-        // Resolve the constant-`$cmd` dispatch sites against the
-        // flow-sensitive value model,
-        // emitting the indirect head references and their writable
-        // literal-anchored twins.
-        self.settle_const_dispatches(cu);
-
-        // The literal-only checks the walk abstained from, over the words
-        // the lattice proves.
-        self.emit_proven_word_diagnostics(cu);
     }
 
     /// `TclOO`/snit method bodies.  `cu.methods` is kept in a *separate* map
@@ -664,7 +814,6 @@ impl Analyser {
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
-        cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
         (unit_commands, module): (
             &UnitCommandResolver<'_>,
@@ -709,14 +858,19 @@ impl Analyser {
                 crate::compilation_unit::MethodBodyFacts::known_bound_at_entry,
             );
             let mut cross_event_vars = known_bound.clone();
-            known_bound.extend(crate::interprocedural::collect_opaque_callee_name_args(
-                &fu.cfg,
-                &|cmd: &str| unit_commands.resolves(cmd),
-            ));
-            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
-                &fu.cfg,
-                cbn_proc_index,
-            ));
+            known_bound.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &fu.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
+            cross_event_vars.extend(
+                crate::interprocedural::collect_positioned_call_by_name_reads(
+                    &fu.cfg,
+                    registry,
+                    &self.head_identities,
+                ),
+            );
             cross_event_vars.extend(traced_globals.iter().cloned());
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
@@ -724,7 +878,7 @@ impl Analyser {
                 (&known_bound, &cross_event_vars),
                 Some(module),
             );
-            self.emit_channel_diagnostics(fu, registry);
+            self.emit_channel_diagnostics(fu);
         }
     }
 
@@ -736,27 +890,14 @@ impl Analyser {
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
-        cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
         (unit_commands, module): (
             &UnitCommandResolver<'_>,
             &crate::interprocedural::ModuleProcedures<'_>,
         ),
     ) {
-        self.emit_method_body_diagnostics(
-            cu,
-            registry,
-            cbn_proc_index,
-            traced_globals,
-            (unit_commands, module),
-        );
-        self.emit_lambda_body_diagnostics(
-            cu,
-            registry,
-            cbn_proc_index,
-            traced_globals,
-            (unit_commands, module),
-        );
+        self.emit_method_body_diagnostics(cu, registry, traced_globals, (unit_commands, module));
+        self.emit_lambda_body_diagnostics(cu, registry, traced_globals, (unit_commands, module));
     }
 
     /// The same CFG/SSA dataflow family over an `apply` **lambda body**.
@@ -780,7 +921,6 @@ impl Analyser {
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
-        cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
         (unit_commands, module): (
             &UnitCommandResolver<'_>,
@@ -795,14 +935,19 @@ impl Analyser {
             };
             let mut known_bound: HashSet<String> = ir_proc.params.iter().cloned().collect();
             let mut cross_event_vars = known_bound.clone();
-            known_bound.extend(crate::interprocedural::collect_opaque_callee_name_args(
-                &fu.cfg,
-                &|cmd: &str| unit_commands.resolves(cmd),
-            ));
-            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
-                &fu.cfg,
-                cbn_proc_index,
-            ));
+            known_bound.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &fu.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
+            cross_event_vars.extend(
+                crate::interprocedural::collect_positioned_call_by_name_reads(
+                    &fu.cfg,
+                    registry,
+                    &self.head_identities,
+                ),
+            );
             cross_event_vars.extend(traced_globals.iter().cloned());
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
@@ -810,7 +955,7 @@ impl Analyser {
                 (&known_bound, &cross_event_vars),
                 Some(module),
             );
-            self.emit_channel_diagnostics(fu, registry);
+            self.emit_channel_diagnostics(fu);
         }
     }
 
@@ -838,9 +983,8 @@ impl Analyser {
     /// Same as [`Self::emit_cfg_ssa_diagnostics_for_function`]
     /// but accepts an additional set of variable names that
     /// should be treated as already-defined for the W210
-    /// (read-before-set) emitter.  Used at the top-level to
-    /// suppress RBS for variables that any proc in the module
-    /// writes.
+    /// (read-before-set) emitter. This is authored host-name advice;
+    /// module procedure effects use retained physical cell facts separately.
     pub fn emit_cfg_ssa_diagnostics_for_function_with_extra(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
@@ -877,29 +1021,84 @@ impl Analyser {
         (extra_known_defined, cross_event_vars): (&HashSet<String>, &HashSet<String>),
         module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
+        self.emit_cfg_ssa_diagnostics_for_function_with_cells(
+            function_unit,
+            frame,
+            extra_known_defined,
+            cross_event_vars,
+            &helpers::DiagnosticCellFacts::default(),
+            module,
+        );
+    }
+
+    fn extend_hidden_rmw_reads(
+        &self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+        textually_referenced: &mut HashSet<String>,
+    ) {
+        if let Some(registry) = self.registry.as_deref() {
+            textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
+                function_unit,
+                registry,
+            ));
+        }
+    }
+
+    fn undef_suppression_semantics<'a>(
+        &'a self,
+        context: &'a tcl_registry::model::ContextRegistry,
+        module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
+    ) -> UndefSuppressionSemantics<'a> {
+        UndefSuppressionSemantics {
+            dialect: Some(context.context().authoring_query()),
+            rules: self.word_rules(),
+            lexer_config: self.file_lexer_config(),
+            source: &self.source,
+            analysis: &self.result,
+            module,
+            context,
+        }
+    }
+
+    fn emit_cfg_ssa_diagnostics_for_function_with_cells(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+        frame: BodyFrame<'_>,
+        extra_known_defined: &HashSet<String>,
+        cross_event_vars: &HashSet<String>,
+        cell_facts: &helpers::DiagnosticCellFacts,
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+    ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         // Alias recognition is registry-driven; fall back to the cached
         // default registry when the analyser has none loaded.
-        let scan_registry = self.registry.as_deref().map_or_else(
-            || {
-                tcl_registry::model::ingress::static_context_for("tcl8.6")
-                    .commands()
-                    .as_ref()
-            },
-            |r| r,
-        );
-        let scope_aliases =
-            crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg, scan_registry);
-        let global_aliases = crate::optimiser::elimination::scan_global_scope_aliases(
+        let generation = self.analysis_context();
+        let scan_registry = self.registry.as_deref().unwrap_or(generation.commands());
+        let metadata = match module {
+            Some(module) => {
+                module.invocation_metadata_context_for_function(function_unit, scan_registry)
+            }
+            None => function_unit.invocation_metadata_context(scan_registry),
+        };
+        let Some(metadata) = metadata else {
+            return;
+        };
+        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
             &function_unit.cfg,
             scan_registry,
+            Some(metadata),
         );
+        let global_aliases =
+            crate::optimiser::elimination::scan_global_scope_aliases_with_metadata_context(
+                &function_unit.cfg,
+                scan_registry,
+                Some(metadata),
+            );
         let mut textually_referenced =
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
-                &function_unit.cfg,
-                function_unit.base_offset,
-                self.grammar().braced_var,
+                function_unit,
+                scan_registry,
             );
         // A var read in another iRule event, or consumed *by name* via a
         // call-by-name upvar callee, is "used" — suppress
@@ -910,12 +1109,7 @@ impl Analyser {
         // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
         // recover those name-level reads so they suppress the dead-store /
         // unused-variable hints.
-        if let Some(registry) = self.registry.as_deref() {
-            textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
-                function_unit,
-                registry,
-            ));
-        }
+        self.extend_hidden_rmw_reads(function_unit, &mut textually_referenced);
         // Frame identity comes from the caller, which knows which of the
         // compilation unit's body maps it is iterating.  It must not be
         // re-derived by probing those maps for `function_unit.name`: a
@@ -924,36 +1118,47 @@ impl Analyser {
         // [`BodyFrame`]).
         let ir_proc = frame.procedure();
         let initial_global = frame.is_initial_global();
-        self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
+        self.emit_dead_store_diagnostics(
+            function_unit,
+            &defined,
+            &scope_aliases,
+            cross_event_vars,
+            cell_facts,
+            module,
+        );
+        if let Some(procedure) = ir_proc {
+            self.emit_conditional_declared_store_diagnostics(
+                function_unit,
+                procedure,
+                &scope_aliases,
+                cross_event_vars,
+            );
+        }
         self.emit_unused_variable_diagnostics(
             function_unit,
             &defined,
             &scope_aliases,
             &textually_referenced,
+            cell_facts,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
-        self.emit_w102_template_plans(function_unit);
-        // Shared read-before-set context: the SCCP-executable block set and
+        // Shared read-before-set context: semantic normal reachability and
         // the name-level suppression (`dict with` keys, qualified-`variable`
         // alias tails, dict vars), threaded through both the version-0
         // statement/branch emitter and the `Terminator::Return` pass.
-        let considered: HashSet<crate::cfg::BlockId> =
-            if function_unit.sccp.executable_blocks.is_empty() {
-                function_unit.ssa.blocks.keys().copied().collect()
-            } else {
-                function_unit.sccp.executable_blocks.clone()
-            };
+        let considered = semantic_diagnostic_blocks(function_unit);
+        let suppression_context = self.analysis_context();
         let supp = build_undef_suppression(
             function_unit,
             &considered,
             initial_global,
             &global_aliases,
-            UndefSuppressionSemantics {
-                dialect: Some(self.analysis_context().context().authoring_query()),
-                registry: self.registry.as_deref(),
-                rules: self.word_rules(),
-                module,
-            },
+            self.undef_suppression_semantics(&suppression_context, module),
+        );
+        let exists_guards = collect_existence_guards(
+            function_unit,
+            suppression_context.commands(),
+            function_unit.source_lexer_config(),
         );
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
@@ -964,33 +1169,42 @@ impl Analyser {
             defined_vars: &defined,
             scope_aliases: &scope_aliases,
             extra_known_defined,
+            cell_facts,
             supp: &supp,
         };
         let already_reported =
             self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
-        let registry = self.registry.clone();
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
         // values).
         self.emit_return_phi_undef_w210(
             function_unit,
             &dataflow::ReturnUndefCtx {
+                registry: self.profile_registry(),
+                exists_guards: &exists_guards,
                 already_reported: &already_reported,
-                registry: registry
-                    .as_deref()
-                    .unwrap_or_else(|| tcl_registry::default_registry()),
                 initial_global,
                 global_aliases: &global_aliases,
-                dialect: Some(self.analysis_context().context().authoring_query()),
+                dialect: Some(suppression_context.context().authoring_query()),
                 params: &rbs_params,
                 scope_aliases: &scope_aliases,
                 extra_known_defined,
+                cell_facts,
                 defined_vars: &defined,
                 considered: &considered,
                 supp: &supp,
             },
         );
-        self.emit_branch_fact_diagnostics(function_unit);
+        // W210 on reads of a provably-no-match regexp / scan output var.
+        self.emit_provably_unset_w210(
+            function_unit,
+            &considered,
+            &read_before_set_ctx,
+            &rbs_params,
+        );
+        self.emit_constant_branch_diagnostics(function_unit);
+        self.emit_selected_arm_diagnostics(function_unit);
+        self.resolve_loop_terminations(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);
@@ -1104,3 +1318,419 @@ mod tests;
 
 #[cfg(test)]
 mod fp;
+
+#[cfg(test)]
+mod complete_cu_input_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use std::sync::Arc;
+
+    const SOURCE: &str = "proc f {} {set path literal.tcl; source $path}";
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        )
+    }
+
+    fn queued(input: &ResolvedAnalysisInput) -> Analyser {
+        let mut analyser = Analyser::new()
+            .with_resolved_input(input.clone())
+            .structure_only();
+        analyser.analyse_and_retain_result_for_test(SOURCE, "display-only");
+        let offset = u32::try_from(SOURCE.find("source $path").unwrap()).unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            "source $path",
+            offset,
+            input.lexer_config().nested(),
+        )
+        .pop()
+        .unwrap();
+        let original = analyser
+            .original_diagnostic_call_at(segment.argv[0], segment.arg_tokens())
+            .expect("the genuine retained source-file operand");
+        analyser.emit_w300_source_variable(Some(&original));
+        analyser.record_proven_site(&CallWords {
+            cmd_tok: segment.argv[0],
+            args: segment.args(),
+            arg_tokens: segment.arg_tokens(),
+            arg_single: segment.arg_single_token(),
+            arg_expand_in: segment.expand_word.as_deref().unwrap_or(&[]),
+        });
+        assert_eq!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W300)
+                .count(),
+            1
+        );
+        assert_eq!(analyser.proven_sites.len(), 1);
+        analyser
+    }
+
+    #[test]
+    fn actual_diagnostic_cu_construction_retains_the_complete_source_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source contents only, independently of Native execution.
+        let input = input();
+        let mut analyser = queued(&input);
+        assert!(analyser.source_analysis_entry.is_none());
+        analyser.emit_cfg_ssa_diagnostics(SOURCE);
+        assert!(
+            analyser.proven_sites.is_empty(),
+            "the real CU consumed the queued operand"
+        );
+        assert!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != DiagCode::W300),
+            "the retained Logical setter contents refine its own original read"
+        );
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        assert!(analyser.source_analysis_entry.is_none());
+        let result = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(SOURCE, "display-only");
+        assert_eq!(result.resolved_input.as_ref(), Some(&input));
+        assert!(result.diagnostics.iter().all(|d| d.code != DiagCode::W300));
+    }
+
+    #[test]
+    fn actual_diagnostic_cu_construction_refuses_withdrawn_and_changed_input_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let input = input();
+        for axis in [
+            "missing",
+            "config",
+            "foreign",
+            "availability",
+            "source",
+            "grammar",
+        ] {
+            let mut analyser = queued(&input);
+            let original = analyser.result.diagnostics.clone();
+            let mut current_source = SOURCE.to_owned();
+            match axis {
+                "missing" => analyser.result.resolved_input = None,
+                "config" => analyser.result.body_lexer_config = None,
+                "foreign" => {
+                    let mut changed = input.clone();
+                    changed.context = Arc::new(input.context.with_command_store(Arc::new(
+                        tcl_registry::CommandRegistry::build_default(),
+                    )));
+                    analyser.result.resolved_input = Some(changed);
+                }
+                "availability" => {
+                    let mut changed = input.clone();
+                    changed.context = Arc::new(
+                        tcl_registry::model::ingress::static_context_for("tcl8.4")
+                            .with_command_store(Arc::clone(input.context.commands())),
+                    );
+                    assert!(Arc::ptr_eq(
+                        changed.context.commands(),
+                        input.context.commands()
+                    ));
+                    assert_ne!(changed, input);
+                    analyser.result.resolved_input = Some(changed);
+                }
+                "source" => current_source.push('\n'),
+                "grammar" => {
+                    let mut changed = input.clone();
+                    changed.config.strict_quoting = !changed.config.strict_quoting;
+                    analyser.result.resolved_input = Some(changed);
+                }
+                _ => unreachable!(),
+            }
+            analyser.emit_cfg_ssa_diagnostics(&current_source);
+            assert_eq!(
+                analyser.result.diagnostics, original,
+                "{axis}: actual advice was retained"
+            );
+            assert_eq!(
+                analyser.proven_sites.len(),
+                1,
+                "{axis}: refusal precedes CU/emission"
+            );
+        }
+        let mut unowned = Analyser::new();
+        unowned.emit_cfg_ssa_diagnostics(SOURCE);
+        assert!(unowned.result.diagnostics.is_empty());
+        assert!(unowned.result.resolved_input.is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_logical_command_availability_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use std::sync::Arc;
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .expect("known fixture availability")
+                .default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        )
+    }
+
+    pub(super) fn lowered_statement(
+        source: &str,
+        input: &ResolvedAnalysisInput,
+        selected: &str,
+    ) -> crate::ir::Statement {
+        let mut lowerer = crate::lowering::Lowerer::with_config(
+            input.borrowed_context_registry().commands(),
+            input.lexer_config(),
+        )
+        .with_resolved_analysis_input(input.clone());
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        assert_eq!(module.source_metadata_input.as_ref(), Some(input));
+        assert_eq!(module.lexer_config, input.lexer_config());
+        let offset = u32::try_from(source.rfind(selected).unwrap()).unwrap();
+        let mut statements = Vec::new();
+        let mut visit = |statement: &crate::ir::Statement| {
+            if statement.span().start() == offset {
+                statements.push(statement.clone());
+            }
+        };
+        crate::ir::for_each_statement(&module.top_level, &mut visit);
+        for procedure in module.procedures.values() {
+            crate::ir::for_each_statement(&procedure.body, &mut visit);
+        }
+        assert_eq!(statements.len(), 1, "one original statement at {offset}");
+        statements.pop().unwrap()
+    }
+
+    fn analysis(source: &str, input: &ResolvedAnalysisInput) -> Analyser {
+        let mut analyser = Analyser::new()
+            .with_resolved_input(input.clone())
+            .structure_only();
+        analyser.analyse_and_retain_result_for_test(source, "display-only");
+        assert!(analyser.result.allows_retained_logical_declaration_advice());
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(input));
+        analyser
+    }
+
+    #[test]
+    fn original_logical_body_availability_uses_closed_root_and_nested_captured_targets() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        for (source, selected, captured) in [
+            ("package require Tcl", "package require Tcl", false),
+            (
+                "interp alias {} ensure {} package require; ensure Tcl",
+                "ensure Tcl",
+                true,
+            ),
+            (
+                "proc subject {} {package require Tcl}",
+                "package require Tcl",
+                false,
+            ),
+            (
+                "interp alias {} ensure {} package require; proc subject {} {ensure Tcl}",
+                "ensure Tcl",
+                true,
+            ),
+        ] {
+            let analyser = analysis(source, &input);
+            let statement = lowered_statement(source, &input, selected);
+            let tokens = statement.tokens().expect("original complete argv");
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let targets = binding
+                .original_logical_declaration_call_targets(
+                    tokens,
+                    &input,
+                    input.borrowed_context_registry().commands(),
+                )
+                .unwrap();
+            let [target] = targets.as_slice() else {
+                panic!("one original callee: {source}");
+            };
+            assert!(target.registry_backed);
+            assert_eq!(target.prepended.len(), usize::from(captured));
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.native_compiler_admission.is_none());
+            assert!(
+                analyser
+                    .unit_command_resolver(input.borrowed_context_registry().commands())
+                    .resolves(&statement),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_procedure_body_availability_keeps_the_selected_declaration_separate_from_allocation()
+     {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        for (source, selected) in [
+            (
+                "proc available {} {}; available local_name",
+                "available local_name",
+            ),
+            (
+                "proc available {} {}; interp alias {} ensure {} available; ensure local_name",
+                "ensure local_name",
+            ),
+        ] {
+            let analyser = analysis(source, &input);
+            let statement = lowered_statement(source, &input, selected);
+            let tokens = statement.tokens().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let targets = binding
+                .original_logical_declaration_call_targets(tokens, &input, registry)
+                .expect("closed actual source declaration");
+            let [target] = targets.as_slice() else {
+                panic!("one original procedure");
+            };
+            assert_eq!(target.kind, crate::command_binding::BindingKind::Proc);
+            assert!(!target.registry_backed);
+            assert!(target.implementation_allocation.is_none());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.declaration_call_layout_advice(tokens).is_none());
+            let resolver = analyser.unit_command_resolver(registry);
+            assert!(resolver.resolves(&statement), "{source}");
+            let mut missing_declaration = analyser.unit_command_resolver(registry);
+            missing_declaration.procedures.clear();
+            assert!(!missing_declaration.resolves(&statement));
+        }
+    }
+
+    #[test]
+    fn original_logical_body_availability_refuses_absent_and_opaque_original_callees() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        for (source, selected) in [
+            ("rename puts hidden; puts local_name", "puts local_name"),
+            (
+                "proc available {} {}; rename available {}; available local_name",
+                "available local_name",
+            ),
+            ("mystery; puts local_name", "puts local_name"),
+            ("puts [rename puts {}]", "puts [rename puts {}]"),
+        ] {
+            let analyser = analysis(source, &input);
+            let statement = lowered_statement(source, &input, selected);
+            assert!(
+                !analyser
+                    .unit_command_resolver(input.borrowed_context_registry().commands())
+                    .resolves(&statement),
+                "{source}"
+            );
+        }
+        // A final Catalogue row cannot resurrect a withdrawn original slot.
+        assert!(
+            input
+                .borrowed_context_registry()
+                .context()
+                .resolve_spec(input.borrowed_context_registry().commands(), "puts")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn original_logical_body_availability_requires_full_input_vector_and_actual_generation() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        let source = "interp alias {} ensure {} package require; proc subject {} {ensure Tcl}";
+        let analyser = analysis(source, &input);
+        let statement = lowered_statement(source, &input, "ensure Tcl");
+        let registry = input.borrowed_context_registry().commands();
+        assert!(
+            analyser
+                .unit_command_resolver(registry)
+                .resolves(&statement)
+        );
+
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            changed_config,
+        );
+        let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .expect("known foreign availability")
+            .default_context_registry();
+        for replacement in [
+            None,
+            Some(changed),
+            Some(ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::clone(&foreign),
+                input.lexer_config(),
+            )),
+        ] {
+            let mut resolver = analyser.unit_command_resolver(registry);
+            resolver.logical_input = replacement;
+            assert!(!resolver.resolves(&statement));
+        }
+        let mut resolver = analyser.unit_command_resolver(registry);
+        resolver.generation = foreign;
+        assert!(!resolver.resolves(&statement));
+        let mut missing_realm = analyser.unit_command_resolver(registry);
+        missing_realm.logical_realm = None;
+        assert!(!missing_realm.resolves(&statement));
+        let foreign_statement =
+            lowered_statement("package require Tcl", &input, "package require Tcl");
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&foreign_statement)
+        );
+
+        let mut changed_vector = statement.clone();
+        changed_vector.tokens_mut().unwrap().word_exprs.pop();
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&changed_vector)
+        );
+        let mut missing_binding = statement.clone();
+        missing_binding.tokens_mut().unwrap().source_binding = None;
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&missing_binding)
+        );
+        let tokenless = crate::ir::Statement::Barrier {
+            span: statement.span(),
+            reason: "unowned compatibility label".into(),
+            command: "package".into(),
+            canonical_command: Some("package".into()),
+            args: vec!["require".into(), "Tcl".into()],
+            tokens: None,
+        };
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&tokenless)
+        );
+    }
+}

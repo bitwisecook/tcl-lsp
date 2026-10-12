@@ -1,0 +1,19 @@
+{
+  "ordinal": 450,
+  "selector": "list::tests::selected_empty_compound_updaters_install_native_allocation_identity",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::selected_empty_compound_updaters_install_native_allocation_identity",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.008215905982069671,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/450.log",
+  "log_sha256": "b7e21d0ac3d6f5437cddc47f38a6c1ef949bec7f4285843800166633df4e7d67"
+}

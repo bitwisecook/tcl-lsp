@@ -1,0 +1,117 @@
+ *
+ * Results:
+ *	A standard Tcl object result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+int
+Tcl_ErrorObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    char *info;
+    int infoLen;
+
+    if ((objc < 2) || (objc > 4)) {
+	Tcl_WrongNumArgs(interp, 1, objv, "message ?errorInfo? ?errorCode?");
+	return TCL_ERROR;
+    }
+    
+    if (objc >= 3) {		/* process the optional info argument */
+	info = Tcl_GetStringFromObj(objv[2], &infoLen);
+	if (infoLen > 0) {
+	    Tcl_AddObjErrorInfo(interp, info, infoLen);
+	    iPtr->flags |= ERR_ALREADY_LOGGED;
+	}
+    }
+    
+    if (objc == 4) {
+	Tcl_SetVar2Ex(interp, "errorCode", NULL, objv[3], TCL_GLOBAL_ONLY);
+	iPtr->flags |= ERROR_CODE_SET;
+    }
+    
+    Tcl_SetObjResult(interp, objv[1]);
+    return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_EvalObjCmd --
+ *
+ *	This object-based procedure is invoked to process the "eval" Tcl 
+ *	command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+int
+Tcl_EvalObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    int result;
+    register Tcl_Obj *objPtr;
+#ifdef TCL_TIP280
+    Interp* iPtr = (Interp*) interp;
+#endif
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "arg ?arg ...?");
+	return TCL_ERROR;
+    }
+    
+    if (objc == 2) {
+#ifndef TCL_TIP280
+	result = Tcl_EvalObjEx(interp, objv[1], TCL_EVAL_DIRECT);
+#else
+	/* TIP #280. Make argument location available to eval'd script */
+	CmdFrame* invoker = iPtr->cmdFramePtr;
+	int word          = 1;
+	TclArgumentGet (interp, objv[1], &invoker, &word);
+	result = TclEvalObjEx(interp, objv[1], TCL_EVAL_DIRECT,
+			      invoker, word);
+#endif
+    } else {
+	/*
+	 * More than one argument: concatenate them together with spaces
+	 * between, then evaluate the result.  Tcl_EvalObjEx will delete
+	 * the object when it decrements its refcount after eval'ing it.
+	 */
+    	objPtr = Tcl_ConcatObj(objc-1, objv+1);
+#ifndef TCL_TIP280
+	result = Tcl_EvalObjEx(interp, objPtr, TCL_EVAL_DIRECT);
+#else
+	/* TIP #280. Make invoking context available to eval'd script */
+	result = TclEvalObjEx(interp, objPtr, TCL_EVAL_DIRECT, NULL, 0);
+#endif
+    }
+    if (result == TCL_ERROR) {
+	char msg[32 + TCL_INTEGER_SPACE];
+
+	sprintf(msg, "\n    (\"eval\" body line %d)", interp->errorLine);
+	Tcl_AddObjErrorInfo(interp, msg, -1);
+    }
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *

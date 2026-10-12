@@ -1,0 +1,643 @@
+
+running 339 tests
+test cmd_array::native_unset_tests::original_array_unset_matches_native_refills_and_release_selected_lookup ... 
+thread 'cmd_array::native_unset_tests::original_array_unset_matches_native_refills_and_release_selected_lookup' (862439) panicked at rust/tcl-vm/src/vars.rs:1025:14:
+operation reference must refer to a live variable cell
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows ... 
+thread 'cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows' (862480) panicked at rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs:277:9:
+assertion `left == right` failed: jim/0/shimmer=false
+  left: "S\t0\t2\tafter\tlist,1,0,-1\tlist,1,0,-1\tvariable,2,1,-1\tnone,2,1,-1\tscript,1,1,-1\tabsent,-1,0,-1\t0\tnone,6,1,-1"
+ right: "S\t0\t2\tafter\tlist,1,0,-1\tlist,1,0,-1\tvariable,2,1,-1\tnone,2,1,-1\tscript,1,1,-1\tabsent,-1,0,-1\t0\tnone,7,1,-1"
+FAILED
+test cmd_control::native_each_loop_tests::original_procedure_bytecode_reconciles_script_and_procedure_contexts ... ok
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_coro::native_original_holder_tests::original_coroutine_holder_lifecycle_matches_all_native_public_results ... 
+thread 'cmd_coro::native_original_holder_tests::original_coroutine_holder_lifecycle_matches_all_native_public_results' (862521) panicked at rust/tcl-vm/src/cmd_coro/native_original_holder_tests.rs:62:18:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_coro::retirement_tests::yieldto_retains_deleted_entered_namespace_when_its_spelling_is_recreated ... ok
+test cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows ... 
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows' (862608) panicked at rust/tcl-vm/src/cmd_dict.rs:1455:61:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("native string materialisation")
+FAILED
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... 
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes' (862657) panicked at rust/tcl-vm/src/value.rs:4989:18:
+selected compound updater requires checked child storage: StringUpdater
+FAILED
+test cmd_dict::scripted_tests::native_jim_dictionary_worker_requires_explicit_distribution_initialisation ... 
+thread 'cmd_dict::scripted_tests::native_jim_dictionary_worker_requires_explicit_distribution_initialisation' (862822) panicked at rust/tcl-vm/src/cmd_dict/scripted_tests.rs:160:14:
+original native Jim source: HostCommandRefusal(NativeHostCommandRefusal { reason: "native dictionary initial lookup is unavailable", source_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, native_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, interpreter: NativeInterpreterIdentity { owner: 356, interpreter: 0 }, frame: 1, namespace: "", namespace_token: 0 })
+FAILED
+test cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations ... 
+thread 'cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations' (862823) panicked at rust/tcl-vm/src/cmd_dict/scripted_tests.rs:107:37:
+append: HostCommandRefusal(NativeHostCommandRefusal { reason: "native dictionary initial lookup is unavailable", source_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, native_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, interpreter: NativeInterpreterIdentity { owner: 357, interpreter: 0 }, frame: 1, namespace: "", namespace_token: 0 })
+FAILED
+test cmd_dict::scripted_tests::original_jim_dictionary_library_bodies_and_formals_are_real_procedures ... ok
+test cmd_dict::scripted_tests::repinning_keeps_replacement_and_deletion_of_actual_library_generations ... ok
+test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... 
+thread 'cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows' (862840) panicked at rust/tcl-vm/src/cmd_info/native_commands_tests.rs:25:47:
+called `Result::unwrap()` on an `Err` value: CompilationAdmission(NativePreflightRequired)
+FAILED
+test cmd_info::native_jim::tests::current_lsort_failure_is_reported_by_the_selected_jim_parser ... ok
+test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_queries_and_inventory_compare_all_24_native_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_info_dispatch_matches_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns ... 
+thread 'cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns' (862895) panicked at rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs:239:13:
+assertion `left == right` failed: tcl8.4/native_jim_info_command_inventory254/original-all-option-current-namespace
+  left: [48, 32, 123, 125]
+ right: [49, 32, 123, 119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 105, 110, 102, 111, 32, 99, 111, 109, 109, 97, 110, 100, 115, 32, 63, 112, 97, 116, 116, 101, 114, 110, 63, 34, 125]
+FAILED
+test cmd_info::native_jim_inventory_tests::original_procedure_usage_extents_match_all_24_native_public_windows ... ok
+test cmd_info::native_oo::tests::original_tcloo_info_bootstrap_preserves_private_ensemble_targets ... ok
+test cmd_info::native_oo::tests::specialized_object_info_executes_original_operand_before_native_getter ... ok
+test cmd_info::native_oo::tests::specialized_object_info_keeps_original_cache_and_result_owners ... ok
+test cmd_info::native_oo::tests::string_nested_operand_geometry_preserves_quoted_options_and_repeated_calls ... ok
+test cmd_list::tests::deeply_nested_lpop_survives_and_is_correct ... ok
+test cmd_mathop::tests::every_layer1_mathop_operator_is_registered_in_the_vm ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... 
+thread 'cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls' (862923) panicked at rust/tcl-vm/src/cmd_mathop.rs:179:13:
+assertion `left == right` failed: tcl8.5/3
+  left: [123, 49, 32, 49, 32, 49, 125, 32, 123, 72, 73, 84, 32, 72, 73, 84, 125]
+ right: [123, 49, 32, 49, 32, 49, 125, 32, 123, 125]
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (862941) panicked at rust/tcl-vm/src/cmd_mathop.rs:122:17:
+tcl8.6/0 native mathop source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_mathop::tests::the_vm_registers_no_mathop_command_beyond_layer1 ... ok
+test cmd_namespace::native_map_prefix_tests::original_counted_map_prefix_vectors_match_all_20_c_public_windows ... ok
+test cmd_namespace::native_store_tests::namespace_stores_match_native_existing_root_fresh_and_declared_controls ... ok
+test cmd_namespace::native_upvar_fixture_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame ... 
+thread 'cmd_namespace::native_upvar_fixture_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame' (862994) panicked at rust/tcl-vm/src/cmd_namespace.rs:1992:49:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results ... 
+thread 'cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results' (862995) panicked at rust/tcl-vm/src/cmd_namespace.rs:1936:45:
+jim/upvar-no-pairs: CompilationAdmission(NativePreflightRequired)
+FAILED
+test cmd_namespace::native_upvar_fixture_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows ... 
+thread 'cmd_namespace::native_upvar_fixture_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows' (862996) panicked at rust/tcl-vm/src/cmd_namespace.rs:1956:55:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_namespace::original_ensemble_tests::counted_map_roots_and_native_cstring_collision_owners_are_independent ... ok
+test cmd_namespace::original_ensemble_tests::explicit_subcommands_restrict_the_actual_map ... ok
+test cmd_namespace::original_ensemble_tests::map_queries_keep_the_same_original_and_do_not_own_retired_configuration ... ok
+test cmd_namespace::original_ensemble_tests::original_ensemble_options_use_actual_release_tables ... ok
+test cmd_namespace::tests::code_keeps_non_unicode_bytes_and_uses_native_arity ... ok
+test cmd_namespace::tests::code_refuses_an_unaudited_engine_outside_guest_completion ... ok
+test cmd_namespace::tests::code_retains_original_objects_for_all_measured_native_prefixes ... ok
+test cmd_namespace::tests::code_uses_the_explicit_f5_logical_provider ... ok
+test cmd_namespace::tests::current_and_code_wrong_arity_retain_original_header_words ... ok
+test cmd_namespace::tests::namespace_text_preserves_original_native_byte_names ... ok
+test cmd_namespace::tests::native_namespace_bodies_propagate_return_and_inscope_requires_c_target ... ok
+test cmd_oo::native_byte_name_tests::declared_variables_retain_original_values_and_counted_object_fields ... ok
+test cmd_oo::native_byte_name_tests::native_object_and_method_keys_keep_independent_extents_and_original_usage ... ok
+test cmd_oo::native_context::tests::cached_object_name_retains_the_original_header_until_rename ... ok
+test cmd_oo::native_context::tests::definition_namespace_and_variable_activation_are_original ... 
+thread 'cmd_oo::native_context::tests::definition_namespace_and_variable_activation_are_original' (863086) panicked at rust/tcl-vm/src/cmd_oo/native_context.rs:502:455:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_oo::native_context::tests::helper_cpp_executes_only_the_actual_method_frame_and_original_words ... 
+thread 'cmd_oo::native_context::tests::helper_cpp_executes_only_the_actual_method_frame_and_original_words' (863087) panicked at rust/tcl-vm/src/cmd_oo/native_context.rs:467:13:
+assertion `left == right` failed: V8_6: ambiguous subcommand "n": must be call, caller, class, filter, method, namespace, next, object, or target
+  left: Error
+ right: Ok
+FAILED
+test cmd_oo::native_context::tests::nested_definitions_retain_actual_caller_frames_and_qualified_workers ... 
+thread 'cmd_oo::native_context::tests::nested_definitions_retain_actual_caller_frames_and_qualified_workers' (863109) panicked at rust/tcl-vm/src/cmd_oo/native_context.rs:553:94:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_oo::native_context::tests::uplevel_selection_restores_original_namespace_for_source_and_object_bodies ... ok
+test cmd_oo::native_eval_tests::object_eval_retains_original_script_and_concat_children ... ok
+test cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls ... ok
+test cmd_oo::native_info_option_tests::variable_info_matches_original_native_option_and_target_failures ... ok
+test cmd_oo::native_info_option_tests::variable_info_validates_original_options_before_target_lookup ... ok
+test cmd_oo::native_method_cache::tests::foreign_cache_and_missing_methods_cannot_supply_an_owner ... ok
+test cmd_oo::native_method_cache::tests::original_method_primary_and_table_keys_share_the_actual_chain ... ok
+test cmd_oo::native_method_cache::tests::reached_method_records_distinguish_replacement_from_recreation ... 
+thread 'cmd_oo::native_method_cache::tests::reached_method_records_distinguish_replacement_from_recreation' (863781) panicked at rust/tcl-vm/src/cmd_oo/native_method_cache.rs:531:9:
+assertion `left == right` failed: 
+  left: Error
+ right: Ok
+FAILED
+test cmd_oo::native_method_info_tests::method_info_matches_original_counted_option_and_scope_controls ... ok
+test cmd_oo::native_method_info_tests::stock_destroy_allocation_controls_reflection_and_dispatch ... ok
+test cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results ... 
+thread 'cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results' (863819) panicked at rust/tcl-vm/src/cmd_oo/native_original_holder_tests.rs:72:18:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_oo::native_private_tests::method_option_layout_and_private_scope_match_original_native_controls ... ok
+test cmd_oo::native_private_tests::private_query_and_opaque_original_bodies_match_native_c9_controls ... ok
+test cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary ... ok
+test cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members ... ok
+test cmd_oo::native_properties::tests::property_epochs_follow_mutations_before_definition_failure ... ok
+test cmd_oo::native_properties::tests::property_headers_and_temporary_tables_retain_original_members ... ok
+test cmd_oo::native_property_counted_tests::original_configurable_availability_matches_native_counted_argv_without_source_preflight ... 
+thread 'cmd_oo::native_property_counted_tests::original_configurable_availability_matches_native_counted_argv_without_source_preflight' (863986) panicked at rust/tcl-vm/src/cmd_oo/native_property_counted_tests.rs:39:5:
+assertion `left == right` failed: AVAILABILITY_OBJV
+  left: 1
+ right: 0
+FAILED
+test cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access ... ok
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... ok
+test cmd_oo::original_call_argv_tests::constructor_and_method_frames_borrow_original_dispatch_children ... ok
+test cmd_oo::original_call_argv_tests::next_nextto_and_destructor_frames_use_native_invocation_vectors ... ok
+test cmd_package::tests::actual_package_protocol_is_independent_of_logical_release ... ok
+test cmd_package::tests::core_provides_follow_the_pinned_release ... ok
+test cmd_package::tests::import_redefinition_rename_reexport_and_retirement_follow_dialect ... 
+thread 'cmd_package::tests::import_redefinition_rename_reexport_and_retirement_follow_dialect' (864383) panicked at rust/tcl-vm/src/cmd_package.rs:1540:49:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_activation_variables ... 
+thread 'cmd_package::tests::jim_activation_variables' (864384) panicked at rust/tcl-vm/src/cmd_package.rs:1703:184:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_direct_packages_use_global_source_and_preserve_partial_effects ... 
+thread 'cmd_package::tests::jim_direct_packages_use_global_source_and_preserve_partial_effects' (864389) panicked at rust/tcl-vm/src/cmd_package.rs:1821:18:
+require: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_flat_absolute_variable_names ... ok
+test cmd_package::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias ... 
+thread 'cmd_package::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias' (864391) panicked at rust/tcl-vm/src/cmd_package.rs:1569:519:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... 
+thread 'cmd_package::tests::jim_interpreter_handle_factory_alias_frame_and_deletion' (864392) panicked at rust/tcl-vm/src/cmd_package.rs:1584:300:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_interpreter_handle_isolation ... 
+thread 'cmd_package::tests::jim_interpreter_handle_isolation' (864393) panicked at rust/tcl-vm/src/cmd_package.rs:1599:342:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_namespace_delete_retires_flat_variable_cells ... 
+thread 'cmd_package::tests::jim_namespace_delete_retires_flat_variable_cells' (864394) panicked at rust/tcl-vm/src/cmd_package.rs:1688:176:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_namespace_root_is_local_activation ... 
+thread 'cmd_package::tests::jim_namespace_root_is_local_activation' (864395) panicked at rust/tcl-vm/src/cmd_package.rs:1750:14:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_relative_qualified_proc_variable ... 
+thread 'cmd_package::tests::jim_relative_qualified_proc_variable' (864396) panicked at rust/tcl-vm/src/cmd_package.rs:1718:130:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::jim_upvar_targets_selected_activation ... ok
+test cmd_package::tests::jim_variable_declaration_preserves_colon_runs ... 
+thread 'cmd_package::tests::jim_variable_declaration_preserves_colon_runs' (864398) panicked at rust/tcl-vm/src/cmd_package.rs:1780:132:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::legacy_package_arity_and_unknown_callback_follow_core_protocol ... ok
+test cmd_package::tests::legacy_upvar_level_presence_rejects_numeric_variable_pair ... ok
+test cmd_package::tests::malformed_requirements_precede_an_active_loader_cycle ... ok
+test cmd_package::tests::package_commands_apply_the_pinned_plus_suffix_policy ... ok
+test cmd_package::tests::package_completion_matches_all_six_native_84_controls ... ok
+test cmd_package::tests::package_error_publication_matches_all_21_original_native_controls ... ok
+test cmd_package::tests::package_files_headers_match_all_native_10_windows_and_scope_lifetimes ... ok
+test cmd_package::tests::package_loader_entries_keep_first_spelling_and_registration_order ... ok
+test cmd_package::tests::package_operands_preserve_native_storage_extents_and_error_bytes ... ok
+test cmd_package::tests::package_require_tcl_85_matches_tclsh_per_release ... ok
+test cmd_package::tests::package_tcl9_loader_suffixes_retain_opaque_bytes ... ok
+test cmd_package::tests::provided_version_headers_match_all_native_30_windows ... ok
+test cmd_package::tests::qualified_variable_fallback_depends_on_cell_and_release ... 
+thread 'cmd_package::tests::qualified_variable_fallback_depends_on_cell_and_release' (864579) panicked at rust/tcl-vm/src/cmd_package.rs:1672:185:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::shared_package_files_append_is_an_outer_native_fatal_condition ... ok
+test cmd_package::tests::upvar_qualified_scalar_and_element_use_selected_frame ... 
+thread 'cmd_package::tests::upvar_qualified_scalar_and_element_use_selected_frame' (864581) panicked at rust/tcl-vm/src/cmd_package.rs:1647:407:
+source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_package::tests::version_ranges ... ok
+test cmd_trace::native_original_tests::counted_nul_command_trace_prefixes_preserve_native_storage_and_eval_extents ... ok
+test cmd_trace::native_original_tests::legacy_operation_objects_match_native_counted_and_cstring_controls ... ok
+test cmd_trace::native_original_tests::opaque_command_trace_operands_match_all_five_direct_native_engines ... ok
+test cmd_trace::native_original_tests::opaque_missing_trace_command_reports_original_bytes_without_panicking ... ok
+test cmd_trace::native_original_tests::trace_type_wrong_arity_uses_selected_member_without_decoding_original_operand ... ok
+test cmd_trace::native_original_tests::unavailable_trace_prefix_refuses_before_materializing_original_name ... ok
+test cmd_trace::native_original_tests::variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls ... ok
+test command::native_apply_original_tests::apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler ... ok
+test command::native_apply_original_tests::apply_returns_original_counted_argument_objects ... ok
+test command::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls ... 
+thread 'command::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls' (864696) panicked at rust/tcl-vm/src/command/native_apply_original_tests.rs:278:146:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test command::native_apply_original_tests::parked_lambda_registration_retires_after_coroutine_deletion ... ok
+test command::native_catch_formal_alias_tests::caught_callback_result_follows_replaced_formal_alias_native_controls ... ok
+test command::native_encoding_tests::external_utf8_binary_result_refuses_foreign_or_jim_issuer ... ok
+test command::native_encoding_tests::original_utf8_conversion_matches_all_55_c_object_storage_windows ... ok
+test command::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... ok
+test command::native_formal_alpha_tests::formal_renaming_observer_controls_report_the_distinct_names ... ok
+test command::native_frame_context_tests::generated_jim_level_objects_use_actual_frame_context ... ok
+test command::native_frame_context_tests::jim_level_object_cannot_borrow_a_foreign_interpreter_context ... ok
+test command::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames ... ok
+test command::native_procedure_name_tests::catch_epilogue_publishes_status_in_the_actual_interpreter_result_owner ... ok
+test command::native_procedure_name_tests::legacy_name_rejection_precedes_original_formal_default_and_body_access ... ok
+test command::native_procedure_name_tests::original_procedure_colon_names_match_all_18_native_home_and_error_controls ... 
+thread 'command::native_procedure_name_tests::original_procedure_colon_names_match_all_18_native_home_and_error_controls' (865156) panicked at rust/tcl-vm/src/command/native_procedure_name_tests.rs:35:37:
+jim/0: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test command::native_static_original_tests::original_jim_static_links_match_native_frame_storage_reuse_boundaries ... ok
+test command::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture ... ok
+test command::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls ... ok
+test command::native_subst_operand_tests::original_subst_options_match_counted_native_families ... ok
+test command::native_substitution_tests::original_compiled_substitution_matches_counted_native_flags_and_completions ... ok
+test command::native_substitution_tests::original_substitution_changes_namespace_and_borrowed_local_cache_without_proc_header ... ok
+test command::tests::jim_core_alias_query_retains_original_prefix_header_and_members ... ok
+test command::tests::native_wrong_arguments_completion_preserves_the_selected_string_producer ... ok
+test exec::native_child_completion_tests::coroutine_creation_yield_and_resume_preserve_original_list_headers ... ok
+test exec::native_child_completion_tests::entered_child_completions_match_forty_eight_real_engine_controls ... 
+thread 'exec::native_child_completion_tests::entered_child_completions_match_forty_eight_real_engine_controls' (865389) panicked at rust/tcl-vm/src/exec/native_child_completion_tests.rs:72:41:
+tcl8.6/2: CompilationAdmission(NativePreflightRequired)
+FAILED
+test exec::native_child_completion_tests::original_coroutine_execution_matches_seventy_eight_engine_controls ... 
+thread 'exec::native_child_completion_tests::original_coroutine_execution_matches_seventy_eight_engine_controls' (865437) panicked at rust/tcl-vm/src/exec/native_child_completion_tests.rs:228:41:
+jim/tailcall-caller-namespace: CompilationAdmission(NativePreflightRequired)
+FAILED
+test exec::native_child_completion_tests::synchronous_tailcall_validates_parent_before_array_index_completion ... 
+thread 'exec::native_child_completion_tests::synchronous_tailcall_validates_parent_before_array_index_completion' (865720) panicked at rust/tcl-vm/src/exec/native_child_completion_tests.rs:153:18:
+original caller compiles: CompilationAdmission(NativePreflightRequired)
+FAILED
+test exec::native_each::tests::original_compiled_each_matches_95_native_completions ... ok
+test exec::native_list_operations_tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... 
+thread 'exec::native_list_operations_tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (865863) panicked at rust/tcl-vm/src/exec/native_list_operations_tests.rs:70:5:
+assertion `left == right` failed: jim/lassign $name first [error STOP]: original header
+  left: ["none", "1", "1"]
+ right: ["none", "1", "2"]
+FAILED
+test exec::native_missing_command_result_tests::original_missing_lmap_lookup_publishes_the_same_native_result_header ... ok
+test exec::native_namespace_string_tests::original_compiled_index_preserves_counted_single_bytes_and_native_units ... ok
+test exec::native_namespace_string_tests::original_compiled_tail_declines_foreign_policy_and_unreached_unicode_range ... ok
+test exec::native_namespace_string_tests::original_empty_counted_append_matches_thirty_native_constructor_windows ... ok
+test exec::native_namespace_string_tests::original_empty_counted_append_preserves_the_reached_release_conversion ... ok
+test exec::native_namespace_string_tests::original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows ... ok
+test exec::native_namespace_string_tests::original_namespace_tail_matches_one_hundred_counted_native_windows ... ok
+test exec::native_try_tests::original_try_vectors_keep_native_handler_bindings_and_finally_completion ... ok
+test exec::native_uplevel_tests::explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows ... ok
+test exec::native_uplevel_tests::level_reference_reselects_current_frames_in_thirty_native_windows ... ok
+test exec::native_uplevel_tests::uplevel_opcode_keeps_nonlevel_operand_out_of_the_original_script ... ok
+test interp::authored_rule_callables::tests::authored_rule_capabilities_require_an_explicit_host_and_logical_name_provider ... ok
+test interp::authored_tmm_static::tests::checked_noncurrent_store_retains_recipient_failure_and_prior_mutations ... 
+thread 'interp::authored_tmm_static::tests::checked_noncurrent_store_retains_recipient_failure_and_prior_mutations' (866499) panicked at rust/tcl-vm/src/interp/native_error_stack.rs:84:38:
+selected native inner context
+FAILED
+test interp::authored_tmm_static::tests::compilation_context_retains_actual_recipient_observers_and_event_phase ... ok
+test interp::authored_tmm_static::tests::direct_native_recipient_observers_invalidate_original_static_receipts ... 
+thread 'interp::authored_tmm_static::tests::direct_native_recipient_observers_invalidate_original_static_receipts' (866501) panicked at rust/tcl-vm/src/interp/authored_tmm_static.rs:1150:9:
+assertion `left != right` failed
+  left: 13
+ right: 13
+FAILED
+test interp::authored_tmm_static::tests::enrollment_replays_owned_publications_and_retires_namespace_incarnations ... ok
+test interp::authored_tmm_static::tests::noncurrent_storage_facades_publish_without_source_trace_callbacks ... ok
+test interp::authored_tmm_static::tests::recipient_aliases_follow_actual_static_cells_without_republishing_or_touching_globals ... ok
+test interp::authored_tmm_static::tests::recipient_traces_publish_nested_writes_and_preserve_partial_errors ... 
+thread 'interp::authored_tmm_static::tests::recipient_traces_publish_nested_writes_and_preserve_partial_errors' (866533) panicked at rust/tcl-vm/src/interp/native_error_stack.rs:84:38:
+selected native inner context
+FAILED
+test interp::authored_tmm_static::tests::rule_init_publishes_resolved_alias_rmw_and_array_cells_only ... ok
+test interp::authored_tmm_static::tests::rule_owners_share_static_cells_but_events_and_globals_keep_worker_ownership ... ok
+test interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch ... 
+thread 'interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch' (866606) panicked at rust/tcl-vm/src/interp/execution_name_policy.rs:593:189:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test interp::execution_name_policy::tests::counted_dynamic_cell_does_not_collide_with_declared_cstring_prefix ... ok
+test interp::execution_name_policy::tests::frame_replacement_and_profile_change_withdraw_observed_storage ... ok
+test interp::execution_name_policy::tests::measured_names_require_actual_storage_and_retire_with_event_frame ... ok
+test interp::execution_name_policy::tests::observed_counted_set_dispatch_uses_independent_command_and_source_issuers ... ok
+test interp::execution_name_policy::tests::observed_trace_and_upvar_purposes_are_unavailable_in_source_dispatch ... ok
+test interp::execution_name_policy::tests::scoped_selection_invalidates_entered_and_restored_compilation_world ... ok
+test interp::family_b_tests::byte_namespace_paths_keep_opaque_and_terminal_colon_token_contexts ... ok
+test interp::family_b_tests::jim_actual_namespace_objects_are_in_native_snapshots ... ok
+test interp::family_b_tests::namespace_var_enumeration_uses_the_exact_retained_token ... ok
+test interp::family_b_tests::native_combined_and_separate_array_inputs_select_distinct_receivers ... ok
+test interp::family_b_tests::native_command_byte_lookup_and_snapshot_keep_distinct_original_keys ... ok
+test interp::family_b_tests::native_namespace_bootstrap_retains_actual_worker_and_profile_ownership ... ok
+test interp::family_b_tests::native_precision_array_trace_runs_before_element_callbacks ... ok
+test interp::family_b_tests::native_precision_is_shared_with_children_and_survives_unset ... ok
+test interp::family_b_tests::native_precision_observer_follows_storage_and_validates_writes ... 
+thread 'interp::family_b_tests::native_precision_observer_follows_storage_and_validates_writes' (866636) panicked at rust/tcl-vm/src/interp/native_error_stack.rs:155:14:
+selected private error-stack header
+FAILED
+test interp::family_b_tests::native_read_result_reports_the_actual_failure_site_and_operand_form ... ok
+test interp::family_b_tests::native_trace_registration_projects_its_own_name_and_keeps_prefix_value ... ok
+test interp::family_b_tests::native_variable_bytes_preserve_full_keys_and_nul_qualification ... ok
+test interp::family_b_tests::native_variable_links_keep_byte_names_and_retired_cell_identity ... ok
+test interp::family_b_tests::native_variable_updates_retain_exact_keys_and_failed_read_options ... 
+thread 'interp::family_b_tests::native_variable_updates_retain_exact_keys_and_failed_read_options' (866703) panicked at rust/tcl-vm/src/interp.rs:27885:17:
+assertion failed: code.is_none()
+FAILED
+test interp::family_b_tests::noncurrent_varstore_unset_elem_retires_the_reached_trace_cell ... ok
+test interp::family_b_tests::noncurrent_varstore_unset_reports_trace_only_cells_missing ... ok
+test interp::family_b_tests::noncurrent_varstore_unset_retires_array_element_trace_cells ... ok
+test interp::family_b_tests::owned_command_queries_release_the_name_world_before_native_reentry ... ok
+test interp::family_b_tests::procedure_cache_keys_preserve_constructed_literal_colon_namespaces ... ok
+test interp::family_b_tests::raw_scalar_replacement_retires_array_element_trace_cells ... ok
+test interp::family_b_tests::trace_deleted_hidden_refresh_never_resurrects_or_overwrites_replacement ... ok
+test interp::family_b_tests::trace_registration_invalidates_the_matching_guard_domain ... ok
+test interp::family_b_tests::unrelated_command_traces_do_not_decode_opaque_command_names ... ok
+test interp::family_b_tests::variable_link_target_rebinding_and_materialisation_follow_the_policy ... ok
+test interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes ... 
+thread 'interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes' (866863) panicked at rust/tcl-vm/src/interp.rs:28145:22:
+called `Result::unwrap()` on an `Err` value: Host(Execution(HostCommandRefusal(NativeHostCommandRefusal { reason: "native stale array-default table provenance native handler policy is not selected", source_profile: DialectProfileKey { core_point: None, name: "tcl9.0", aliases: [], display_name: "Tcl 9.0", short_name: "Tcl 9.0", editor_language_id: Some("tcl90"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "9.0")], grammar_union: [Core(Tcl)], version_ceiling: Some(V9_0), signature_base: Some(V9_0), runtime_base: Some(V9_0), leading_zero_is_octal: No, expr_grammar_base: Some(V9_0), grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: Tcl9Nesting, array_index: Tcl9, script_skips_leading_bom: true, expr_comments: Hash, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl90, escapes: Tcl90 }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("4.2"), ambient: false }], help_terms: ["tcl", "tk"] }, native_profile: DialectProfileKey { core_point: None, name: "tcl9.0", aliases: [], display_name: "Tcl 9.0", short_name: "Tcl 9.0", editor_language_id: Some("tcl90"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "9.0")], grammar_union: [Core(Tcl)], version_ceiling: Some(V9_0), signature_base: Some(V9_0), runtime_base: Some(V9_0), leading_zero_is_octal: No, expr_grammar_base: Some(V9_0), grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: Tcl9Nesting, array_index: Tcl9, script_skips_leading_bom: true, expr_comments: Hash, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl90, escapes: Tcl90 }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("4.2"), ambient: false }], help_terms: ["tcl", "tk"] }, interpreter: NativeInterpreterIdentity { owner: 2267, interpreter: 0 }, frame: 1, namespace: "", namespace_token: 0 })))
+FAILED
+test interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources ... 
+thread 'interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources' (866979) panicked at rust/tcl-vm/src/interp/jim_table_key_tests.rs:65:13:
+assertion `left == right` failed: tcl8.4/root-replacement: Completion { code: Error, result: Value("invalid command name \"alias\""), options: Value("-code 1 -level 0 -errorcode {TCL LOOKUP COMMAND alias}"), option_origin: ErrorMetadata }; host=None
+  left: 1
+ right: 0
+FAILED
+test interp::native_child_alias_publication_tests::child_alias_publication_refuses_missing_or_foreign_issuer_before_binding ... 
+thread 'interp::native_child_alias_publication_tests::child_alias_publication_refuses_missing_or_foreign_issuer_before_binding' (866980) panicked at rust/tcl-vm/src/interp/native_child_alias_publication_tests.rs:146:64:
+called `Result::unwrap()` on an `Err` value: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+FAILED
+test interp::native_child_alias_publication_tests::original_child_alias_publication_matches_all_36_native_public_windows ... 
+thread 'interp::native_child_alias_publication_tests::original_child_alias_publication_matches_all_36_native_public_windows' (866981) panicked at rust/tcl-vm/src/interp/native_error_stack.rs:155:14:
+selected private error-stack header
+FAILED
+test interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers ... 
+thread 'interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers' (867036) panicked at rust/tcl-vm/src/interp/native_command_holder_tests.rs:96:33:
+tcl8.4/0/ORIGINAL: CompilationAdmission(NativePreflightRequired)
+FAILED
+test interp::native_command_holder_tests::original_ensemble_holder_source_controls_match_all_native_providers ... 
+thread 'interp::native_command_holder_tests::original_ensemble_holder_source_controls_match_all_native_providers' (867037) panicked at rust/tcl-vm/src/interp/native_command_holder_tests.rs:96:33:
+tcl8.4/ensemble/1/ORIGINAL: CompilationAdmission(NativePreflightRequired)
+FAILED
+test interp::native_command_holder_tests::original_jim_ensemble_sources_match_all_native_rooted_public_results ... 
+thread 'interp::native_command_holder_tests::original_jim_ensemble_sources_match_all_native_rooted_public_results' (867038) panicked at rust/tcl-vm/src/interp/native_command_holder_tests.rs:96:33:
+jim/namespace-factory/0/ORIGINAL: HostCommandRefusal(NativeHostCommandRefusal { reason: "retired native object header native handler policy is not selected", source_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, native_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, interpreter: NativeInterpreterIdentity { owner: 2306, interpreter: 0 }, frame: 1, namespace: "N", namespace_token: 10 })
+FAILED
+test interp::native_command_holder_tests::original_jim_namespace_library_sources_match_all_native_provider_results ... 
+thread 'interp::native_command_holder_tests::original_jim_namespace_library_sources_match_all_native_provider_results' (867104) panicked at rust/tcl-vm/src/interp/native_command_holder_tests.rs:96:33:
+jim/namespace-library/1/ORIGINAL: HostCommandRefusal(NativeHostCommandRefusal { reason: "retired native object header native handler policy is not selected", source_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, native_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, libraries: [], help_terms: [] }, interpreter: NativeInterpreterIdentity { owner: 2328, interpreter: 0 }, frame: 1, namespace: "N", namespace_token: 10 })
+FAILED
+test interp::native_command_names::tests::cmdname_mirror_preserves_original_allocation_and_rejects_foreign_origin ... ok
+test interp::native_command_names::tests::current_original_command_cache_precedes_string_getter_after_c84 ... ok
+test interp::native_command_names::tests::foreign_unresolved_cache_refuses_before_reached_conversion ... ok
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... 
+thread 'interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics' (867164) panicked at rust/tcl-vm/src/interp/native_command_names.rs:603:13:
+assertion `left == right` failed: V8_4
+  left: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 192, 128, 195, 191, 34, 125, 32, 78, 79, 78, 69]
+ right: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 0, 255, 34, 125, 32, 78, 79, 78, 69]
+FAILED
+test interp::native_command_names::tests::ordered_literal_actions_match_sixty_original_native_observations ... ok
+test interp::native_command_names::tests::origin_string_result_requires_actual_native_core_issuer ... ok
+test interp::native_command_names::tests::original_lookup_refreshes_replaced_nodes_and_keeps_release_specific_misses ... ok
+test interp::native_command_names::tests::stale_and_foreign_stringless_command_caches_cannot_select_a_worker ... ok
+test interp::native_command_resolver_tests::native_command_resolver_inventory_requires_exact_entry_and_no_target_donation ... ok
+test interp::native_compiled_locals::namespace_upvar_tests::original_c85_namespace_upvar_opcode_matches_native_namespace_lifetimes ... ok
+test interp::native_compiled_locals::tests::compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows ... 
+thread 'interp::native_compiled_locals::tests::compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows' (867200) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:1321:70:
+called `Result::unwrap()` on an `Err` value: CompilationAdmission(NativePreflightRequired)
+FAILED
+test interp::native_compiled_locals::tests::compiled_dictionary_epilogues_match_35_native_completions_and_reference_windows ... 
+thread 'interp::native_compiled_locals::tests::compiled_dictionary_epilogues_match_35_native_completions_and_reference_windows' (867201) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:1321:70:
+called `Result::unwrap()` on an `Err` value: CompilationAdmission(NativePreflightRequired)
+FAILED
+test interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records ... 
+thread 'interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records' (867229) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:956:60:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("native string materialisation")
+FAILED
+test interp::native_compiled_locals::tests::mutated_dictionary_callback_search_preserves_fourteen_native_fatal_boundaries ... ok
+test interp::native_compiled_locals::tests::original_dictionary_search_matches_100_native_storage_windows ... ok
+test interp::native_compiled_locals::tests::original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references ... 
+thread 'interp::native_compiled_locals::tests::original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references' (867264) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:871:72:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("native string materialisation")
+FAILED
+test interp::native_compiled_locals::tests::reusable_layout_keeps_activations_separate_and_rejects_replacement ... ok
+test interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls ... ok
+test interp::native_definition_registration_tests::definition_workers_retain_the_selected_registration_namespace_and_token ... ok
+test interp::native_embed_registration_tests::embedded_registration_keeps_script_publication_slots_and_counted_name_boundaries ... ok
+test interp::native_embed_registration_tests::embedded_registration_refuses_missing_or_foreign_policies_before_publication ... ok
+test interp::native_error_log_tests::reached_logs_match_15_native_frame_and_dictionary_windows ... ok
+test interp::native_error_log_tests::special_and_nested_frames_match_12_native_command_logs ... ok
+test interp::native_error_variables::tests::c84_explicit_error_code_setter_retains_the_same_original_header ... ok
+test interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls ... 
+thread 'interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls' (867335) panicked at rust/tcl-vm/src/interp/native_error_variables.rs:941:32:
+assertion `left == right` failed: conflict	0	7b636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20327d204e4f4e45	::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorCode|w|4e4f4e45;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20320a202020207768696c6520657865637574696e670a227061636b6167652070726f766964652070726f6265203222;::errorCode|r|4e4f4e45
+  left: "errorCode|w|4e4f4e45;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20320a202020207768696c6520657865637574696e670a227061636b6167652070726f766964652070726f6265203222;errorCode|w|4e4f4e45;::errorCode|r|4e4f4e45"
+ right: "::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorCode|w|4e4f4e45;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20320a202020207768696c6520657865637574696e670a227061636b6167652070726f766964652070726f6265203222;::errorCode|r|4e4f4e45"
+FAILED
+test interp::native_error_variables::tests::c84_nonempty_error_info_publication_matches_original_callback_controls ... ok
+test interp::native_error_variables::tests::command_logging_publishes_same_private_header_only_to_user_traced_cells ... ok
+test interp::native_error_variables::tests::hidden_error_read_unset_and_root_lifecycle_match_original_c_cells ... ok
+test interp::native_error_variables::tests::original_error_result_is_weak_until_nonempty_info_append ... ok
+test interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers ... ok
+test interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes ... ok
+test interp::native_error_variables::tests::syntax_compiler_reset_publishes_original_without_a_global_literal_owner ... ok
+test interp::native_hidden_byte_names::hidden_tokens_index_exact_native_bytes_and_keep_original_invocation ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_interpreter_two_table_errors_match_all_native_15_windows ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_jim_enum_matches_all_native_14_windows ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_static_option_facade_keeps_jim_counted_enum_currency ... ok
+test interp::native_index_lookup::tests::core_index_error_string_uses_actual_engine_independently_of_logical_profile ... ok
+test interp::native_index_lookup::tests::core_original_option_door_preserves_cached_absent_string_for_all_c_versions ... ok
+test interp::native_index_lookup::tests::foreign_index_origin_refuses_before_getter_and_failed_match_preserves_primary ... ok
+test interp::native_index_lookup::tests::original_index_cache_matches_all_native_25_windows ... ok
+test interp::native_index_lookup::tests::original_index_flags_and_offsets_match_all_native_31_windows ... ok
+test interp::native_interpreter_paths::tests::original_interpreter_paths_keep_counted_objects_and_child_cstring_keys ... ok
+test interp::native_introspection::tests::compiled_array_make_preserves_the_native_write_array_error_category ... ok
+test interp::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... 
+thread 'interp::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows' (867405) panicked at rust/tcl-vm/src/interp/native_introspection.rs:152:9:
+assertion `left == right` failed: tcl8.6/23
+  left: "none"
+ right: "parsedVarName"
+FAILED
+test interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... 
+thread 'interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows' (867431) panicked at rust/tcl-vm/src/interp/native_introspection.rs:137:9:
+assertion `left == right` failed: tcl9.0/0
+  left: "opaque"
+ right: "nsName"
+FAILED
+test interp::native_jim_links::alias_publication_tests::original_upvar_error_publication_matches_all_six_native_sources ... 
+thread 'interp::native_jim_links::alias_publication_tests::original_upvar_error_publication_matches_all_six_native_sources' (867476) panicked at rust/tcl-vm/src/interp/native_jim_links.rs:458:53:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompileServiceRefusal(NativeCompileServiceRefusal { reason: "eval / command substitution requires a CompileService", source: SourceImage { bytes: [115, 101, 116, 32, 114, 111, 119, 115, 32, 123, 125, 10, 102, 111, 114, 101, 97, 99, 104, 32, 123, 113, 117, 101, 115, 116, 105, 111, 110, 32, 98, 111, 100, 121, 125, 32, 123, 10, 32, 32, 32, 32, 105, 110, 118, 101, 114, 116, 101, 100, 32, 123, 115, 101, 116, 32, 120, 32, 86, 65, 76, 85, 69, 59, 32, 117, 112, 118, 97, 114, 32, 48, 32, 120, 32, 58, 58, 97, 108, 105, 97, 115, 59, 32, 115, 101, 116, 32, 58, 58, 97, 108, 105, 97, 115, 125, 10, 32, 32, 32, 32, 108, 111, 99, 97, 108, 95, 101, 108, 101, 109, 101, 110, 116, 32, 123, 115, 101, 116, 32, 120, 32, 86, 65, 76, 85, 69, 59, 32, 117, 112, 118, 97, 114, 32, 48, 32, 120, 32, 97, 108, 105, 97, 115, 40, 107, 41, 59, 32, 105, 110, 102, 111, 32, 101, 120, 105, 115, 116, 115, 32, 97, 108, 105, 97, 115, 125, 10, 32, 32, 32, 32, 115, 101, 108, 102, 32, 123, 115, 101, 116, 32, 120, 32, 86, 65, 76, 85, 69, 59, 32, 117, 112, 118, 97, 114, 32, 48, 32, 120, 32, 120, 59, 32, 115, 101, 116, 32, 120, 125, 10, 32, 32, 32, 32, 101, 120, 105, 115, 116, 105, 110, 103, 32, 123, 115, 101, 116, 32, 120, 32, 86, 65, 76, 85, 69, 59, 32, 115, 101, 116, 32, 97, 108, 105, 97, 115, 32, 79, 76, 68, 59, 32, 117, 112, 118, 97, 114, 32, 48, 32, 120, 32, 97, 108, 105, 97, 115, 59, 32, 115, 101, 116, 32, 97, 108, 105, 97, 115, 125, 10, 32, 32, 32, 32, 116, 114, 97, 99, 101, 100, 32, 123, 115, 101, 116, 32, 120, 32, 86, 65, 76, 85, 69, 59, 32, 115, 101, 116, 32, 97, 108, 105, 97, 115, 32, 79, 76, 68, 59, 32, 116, 114, 97, 99, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 97, 108, 105, 97, 115, 32, 114, 32, 123, 108, 105, 115, 116, 125, 59, 32, 117, 112, 118, 97, 114, 32, 48, 32, 120, 32, 97, 108, 105, 97, 115, 59, 32, 115, 101, 116, 32, 97, 108, 105, 97, 115, 125, 10, 125, 32, 123, 10, 32, 32, 32, 32, 112, 114, 111, 99, 32, 112, 32, 123, 125, 32, 36, 98, 111, 100, 121, 10, 32, 32, 32, 32, 115, 101, 116, 32, 58, 58, 101, 114, 114, 111, 114, 67, 111, 100, 101, 32, 83, 69, 78, 84, 73, 78, 69, 76, 10, 32, 32, 32, 32, 115, 101, 116, 32, 99, 111, 100, 101, 32, 91, 99, 97, 116, 99, 104, 32, 123, 112, 125, 32, 114, 101, 115, 117, 108, 116, 93, 10, 32, 32, 32, 32, 108, 97, 112, 112, 101, 110, 100, 32, 114, 111, 119, 115, 32, 91, 108, 105, 115, 116, 32, 36, 113, 117, 101, 115, 116, 105, 111, 110, 32, 36, 99, 111, 100, 101, 32, 36, 114, 101, 115, 117, 108, 116, 32, 36, 58, 58, 101, 114, 114, 111, 114, 67, 111, 100, 101, 93, 10, 32, 32, 32, 32, 114, 101, 110, 97, 109, 101, 32, 112, 32, 123, 125, 10, 125, 10, 115, 101, 116, 32, 114, 111, 119, 115, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 6093573578684730805, line_index: Some(LineIndex { line_starts: [0, 12, 38, 97, 168, 211, 281, 380, 384, 404, 433, 465, 526, 542, 544, 553] }) } }, compilation_namespace: ByteNamespacePath([]), scope: Script, source_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, native_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, interpreter: NativeInterpreterIdentity { owner: 2581, interpreter: 0 }, frame: 0, namespace: ByteNamespacePath([]), namespace_token: 0 })))
+FAILED
+test interp::native_jim_links::tests::absolute_link_targets_own_a_distinct_stripped_original ... ok
+test interp::native_jim_links::tests::aliases_keep_original_target_getters_across_target_frame_invalidation ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... ok
+test interp::native_jim_lookup::tests::global_original_uses_separate_stripped_key_and_foreign_caches_refuse ... ok
+test interp::native_jim_lookup::tests::original_command_replacement_uses_native_node_liveness_without_epoch_drift ... ok
+test interp::native_jim_lookup::tests::original_deleted_active_command_survives_only_its_actual_invocation_lease ... ok
+test interp::native_jim_lookup::tests::original_variable_cache_owns_no_cell_and_unset_changes_only_native_lookup_id ... ok
+test interp::native_name_world::tests::c_api_create_keeps_exact_context_and_creates_namespaces_before_binding ... ok
+test interp::native_name_world::tests::finishing_an_older_change_preserves_a_reentrant_newer_revision ... ok
+test interp::native_name_world::tests::guest_deletion_effects_refuse_before_native_callbacks_and_are_generation_bound ... ok
+test interp::native_name_world::tests::missing_delete_does_not_create_namespace_or_grant_a_fake_slot ... ok
+test interp::native_name_world::tests::outer_create_supersedes_nested_create_by_mutation_order ... ok
+test interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates ... ok
+test interp::native_name_world::tests::preparation_leaves_old_binding_visible_until_actual_mutation ... ok
+test interp::native_name_world::tests::reserved_slot_without_a_command_generation_is_absent ... ok
+test interp::native_name_world::tests::retained_context_creates_under_its_token_instead_of_same_named_live_namespace ... ok
+test interp::native_name_world::tests::retired_interpreters_and_namespaces_do_not_retarget_to_recreations ... ok
+test interp::native_name_world::tests::service_and_receipts_do_not_keep_an_interpreter_alive ... ok
+test interp::native_name_world::tests::vm_namespace_reporting_keeps_opaque_components_and_checks_unicode ... ok
+test interp::native_name_world::tests::vm_native_namespace_ingress_projects_exact_bytes_under_all_c_releases ... ok
+test interp::native_name_world::tests::world_identity_and_consumption_are_authenticated_independently_of_public_key ... ok
+test interp::native_namespace_names::tests::actual_namespace_cache_original_extent_context_and_retirement ... ok
+test interp::native_namespace_names::tests::c84_stringless_updater_uses_live_fullname_then_canonical_empty_after_death ... ok
+test interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_deleted_and_recreated_token ... ok
+test interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_foreign_interpreter ... ok
+test interp::native_namespace_names::tests::compiled_native_namespace_context_separates_equal_colon_displays ... ok
+test interp::native_namespace_names::tests::deletion_second_pass_observes_callback_deleted_and_recreated_incarnations ... ok
+test interp::native_namespace_names::tests::native_deletion_validates_all_names_then_relooks_dependent_targets ... ok
+test interp::native_namespace_names::tests::opaque_children_match_20_native_query_and_primary_windows ... ok
+test interp::native_namespace_names::tests::original_c9_namespace_and_duplicate_resolve_unaddressable_token ... ok
+test interp::native_namespace_names::tests::replay_namespace_context_preserves_colon_identity_and_retired_owner ... ok
+test interp::native_namespace_names::tests::reserved_and_impossible_namespace_components_grant_no_native_descriptor ... ok
+test interp::native_namespace_root_tests::jim_root_command_context_requires_its_live_original_top_object ... ok
+test interp::native_namespace_root_tests::jim_top_namespace_owns_the_original_context_empty_object ... ok
+test interp::native_namespace_variable_fixture_tests::namespace_queries_match_660_fixed_native_original_and_short_results ... ok
+test interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources ... 
+thread 'interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources' (867647) panicked at rust/tcl-vm/src/interp/native_precision_tests.rs:70:53:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompileServiceRefusal(NativeCompileServiceRefusal { reason: "eval / command substitution requires a CompileService", source: SourceImage { bytes: [115, 101, 116, 32, 58, 58, 116, 99, 108, 95, 112, 114, 101, 99, 105, 115, 105, 111, 110, 32, 49, 50, 10, 117, 110, 115, 101, 116, 32, 58, 58, 116, 99, 108, 95, 112, 114, 101, 99, 105, 115, 105, 111, 110, 10, 115, 101, 116, 32, 101, 120, 105, 115, 116, 115, 32, 91, 105, 110, 102, 111, 32, 101, 120, 105, 115, 116, 115, 32, 58, 58, 116, 99, 108, 95, 112, 114, 101, 99, 105, 115, 105, 111, 110, 93, 10, 115, 101, 116, 32, 99, 111, 100, 101, 32, 91, 99, 97, 116, 99, 104, 32, 123, 115, 101, 116, 32, 58, 58, 116, 99, 108, 95, 112, 114, 101, 99, 105, 115, 105, 111, 110, 125, 32, 118, 97, 108, 117, 101, 93, 10, 108, 105, 115, 116, 32, 36, 101, 120, 105, 115, 116, 115, 32, 36, 99, 111, 100, 101, 32, 36, 118, 97, 108, 117, 101, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 17036196626273433545, line_index: Some(LineIndex { line_starts: [0, 23, 45, 86, 131, 157] }) } }, compilation_namespace: ByteNamespacePath([]), scope: Script, source_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, native_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, interpreter: NativeInterpreterIdentity { owner: 3017, interpreter: 0 }, frame: 0, namespace: ByteNamespacePath([]), namespace_token: 0 })))
+FAILED
+test interp::native_procedure_artifacts::tests::native_procedure_artifact_requires_selected_retained_namespace_incarnation ... 
+thread 'interp::native_procedure_artifacts::tests::native_procedure_artifact_requires_selected_retained_namespace_incarnation' (867648) panicked at rust/tcl-vm/src/interp/native_procedure_artifacts.rs:253:13:
+tcl8.4
+FAILED
+test interp::native_procedure_artifacts::tests::procedure_artifact_missing_namespace_never_reconstructs_its_display_holder ... ok
+test interp::native_procedure_artifacts::tests::procedure_artifacts_partition_colliding_display_paths_without_owner_donation ... ok
+test interp::native_rename::tests::opaque_jim_rename_moves_the_same_declaration_and_original_namespace_role ... ok
+test interp::native_result_tests::completion_transport_borrows_the_original_result_role ... ok
+test interp::native_result_tests::jim_original_vector_captures_error_arguments_before_releasing_argv ... ok
+test interp::native_result_tests::jim_successful_vector_releases_all_temporary_argument_owners ... ok
+test interp::native_result_tests::modern_trace_state_restores_return_and_error_metadata_without_child_copies ... ok
+test interp::native_result_tests::reset_reuses_only_the_unshared_original_result_header ... ok
+test interp::native_result_tests::trace_chain_saves_the_selected_native_result_reference ... ok
+test interp::native_substitution_entry_tests::substitution_entry_requires_selected_handler_and_independent_source_context ... ok
+test interp::native_upvar_info_exists_tests::original_exists_quiet_trace_semantics_preserve_15_native_result_windows ... ok
+test interp::native_upvar_info_exists_tests::original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers ... 
+thread 'interp::native_upvar_info_exists_tests::original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers' (867682) panicked at rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs:191:17:
+assertion `left == right` failed: tcl8.4/16 reached originals
+  left: ["localVarName|1|3|78"]
+ right: ["none|1|3|78"]
+FAILED
+test interp::native_variable_names::tests::active_read_unset_matches_five_original_source_controls ... ok
+test interp::native_variable_names::tests::active_read_unset_preserves_jim_unsupported_setup ... ok
+test interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners ... ok
+test interp::native_variable_names::tests::array_root_write_diagnostics_match_five_original_source_controls ... ok
+test interp::native_variable_names::tests::array_root_write_preserves_current_jim_dictionary_replacement ... ok
+test interp::native_variable_names::tests::cpp_table_and_var_roles_match_all_25_original_callback_windows ... ok
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... ok
+test interp::native_variable_names::tests::generic_namespace_declarations_match_all_25_native_execution_results ... ok
+test interp::native_variable_names::tests::list_assignment_arity_matches_current_jim_original_source_controls ... ok
+test interp::native_variable_names::tests::list_assignment_arity_matches_five_original_source_controls ... ok
+test interp::native_variable_names::tests::namespace_opcodes_bypass_original_local_cache_and_retain_the_namespace_cell ... ok
+test interp::native_variable_names::tests::namespace_original_links_preserve_array_parts_and_reject_defined_aliases ... ok
+test interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths ... ok
+test interp::native_variable_names::tests::original_parsed_headers_match_all_150_actual_c_windows ... ok
+test interp::native_variable_names::tests::original_unset_execution_matches_85_native_completion_windows ... ok
+test interp::native_variable_names::tests::original_unset_options_match_66_native_results ... ok
+test interp::native_variable_names::tests::original_unset_parts_keep_part1_cache_and_quiet_missing_lookup ... ok
+test interp::native_variable_names::tests::original_unset_traces_and_operand_order_match_36_native_results ... ok
+test interp::native_variable_names::tests::original_upvar_and_unset_retain_actual_target_cache_and_entry ... ok
+test interp::native_variable_names::tests::recreated_element_read_trace_matches_five_original_source_controls ... ok
+test interp::native_variable_names::tests::recreated_element_trace_preserves_jim_unsupported_setup ... ok
+test interp::native_variable_names::tests::scalar_alias_entries_and_array_parts_match_all_95_native_windows ... ok
+test interp::native_variable_names::tests::search_free_slots_match_all_20_actual_c_windows ... ok
+test interp::native_variable_names::tests::variable_read_diagnostics_match_five_original_source_controls ... ok
+test interp::native_variable_names::tests::variable_read_input_preserves_current_jim_dictionary_results ... ok
+test interp::native_variable_observers::tests::native_rows_share_cell_order_reentrancy_and_retirement_without_guest_exposure ... ok
+test subst::tests::original_byte_variable_reference_evaluates_full_depth_indices ... ok
+test subst::tests::variable_reference_scanner_consumes_colon_runs ... ok
+test value::native_list_storage::tests::command_range_empty_result_has_actual_list_store_only_in_c90 ... ok
+test value::native_list_storage::tests::native_range_rejects_jim_and_foreign_cached_protocols ... ok
+test value::native_list_storage::tests::original_list_ranges_preserve_all_five_native_shared_header_windows ... ok
+test value::native_retirement::tests::deep_dictionary_retirement_preserves_a_real_external_member_reference ... ok
+test value::native_retirement::tests::deep_list_retirement_retires_native_headers_but_keeps_lifetime_leases ... ok
+test value::native_source_tests::last_list_header_retires_source_filename_before_lifetime_view ... ok
+test value::native_source_tests::original_jim_source_length_preserves_resident_bytes_and_child_source ... ok
+test value::native_source_tests::original_source_length_and_concat_channels_match_all_native_providers ... 
+thread 'value::native_source_tests::original_source_length_and_concat_channels_match_all_native_providers' (868395) panicked at rust/tcl-vm/src/value_source_tests.rs:384:63:
+called `Result::unwrap()` on an `Err` value: CompileServiceRefusal(NativeCompileServiceRefusal { reason: "eval requires an original-byte CompileService", source: SourceImage { bytes: [99, 111, 110, 99, 97, 116, 32, 119, 111, 114, 100, 32, 123, 125], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5476541162779822509, line_index: Some(LineIndex { line_starts: [0] }) } }, compilation_namespace: ByteNamespacePath([]), scope: Script, source_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, native_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, interpreter: NativeInterpreterIdentity { owner: 3366, interpreter: 0 }, frame: 0, namespace: ByteNamespacePath([]), namespace_token: 0 })
+FAILED
+test value::native_source_tests::source_owned_list_conversion_matches_222_native_windows ... ok
+test value::native_source_tests::weak_context_association_preserves_ownership_and_refuses_other_interpreters ... 
+thread 'value::native_source_tests::weak_context_association_preserves_ownership_and_refuses_other_interpreters' (868397) panicked at rust/tcl-vm/src/value_source_tests.rs:144:5:
+assertion `left == right` failed
+  left: 3
+ right: 1
+FAILED
+test value_ops::native_concat_tests::compiled_concat_expansion_preserves_all_48_original_native_windows ... ok
+test value_ops::native_concat_tests::compiled_concat_preserves_all_eight_original_c_result_headers ... ok
+test value_ops::native_concat_tests::original_concat_matches_all_twenty_native_windows_per_engine ... ok
+test value_ops::native_concat_tests::string_concat_does_not_issue_a_canonical_list_guarantee ... ok
+test vars::native_table_order_tests::physical_variable_table_uses_retained_births_and_original_c_hash_order ... ok
+
+failures:
+
+failures:
+    cmd_array::native_unset_tests::original_array_unset_matches_native_refills_and_release_selected_lookup
+    cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows
+    cmd_coro::native_original_holder_tests::original_coroutine_holder_lifecycle_matches_all_native_public_results
+    cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows
+    cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes
+    cmd_dict::scripted_tests::native_jim_dictionary_worker_requires_explicit_distribution_initialisation
+    cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations
+    cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows
+    cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns
+    cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    cmd_namespace::native_upvar_fixture_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame
+    cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results
+    cmd_namespace::native_upvar_fixture_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows
+    cmd_oo::native_context::tests::definition_namespace_and_variable_activation_are_original
+    cmd_oo::native_context::tests::helper_cpp_executes_only_the_actual_method_frame_and_original_words
+    cmd_oo::native_context::tests::nested_definitions_retain_actual_caller_frames_and_qualified_workers
+    cmd_oo::native_method_cache::tests::reached_method_records_distinguish_replacement_from_recreation
+    cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results
+    cmd_oo::native_property_counted_tests::original_configurable_availability_matches_native_counted_argv_without_source_preflight
+    cmd_package::tests::import_redefinition_rename_reexport_and_retirement_follow_dialect
+    cmd_package::tests::jim_activation_variables
+    cmd_package::tests::jim_direct_packages_use_global_source_and_preserve_partial_effects
+    cmd_package::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias
+    cmd_package::tests::jim_interpreter_handle_factory_alias_frame_and_deletion
+    cmd_package::tests::jim_interpreter_handle_isolation
+    cmd_package::tests::jim_namespace_delete_retires_flat_variable_cells
+    cmd_package::tests::jim_namespace_root_is_local_activation
+    cmd_package::tests::jim_relative_qualified_proc_variable
+    cmd_package::tests::jim_variable_declaration_preserves_colon_runs
+    cmd_package::tests::qualified_variable_fallback_depends_on_cell_and_release
+    cmd_package::tests::upvar_qualified_scalar_and_element_use_selected_frame
+    command::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls
+    command::native_procedure_name_tests::original_procedure_colon_names_match_all_18_native_home_and_error_controls
+    exec::native_child_completion_tests::entered_child_completions_match_forty_eight_real_engine_controls
+    exec::native_child_completion_tests::original_coroutine_execution_matches_seventy_eight_engine_controls
+    exec::native_child_completion_tests::synchronous_tailcall_validates_parent_before_array_index_completion
+    exec::native_list_operations_tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::authored_tmm_static::tests::checked_noncurrent_store_retains_recipient_failure_and_prior_mutations
+    interp::authored_tmm_static::tests::direct_native_recipient_observers_invalidate_original_static_receipts
+    interp::authored_tmm_static::tests::recipient_traces_publish_nested_writes_and_preserve_partial_errors
+    interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch
+    interp::family_b_tests::native_precision_observer_follows_storage_and_validates_writes
+    interp::family_b_tests::native_variable_updates_retain_exact_keys_and_failed_read_options
+    interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes
+    interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources
+    interp::native_child_alias_publication_tests::child_alias_publication_refuses_missing_or_foreign_issuer_before_binding
+    interp::native_child_alias_publication_tests::original_child_alias_publication_matches_all_36_native_public_windows
+    interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers
+    interp::native_command_holder_tests::original_ensemble_holder_source_controls_match_all_native_providers
+    interp::native_command_holder_tests::original_jim_ensemble_sources_match_all_native_rooted_public_results
+    interp::native_command_holder_tests::original_jim_namespace_library_sources_match_all_native_provider_results
+    interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics
+    interp::native_compiled_locals::tests::compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows
+    interp::native_compiled_locals::tests::compiled_dictionary_epilogues_match_35_native_completions_and_reference_windows
+    interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records
+    interp::native_compiled_locals::tests::original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references
+    interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls
+    interp::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows
+    interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
+    interp::native_jim_links::alias_publication_tests::original_upvar_error_publication_matches_all_six_native_sources
+    interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources
+    interp::native_procedure_artifacts::tests::native_procedure_artifact_requires_selected_retained_namespace_incarnation
+    interp::native_upvar_info_exists_tests::original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers
+    value::native_source_tests::original_source_length_and_concat_channels_match_all_native_providers
+    value::native_source_tests::weak_context_association_preserves_ownership_and_refuses_other_interpreters
+
+test result: FAILED. 273 passed; 66 failed; 0 ignored; 0 measured; 367 filtered out; finished in 1287.28s
+

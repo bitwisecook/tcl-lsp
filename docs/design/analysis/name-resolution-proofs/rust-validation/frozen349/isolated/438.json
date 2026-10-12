@@ -1,0 +1,19 @@
+{
+  "ordinal": 438,
+  "selector": "list::native_list_storage::tests::runtime_list_ranges_preserve_all_five_native_shared_header_windows",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::native_list_storage::tests::runtime_list_ranges_preserve_all_five_native_shared_header_windows",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.04938938800478354,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/438.log",
+  "log_sha256": "3d772004163d91566c435be4424f319ce9e00975a296f6f78274d99ffd0ea63e"
+}

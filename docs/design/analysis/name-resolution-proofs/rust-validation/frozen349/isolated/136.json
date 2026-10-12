@@ -1,0 +1,19 @@
+{
+  "ordinal": 136,
+  "selector": "cmd_oo::tests::mixin_of_mixin_methods_are_reachable",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::mixin_of_mixin_methods_are_reachable",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.062016097974265,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.94s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/136.log",
+  "log_sha256": "518ef2c85ba0850f058bfd7db49c68335c7cce0495a4b91643375211124c20ae"
+}

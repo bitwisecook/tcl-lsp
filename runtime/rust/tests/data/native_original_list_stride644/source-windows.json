@@ -1,0 +1,425 @@
+{
+  "anchors": [
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd option table",
+      "lines": [
+        3192,
+        3203
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        92599,
+        93074
+      ],
+      "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "snippet": "    static CONST char *options[] = {\n\t\"-all\",\t    \"-ascii\", \"-decreasing\", \"-dictionary\",\n\t\"-exact\",   \"-glob\",  \"-increasing\", \"-inline\",\n\t\"-integer\", \"-not\",   \"-real\",\t     \"-regexp\",\n\t\"-sorted\",  \"-start\", NULL\n    };\n    enum options {\n\tLSEARCH_ALL, LSEARCH_ASCII, LSEARCH_DECREASING, LSEARCH_DICTIONARY,\n\tLSEARCH_EXACT, LSEARCH_GLOB, LSEARCH_INCREASING, LSEARCH_INLINE,\n\tLSEARCH_INTEGER, LSEARCH_NOT, LSEARCH_REAL, LSEARCH_REGEXP,\n\tLSEARCH_SORTED, LSEARCH_START\n    };\n",
+      "snippet_sha256": "9729fb1e2bde458f8e718c03ddcd12c7449e4b32fd85509bac7d2b36e4d0c7be",
+      "evidence": "source-window-0"
+    },
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd option table",
+      "lines": [
+        3708,
+        3711
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        105819,
+        105989
+      ],
+      "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "snippet": "    static CONST char *switches[] = {\n\t\"-ascii\", \"-command\", \"-decreasing\", \"-dictionary\", \"-increasing\",\n\t\"-index\", \"-integer\", \"-real\", \"-unique\", (char *) NULL\n    };\n",
+      "snippet_sha256": "fc635c966cebf6b6be7200a56dd61ce3a01c0a741df0c68c609a95aef94b988c",
+      "evidence": "source-window-1"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd option table",
+      "lines": [
+        2729,
+        2742
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        74586,
+        75159
+      ],
+      "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "snippet": "    static const char *options[] = {\n\t\"-all\",\t    \"-ascii\",   \"-decreasing\", \"-dictionary\",\n\t\"-exact\",   \"-glob\",    \"-increasing\", \"-index\",\n\t\"-inline\",  \"-integer\", \"-nocase\",     \"-not\",\n\t\"-real\",    \"-regexp\",  \"-sorted\",     \"-start\",\n\t\"-subindices\", NULL\n    };\n    enum options {\n\tLSEARCH_ALL, LSEARCH_ASCII, LSEARCH_DECREASING, LSEARCH_DICTIONARY,\n\tLSEARCH_EXACT, LSEARCH_GLOB, LSEARCH_INCREASING, LSEARCH_INDEX,\n\tLSEARCH_INLINE, LSEARCH_INTEGER, LSEARCH_NOCASE, LSEARCH_NOT,\n\tLSEARCH_REAL, LSEARCH_REGEXP, LSEARCH_SORTED, LSEARCH_START,\n\tLSEARCH_SUBINDICES\n    };\n",
+      "snippet_sha256": "7583ff8f5daf379d42c546a3e1355b8b8290ff8b859d0b33164324de9431193a",
+      "evidence": "source-window-2"
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd option table",
+      "lines": [
+        3475,
+        3483
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        92988,
+        93372
+      ],
+      "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "snippet": "    static const char *switches[] = {\n\t\"-ascii\", \"-command\", \"-decreasing\", \"-dictionary\", \"-increasing\",\n\t\"-index\", \"-indices\", \"-integer\", \"-nocase\", \"-real\", \"-unique\", NULL\n    };\n    enum Lsort_Switches {\n\tLSORT_ASCII, LSORT_COMMAND, LSORT_DECREASING, LSORT_DICTIONARY,\n\tLSORT_INCREASING, LSORT_INDEX, LSORT_INDICES, LSORT_INTEGER,\n\tLSORT_NOCASE, LSORT_REAL, LSORT_UNIQUE\n    };\n",
+      "snippet_sha256": "7c98a9ef9b298b41d82c3804150479139af9e87f1c5d589c344079b56ee50813",
+      "evidence": "source-window-3"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd option table",
+      "lines": [
+        2913,
+        2926
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        80184,
+        80790
+      ],
+      "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "snippet": "    static const char *const options[] = {\n\t\"-all\",\t    \"-ascii\",   \"-bisect\", \"-decreasing\", \"-dictionary\",\n\t\"-exact\",   \"-glob\",    \"-increasing\", \"-index\",\n\t\"-inline\",  \"-integer\", \"-nocase\",     \"-not\",\n\t\"-real\",    \"-regexp\",  \"-sorted\",     \"-start\",\n\t\"-subindices\", NULL\n    };\n    enum options {\n\tLSEARCH_ALL, LSEARCH_ASCII, LSEARCH_BISECT, LSEARCH_DECREASING,\n\tLSEARCH_DICTIONARY, LSEARCH_EXACT, LSEARCH_GLOB, LSEARCH_INCREASING,\n\tLSEARCH_INDEX, LSEARCH_INLINE, LSEARCH_INTEGER, LSEARCH_NOCASE,\n\tLSEARCH_NOT, LSEARCH_REAL, LSEARCH_REGEXP, LSEARCH_SORTED,\n\tLSEARCH_START, LSEARCH_SUBINDICES\n    };\n",
+      "snippet_sha256": "c639f21d2ebb2262cda17dcfb54f88a29da80d5bd826ec97aa191136c0e3e8d4",
+      "evidence": "source-window-4"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd option table",
+      "lines": [
+        3672,
+        3681
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        99253,
+        99669
+      ],
+      "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "snippet": "    static const char *const switches[] = {\n\t\"-ascii\", \"-command\", \"-decreasing\", \"-dictionary\", \"-increasing\",\n\t\"-index\", \"-indices\", \"-integer\", \"-nocase\", \"-real\", \"-stride\",\n\t\"-unique\", NULL\n    };\n    enum Lsort_Switches {\n\tLSORT_ASCII, LSORT_COMMAND, LSORT_DECREASING, LSORT_DICTIONARY,\n\tLSORT_INCREASING, LSORT_INDEX, LSORT_INDICES, LSORT_INTEGER,\n\tLSORT_NOCASE, LSORT_REAL, LSORT_STRIDE, LSORT_UNIQUE\n    };\n",
+      "snippet_sha256": "83c2ce6ac3fb233a51122a699278004244eb903434c1fa70ee6d32f31b49e425",
+      "evidence": "source-window-5"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd original stride primitive and minimum",
+      "lines": [
+        3803,
+        3826
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        102940,
+        103649
+      ],
+      "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "snippet": "\tcase LSORT_STRIDE:\n\t    if (i == objc-2) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"\\\"-stride\\\" option must be \"\n\t\t\t\"followed by stride length\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"ARGUMENT\", \"MISSING\", (char *)NULL);\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (Tcl_GetIntFromObj(interp, objv[i+1], &groupSize) != TCL_OK) {\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (groupSize < 2) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"stride length must be at least 2\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"LSORT\",\n\t\t\t\"BADSTRIDE\", (char *)NULL);\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    group = 1;\n\t    i++;\n\t    break;\n",
+      "snippet_sha256": "1ba2015e528286d42cf4cb9257145f8010b3a19efcf61522a0e6ce9855d0232f",
+      "evidence": "source-window-6"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd option table",
+      "lines": [
+        3275,
+        3288
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        87984,
+        88624
+      ],
+      "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "snippet": "    static const char *const options[] = {\n\t\"-all\",\t    \"-ascii\",   \"-bisect\", \"-decreasing\", \"-dictionary\",\n\t\"-exact\",   \"-glob\",    \"-increasing\", \"-index\",\n\t\"-inline\",  \"-integer\", \"-nocase\",     \"-not\",\n\t\"-real\",    \"-regexp\",  \"-sorted\",     \"-start\", \"-stride\",\n\t\"-subindices\", NULL\n    };\n    enum lsearchoptions {\n\tLSEARCH_ALL, LSEARCH_ASCII, LSEARCH_BISECT, LSEARCH_DECREASING,\n\tLSEARCH_DICTIONARY, LSEARCH_EXACT, LSEARCH_GLOB, LSEARCH_INCREASING,\n\tLSEARCH_INDEX, LSEARCH_INLINE, LSEARCH_INTEGER, LSEARCH_NOCASE,\n\tLSEARCH_NOT, LSEARCH_REAL, LSEARCH_REGEXP, LSEARCH_SORTED,\n\tLSEARCH_START, LSEARCH_STRIDE, LSEARCH_SUBINDICES\n    };\n",
+      "snippet_sha256": "dbcaf0b5d239740325412c0b10205000f776bb87554d69876d4632d74e46a071",
+      "evidence": "source-window-7"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd option table",
+      "lines": [
+        4525,
+        4534
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        119424,
+        119846
+      ],
+      "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "snippet": "    static const char *const switches[] = {\n\t\"-ascii\", \"-command\", \"-decreasing\", \"-dictionary\", \"-increasing\",\n\t\"-index\", \"-indices\", \"-integer\", \"-nocase\", \"-real\", \"-stride\",\n\t\"-unique\", NULL\n    };\n    enum Lsort_Switches {\n\tLSORT_ASCII, LSORT_COMMAND, LSORT_DECREASING, LSORT_DICTIONARY,\n\tLSORT_INCREASING, LSORT_INDEX, LSORT_INDICES, LSORT_INTEGER,\n\tLSORT_NOCASE, LSORT_REAL, LSORT_STRIDE, LSORT_UNIQUE\n    } index;\n",
+      "snippet_sha256": "dbaf89c59f88444c36e3bec8185c626793fc99346c8d95f63964961de5967eb1",
+      "evidence": "source-window-8"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd original stride primitive and minimum",
+      "lines": [
+        3416,
+        3439
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        91755,
+        92443
+      ],
+      "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "snippet": "\tcase LSEARCH_STRIDE:\t\t/* -stride */\n\t    if (i > objc-4) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"\\\"-stride\\\" option must be \"\n\t\t\t\"followed by stride length\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"ARGUMENT\", \"MISSING\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (TclGetWideIntFromObj(interp, objv[i+1], &wide) != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (wide < 1) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"stride length must be at least 1\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"LSEARCH\",\n\t\t\t\"BADSTRIDE\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    groupSize = wide;\n\t    i++;\n\t    break;\n",
+      "snippet_sha256": "73a683aab54694b6e02a9e8d6138f7925a5abd762d1f7f13ae0b55c84dc81653",
+      "evidence": "source-window-9"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd original stride primitive and minimum",
+      "lines": [
+        4654,
+        4678
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        123046,
+        123771
+      ],
+      "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "snippet": "\tcase LSORT_STRIDE:\n\t    if (i == objc-2) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"\\\"-stride\\\" option must be \"\n\t\t\t\"followed by stride length\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"ARGUMENT\", \"MISSING\", (char *)NULL);\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (TclGetWideIntFromObj(interp, objv[i+1], &wide) != TCL_OK) {\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (wide < 2) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"stride length must be at least 2\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"LSORT\",\n\t\t\t\"BADSTRIDE\", (char *)NULL);\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    groupSize = wide;\n\t    group = 1;\n\t    i++;\n\t    break;\n",
+      "snippet_sha256": "2368d3c94989304f8f5e27011af3bc706aa6fe174e1ff2366af247d34361a03d",
+      "evidence": "source-window-10"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd option table",
+      "lines": [
+        3124,
+        3137
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        84612,
+        85252
+      ],
+      "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "snippet": "    static const char *const options[] = {\n\t\"-all\",\t    \"-ascii\",   \"-bisect\", \"-decreasing\", \"-dictionary\",\n\t\"-exact\",   \"-glob\",    \"-increasing\", \"-index\",\n\t\"-inline\",  \"-integer\", \"-nocase\",     \"-not\",\n\t\"-real\",    \"-regexp\",  \"-sorted\",     \"-start\", \"-stride\",\n\t\"-subindices\", NULL\n    };\n    enum lsearchoptions {\n\tLSEARCH_ALL, LSEARCH_ASCII, LSEARCH_BISECT, LSEARCH_DECREASING,\n\tLSEARCH_DICTIONARY, LSEARCH_EXACT, LSEARCH_GLOB, LSEARCH_INCREASING,\n\tLSEARCH_INDEX, LSEARCH_INLINE, LSEARCH_INTEGER, LSEARCH_NOCASE,\n\tLSEARCH_NOT, LSEARCH_REAL, LSEARCH_REGEXP, LSEARCH_SORTED,\n\tLSEARCH_START, LSEARCH_STRIDE, LSEARCH_SUBINDICES\n    };\n",
+      "snippet_sha256": "dbcaf0b5d239740325412c0b10205000f776bb87554d69876d4632d74e46a071",
+      "evidence": "source-window-11"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd option table",
+      "lines": [
+        4372,
+        4381
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        116053,
+        116475
+      ],
+      "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "snippet": "    static const char *const switches[] = {\n\t\"-ascii\", \"-command\", \"-decreasing\", \"-dictionary\", \"-increasing\",\n\t\"-index\", \"-indices\", \"-integer\", \"-nocase\", \"-real\", \"-stride\",\n\t\"-unique\", NULL\n    };\n    enum Lsort_Switches {\n\tLSORT_ASCII, LSORT_COMMAND, LSORT_DECREASING, LSORT_DICTIONARY,\n\tLSORT_INCREASING, LSORT_INDEX, LSORT_INDICES, LSORT_INTEGER,\n\tLSORT_NOCASE, LSORT_REAL, LSORT_STRIDE, LSORT_UNIQUE\n    } index;\n",
+      "snippet_sha256": "dbaf89c59f88444c36e3bec8185c626793fc99346c8d95f63964961de5967eb1",
+      "evidence": "source-window-12"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "function": "Tcl_LsearchObjCmd original stride primitive and minimum",
+      "lines": [
+        3265,
+        3288
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        88383,
+        89071
+      ],
+      "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "snippet": "\tcase LSEARCH_STRIDE:\t\t/* -stride */\n\t    if (i > objc-4) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"\\\"-stride\\\" option must be \"\n\t\t\t\"followed by stride length\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"ARGUMENT\", \"MISSING\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (TclGetWideIntFromObj(interp, objv[i+1], &wide) != TCL_OK) {\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (wide < 1) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"stride length must be at least 1\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"LSEARCH\",\n\t\t\t\"BADSTRIDE\", (char *)NULL);\n\t\tresult = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    groupSize = wide;\n\t    i++;\n\t    break;\n",
+      "snippet_sha256": "73a683aab54694b6e02a9e8d6138f7925a5abd762d1f7f13ae0b55c84dc81653",
+      "evidence": "source-window-13"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "function": "Tcl_LsortObjCmd original stride primitive and minimum",
+      "lines": [
+        4501,
+        4525
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        119675,
+        120400
+      ],
+      "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "snippet": "\tcase LSORT_STRIDE:\n\t    if (i == objc-2) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"\\\"-stride\\\" option must be \"\n\t\t\t\"followed by stride length\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"ARGUMENT\", \"MISSING\", (char *)NULL);\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (TclGetWideIntFromObj(interp, objv[i+1], &wide) != TCL_OK) {\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    if (wide < 2) {\n\t\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\t\"stride length must be at least 2\", -1));\n\t\tTcl_SetErrorCode(interp, \"TCL\", \"OPERATION\", \"LSORT\",\n\t\t\t\"BADSTRIDE\", (char *)NULL);\n\t\tsortInfo.resultCode = TCL_ERROR;\n\t\tgoto done;\n\t    }\n\t    groupSize = wide;\n\t    group = 1;\n\t    i++;\n\t    break;\n",
+      "snippet_sha256": "2368d3c94989304f8f5e27011af3bc706aa6fe174e1ff2366af247d34361a03d",
+      "evidence": "source-window-14"
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "function": "Jim_LsearchCoreCommand actual Enum table",
+      "lines": [
+        13504,
+        13507
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        426934,
+        427116
+      ],
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "snippet": "    static const char * const options[] = {\n        \"-bool\", \"-not\", \"-nocase\", \"-exact\", \"-glob\", \"-regexp\", \"-all\", \"-inline\", \"-command\",\n        \"-stride\", \"-index\", NULL\n    };\n",
+      "snippet_sha256": "6f2c066591fac21337ed1e83ba77deaa94d2c70f9ea328bf2d7826b5a60296d5",
+      "evidence": "source-window-15"
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "function": "Jim_LsearchCoreCommand actual original Long and minimum",
+      "lines": [
+        13569,
+        13580
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        428886,
+        429335
+      ],
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "snippet": "            case OPT_STRIDE:\n                if (i >= argc - 2) {\n                    return JIM_USAGE;\n                }\n                if (Jim_GetLong(interp, argv[++i], &stride) != JIM_OK) {\n                    return JIM_ERR;\n                }\n                if (stride < 1) {\n                    Jim_SetResultString(interp, \"stride length must be at least 1\", -1);\n                    return JIM_ERR;\n                }\n                break;\n",
+      "snippet_sha256": "5c09cb483f62d8f56a2739bfe4205b8944eaee9019724f0436b50fd732ab2eeb",
+      "evidence": "source-window-16"
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "function": "Jim_LsortCoreCommand actual Enum table",
+      "lines": [
+        13833,
+        13836
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        437055,
+        437258
+      ],
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "snippet": "    static const char * const options[] = {\n        \"-ascii\", \"-nocase\", \"-increasing\", \"-decreasing\", \"-command\", \"-integer\", \"-real\", \"-index\", \"-unique\",\n        \"-stride\", \"-dictionary\", NULL\n    };\n",
+      "snippet_sha256": "e0248ee6a7e7caca6196030612408c1728e62dff0a3262e4a4e283bfdeb189d2",
+      "evidence": "source-window-17"
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "function": "Jim_LsortCoreCommand actual original Long and minimum",
+      "lines": [
+        13898,
+        13909
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        439080,
+        439529
+      ],
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "snippet": "            case OPT_STRIDE:\n                if (i >= argc - 2) {\n                    return JIM_USAGE;\n                }\n                if (Jim_GetLong(interp, argv[++i], &stride) != JIM_OK) {\n                    return JIM_ERR;\n                }\n                if (stride < 2) {\n                    Jim_SetResultString(interp, \"stride length must be at least 2\", -1);\n                    return JIM_ERR;\n                }\n                break;\n",
+      "snippet_sha256": "fb2b251b02eacdf863c370f9974f4300a45042a64e767f53e95875eb5b45211f",
+      "evidence": "source-window-18"
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "function": "Jim_GetWide exact primitive",
+      "lines": [
+        6346,
+        6352
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        196685,
+        196938
+      ],
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "snippet": "int Jim_GetWide(Jim_Interp *interp, Jim_Obj *objPtr, jim_wide * widePtr)\n{\n    if (objPtr->typePtr != &intObjType && SetIntFromAny(interp, objPtr, JIM_ERRMSG) == JIM_ERR)\n        return JIM_ERR;\n    *widePtr = JimWideValue(objPtr);\n    return JIM_OK;\n}\n",
+      "snippet_sha256": "cabc7e9a161d368a4ef1d2ad149241a383eb52ffdfbb2f3f8d83bed127f8563c",
+      "evidence": "source-window-19"
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "function": "Jim_GetLong exact primitive",
+      "lines": [
+        6395,
+        6406
+      ],
+      "line_unit": "physical LF only",
+      "byte_range": [
+        198391,
+        198671
+      ],
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "snippet": "int Jim_GetLong(Jim_Interp *interp, Jim_Obj *objPtr, long *longPtr)\n{\n    jim_wide wideValue;\n    int retval;\n\n    retval = Jim_GetWide(interp, objPtr, &wideValue);\n    if (retval == JIM_OK) {\n        *longPtr = (long)wideValue;\n        return JIM_OK;\n    }\n    return JIM_ERR;\n}\n",
+      "snippet_sha256": "fb9d214da0fba58f01948e7822dbf2a3caf34f05e2ab9fb189cf963fe8bb16ea",
+      "evidence": "source-window-20"
+    }
+  ],
+  "scope": "Exact 21 physical-LF command table, stride primitive/minimum and Jim_GetWide/Long source windows, joined to whole measured source bytes. JSON snippet pointers select exact evidence. Source supplies no callback, lifetime or foreign ABI outcome."
+}

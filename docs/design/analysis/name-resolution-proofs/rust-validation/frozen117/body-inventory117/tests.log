@@ -1,0 +1,33 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-dialect)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lexer)
+   Compiling tcl-test-support v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-test-support)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 2m 11s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 2 tests
+test analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque ... 
+thread 'analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque' (493643) panicked at rust/tcl-compiler/src/analyser/commands.rs:7654:13:
+a lexical vector cannot supply blocked source roles: set text { ILX::call $h m }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::commands::original_script_body_inventory_tests::original_script_inventory_uses_whole_authored_body_and_case_regions ... ok
+
+failures:
+
+failures:
+    analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8111 filtered out; finished in 0.98s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

@@ -1,0 +1,112 @@
+ * standard operations on objects of that type.
+ */
+
+typedef struct Tcl_ObjType {
+    const char *name;		/* Name of the type, e.g. "int". */
+    Tcl_FreeInternalRepProc *freeIntRepProc;
+				/* Called to free any storage for the type's
+				 * internal rep. NULL if the internal rep does
+				 * not need freeing. */
+    Tcl_DupInternalRepProc *dupIntRepProc;
+				/* Called to create a new object as a copy of
+				 * an existing object. */
+    Tcl_UpdateStringProc *updateStringProc;
+				/* Called to update the string rep from the
+				 * type's internal representation. */
+    Tcl_SetFromAnyProc *setFromAnyProc;
+				/* Called to convert the object's internal rep
+				 * to this type. Frees the internal rep of the
+				 * old type. Returns TCL_ERROR on failure. */
+} Tcl_ObjType;
+
+/*
+ * One of the following structures exists for each object in the Tcl system.
+ * An object stores a value as either a string, some internal representation,
+ * or both.
+ */
+
+typedef struct Tcl_Obj {
+    int refCount;		/* When 0 the object will be freed. */
+    char *bytes;		/* This points to the first byte of the
+				 * object's string representation. The array
+				 * must be followed by a null byte (i.e., at
+				 * offset length) but may also contain
+				 * embedded null characters. The array's
+				 * storage is allocated by ckalloc. NULL means
+				 * the string rep is invalid and must be
+				 * regenerated from the internal rep.  Clients
+				 * should use Tcl_GetStringFromObj or
+				 * Tcl_GetString to get a pointer to the byte
+				 * array as a readonly value. */
+    int length;			/* The number of bytes at *bytes, not
+				 * including the terminating null. */
+    const Tcl_ObjType *typePtr;	/* Denotes the object's type. Always
+				 * corresponds to the type of the object's
+				 * internal rep. NULL indicates the object has
+				 * no internal rep (has no type). */
+    union {			/* The internal representation: */
+	long longValue;		/*   - an long integer value. */
+	double doubleValue;	/*   - a double-precision floating value. */
+	void *otherValuePtr;	/*   - another, type-specific value,
+	                       not used internally any more. */
+	Tcl_WideInt wideValue;	/*   - a long long value. */
+	struct {		/*   - internal rep as two pointers.
+				 *     the main use of which is a bignum's
+				 *     tightly packed fields, where the alloc,
+				 *     used and signum flags are packed into
+				 *     ptr2 with everything else hung off ptr1. */
+	    void *ptr1;
+	    void *ptr2;
+	} twoPtrValue;
+	struct {		/*   - internal rep as a pointer and a long,
+	                       not used internally any more. */
+	    void *ptr;
+	    unsigned long value;
+	} ptrAndLongRep;
+    } internalRep;
+} Tcl_Obj;
+
+/*
+ * Macros to increment and decrement a Tcl_Obj's reference count, and to test
+ * whether an object is shared (i.e. has reference count > 1). Note: clients
+ * should use Tcl_DecrRefCount() when they are finished using an object, and
+ * should never call TclFreeObj() directly. TclFreeObj() is only defined and
+ * made public in tcl.h to support Tcl_DecrRefCount's macro definition.
+ */
+
+void		Tcl_IncrRefCount(Tcl_Obj *objPtr);
+void		Tcl_DecrRefCount(Tcl_Obj *objPtr);
+int		Tcl_IsShared(Tcl_Obj *objPtr);
+
+/*
+ *----------------------------------------------------------------------------
+ * The following structure contains the state needed by Tcl_SaveResult. No-one
+ * outside of Tcl should access any of these fields. This structure is
+ * typically allocated on the stack.
+ */
+
+typedef struct Tcl_SavedResult {
+    char *result;
+    Tcl_FreeProc *freeProc;
+    Tcl_Obj *objResultPtr;
+    char *appendResult;
+    int appendAvl;
+    int appendUsed;
+    char resultSpace[TCL_RESULT_SIZE+1];
+} Tcl_SavedResult;
+
+/*
+ *----------------------------------------------------------------------------
+ * The following definitions support Tcl's namespace facility. Note: the first
+ * five fields must match exactly the fields in a Namespace structure (see
+ * tclInt.h).
+ */
+
+typedef struct Tcl_Namespace {
+    char *name;			/* The namespace's name within its parent
+				 * namespace. This contains no ::'s. The name
+				 * of the global namespace is "" although "::"
+				 * is an synonym. */
+    char *fullName;		/* The namespace's fully qualified name. This
+				 * starts with ::. */
+    ClientData clientData;	/* Arbitrary value associated with this

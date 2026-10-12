@@ -4862,15 +4862,13 @@ fn objdefine_per_object_variable_read_publishes_no_w210() {
     );
 }
 
-// W315 covers `oo::objdefine` bodies, judged against the binding's
-// cross-block per-object member state.
+// Per-object reporting tables grant no current Native table closure.
 
-/// TP: a per-object retraction of a member nothing declares per-object
-/// aborts the object definition in real Tcl (`method ghost does not exist`,
-/// 9.0.4 / 8.6.14 — a per-object retraction never reaches a class member),
-/// and the report reaches the client.
+/// A source construction report cannot prove Native per-object member absence.
 #[test]
-fn objdefine_retraction_of_undeclared_member_publishes_w315() {
+fn native_objdefine_retraction_of_undeclared_member_withdraws_w315() {
+    // naming.diagnostics.original-object-abort-admission
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-object-abort-admission.md
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -4880,8 +4878,8 @@ fn objdefine_retraction_of_undeclared_member_publishes_w315() {
          oo::objdefine $k { deletemethod ghost }\n",
     );
     assert!(
-        has_code(&diags, "W315"),
-        "objdefine retract-of-undeclared must publish W315: {:?}",
+        !has_code(&diags, "W315"),
+        "unproved Native per-object abort must be withdrawn: {:?}",
         codes(&diags)
     );
 }

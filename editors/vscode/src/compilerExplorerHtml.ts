@@ -1364,15 +1364,15 @@ function updateBadges() {
   const counts = {
     'ir': data.ir.procedures ? Object.keys(data.ir.procedures).length + 1 : 1,
     'cfg-pre': data.cfgPreSsa.length,
-    'cfg-post': data.cfgPostSsa.length,
+    'cfg-post': explorerArrayCount(data.cfgPostSsa),
     'interproc': data.interprocedural.length,
     'types': data.types.reduce((n, f) => n + f.entries.length, 0),
-    'opt': data.optimisations.length,
-    'gvn': data.gvn.length,
-    'shimmer': data.shimmer.length,
-    'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),
-    'irules-flow': data.irulesFlow.length,
-    'callouts': data.annotations.length,
+    'opt': explorerArrayCount(data.optimisations),
+    'gvn': explorerArrayCount(data.gvn),
+    'shimmer': explorerArrayCount(data.shimmer),
+    'taint': Array.isArray(data.taintWarnings) ? explorerArrayCount(data.taintWarnings) + data.taintTracking.reduce((n, f) => n + f.entries.length, 0) : undefined,
+    'irules-flow': explorerArrayCount(data.irulesFlow),
+    'callouts': explorerArrayCount(data.annotations),
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
   };
@@ -1493,6 +1493,7 @@ function warningRow(w, itemClass, codeClass) {
 // Consumer hook: renderShimmer (simplified — no involved lines view)
 function renderShimmer() {
   const pane=$('#pane-shimmer');
+  if(!Array.isArray(data.shimmer)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
   pane.replaceChildren(...data.shimmer.map(w=>warningRow(w,'shimmer-item shimmer-'+w.code,'shimmer-code')));
   setupHoverHighlighting(pane);
@@ -1501,6 +1502,7 @@ function renderShimmer() {
 // Consumer hook: renderIrulesFlow (simplified — no mermaid graph)
 function renderIrulesFlow() {
   const pane=$('#pane-irules-flow');
+  if(!Array.isArray(data.irulesFlow)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.irulesFlow.length){pane.innerHTML='<div class="empty-state">No iRules flow warnings (only active in f5-irules dialect)</div>';return;}
   pane.replaceChildren(...data.irulesFlow.map(w=>warningRow(w,'irules-flow-item','irules-code')));
   setupHoverHighlighting(pane);

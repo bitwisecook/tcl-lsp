@@ -1,0 +1,113 @@
+# naming.variable.scalar-formal-body-alpha-equivalence
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+Renaming a formal can change info args/body, frame introspection or a variable/execution callback even when source occurrences have complete edit geometry. A naming-only rename inventory cannot prove behaviour preservation.
+
+## Question
+
+When can a conditional source procedure formal be alpha-renamed while preserving the activation, incoming argument object and return behaviour?
+
+## Conclusion
+
+The sealed receipt requires a completed closed source containing exactly one surviving procedure declaration, one required direct scalar formal, and a sole independently selected builtin ReturnResult whose operand is the same whole-object formal read. Exact original frame, formal topology, full source/configuration, unchanged handler allocation and independent quiet variable/command effects must agree. The rename retains argv, activation and release order and performs no new store, conversion or frame elimination. Defaults, rest/link/array formals, concatenation, extra commands, observers and unavailable ownership withdraw the proof. Original native byte bodies retain a materialised parser image when unchanged document coordinates are unavailable; declared-source geometry remains independent. Source edit geometry remains independent.
+
+## Scope
+
+Rust source-conditional equivalence for the explicit C Tcl/Jim naming models. Arbitrary external procedure introspection and later external observer registration are outside this closed-source contract. This supplies neither a reached call, current variable value, Normal completion, physical native activation nor a general minification permission.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+### jim
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+### bigip
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+
+This is a Rust implementation contract; no native provider observation or executed test result is attached.
+
+## Exact evidence
+
+No evidence artifact is attached.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs), `OriginalScalarBodyAlphaRename`: Seals exact declaration/frame/topology and independently quiet same-object return semantics.
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `original_declared_procedure_at`: Selects a unanimous genuine conditional declaration recipe without entering a call.
+- [rust/tcl-compiler/src/command_binding/declaration_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_lookup.rs), `original_operands_preserve_lookup`: Closes actual whole-word read effects; only the incoming fresh-formal observer residual is excluded.
+- [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `original_scalar_body_alpha_rename`: Requires exact original declaration membership and complete source rename coverage before the separate semantic issuer.
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `retained_script_operand`: Retain actual native byte-valued body operands without requiring analytical Unicode or inventing an unchanged document mapping.
+- [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs), `command_binding::scalar_body_alpha::tests::original_scalar_body_alpha_preserves_frame_argv_and_whole_object_return` (linked): Retains the actual original local frame/formal and same-object return shape across six model profiles; rejects stale source/channel/configuration.
+- [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs), `command_binding::scalar_body_alpha::tests::original_scalar_body_alpha_declines_observers_introspection_and_changed_topology` (linked): Declines introspection, extra source/body commands, non-whole-object reads, changed arity/default/rest/link roles and invalid proposed scalar names.
+- [rust/tcl-compiler/src/command_binding/executed_script_source.rs](../../../../rust/tcl-compiler/src/command_binding/executed_script_source.rs), `command_binding::executed_script_source::tests::original_counted_body_operand_keeps_native_image_without_document_coordinates` (linked): An actual C8 native body value with surrogate units retains its exact NativeValue parser image and a distinct materialised origin; the original Document image is preserved independently and no contiguous source coordinates or Unicode projection are issued.
+- [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs), `command_binding::scalar_body_alpha::original_alpha_body_parser_purpose_tests::original_scalar_body_site_keeps_body_bom_and_original_declaration_geometry` (linked): Finite source-defined control: original scalar body site keeps body bom and original declaration geometry. Genuine selected declared body with whole-file BOM and independent body BOM; actual body allocation starts before its BOM, full parent input retained. Multiple original body commands refuse sole-site projection. Geometry only, no alpha rewrite permission. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

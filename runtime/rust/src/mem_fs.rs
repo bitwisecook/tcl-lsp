@@ -34,13 +34,14 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 use tcl_platform::{Filesystem, HostError, Metadata};
 
 /// An in-memory filesystem: a path → bytes map with synthesised directories.
 #[derive(Default)]
 pub struct MemFs {
-    files: RefCell<BTreeMap<String, Vec<u8>>>,
+    files: RefCell<BTreeMap<String, Rc<Vec<u8>>>>,
     /// Explicitly created directories (those not implied by a stored file).
     dirs: RefCell<BTreeSet<String>>,
 }
@@ -83,7 +84,9 @@ impl MemFs {
     /// Insert (or overwrite) a file at `path` with `data`. Parent directories are
     /// implied by the key, so they need no explicit creation.
     pub fn insert(&self, path: &str, data: impl Into<Vec<u8>>) {
-        self.files.borrow_mut().insert(norm(path), data.into());
+        self.files
+            .borrow_mut()
+            .insert(norm(path), Rc::new(data.into()));
     }
 
     /// Whether `path` is a directory: the root, an explicitly created directory,
@@ -95,6 +98,13 @@ impl MemFs {
         let prefix = child_prefix(path);
         self.files.borrow().keys().any(|k| k.starts_with(&prefix))
             || self.dirs.borrow().iter().any(|d| d.starts_with(&prefix))
+    }
+}
+
+struct MemSourceFile(Rc<Vec<u8>>);
+impl tcl_platform::SourceFile for MemSourceFile {
+    fn read_all(&mut self) -> Result<Vec<u8>, HostError> {
+        Ok(self.0.as_ref().clone())
     }
 }
 
@@ -153,12 +163,28 @@ impl Filesystem for MemFs {
         self.files
             .borrow()
             .get(&norm(path))
-            .cloned()
+            .map(|bytes| bytes.as_ref().clone())
             .ok_or(HostError::NotFound)
     }
 
+    fn open_source_bytes(
+        &self,
+        path: &[u8],
+    ) -> Result<Box<dyn tcl_platform::SourceFile>, HostError> {
+        let path = std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
+        let file = self
+            .files
+            .borrow()
+            .get(&norm(path))
+            .cloned()
+            .ok_or(HostError::NotFound)?;
+        Ok(Box::new(MemSourceFile(file)))
+    }
+
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError> {
-        self.files.borrow_mut().insert(norm(path), data.to_vec());
+        self.files
+            .borrow_mut()
+            .insert(norm(path), Rc::new(data.to_vec()));
         Ok(())
     }
 

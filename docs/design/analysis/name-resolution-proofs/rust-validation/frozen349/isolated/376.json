@@ -1,0 +1,19 @@
+{
+  "ordinal": 376,
+  "selector": "interp::tests::fresh_interp_installs_the_shared_platform_schema_before_init",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::fresh_interp_installs_the_shared_platform_schema_before_init",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.086076412990224,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.85s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/376.log",
+  "log_sha256": "5379da3ca726c3a890f35ee1adc1a9b1090f15e0c877789e0fbb4c67636d15bb"
+}

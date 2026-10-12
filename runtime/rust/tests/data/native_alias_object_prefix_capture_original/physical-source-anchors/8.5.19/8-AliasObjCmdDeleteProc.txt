@@ -1,0 +1,152 @@
+ *	interpreter.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+AliasObjCmdDeleteProc(
+    ClientData clientData)	/* The alias record for this alias. */
+{
+    Alias *aliasPtr = clientData;
+    Target *targetPtr;
+    int i;
+    Tcl_Obj **objv;
+
+    Tcl_DecrRefCount(aliasPtr->token);
+    objv = &aliasPtr->objPtr;
+    for (i = 0; i < aliasPtr->objc; i++) {
+	Tcl_DecrRefCount(objv[i]);
+    }
+    Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+
+    /*
+     * Splice the target record out of the target interpreter's master list.
+     */
+
+    targetPtr = aliasPtr->targetPtr;
+    if (targetPtr->prevPtr != NULL) {
+	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+    } else {
+	Master *masterPtr = &((InterpInfo *) ((Interp *)
+		aliasPtr->targetInterp)->interpInfo)->master;
+
+	masterPtr->targetsPtr = targetPtr->nextPtr;
+    }
+    if (targetPtr->nextPtr != NULL) {
+	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+    }
+
+    ckfree((char *) targetPtr);
+    ckfree((char *) aliasPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_CreateSlave --
+ *
+ *	Creates a slave interpreter. The slavePath argument denotes the name
+ *	of the new slave relative to the current interpreter; the slave is a
+ *	direct descendant of the one-before-last component of the path,
+ *	e.g. it is a descendant of the current interpreter if the slavePath
+ *	argument contains only one component. Optionally makes the slave
+ *	interpreter safe.
+ *
+ * Results:
+ *	Returns the interpreter structure created, or NULL if an error
+ *	occurred.
+ *
+ * Side effects:
+ *	Creates a new interpreter and a new interpreter object command in the
+ *	interpreter indicated by the slavePath argument.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_CreateSlave(
+    Tcl_Interp *interp,		/* Interpreter to start search at. */
+    const char *slavePath,	/* Name of slave to create. */
+    int isSafe)			/* Should new slave be "safe" ? */
+{
+    Tcl_Obj *pathPtr;
+    Tcl_Interp *slaveInterp;
+
+    pathPtr = Tcl_NewStringObj(slavePath, -1);
+    slaveInterp = SlaveCreate(interp, pathPtr, isSafe);
+    Tcl_DecrRefCount(pathPtr);
+
+    return slaveInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetSlave --
+ *
+ *	Finds a slave interpreter by its path name.
+ *
+ * Results:
+ *	Returns a Tcl_Interp * for the named interpreter or NULL if not found.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_GetSlave(
+    Tcl_Interp *interp,		/* Interpreter to start search from. */
+    const char *slavePath)	/* Path of slave to find. */
+{
+    Tcl_Obj *pathPtr;
+    Tcl_Interp *slaveInterp;
+
+    pathPtr = Tcl_NewStringObj(slavePath, -1);
+    slaveInterp = GetInterp(interp, pathPtr);
+    Tcl_DecrRefCount(pathPtr);
+
+    return slaveInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetMaster --
+ *
+ *	Finds the master interpreter of a slave interpreter.
+ *
+ * Results:
+ *	Returns a Tcl_Interp * for the master interpreter or NULL if none.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_GetMaster(
+    Tcl_Interp *interp)		/* Get the master of this interpreter. */
+{
+    Slave *slavePtr;		/* Slave record of this interpreter. */
+
+    if (interp == NULL) {
+	return NULL;
+    }
+    slavePtr = &((InterpInfo *) ((Interp *) interp)->interpInfo)->slave;
+    return slavePtr->masterInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetInterpPath --
+ *
+ *	Sets the result of the asking interpreter to a proper Tcl list
+ *	containing the names of interpreters between the asking and target
+ *	interpreters. The target interpreter must be either the same as the
+ *	asking interpreter or one of its slaves (including recursively).
+ *
+ * Results:

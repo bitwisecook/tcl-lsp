@@ -1,0 +1,105 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-current-api-guide309.base-files.tar.gz",
+  "archive_sha256": "68362fa31a13b84637ac873572775b770f0d56bc1e3a24d5649355af266a197f",
+  "archive_bytes": 440563,
+  "uncompressed_bytes": 1375919,
+  "source_manifest_sha256": "f308e2a526084951d2e5b0b11aed5feae32927a9a45033285796e7ecc4a37cef",
+  "source_patch_sha256": "b8d08d0c3de99e8f1c76a56842b3bac3b2bd364608d05b95a500c8942b97e75b",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/b8d08d0c3de99e8f1c76a56842b3bac3b2bd364608d05b95a500c8942b97e75b.patch",
+  "original_application_journal_sha256": "b8d08d0c3de99e8f1c76a56842b3bac3b2bd364608d05b95a500c8942b97e75b",
+  "member_count": 10,
+  "members": {
+    "grammar-current-api-guide309/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.0593593,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.0593593,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.0593593,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/base/docs/design/compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.0593593,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/base/docs/design/compiler/name-resolution-implementer-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.0601318,
+      "size": 685426,
+      "sha256": "8349212650486b0405b2bcb1c62a7268113a992e856c2906c3ff46c80ba1240d"
+    },
+    "grammar-current-api-guide309/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.057193,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.057193,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.057193,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/files/docs/design/compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.057193,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-current-api-guide309/files/docs/design/compiler/name-resolution-implementer-guide.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607151.0593593,
+      "size": 690493,
+      "sha256": "d40e1cb166ca0b935c99c8338060996c25aa7ea879756bf311b1a9f1360be379"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

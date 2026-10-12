@@ -40,7 +40,6 @@ use tcl_compiler::expr_ast::{BinOp, ExprNode};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::{lower_to_ir_with_config, lower_to_ir_with_dialect};
 use tcl_registry::model::ingress::static_context_for;
-use tcl_registry::model::semantic::SemanticContext;
 
 const IRULES: &str = "f5-irules";
 const TCL: &str = "tcl8.6";
@@ -190,13 +189,23 @@ fn build_for_profile_folds_a_word_operator_branch() {
 /// canonicalising the input to the plain fallback profile's `tcl` name.
 #[test]
 fn build_for_dialect_retains_the_tk_set_only_bit() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let registry = static_context_for("tk").commands();
     let unit = CompilationUnit::build_for_dialect("button .b\n", registry, false, "tk");
 
     assert_eq!(unit.ir_module.dialect.as_deref(), Some("tk"));
+    assert!(unit.top_level.semantic_facts.context().is_none());
+    assert!(std::ptr::eq(
+        unit.top_level.semantic_facts.metadata_context().unwrap(),
+        unit.top_level
+            .source_metadata_input()
+            .unwrap()
+            .availability_context(),
+    ));
     assert_eq!(
-        unit.top_level.semantic_facts.context(),
-        Some(SemanticContext::for_environment("tk"))
+        unit.top_level.semantic_facts.metadata_context(),
+        Some(static_context_for("tk").context())
     );
 }
 
@@ -210,6 +219,8 @@ fn build_for_dialect_retains_the_tk_set_only_bit() {
 /// profile through untouched.
 #[test]
 fn build_for_profile_retains_the_tk_set_only_bit() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let registry = static_context_for("tk").commands();
     let profile = tcl_registry::model::ingress::resolve_known_environment("tk")
         .expect("`tk` is a recognised additive dialect ingress")
@@ -222,10 +233,18 @@ fn build_for_profile_retains_the_tk_set_only_bit() {
         "the resolved-profile entry point must not canonicalise `tk` away"
     );
     assert_eq!(
-        unit.top_level.semantic_facts.context(),
-        Some(SemanticContext::for_environment("tk")),
+        unit.top_level.semantic_facts.metadata_context(),
+        Some(static_context_for("tk").context()),
         "the `tk` environment must survive the resolved-profile entry point"
     );
+    assert!(unit.top_level.semantic_facts.context().is_none());
+    assert!(std::ptr::eq(
+        unit.top_level.semantic_facts.metadata_context().unwrap(),
+        unit.top_level
+            .source_metadata_input()
+            .unwrap()
+            .availability_context(),
+    ));
 }
 
 // I230 — TP / TN / FP / FN

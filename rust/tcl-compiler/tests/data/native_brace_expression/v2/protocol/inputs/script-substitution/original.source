@@ -1,0 +1,1 @@
+set ticks 0; proc tick {} {global ticks; incr ticks}; expr "[tick] + 1"

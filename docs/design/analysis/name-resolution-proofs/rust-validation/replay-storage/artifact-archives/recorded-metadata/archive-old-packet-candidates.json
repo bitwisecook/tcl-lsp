@@ -1,0 +1,1160 @@
+{
+  "policy": "Archive only exact-applied source packet base/files duplicates with matching actual patch and journal SHA, all numbered below310 (stricter than requested active-owner cutoffs). All leaf manifest hashes verified. Excludes primary native evidence, source requests, test data fixtures, Rust validation/logs/receipts, symlinks, active working dirs and LIVE. Original packet manifest/patch/scripts/reviews/journal remain unchanged. No compression/deletion performed.",
+  "candidates": [
+    {
+      "directory": "/workspace/.proofs/native-analyser-clippy204",
+      "number": 204,
+      "bytes": 7244562,
+      "file_count": 24,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "538e9427c4b28a244e5fdb60951ae271e219831a1d3b9526575e9c0bbe75af4a",
+      "patch_sha256": "3416e846a8a8138c71f9b959fa315df69579bc41e52f662c29a0a8cab5218a51",
+      "journal": "/workspace/.proofs/root-applied-packets/3416e846a8a8138c71f9b959fa315df69579bc41e52f662c29a0a8cab5218a51.patch",
+      "journal_sha256": "3416e846a8a8138c71f9b959fa315df69579bc41e52f662c29a0a8cab5218a51"
+    },
+    {
+      "directory": "/workspace/.proofs/native-math-diagnostic198",
+      "number": 198,
+      "bytes": 7199370,
+      "file_count": 19,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "72057a7edd09cfaac4704ca200a46ebcf7624684fb293885fc7af16cb52a17b7",
+      "patch_sha256": "393d2997415c947400a34e1fda9f4fcb532654a9ee76ce86108e0c0139df699c",
+      "journal": "/workspace/.proofs/root-applied-packets/393d2997415c947400a34e1fda9f4fcb532654a9ee76ce86108e0c0139df699c.patch",
+      "journal_sha256": "393d2997415c947400a34e1fda9f4fcb532654a9ee76ce86108e0c0139df699c"
+    },
+    {
+      "directory": "/workspace/.proofs/current-diagnostic-edit-currency108",
+      "number": 108,
+      "bytes": 6366046,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "104fcfb59d5dd59ec7977469fd4c7343022503350b244dc39fc7c0c273ad732d",
+      "patch_sha256": "bf7da0e0db314b1c97322bf1883b140dd001482e05fea90a128788ecc6106477",
+      "journal": "/workspace/.proofs/root-applied-packets/bf7da0e0db314b1c97322bf1883b140dd001482e05fea90a128788ecc6106477.patch",
+      "journal_sha256": "bf7da0e0db314b1c97322bf1883b140dd001482e05fea90a128788ecc6106477"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-workspace-source-procedure-candidates287",
+      "number": 287,
+      "bytes": 6350007,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "40c56837159745271fa4484b8bc1b4e2138c1b1d55e32cecf59a33ee0903c1de",
+      "patch_sha256": "8718f06c0e3448577a07e3decf36326c9ab6b828a05443da7c70e56cf8af9268",
+      "journal": "/workspace/.proofs/root-applied-packets/8718f06c0e3448577a07e3decf36326c9ab6b828a05443da7c70e56cf8af9268.patch",
+      "journal_sha256": "8718f06c0e3448577a07e3decf36326c9ab6b828a05443da7c70e56cf8af9268"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-comment-analysis244",
+      "number": 244,
+      "bytes": 6002479,
+      "file_count": 18,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "ce6892906a48813bbdbe0eb99f072ab16e3214cbfbb4eae1c9a197f8d7d3519b",
+      "patch_sha256": "b15d80a24c1d758d67069c0179e5459fdb3c9c12ced89b42ce51d2a129a82a33",
+      "journal": "/workspace/.proofs/root-applied-packets/b15d80a24c1d758d67069c0179e5459fdb3c9c12ced89b42ce51d2a129a82a33.patch",
+      "journal_sha256": "b15d80a24c1d758d67069c0179e5459fdb3c9c12ced89b42ce51d2a129a82a33"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-receiver-source-fixtures288",
+      "number": 288,
+      "bytes": 5504398,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "46b94df5d65face60c2eb12f72da85d023e2a836e697c6aa2485583e50820886",
+      "patch_sha256": "93878177809d99f96475f20db4c1c4fead357d08aa9d5c4f84aca95f6aba9e3e",
+      "journal": "/workspace/.proofs/root-applied-packets/93878177809d99f96475f20db4c1c4fead357d08aa9d5c4f84aca95f6aba9e3e.patch",
+      "journal_sha256": "93878177809d99f96475f20db4c1c4fead357d08aa9d5c4f84aca95f6aba9e3e"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-server-original-callback-projection283",
+      "number": 283,
+      "bytes": 5069897,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "b1a22bc3d2cd50e8b46533d6e86f74c61d3de00326e8d99d054ecee97023d6a8",
+      "patch_sha256": "a4fe486fa2471093b88b78d277654ba355faa46d54de63cd5cf28458c6839600",
+      "journal": "/workspace/.proofs/root-applied-packets/a4fe486fa2471093b88b78d277654ba355faa46d54de63cd5cf28458c6839600.patch",
+      "journal_sha256": "a4fe486fa2471093b88b78d277654ba355faa46d54de63cd5cf28458c6839600"
+    },
+    {
+      "directory": "/workspace/.proofs/native-math-diagnostic201",
+      "number": 201,
+      "bytes": 5054167,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "7c25788602e323e2525c4ba71c15f09f54be621aa9360eaa6dd353937d9435ae",
+      "patch_sha256": "92ab0ac65c1eedf68a50ac836f865ea3a3b345b4bc3fbfd1449d38f0c7c66037",
+      "journal": "/workspace/.proofs/root-applied-packets/92ab0ac65c1eedf68a50ac836f865ea3a3b345b4bc3fbfd1449d38f0c7c66037.patch",
+      "journal_sha256": "92ab0ac65c1eedf68a50ac836f865ea3a3b345b4bc3fbfd1449d38f0c7c66037"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-produced-prefix175",
+      "number": 175,
+      "bytes": 3384459,
+      "file_count": 20,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "db861a1833765a6742a35603536e806b1d63f08f57c07c1f0ab3a983b6538fc3",
+      "patch_sha256": "9f9ac6bd41dad451a0199bd6b19250ce507d4734a0acd900d3f0223c7774478f",
+      "journal": "/workspace/.proofs/root-applied-packets/9f9ac6bd41dad451a0199bd6b19250ce507d4734a0acd900d3f0223c7774478f.patch",
+      "journal_sha256": "9f9ac6bd41dad451a0199bd6b19250ce507d4734a0acd900d3f0223c7774478f"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-logical-roster165",
+      "number": 165,
+      "bytes": 3167262,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "ee47720b875ab923bc496e30facfe593e151c9a7c53adfaeff0da4746a8530f8",
+      "patch_sha256": "980108d598bf73c32996fccec999f63658ce44989ff9df578ade085f66885eb2",
+      "journal": "/workspace/.proofs/root-applied-packets/980108d598bf73c32996fccec999f63658ce44989ff9df578ade085f66885eb2.patch",
+      "journal_sha256": "980108d598bf73c32996fccec999f63658ce44989ff9df578ade085f66885eb2"
+    },
+    {
+      "directory": "/workspace/.proofs/native-compiler-clippy207",
+      "number": 207,
+      "bytes": 3141651,
+      "file_count": 20,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "8cc613cf61ac92061622d3ba673f8167f3a0805196f3bc748836dc7f9004a3c9",
+      "patch_sha256": "07a47fc191269f8d1863b7a27ed639a4fc933cc8c4728a0895e1c15bdead0d05",
+      "journal": "/workspace/.proofs/root-applied-packets/07a47fc191269f8d1863b7a27ed639a4fc933cc8c4728a0895e1c15bdead0d05.patch",
+      "journal_sha256": "07a47fc191269f8d1863b7a27ed639a4fc933cc8c4728a0895e1c15bdead0d05"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-noqa-analysis246",
+      "number": 246,
+      "bytes": 3005542,
+      "file_count": 24,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1051c415ce5e84847149c700c16a93cb7a2fa384f7ca7e6694bc1487594ce072",
+      "patch_sha256": "d04ba4e8179186a8fa8ffcbdd0b434101b883beeb178ffadcb9597a6e3ddfa75",
+      "journal": "/workspace/.proofs/root-applied-packets/d04ba4e8179186a8fa8ffcbdd0b434101b883beeb178ffadcb9597a6e3ddfa75.patch",
+      "journal_sha256": "d04ba4e8179186a8fa8ffcbdd0b434101b883beeb178ffadcb9597a6e3ddfa75"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-grammar-option-tail137",
+      "number": 137,
+      "bytes": 2951719,
+      "file_count": 18,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9bfaff0b6f633d7a9adb688f1dfc3cc392fb80f595552d07d9f75c153cbfb85c",
+      "patch_sha256": "09e0e6090108f7b1ea294302838ed62b3ed8c4abf9ada4c34a09e187275d5802",
+      "journal": "/workspace/.proofs/root-applied-packets/09e0e6090108f7b1ea294302838ed62b3ed8c4abf9ada4c34a09e187275d5802.patch",
+      "journal_sha256": "09e0e6090108f7b1ea294302838ed62b3ed8c4abf9ada4c34a09e187275d5802"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-source-procedure-publications289",
+      "number": 289,
+      "bytes": 2902398,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "b071e1189a8b7f3686d869e3851f335456be504bc495693b492a3441d8501336",
+      "patch_sha256": "49261a71a86b8a168efae7dfd87b0f59ea6c5aa547e8c18172bfed4f33484609",
+      "journal": "/workspace/.proofs/root-applied-packets/49261a71a86b8a168efae7dfd87b0f59ea6c5aa547e8c18172bfed4f33484609.patch",
+      "journal_sha256": "49261a71a86b8a168efae7dfd87b0f59ea6c5aa547e8c18172bfed4f33484609"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-native-body-fallback296",
+      "number": 296,
+      "bytes": 2622147,
+      "file_count": 5,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "72ed72a9cfb955e1e29b53a8a1e22cf455219c3920eb1d4e57e3183064064edf",
+      "patch_sha256": "68b8e67c721fa0346df56674082adf5d4b1f79154ddb27ec0dc9b5e9f8dccec5",
+      "journal": "/workspace/.proofs/root-applied-packets/68b8e67c721fa0346df56674082adf5d4b1f79154ddb27ec0dc9b5e9f8dccec5.patch",
+      "journal_sha256": "68b8e67c721fa0346df56674082adf5d4b1f79154ddb27ec0dc9b5e9f8dccec5"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-logical-advice-owner284",
+      "number": 284,
+      "bytes": 2604117,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "47116519bcf8e43d4dc5cac835bb14851998ff76246af12bab3a2ee73eae10fd",
+      "patch_sha256": "09b77c23a4c2b6c25491495ea42752b9fa3b7dbbd8c71301a9e47b4ba9a6ff55",
+      "journal": "/workspace/.proofs/root-applied-packets/09b77c23a4c2b6c25491495ea42752b9fa3b7dbbd8c71301a9e47b4ba9a6ff55.patch",
+      "journal_sha256": "09b77c23a4c2b6c25491495ea42752b9fa3b7dbbd8c71301a9e47b4ba9a6ff55"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-class-instance233",
+      "number": 233,
+      "bytes": 2572265,
+      "file_count": 19,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "61d8631918b5659860b8ddc1e88b5e1530f30327110d36fb0742441f7eaad107",
+      "patch_sha256": "021b386af3f74cd69d772145c251ba20f27d87071dafdf3bbfb37cda2a6a4c42",
+      "journal": "/workspace/.proofs/root-applied-packets/021b386af3f74cd69d772145c251ba20f27d87071dafdf3bbfb37cda2a6a4c42.patch",
+      "journal_sha256": "021b386af3f74cd69d772145c251ba20f27d87071dafdf3bbfb37cda2a6a4c42"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-callback-procedure-target262",
+      "number": 262,
+      "bytes": 2426462,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "73353be1a55dbe3eb29b1055f5b837d02346e8eb89dcb30b2f29da0a3e0316ea",
+      "patch_sha256": "68de9798fdcee0ce54829a9e8b83f19beb58b7e1a8f10538d31daa36a1d19cf4",
+      "journal": "/workspace/.proofs/root-applied-packets/68de9798fdcee0ce54829a9e8b83f19beb58b7e1a8f10538d31daa36a1d19cf4.patch",
+      "journal_sha256": "68de9798fdcee0ce54829a9e8b83f19beb58b7e1a8f10538d31daa36a1d19cf4"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-class-source-call202",
+      "number": 202,
+      "bytes": 2352885,
+      "file_count": 14,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "7868399da0fa53b274ca89ffca301492715ed1bc3e7d405ac2639c1b1ad9c215",
+      "patch_sha256": "7ebffa5afb90eb32a2aadef30424ac04a6784e416c33383545a7f8e218d243b3",
+      "journal": "/workspace/.proofs/root-applied-packets/7ebffa5afb90eb32a2aadef30424ac04a6784e416c33383545a7f8e218d243b3.patch",
+      "journal_sha256": "7ebffa5afb90eb32a2aadef30424ac04a6784e416c33383545a7f8e218d243b3"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-class-reference268",
+      "number": 268,
+      "bytes": 2310589,
+      "file_count": 11,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6e97ee5f6e82ea0b227843cc483e95a0eba119695c701e015b0f71ff5c8c8574",
+      "patch_sha256": "c64ef0a628c424266bdf2182befcce52b7536ec1edbf0feeff501909685d1213",
+      "journal": "/workspace/.proofs/root-applied-packets/c64ef0a628c424266bdf2182befcce52b7536ec1edbf0feeff501909685d1213.patch",
+      "journal_sha256": "c64ef0a628c424266bdf2182befcce52b7536ec1edbf0feeff501909685d1213"
+    },
+    {
+      "directory": "/workspace/.proofs/native-analyser-handlers205",
+      "number": 205,
+      "bytes": 2298398,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "4ff113dd012ee2251a8178d4473b98e26861bdb2e4b9efc695142a4e1543c502",
+      "patch_sha256": "a38d3096509f234878672c64f977734cb5d250bbf6e55391c3d869294898210b",
+      "journal": "/workspace/.proofs/root-applied-packets/a38d3096509f234878672c64f977734cb5d250bbf6e55391c3d869294898210b.patch",
+      "journal_sha256": "a38d3096509f234878672c64f977734cb5d250bbf6e55391c3d869294898210b"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-semantic-member259",
+      "number": 259,
+      "bytes": 2295091,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6611db73cdfb72b08317f74fd97ac681d5ba028ab67fe0841bf462ef8443aabb",
+      "patch_sha256": "9cefb2e0ed891e2263ba45d67d89e9f6c0f4cc10bead1c021ad343b0f2b93a07",
+      "journal": "/workspace/.proofs/root-applied-packets/9cefb2e0ed891e2263ba45d67d89e9f6c0f4cc10bead1c021ad343b0f2b93a07.patch",
+      "journal_sha256": "9cefb2e0ed891e2263ba45d67d89e9f6c0f4cc10bead1c021ad343b0f2b93a07"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-grammar-registry-clippy133",
+      "number": 133,
+      "bytes": 2252753,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1137d70c477fd915976bfc49fc18ffc2c27aead0e901c1e7bd4bae0cd64deafd",
+      "patch_sha256": "0d7499cdd08a510734a8b633272faa3b0f954a9d5cdfcf8417aecd683f3d96ea",
+      "journal": "/workspace/.proofs/root-applied-packets/0d7499cdd08a510734a8b633272faa3b0f954a9d5cdfcf8417aecd683f3d96ea.patch",
+      "journal_sha256": "0d7499cdd08a510734a8b633272faa3b0f954a9d5cdfcf8417aecd683f3d96ea"
+    },
+    {
+      "directory": "/workspace/.proofs/native-compiler-clippy212",
+      "number": 212,
+      "bytes": 2140166,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9b3f38d665daf13fd0bd0c005d790db2d386cc61d39331f133749ba5eb9ea8a7",
+      "patch_sha256": "493b0d2e9f6546cf680d69f58dd98cc557dc665f57578a64e16e8edd671b2c51",
+      "journal": "/workspace/.proofs/root-applied-packets/493b0d2e9f6546cf680d69f58dd98cc557dc665f57578a64e16e8edd671b2c51.patch",
+      "journal_sha256": "493b0d2e9f6546cf680d69f58dd98cc557dc665f57578a64e16e8edd671b2c51"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-compiler-effects-memo292",
+      "number": 292,
+      "bytes": 2078893,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9ea5325369f5f5786353d77af0b55ab8777cfe46f4d1a1fb461024e58c68298e",
+      "patch_sha256": "2c985c37374de542dc498c3914ddd5af340ebb6b13b6bd8124eb794dad4ef038",
+      "journal": "/workspace/.proofs/root-applied-packets/2c985c37374de542dc498c3914ddd5af340ebb6b13b6bd8124eb794dad4ef038.patch",
+      "journal_sha256": "2c985c37374de542dc498c3914ddd5af340ebb6b13b6bd8124eb794dad4ef038"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-grammar-borrowed-source-context140",
+      "number": 140,
+      "bytes": 1988512,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1a2c085cc66dc625d6c11065e1f320fa5aa4b327eedf7896b6300f737e82a4e7",
+      "patch_sha256": "e59cc64688b08dfef91758e2f15add40c7d21fe33adfc08f398a77e92946ff64",
+      "journal": "/workspace/.proofs/root-applied-packets/e59cc64688b08dfef91758e2f15add40c7d21fe33adfc08f398a77e92946ff64.patch",
+      "journal_sha256": "e59cc64688b08dfef91758e2f15add40c7d21fe33adfc08f398a77e92946ff64"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-native-result305",
+      "number": 305,
+      "bytes": 1895603,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "0c86c06a9b9b3d536e4516e654b56a8548f47fd72c603ccd40d5db3579c82ea7",
+      "patch_sha256": "8600825c6d52cc67fc062715585e5bb38636ea7a75e5b85dc39a2d9949cdf207",
+      "journal": "/workspace/.proofs/root-applied-packets/8600825c6d52cc67fc062715585e5bb38636ea7a75e5b85dc39a2d9949cdf207.patch",
+      "journal_sha256": "8600825c6d52cc67fc062715585e5bb38636ea7a75e5b85dc39a2d9949cdf207"
+    },
+    {
+      "directory": "/workspace/.proofs/native-runtime-regressions208",
+      "number": 208,
+      "bytes": 1822019,
+      "file_count": 10,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1c3291ea725b14f4bf3bf04767d6b3e82a3f8a98ed8e1f8cfecf4566fe56a1c5",
+      "patch_sha256": "f47811f00ed0b66cc837a60ba92090cb51cc51d020551bbe63ea6014624ec22b",
+      "journal": "/workspace/.proofs/root-applied-packets/f47811f00ed0b66cc837a60ba92090cb51cc51d020551bbe63ea6014624ec22b.patch",
+      "journal_sha256": "f47811f00ed0b66cc837a60ba92090cb51cc51d020551bbe63ea6014624ec22b"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-logical-definition168",
+      "number": 168,
+      "bytes": 1773458,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "54f80a23c47b65efd829233120feac060830c37b0473ffe9c8d213a689e7c0b2",
+      "patch_sha256": "f7ef01066cf407a30dec6366bdfc82034f22c829825a9622d3069884d2e5c7ea",
+      "journal": "/workspace/.proofs/root-applied-packets/f7ef01066cf407a30dec6366bdfc82034f22c829825a9622d3069884d2e5c7ea.patch",
+      "journal_sha256": "f7ef01066cf407a30dec6366bdfc82034f22c829825a9622d3069884d2e5c7ea"
+    },
+    {
+      "directory": "/workspace/.proofs/native-runtime-source215",
+      "number": 215,
+      "bytes": 1724194,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "604398fea1a421e27ea17d4c16fc146a66fbb1da49bb28fb62b5acb6d40905c6",
+      "patch_sha256": "424ab3c53cc8097ff67273356166d7f64fa1912b59529046bae718b5ec430f76",
+      "journal": "/workspace/.proofs/root-applied-packets/424ab3c53cc8097ff67273356166d7f64fa1912b59529046bae718b5ec430f76.patch",
+      "journal_sha256": "424ab3c53cc8097ff67273356166d7f64fa1912b59529046bae718b5ec430f76"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-minifier-logical-metadata131",
+      "number": 131,
+      "bytes": 1695168,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "57f9b1665ce8e9797c2d7a79972d7718e92ad45cac60883f364a4a00cbeed5fc",
+      "patch_sha256": "e658723d8adbd3250067bacc7838f0fe165697ea03aef4f5f46690ecdd4778e0",
+      "journal": "/workspace/.proofs/root-applied-packets/e658723d8adbd3250067bacc7838f0fe165697ea03aef4f5f46690ecdd4778e0.patch",
+      "journal_sha256": "e658723d8adbd3250067bacc7838f0fe165697ea03aef4f5f46690ecdd4778e0"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-source-roles173",
+      "number": 173,
+      "bytes": 1690693,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "e315a3cf1473ee6a8936847f4f17f1ad0e3cbf32de53bcf3061201cd7ef2e766",
+      "patch_sha256": "872f3c12d3b76d63ae36fd639a45dfdd5d2fa4e86362eabc87c223e5384bc74c",
+      "journal": "/workspace/.proofs/root-applied-packets/872f3c12d3b76d63ae36fd639a45dfdd5d2fa4e86362eabc87c223e5384bc74c.patch",
+      "journal_sha256": "872f3c12d3b76d63ae36fd639a45dfdd5d2fa4e86362eabc87c223e5384bc74c"
+    },
+    {
+      "directory": "/workspace/.proofs/native-jim-source217",
+      "number": 217,
+      "bytes": 1509543,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "5f02c8f4118da2687c56e6ff5fc8202c77dbf3d51ae128f62f8a6522fc7136b2",
+      "patch_sha256": "970009f3e69ab701c3a41f510dffadca9277d630ebb89f43cd9bb74c28fdce62",
+      "journal": "/workspace/.proofs/root-applied-packets/970009f3e69ab701c3a41f510dffadca9277d630ebb89f43cd9bb74c28fdce62.patch",
+      "journal_sha256": "970009f3e69ab701c3a41f510dffadca9277d630ebb89f43cd9bb74c28fdce62"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-native-array-teardown297",
+      "number": 297,
+      "bytes": 1482037,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "40d5f8879f7d36c72c92dee695a14409617f355415f1954d02202cc6aac488d4",
+      "patch_sha256": "224e08eaab673533d4fd84924f03b72537a36eb34719aedf15408fc59a18b26c",
+      "journal": "/workspace/.proofs/root-applied-packets/224e08eaab673533d4fd84924f03b72537a36eb34719aedf15408fc59a18b26c.patch",
+      "journal_sha256": "224e08eaab673533d4fd84924f03b72537a36eb34719aedf15408fc59a18b26c"
+    },
+    {
+      "directory": "/workspace/.proofs/current-document-grammar93",
+      "number": 93,
+      "bytes": 1470321,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "71483b672c0b569248171604371d4b7539d037fc0b19ad87f42313865428b702",
+      "patch_sha256": "25419a97d517ca4df767490d11d683ce01ebc709a5dbe7e31908ab1485ec498e",
+      "journal": "/workspace/.proofs/root-applied-packets/25419a97d517ca4df767490d11d683ce01ebc709a5dbe7e31908ab1485ec498e.patch",
+      "journal_sha256": "25419a97d517ca4df767490d11d683ce01ebc709a5dbe7e31908ab1485ec498e"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-minifier-logical-header132",
+      "number": 132,
+      "bytes": 1464467,
+      "file_count": 11,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9bb0670a5c95e6e2513de837bba93a4e9c51350f8904550028d76bf53939ec4b",
+      "patch_sha256": "83d066f0e218d5324ea34f85a41ea297528e3c8f5aad2d70e77ec93cc48e17f1",
+      "journal": "/workspace/.proofs/root-applied-packets/83d066f0e218d5324ea34f85a41ea297528e3c8f5aad2d70e77ec93cc48e17f1.patch",
+      "journal_sha256": "83d066f0e218d5324ea34f85a41ea297528e3c8f5aad2d70e77ec93cc48e17f1"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-native-return180",
+      "number": 180,
+      "bytes": 1412764,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "8b74ec1fb1237fc35350bdee0a7e4bb4270ff800cc340422abd48fe381a908f4",
+      "patch_sha256": "241e1933ed431ea6f6a86b8dee2b41f0279933d101e492ed61ae2c5ca5ce7f98",
+      "journal": "/workspace/.proofs/root-applied-packets/241e1933ed431ea6f6a86b8dee2b41f0279933d101e492ed61ae2c5ca5ce7f98.patch",
+      "journal_sha256": "241e1933ed431ea6f6a86b8dee2b41f0279933d101e492ed61ae2c5ca5ce7f98"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-retained-format167",
+      "number": 167,
+      "bytes": 1387159,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "13b7f688c52e353956e9255f87d819552d0ac3bff0a9383ed2e078e1765e1e6c",
+      "patch_sha256": "78c7554e203d3e2811a3e0f392d1161640f481c8c5d2f693effcb6db4a533759",
+      "journal": "/workspace/.proofs/root-applied-packets/78c7554e203d3e2811a3e0f392d1161640f481c8c5d2f693effcb6db4a533759.patch",
+      "journal_sha256": "78c7554e203d3e2811a3e0f392d1161640f481c8c5d2f693effcb6db4a533759"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-current-api-guide309",
+      "number": 309,
+      "bytes": 1375919,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "f308e2a526084951d2e5b0b11aed5feae32927a9a45033285796e7ecc4a37cef",
+      "patch_sha256": "b8d08d0c3de99e8f1c76a56842b3bac3b2bd364608d05b95a500c8942b97e75b",
+      "journal": "/workspace/.proofs/root-applied-packets/b8d08d0c3de99e8f1c76a56842b3bac3b2bd364608d05b95a500c8942b97e75b.patch",
+      "journal_sha256": "b8d08d0c3de99e8f1c76a56842b3bac3b2bd364608d05b95a500c8942b97e75b"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-variable-advice-boundary290",
+      "number": 290,
+      "bytes": 1316433,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9daf43eb02b25cf40393538ed805f7ab410ab0e59ba20f18e65a4ceab98c7e61",
+      "patch_sha256": "0a5d39559d6edcf9cd181da882073715c0b3f7fe35c06eaec33e2296626cb621",
+      "journal": "/workspace/.proofs/root-applied-packets/0a5d39559d6edcf9cd181da882073715c0b3f7fe35c06eaec33e2296626cb621.patch",
+      "journal_sha256": "0a5d39559d6edcf9cd181da882073715c0b3f7fe35c06eaec33e2296626cb621"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-procedure-arguments162",
+      "number": 162,
+      "bytes": 1246553,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9034a09436c5fca085a549ab1a47cf6575810a9108adba353467e7e413ecc27b",
+      "patch_sha256": "9f2ae0911d16a4ef1f44dc27f6de46befd9bd105bde2add989ae9fd44a8f1dc1",
+      "journal": "/workspace/.proofs/root-applied-packets/9f2ae0911d16a4ef1f44dc27f6de46befd9bd105bde2add989ae9fd44a8f1dc1.patch",
+      "journal_sha256": "9f2ae0911d16a4ef1f44dc27f6de46befd9bd105bde2add989ae9fd44a8f1dc1"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-workspace-symbol-source-boundary292",
+      "number": 292,
+      "bytes": 1243402,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "a91ad15767b38b030573d3f172ea5d476f24b5ea5e8eacc61dd52df1b295f10a",
+      "patch_sha256": "a840ead872b36e8345b6445183e219099151f76bfad49dafe9225fc56e300790",
+      "journal": "/workspace/.proofs/root-applied-packets/a840ead872b36e8345b6445183e219099151f76bfad49dafe9225fc56e300790.patch",
+      "journal_sha256": "a840ead872b36e8345b6445183e219099151f76bfad49dafe9225fc56e300790"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-semantic-head164",
+      "number": 164,
+      "bytes": 1181725,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "257178d7274632815c0e168fcc137d7fe9cb99ff6b94ce577a9036ded2717773",
+      "patch_sha256": "c2b66da58eb5bab23006fe924fcbb39df077f7ed22a313a73054e08652b5223c",
+      "journal": "/workspace/.proofs/root-applied-packets/c2b66da58eb5bab23006fe924fcbb39df077f7ed22a313a73054e08652b5223c.patch",
+      "journal_sha256": "c2b66da58eb5bab23006fe924fcbb39df077f7ed22a313a73054e08652b5223c"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-source-layout172",
+      "number": 172,
+      "bytes": 1175005,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "38a1ec6478ebf626503af8a3fd89fc813cbebc97101cb6135d6875ba60d35827",
+      "patch_sha256": "22397a0798e2530e3993142c5bbfc0ab76bea628e4819bf65c692f6dd58fa43c",
+      "journal": "/workspace/.proofs/root-applied-packets/22397a0798e2530e3993142c5bbfc0ab76bea628e4819bf65c692f6dd58fa43c.patch",
+      "journal_sha256": "22397a0798e2530e3993142c5bbfc0ab76bea628e4819bf65c692f6dd58fa43c"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-semantic-lists179",
+      "number": 179,
+      "bytes": 1129819,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "8badee53dee1e9746c20553d8c91e9baed0fd57128b78f15416772839b4d451b",
+      "patch_sha256": "7534f9605bffb5566f285ff92cac1f907a58ff60613ff80d01ddb24c8d7e1d2e",
+      "journal": "/workspace/.proofs/root-applied-packets/7534f9605bffb5566f285ff92cac1f907a58ff60613ff80d01ddb24c8d7e1d2e.patch",
+      "journal_sha256": "7534f9605bffb5566f285ff92cac1f907a58ff60613ff80d01ddb24c8d7e1d2e"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-pattern-semantic164",
+      "number": 164,
+      "bytes": 1107789,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "898d945c09f121995877e1c166ae35d2def640d19dec25d2f2970002f656733f",
+      "patch_sha256": "dc6b9713b7120904e7d76e5e601e253225dd5a915093e3fcbccc2fa17f5d50fa",
+      "journal": "/workspace/.proofs/root-applied-packets/dc6b9713b7120904e7d76e5e601e253225dd5a915093e3fcbccc2fa17f5d50fa.patch",
+      "journal_sha256": "dc6b9713b7120904e7d76e5e601e253225dd5a915093e3fcbccc2fa17f5d50fa"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-member-semantic166",
+      "number": 166,
+      "bytes": 1087302,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "063b0a31afd88156ea04eebc039c5e4e395738df81b2c5404ebbce5debfcfc21",
+      "patch_sha256": "53f42547d1fbc3677ab15f0489fb6a4a6249fbc6ad575518cd714120333ad5d4",
+      "journal": "/workspace/.proofs/root-applied-packets/53f42547d1fbc3677ab15f0489fb6a4a6249fbc6ad575518cd714120333ad5d4.patch",
+      "journal_sha256": "53f42547d1fbc3677ab15f0489fb6a4a6249fbc6ad575518cd714120333ad5d4"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-command-source-extent287",
+      "number": 287,
+      "bytes": 1087081,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "cbdaf2ac9cd0f52ba71af849d1ca37b7f595ad5a8a5812186c71dae7a28a3e0f",
+      "patch_sha256": "5a485decc50ac22ff17284f7481a765f0c88a7cf22841b481b5232351615b4c9",
+      "journal": "/workspace/.proofs/root-applied-packets/5a485decc50ac22ff17284f7481a765f0c88a7cf22841b481b5232351615b4c9.patch",
+      "journal_sha256": "5a485decc50ac22ff17284f7481a765f0c88a7cf22841b481b5232351615b4c9"
+    },
+    {
+      "directory": "/workspace/.proofs/current-hosted-source-diagnostic-trace110",
+      "number": 110,
+      "bytes": 1070084,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "0a8db870be365ed1eba9c47f2315b11538dee74468a5538694568f7ff99ff00b",
+      "patch_sha256": "9a0962a40be0a6870bc88fb7feaacf47e812abba1ec9d286c3044d3737643634",
+      "journal": "/workspace/.proofs/root-applied-packets/9a0962a40be0a6870bc88fb7feaacf47e812abba1ec9d286c3044d3737643634.patch",
+      "journal_sha256": "9a0962a40be0a6870bc88fb7feaacf47e812abba1ec9d286c3044d3737643634"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-semantic-head178",
+      "number": 178,
+      "bytes": 1066216,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "181749099253bf77193d2e93f0d7180bfcfc3d12ae49c4bfd51b7ff3124ee002",
+      "patch_sha256": "df154456c484ce18f2a38e223b0d922d27cdb0658e63e969308c75e3ced0ef2d",
+      "journal": "/workspace/.proofs/root-applied-packets/df154456c484ce18f2a38e223b0d922d27cdb0658e63e969308c75e3ced0ef2d.patch",
+      "journal_sha256": "df154456c484ce18f2a38e223b0d922d27cdb0658e63e969308c75e3ced0ef2d"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-logical-frame-roles184",
+      "number": 184,
+      "bytes": 995760,
+      "file_count": 10,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "882ad2a0ad190424d9473306e1c87d6ed5f55e4246074ba8ce4fac5252c98c9a",
+      "patch_sha256": "a132013fb96e58187f403735e04a21f07b2a38b344b58d4393b5714ee6a6903a",
+      "journal": "/workspace/.proofs/root-applied-packets/a132013fb96e58187f403735e04a21f07b2a38b344b58d4393b5714ee6a6903a.patch",
+      "journal_sha256": "a132013fb96e58187f403735e04a21f07b2a38b344b58d4393b5714ee6a6903a"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-semantic-source-routing171",
+      "number": 171,
+      "bytes": 985231,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1c1283358cf7bbb3ea0a9ff1754dd815db2accaba90cf2a1a0000e309d81f388",
+      "patch_sha256": "b75e12554ced4833655780df2a0ac59f7e35b74ed7390d659d15f55753676e70",
+      "journal": "/workspace/.proofs/root-applied-packets/b75e12554ced4833655780df2a0ac59f7e35b74ed7390d659d15f55753676e70.patch",
+      "journal_sha256": "b75e12554ced4833655780df2a0ac59f7e35b74ed7390d659d15f55753676e70"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-core-type-import278",
+      "number": 278,
+      "bytes": 932696,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1bb83555d2230d2f7e93e359cffea49867086ee6e72478fb6f0ada412c7bda2a",
+      "patch_sha256": "58e028e184d4016e30fba655ea2796060d6d3283d37a170588a14ad6fbe3b1a4",
+      "journal": "/workspace/.proofs/root-applied-packets/58e028e184d4016e30fba655ea2796060d6d3283d37a170588a14ad6fbe3b1a4.patch",
+      "journal_sha256": "58e028e184d4016e30fba655ea2796060d6d3283d37a170588a14ad6fbe3b1a4"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-comment-cursor303",
+      "number": 303,
+      "bytes": 920921,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "281f5e14f38787acaeb34bf2edbe4282f1c311696defef259c679eebab42638f",
+      "patch_sha256": "3225225aa35d1d6f1ed9ebdbf474cdbe348cc75c15c77133824aea9fa16b3081",
+      "journal": "/workspace/.proofs/root-applied-packets/3225225aa35d1d6f1ed9ebdbf474cdbe348cc75c15c77133824aea9fa16b3081.patch",
+      "journal_sha256": "3225225aa35d1d6f1ed9ebdbf474cdbe348cc75c15c77133824aea9fa16b3081"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-compiler-style153",
+      "number": 153,
+      "bytes": 885296,
+      "file_count": 14,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "c30eb84a73110257f29af381513f135e77b904076e1ee0118215fc6a53e20ae1",
+      "patch_sha256": "4de9f4e3b540fbf8a459cf60ee9188c2ba4f33a5c6c941814c0ae84eaf24ece9",
+      "journal": "/workspace/.proofs/root-applied-packets/4de9f4e3b540fbf8a459cf60ee9188c2ba4f33a5c6c941814c0ae84eaf24ece9.patch",
+      "journal_sha256": "4de9f4e3b540fbf8a459cf60ee9188c2ba4f33a5c6c941814c0ae84eaf24ece9"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-member-static-head276",
+      "number": 276,
+      "bytes": 869692,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "833037f1b4aa7209a6dfe7f5b26f214315b9f71c67103f9f46f30e1c5a4c53cb",
+      "patch_sha256": "5fec21b6092ac0dc291bdf7e69d657abea84e3a970fee877540fe117b2475f9c",
+      "journal": "/workspace/.proofs/root-applied-packets/5fec21b6092ac0dc291bdf7e69d657abea84e3a970fee877540fe117b2475f9c.patch",
+      "journal_sha256": "5fec21b6092ac0dc291bdf7e69d657abea84e3a970fee877540fe117b2475f9c"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-semantic-obsolete-roles282",
+      "number": 282,
+      "bytes": 862500,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "fa8faa13380bc45f939e191e55ea1afc11d34c1aa9c7e582acee1a6a23640efa",
+      "patch_sha256": "ad6b4ac200dc09f1468336b93e8b8de7974222c11eeb8c0a67ae63716f485ff1",
+      "journal": "/workspace/.proofs/root-applied-packets/ad6b4ac200dc09f1468336b93e8b8de7974222c11eeb8c0a67ae63716f485ff1.patch",
+      "journal_sha256": "ad6b4ac200dc09f1468336b93e8b8de7974222c11eeb8c0a67ae63716f485ff1"
+    },
+    {
+      "directory": "/workspace/.proofs/native-vm-exec-style222",
+      "number": 222,
+      "bytes": 860407,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "82c45bf3b65b03750e7bcecd5b9aa7c1970a2fd2929504de52e0ada013323da7",
+      "patch_sha256": "0679f7405b59ba0850ce489716ed2144cd5eb46c20b207b605b963089a69ccfc",
+      "journal": "/workspace/.proofs/root-applied-packets/0679f7405b59ba0850ce489716ed2144cd5eb46c20b207b605b963089a69ccfc.patch",
+      "journal_sha256": "0679f7405b59ba0850ce489716ed2144cd5eb46c20b207b605b963089a69ccfc"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-native-oo-context301",
+      "number": 301,
+      "bytes": 843548,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "bd4b6f236223d1c8bda8207b6219f796fd6198eaa98b939248a53e0c65617b15",
+      "patch_sha256": "9a58684f9114505dce3976f09c035ca3591385c54b16dee25e94eacb671da2d7",
+      "journal": "/workspace/.proofs/root-applied-packets/9a58684f9114505dce3976f09c035ca3591385c54b16dee25e94eacb671da2d7.patch",
+      "journal_sha256": "9a58684f9114505dce3976f09c035ca3591385c54b16dee25e94eacb671da2d7"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-jim-alias-comparison-key278",
+      "number": 278,
+      "bytes": 838396,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "72ad9f8c04059c180845de56ac3805e12be54e612ee3da9ce969269290ffc48b",
+      "patch_sha256": "463908dac4836142adeee2ce2aca4c6efcac92618930a1e427d56272d152a5e6",
+      "journal": "/workspace/.proofs/root-applied-packets/463908dac4836142adeee2ce2aca4c6efcac92618930a1e427d56272d152a5e6.patch",
+      "journal_sha256": "463908dac4836142adeee2ce2aca4c6efcac92618930a1e427d56272d152a5e6"
+    },
+    {
+      "directory": "/workspace/.proofs/current-hosted-taint-original-image111",
+      "number": 111,
+      "bytes": 820735,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "0a301b76472f571d074e10d3be0b3e21587a1525f4f8f001a3d415a26bdc2a44",
+      "patch_sha256": "791e98a02cc15418c000787d97454bb46c93a41988edcd38be0bc0a1dcd33143",
+      "journal": "/workspace/.proofs/root-applied-packets/791e98a02cc15418c000787d97454bb46c93a41988edcd38be0bc0a1dcd33143.patch",
+      "journal_sha256": "791e98a02cc15418c000787d97454bb46c93a41988edcd38be0bc0a1dcd33143"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-jim-factory-initialisers273",
+      "number": 273,
+      "bytes": 806733,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "d8020586d215b8b73e3ad3885dca2f80681634603bae9a0e4b01b8d62ec29c2b",
+      "patch_sha256": "56891bb4b7428e74ea2c36c13fc2346d5a8f4dfede00b7d4d20096cef0ad6627",
+      "journal": "/workspace/.proofs/root-applied-packets/56891bb4b7428e74ea2c36c13fc2346d5a8f4dfede00b7d4d20096cef0ad6627.patch",
+      "journal_sha256": "56891bb4b7428e74ea2c36c13fc2346d5a8f4dfede00b7d4d20096cef0ad6627"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-source-cards170",
+      "number": 170,
+      "bytes": 804143,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6d79238a7fd6f8ce0894c398fb5929a68644ac67439759e11fc9fd6ae6162e80",
+      "patch_sha256": "aeda41227a297f2484cb4ea4452b1e8ba74b588c38f8081979efe8c0c5184db2",
+      "journal": "/workspace/.proofs/root-applied-packets/aeda41227a297f2484cb4ea4452b1e8ba74b588c38f8081979efe8c0c5184db2.patch",
+      "journal_sha256": "aeda41227a297f2484cb4ea4452b1e8ba74b588c38f8081979efe8c0c5184db2"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-comment-export245",
+      "number": 245,
+      "bytes": 782466,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "a97bc0f0e0cd100cebf0c61c27aab761e8cfc31ba46fcd6d9ed86e9ca2889b61",
+      "patch_sha256": "079c2639c339759ead28f8a2a172b44db25b9ae0f56e53cfc30fd0697e09765c",
+      "journal": "/workspace/.proofs/root-applied-packets/079c2639c339759ead28f8a2a172b44db25b9ae0f56e53cfc30fd0697e09765c.patch",
+      "journal_sha256": "079c2639c339759ead28f8a2a172b44db25b9ae0f56e53cfc30fd0697e09765c"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-native-oo-original-header304",
+      "number": 304,
+      "bytes": 780162,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "07b53a9df17e32b6bbf0668fa5276c510f903f73d4c357bd178dd0445cbcb0bd",
+      "patch_sha256": "0a839f40bdebff5ecbf219c5c1b7be140a5dfcd86f18a36c8d61341f774dae03",
+      "journal": "/workspace/.proofs/root-applied-packets/0a839f40bdebff5ecbf219c5c1b7be140a5dfcd86f18a36c8d61341f774dae03.patch",
+      "journal_sha256": "0a839f40bdebff5ecbf219c5c1b7be140a5dfcd86f18a36c8d61341f774dae03"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-original-two-word-members270",
+      "number": 270,
+      "bytes": 776037,
+      "file_count": 10,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "84bf5fe2ed725f8ee60ab871613fd3219c362c51ac9b6acf281f69419246c6c6",
+      "patch_sha256": "03d96685156adca3b851bc3cc8c67d6adf9365c9602653dcd06490eec843c7cd",
+      "journal": "/workspace/.proofs/root-applied-packets/03d96685156adca3b851bc3cc8c67d6adf9365c9602653dcd06490eec843c7cd.patch",
+      "journal_sha256": "03d96685156adca3b851bc3cc8c67d6adf9365c9602653dcd06490eec843c7cd"
+    },
+    {
+      "directory": "/workspace/.proofs/native-math-input202",
+      "number": 202,
+      "bytes": 775806,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6f56f00af006a1c35633eb0fd240aa6d9a5d26334386439c7753e23731e28f77",
+      "patch_sha256": "dd0647c17adb0f538c4169f93f35a5cc45c142aaa56010f7b87bb14eeb97c3de",
+      "journal": "/workspace/.proofs/root-applied-packets/dd0647c17adb0f538c4169f93f35a5cc45c142aaa56010f7b87bb14eeb97c3de.patch",
+      "journal_sha256": "dd0647c17adb0f538c4169f93f35a5cc45c142aaa56010f7b87bb14eeb97c3de"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-declared-function-export247",
+      "number": 247,
+      "bytes": 728647,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "03b24b504f4b393801756d9c004b79ec91db5f962e60f939b92a9e820234279b",
+      "patch_sha256": "40eeb6b98c2e7100fa563c99484db70efbc72f3f350661938bbc239a011cd72e",
+      "journal": "/workspace/.proofs/root-applied-packets/40eeb6b98c2e7100fa563c99484db70efbc72f3f350661938bbc239a011cd72e.patch",
+      "journal_sha256": "40eeb6b98c2e7100fa563c99484db70efbc72f3f350661938bbc239a011cd72e"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-logical-domain148",
+      "number": 148,
+      "bytes": 716584,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "73680f24002596ae109d1b049518935796669c7462f6818434ae0a2b886d3dd7",
+      "patch_sha256": "02cb41d7b99322503f858f369cd8bdc497389ec9fee267ae170b3140439059ad",
+      "journal": "/workspace/.proofs/root-applied-packets/02cb41d7b99322503f858f369cd8bdc497389ec9fee267ae170b3140439059ad.patch",
+      "journal_sha256": "02cb41d7b99322503f858f369cd8bdc497389ec9fee267ae170b3140439059ad"
+    },
+    {
+      "directory": "/workspace/.proofs/native-math-lookup220",
+      "number": 220,
+      "bytes": 711061,
+      "file_count": 18,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "ef7be7e142f5b48ea5a3d0efcfe3b74602fd38c8629d87b7b81cde8946b5140a",
+      "patch_sha256": "357bbd62d0232133e57807ca9eb74444ce24d0e15ee54b5ba87551bf02bee486",
+      "journal": "/workspace/.proofs/root-applied-packets/357bbd62d0232133e57807ca9eb74444ce24d0e15ee54b5ba87551bf02bee486.patch",
+      "journal_sha256": "357bbd62d0232133e57807ca9eb74444ce24d0e15ee54b5ba87551bf02bee486"
+    },
+    {
+      "directory": "/workspace/.proofs/current-body-source-trace142",
+      "number": 142,
+      "bytes": 704158,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "47692ce5cd04f511157ef85da638fd095acd281c85e0983ffbab3e37f44be2b7",
+      "patch_sha256": "19f6f17eed740a33b02f36d56158908bcf94c74a018d51d5629e5df38d3c0563",
+      "journal": "/workspace/.proofs/root-applied-packets/19f6f17eed740a33b02f36d56158908bcf94c74a018d51d5629e5df38d3c0563.patch",
+      "journal_sha256": "19f6f17eed740a33b02f36d56158908bcf94c74a018d51d5629e5df38d3c0563"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-catalogue-diagnostic160",
+      "number": 160,
+      "bytes": 667168,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "424c29475a3d2e2d6c0f492fe43d4c4a7292bee6ea9795a1edba40e41caf16c3",
+      "patch_sha256": "a39100bbb345d46d187c66374d08b6284f389f03f0ac715c31eac16f2c9d2b32",
+      "journal": "/workspace/.proofs/root-applied-packets/a39100bbb345d46d187c66374d08b6284f389f03f0ac715c31eac16f2c9d2b32.patch",
+      "journal_sha256": "a39100bbb345d46d187c66374d08b6284f389f03f0ac715c31eac16f2c9d2b32"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-vm-native-upvar-diagnostics309",
+      "number": 309,
+      "bytes": 623732,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "2931dac7938de084cb95c65f1c36092153943e07201f4f53268e0ec4a0b91c08",
+      "patch_sha256": "38739c5a8e3d7c765d467dd0eee27e2ec352fbde0a3c8fa538de30d9509abd61",
+      "journal": "/workspace/.proofs/root-applied-packets/38739c5a8e3d7c765d467dd0eee27e2ec352fbde0a3c8fa538de30d9509abd61.patch",
+      "journal_sha256": "38739c5a8e3d7c765d467dd0eee27e2ec352fbde0a3c8fa538de30d9509abd61"
+    },
+    {
+      "directory": "/workspace/.proofs/native-editor-consumers199",
+      "number": 199,
+      "bytes": 613425,
+      "file_count": 6,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1fe9c2c93200d304e64fe108b232fe835a7e53ce56f6153b317eb83327b717a5",
+      "patch_sha256": "876198e05e6abbfb9fb8304149b187b4307346daaae3c468750b30d10639d07e",
+      "journal": "/workspace/.proofs/root-applied-packets/876198e05e6abbfb9fb8304149b187b4307346daaae3c468750b30d10639d07e.patch",
+      "journal_sha256": "876198e05e6abbfb9fb8304149b187b4307346daaae3c468750b30d10639d07e"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-test-style166",
+      "number": 166,
+      "bytes": 609498,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "9d23c74de8bdf2aa6387b70cb4ffe778455e2fe60c4832316b07a8e51d9c3a34",
+      "patch_sha256": "fd81e74c644315967e4f08197644194354c083f940303899149d9c2ac6d5bdb2",
+      "journal": "/workspace/.proofs/root-applied-packets/fd81e74c644315967e4f08197644194354c083f940303899149d9c2ac6d5bdb2.patch",
+      "journal_sha256": "fd81e74c644315967e4f08197644194354c083f940303899149d9c2ac6d5bdb2"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-property-option-width279",
+      "number": 279,
+      "bytes": 604860,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6814a0fe8947fcffb16f8c9015c6f98d4ae3401f65cc810ed6b6cfe95267dcdb",
+      "patch_sha256": "d2ebe47f52c8cdd22f6aac7fd11c813287431bf1d694106ec7e2cfabb2029310",
+      "journal": "/workspace/.proofs/root-applied-packets/d2ebe47f52c8cdd22f6aac7fd11c813287431bf1d694106ec7e2cfabb2029310.patch",
+      "journal_sha256": "d2ebe47f52c8cdd22f6aac7fd11c813287431bf1d694106ec7e2cfabb2029310"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-snippet-context165",
+      "number": 165,
+      "bytes": 602671,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "bd855532f27917f08e4f46020e5e92747f88a83e4c4ef20336ad5bfd084278ad",
+      "patch_sha256": "a1490b07ff5256fa37dfe712264ae232bdb764985585ee074daf2b8e061a28a8",
+      "journal": "/workspace/.proofs/root-applied-packets/a1490b07ff5256fa37dfe712264ae232bdb764985585ee074daf2b8e061a28a8.patch",
+      "journal_sha256": "a1490b07ff5256fa37dfe712264ae232bdb764985585ee074daf2b8e061a28a8"
+    },
+    {
+      "directory": "/workspace/.proofs/current-irules-consumers92",
+      "number": 92,
+      "bytes": 580727,
+      "file_count": 26,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "39d273138f83958726bc1604a117451a786e5de411c68875d61884d2f1c0fb25",
+      "patch_sha256": "9bd3a4900dfbe80828052284035f3f80931f0d0fa0900037800cf978b6fca364",
+      "journal": "/workspace/.proofs/root-applied-packets/9bd3a4900dfbe80828052284035f3f80931f0d0fa0900037800cf978b6fca364.patch",
+      "journal_sha256": "9bd3a4900dfbe80828052284035f3f80931f0d0fa0900037800cf978b6fca364"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-source-enum176",
+      "number": 176,
+      "bytes": 557485,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "46bbac2f5eb5295efe289eed18b8701e7df10f378a9a5ecd9db7d6d1cb7066f9",
+      "patch_sha256": "8ca605d9b20b760e603862d3180976546b63747d46790e7d0da67fd3dc398c6a",
+      "journal": "/workspace/.proofs/root-applied-packets/8ca605d9b20b760e603862d3180976546b63747d46790e7d0da67fd3dc398c6a.patch",
+      "journal_sha256": "8ca605d9b20b760e603862d3180976546b63747d46790e7d0da67fd3dc398c6a"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-logical-eligibility291",
+      "number": 291,
+      "bytes": 528753,
+      "file_count": 4,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "bb852b54907dccc0058858714d972693f0df4e1def61db858c7bb1874a44e000",
+      "patch_sha256": "b6661493f59038ab4159bdf1ce542dff48aca25d683a49135388e2f4528d5114",
+      "journal": "/workspace/.proofs/root-applied-packets/b6661493f59038ab4159bdf1ce542dff48aca25d683a49135388e2f4528d5114.patch",
+      "journal_sha256": "b6661493f59038ab4159bdf1ce542dff48aca25d683a49135388e2f4528d5114"
+    },
+    {
+      "directory": "/workspace/.proofs/recovered-naming-pattern-hover159",
+      "number": 159,
+      "bytes": 528180,
+      "file_count": 2,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "c04f73f2b8054bd9f15dedbee971de4307f244bc92156fee61e0a51ee2b91492",
+      "patch_sha256": "fae6b41de17a491ff2814aea1bc38a1c076bd1362071940f16dd4b434a41fbb3",
+      "journal": "/workspace/.proofs/root-applied-packets/fae6b41de17a491ff2814aea1bc38a1c076bd1362071940f16dd4b434a41fbb3.patch",
+      "journal_sha256": "fae6b41de17a491ff2814aea1bc38a1c076bd1362071940f16dd4b434a41fbb3"
+    },
+    {
+      "directory": "/workspace/.proofs/grammar-array-existence-result299",
+      "number": 299,
+      "bytes": 524960,
+      "file_count": 16,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1d8c802a092f8244fcbb14e3ca7986c70efeea6e4778d5cbfdad124a98eef93f",
+      "patch_sha256": "d1a98388c7c3a0ebf8569d2f335637eb21602cf076831eb4deb83794c6e5495f",
+      "journal": "/workspace/.proofs/root-applied-packets/d1a98388c7c3a0ebf8569d2f335637eb21602cf076831eb4deb83794c6e5495f.patch",
+      "journal_sha256": "d1a98388c7c3a0ebf8569d2f335637eb21602cf076831eb4deb83794c6e5495f"
+    }
+  ],
+  "total_bytes": 152543427,
+  "rejected_counts": {
+    "no exact journal": 219,
+    "leaf hash/path mismatch": 443,
+    "unrecognised leaf manifest": 19,
+    "excluded data/log/request/receipt/symlink": 1
+  }
+}

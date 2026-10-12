@@ -1,0 +1,6 @@
+
+running 1 test
+test typed_value::native_scalar_input_tests::original_resident_scalar_input_keeps_selected_parsing_and_cached_no_string_path ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 5.19s
+

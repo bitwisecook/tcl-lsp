@@ -1,0 +1,17 @@
+
+running 1 test
+test expr::tests::native_literal_and_final_string_conversion_are_distinct ... 
+thread 'expr::tests::native_literal_and_final_string_conversion_are_distinct' (1359433) panicked at rust/tcl-vm/src/expr.rs:2280:13:
+assertion `left == right` failed: Tcl 8.4: set native_expression {"001"}; expr $native_expression
+  left: "001"
+ right: "1"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::tests::native_literal_and_final_string_conversion_are_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.46s
+

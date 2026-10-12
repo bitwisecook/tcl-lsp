@@ -1,0 +1,10 @@
+{
+  "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+  "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "selected_lines": [
+    8528,
+    8624
+  ],
+  "window_sha256": "300dacf77c69545b6add79ecef1e235667c0e248c51404c0cff599164c58cf19",
+  "purpose": "Current source interpretation of JimExprOpNumUnary actual public Boolean primitive fallback; source SHA is included in Native465 original whole-file pins. This window is not a new original execution result."
+}

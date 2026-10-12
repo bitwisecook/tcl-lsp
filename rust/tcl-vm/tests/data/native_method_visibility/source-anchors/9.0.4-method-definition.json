@@ -1,0 +1,15 @@
+{
+  "provider": "tcl9.0",
+  "version": "9.0.4",
+  "revision": "Pinned Tcl 9.0.4 release source, retained full-file SHA-256",
+  "original_path": "generic/tclOODefineCmds.c",
+  "function": "TclOODefineMethodObjCmd",
+  "lines": [
+    2309,
+    2393
+  ],
+  "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+  "snippet": "TclOODefineMethodObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    /*\n     * Table of export modes for methods and their corresponding enum.\n     */\n\n    static const char *const exportModes[] = {\n\t\"-export\",\n\t\"-private\",\n\t\"-unexport\",\n\tNULL\n    };\n    enum ExportMode {\n\tMODE_EXPORT,\n\tMODE_PRIVATE,\n\tMODE_UNEXPORT\n    } exportMode;\n\n    int isInstanceMethod = (clientData != NULL);\n    Object *oPtr;\n    int isPublic = 0;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?option? args body\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceMethod && !oPtr->classPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to misuse API\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n    if (objc == 5) {\n\tif (Tcl_GetIndexFromObj(interp, objv[2], exportModes, \"export flag\",\n\t\t0, &exportMode) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch (exportMode) {\n\tcase MODE_EXPORT:\n\t    isPublic = PUBLIC_METHOD;\n\t    break;\n\tcase MODE_PRIVATE:\n\t    isPublic = TRUE_PRIVATE_METHOD;\n\t    break;\n\tcase MODE_UNEXPORT:\n\t    isPublic = 0;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    } else {\n\tif (IsPrivateDefine(interp)) {\n\t    isPublic = TRUE_PRIVATE_METHOD;\n\t} else {\n\t    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t\t    ? PUBLIC_METHOD : 0;\n\t}\n    }\n\n    /*\n     * Create the method by using the right back-end API.\n     */\n\n    if (isInstanceMethod) {\n\tif (TclOONewProcInstanceMethod(interp, oPtr, isPublic, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    } else {\n\tif (TclOONewProcMethod(interp, oPtr->classPtr, isPublic, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n    return TCL_OK;\n}\n",
+  "snippet_sha256": "ca528ef582289d9f8483cc4767b04c7b0b97395acfa1a112abf3a591d5c9853f",
+  "evidence": "tcl9.0-method-source"
+}

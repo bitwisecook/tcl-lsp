@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-binary-replacement633/9.1.0/probe.elf",
+    "9"
+  ],
+  "cwd": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-09",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.003777556004934013,
+  "stdout": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-09/execute.stdout",
+  "stdout_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+  "stderr": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-09/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 9,
+  "executable_sha256_before": "f4edb83955c48f285aec230f96234fbf609fdb34a04e33fa34b102c665ac0469",
+  "executable_sha256_after": "f4edb83955c48f285aec230f96234fbf609fdb34a04e33fa34b102c665ac0469"
+}

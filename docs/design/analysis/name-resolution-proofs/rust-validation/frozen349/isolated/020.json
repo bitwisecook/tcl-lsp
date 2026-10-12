@@ -1,0 +1,19 @@
+{
+  "ordinal": 20,
+  "selector": "cmd_control::tests::foreach_single_multi_var_and_parallel",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_control::tests::foreach_single_multi_var_and_parallel",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.3337658740056213,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.33s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/020.log",
+  "log_sha256": "8489cbd532a370fde473f848d5b63163c0042452729b26b049fa20e058ab4cb6"
+}

@@ -1,0 +1,17 @@
+    NULL,
+    JIM_TYPE_NONE,
+};
+
+/* Each token of a script is represented by a ScriptToken.
+ * The ScriptToken contains a type and a Jim_Obj. The Jim_Obj
+ * can be specialized by commands operating on it.
+ */
+typedef struct ScriptToken
+{
+    Jim_Obj *objPtr;
+    int type;
+} ScriptToken;
+
+/* This is the script object internal representation. An array of
+ * ScriptToken structures, including a pre-computed representation of the
+ * command length and arguments.

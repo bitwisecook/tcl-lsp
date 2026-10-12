@@ -1,0 +1,119 @@
+[
+  {
+    "id": "naming.variable.transitive-store-observation",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/transitive-store-observation.md",
+    "problem_statement": "An assignment can remain observable through a remote cell or trace after all of its local value consumers disappear. Protecting only the initial dead-store pass lets the transitive fixpoint delete an externally visible store.",
+    "question": "Does transitive dead-code elimination retain the same actual target observations that prevent direct store deletion?",
+    "conclusion": "The transitive fixpoint retains every actual definition selected by the existing dead-store target-observation predicates. Those predicates inspect typed point-owned writes, callback and unknown-access observations, alias or remote namespace targets and the separate external-observation suppression policies. Removing a private consumer does not withdraw the original target obligation. Unbounded observations use the same withdrawal boundary in the direct and transitive passes. Def-use keys remain typed cells and versions; display labels supply only existing conservative suppression. This change establishes no value, Normal completion, native frame, lifetime, source-motion or edit authority.",
+    "scope": "Rust optimiser contract for retained source SSA definitions. The linked six-profile model control requires an actual remote namespace target and a removable private consumer. Existing RHS purity, read definedness and def-use prerequisites remain independent; no native interpreter outcome is attached.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "selector": "optimiser::elimination::tests::original_adce_keeps_actual_remote_stores_after_local_consumers_disappear",
+        "assertion": "Across six selected source dialects, the actual remote namespace store remains while a private unused consumer qualifies for deletion; the asserted target comes from the retained point-owned Place rather than its reporting label.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "symbol": "observed_store_definitions",
+        "purpose": "Carry the existing direct-store target observations into typed keep-forever definition keys before the transitive fixpoint."
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "symbol": "emit_adce",
+        "purpose": "Use the same unbounded observation boundary and retain observed target definitions separately from RHS and def-use proofs."
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "symbol": "dead_store_writes_observed",
+        "purpose": "Own the shared typed callback, dynamic, unknown and unknown-access observations for store targets."
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "symbol": "dead_store_name_observed",
+        "purpose": "Keep alias, remote namespace and external-observation suppression separate from actual SSA cell identity."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. No native provider observation or executed Rust result is attached to this implementation record."
+    }
+  }
+]

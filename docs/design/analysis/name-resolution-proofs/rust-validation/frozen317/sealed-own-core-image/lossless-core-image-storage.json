@@ -1,0 +1,21 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.elf.gz",
+  "stored_sha256": "4260157961eb05ead6b5dcb248e888cd95a60cca5855ad91a120eb81ff7b471c",
+  "stored_bytes": 31245463,
+  "original_sha256": "5d293d2829c2f12aa957ebe5eea561a4be590214f1156a5dea6bbce789344e62",
+  "original_bytes": 173678192,
+  "original_mode": 448,
+  "original_recorded_executable": "/tmp/naming-owned317/pinned-core317.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.json",
+  "pin_metadata_sha256": "74d6fb8032242593d8abed6abb250e73033fdc0d0012a95976e20bfddcdd20e9",
+  "build_receipt_id": "rust.frozen317.integration-core-own-test-build317",
+  "build_receipt_sha256": "e050c09ac9cdba0ef286edb7df4e96f21838a6555bef6bfd2e8b377065332449",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/source-snapshot.json.gz",
+    "sha256": "8f4aee63f10b3078079903b76c1605a76e13bdf329dfe326c307180d67b093b5",
+    "compression": "gzip",
+    "uncompressed_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb"
+  },
+  "verification": "Exact independent successful owned Core no-run producer, produced Cargo artifact, strict original pin and source association; full decompressed byte SHA/size and unchanged original before/after. No assertion launch or original file replacement."
+}

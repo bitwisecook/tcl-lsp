@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_context::residual_original_argument_tests::class_factory_original_name_refusal_stops_namespace_and_later_operand_effects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.25s
+

@@ -1,0 +1,135 @@
+{
+  "provider": "8.6.18",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIndexObj.c": "550096cdb69b26ddbcf459c07273db48ad8ed4f5cccd68133559483c4af67c17",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTrace.c": "8034d0a6da9f529bebeedfa4ab8af88f944bf858ad8c498719a972ac81d503a9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTimer.c": "648da0aebdcd2adde777ab81d12e4722c7ca8396ff5034e71c4e3f19e25ca7d5",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEvent.c": "81c0e0b655ecd46bd981750c9d710ec11dd1368b7f3f156886e0965c81788dd6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198"
+  },
+  "probe_sha256": "c52f03c8c20bab56f0a2e905d6c8c42d33235a2ede36b83649ffa5d35256b152",
+  "inputs_sha256": "f16fe8da41ee99ee01a2a1098d1b18d1a47decbdfaaabd13052ce18dd2e5508b",
+  "runner_sha256": "e063fe10f9f6de3c8ab5fc1034cb42009c078044819104d2d1a635ff215ddbf2",
+  "queue_sha256": "8625f645ffd0d2c22375052395dcb11ea7ae60a1b6d6d49fefca8bbcc4c927fb",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+    "/workspace/.proofs/native-event-original107/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-event-original107/8.6.18/probe"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cases": [
+    {
+      "id": "SAME_STAGGER",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original107/8.6.18/probe",
+        "0"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "413e5a89f0e7e25f9e32adcc51cbd8c7c132db81bae30f1ebe01ceb4634e8282",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e362e3138",
+        "SAME_STAGGER_INPUT|0|73657420782053414d453b20736574206c6f67207b7d3b2061667465722030207b73657420782053414d453b206c617070656e64206c6f672053414d457d3b206166746572203130207b7365742078204e4558543b206c617070656e64206c6f67204e4558547d3b20767761697420783b20736574206c6f67",
+        "SAME_STAGGER|0|53414d45",
+        "SAME_STAGGER_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "8.6.18"
+    },
+    {
+      "id": "ARRAY_STAGGER",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original107/8.6.18/probe",
+        "1"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c4cde396820f71cc35181343297a069a0321fca9fede7c800199f84fc0cd8bcd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e362e3138",
+        "ARRAY_STAGGER_INPUT|0|6172726179207365742061207b6b204f4c447d3b2061667465722030207b7365742061286b29204f4c447d3b206166746572203130207b7365742061286b29204e45577d3b2076776169742061286b293b207365742061286b29",
+        "ARRAY_STAGGER|0|4f4c44",
+        "ARRAY_STAGGER_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "8.6.18"
+    },
+    {
+      "id": "BATCH_CANCEL",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original107/8.6.18/probe",
+        "2"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "150ebe2a37c0badfd1fe1da051f0eddefdcb40a1376408fab0662319b86b33da",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e362e3138",
+        "BATCH_CANCEL_INPUT|0|736574206c6f67207b7d3b2061667465722030207b6c617070656e64203a3a6c6f672046495253543b2061667465722063616e63656c20243a3a6c617465727d3b20736574203a3a6c61746572205b61667465722030207b6c617070656e64203a3a6c6f67205345434f4e447d5d3b207570646174653b20736574206c6f67",
+        "BATCH_CANCEL|0|4649525354",
+        "BATCH_CANCEL_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "8.6.18"
+    },
+    {
+      "id": "BATCH_NEW",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original107/8.6.18/probe",
+        "3"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f6c8fa162e2ef35e56d61bb6b7d5e761b8c7dd0cc24f4162165ee89f80a1c1e4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e362e3138",
+        "BATCH_NEW_INPUT|0|736574206c6f67207b7d3b2061667465722030207b6c617070656e64203a3a6c6f672046495253543b2061667465722030207b6c617070656e64203a3a6c6f67204e45577d7d3b2061667465722030207b6c617070656e64203a3a6c6f67205345434f4e447d3b207570646174653b20736574206c6f67",
+        "BATCH_NEW|0|4649525354205345434f4e44204e4557",
+        "BATCH_NEW_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "8.6.18"
+    },
+    {
+      "id": "GLOBAL_PREFIX_BGERROR",
+      "command": [
+        "/workspace/.proofs/captured-native-event-original107/8.6.18/probe",
+        "4"
+      ],
+      "timeout_seconds": 10,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6801010be81ff85373a2641653c744d2b9ce3a7097dd176713cbdcffafd70b8f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|382e362e3138",
+        "GLOBAL_PREFIX_BGERROR_INPUT|0|73657420646f6e6520303b2070726f632068616e646c6572207b707265666978206d657373616765206f7074696f6e737d207b736574203a3a646f6e65205b6c697374202470726566697820246d657373616765205b646963742067657420246f7074696f6e73202d636f64655d5d7d3b20696e746572702062676572726f72207b7d205b6c6973742068616e646c6572205052455d3b2061667465722030207b6572726f7220424f4f4d7d3b20767761697420646f6e653b2073657420646f6e65",
+        "GLOBAL_PREFIX_BGERROR|0|50524520424f4f4d2031",
+        "GLOBAL_PREFIX_BGERROR_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+      ],
+      "reported_version": "8.6.18"
+    }
+  ],
+  "executable_sha256": "909d64b4454540c133a4e993598ebcccdd69eacf1bca3dde65491d09f8151eaf"
+}

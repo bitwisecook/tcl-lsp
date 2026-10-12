@@ -1,0 +1,47 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20/receipt.json",
+    "sha256": "9577d1f689e26be0afc7d47423d7cfa6ba4f8166f85f7dda734a94decfa36082",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.delete-recreated-callback-event-order"
+    ],
+    "reason": "Exact actually configured compile/process0 program/stream association, independently validated ten ordered named callback/lookup events and final result fields; raw receipt retained unchanged."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19/receipt.json",
+    "sha256": "ebb748fe9d6d505a5131f7ca9f1e5ce8b17941a6ea03c1779e83c3ef995e78f1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.delete-recreated-callback-event-order"
+    ],
+    "reason": "Exact actually configured compile/process0 program/stream association, independently validated ten ordered named callback/lookup events and final result fields; raw receipt retained unchanged."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18/receipt.json",
+    "sha256": "fecefdb1205593d99629336a847439f347de212944e25942671c2598a4b5ca03",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.delete-recreated-callback-event-order"
+    ],
+    "reason": "Exact actually configured compile/process0 program/stream association, independently validated ten ordered named callback/lookup events and final result fields; raw receipt retained unchanged."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4/receipt.json",
+    "sha256": "cb2934bd216a698d2e2347d3f0ce972872f500e39b35a353480507f444a4d563",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.delete-recreated-callback-event-order"
+    ],
+    "reason": "Exact actually configured compile/process0 program/stream association, independently validated ten ordered named callback/lookup events and final result fields; raw receipt retained unchanged."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0/receipt.json",
+    "sha256": "54ae0a28c19f850b80aa6ea0028d273c88de85538cf62571be1a2153c9147256",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace-native.delete-recreated-callback-event-order"
+    ],
+    "reason": "Exact actually configured compile/process0 program/stream association, independently validated ten ordered named callback/lookup events and final result fields; raw receipt retained unchanged."
+  }
+]

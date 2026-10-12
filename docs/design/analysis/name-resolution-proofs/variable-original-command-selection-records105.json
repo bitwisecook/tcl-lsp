@@ -1,0 +1,120 @@
+[
+  {
+    "id": "naming.source.original-refactor-command-selection",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-refactor-command-selection.md",
+    "problem_statement": "A refactor selecting body commands through String-only Registry queries can retain the outer declaration instead of the inner command. Reconstructing a body from a decoded value can also invent source coordinates.",
+    "question": "Can a refactor select the innermost command from authentic current source body geometry without acquiring execution or edit authority?",
+    "conclusion": "The original command finder delegates body, lambda, substitution and command geometry to the shared source structure and Registry source-schema owners under the actual retained analysis and full current source configuration. It selects the innermost unambiguous command and rejects a changed owning source. Reporting maps do not supply missing body roles or lexical extents. Decoded quoted body values do not become original inner source commands. The selected command is readonly source geometry; callers must independently establish frame, current cells, Normal execution, store preservation, motion and edit eligibility.",
+    "scope": "Rust readonly refactor selection contract. Six selected C/Jim source profiles exercise an actual procedure body with erased reports; separate lambda and command-substitution controls retain their own extents. This selection supplies no physical frame, executed script, native object, runtime success or appliance context.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/refactor/source_command.rs",
+        "selector": "refactor::source_command::tests::original_command_cursor_uses_actual_body_geometry_after_reports_are_erased",
+        "assertion": "Selects the actual nested setter after procedure, invocation and variable reports are cleared across six profiles, and rejects a full-source change elsewhere at the same cursor.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/refactor/source_command.rs",
+        "selector": "refactor::source_command::tests::original_command_cursor_keeps_lambda_and_substitution_extents_separate",
+        "assertion": "Keeps lambda-body and command-substitution positions distinct and does not treat a decoded quoted body value as original inner command geometry.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/refactor/source_command.rs",
+        "symbol": "find_original_command_at",
+        "purpose": "Select innermost unambiguous authentic current command geometry without interpreting its head as a name or donating an edit permission."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/source_structure.rs",
+        "symbol": "SourceStructure",
+        "purpose": "Own bounded Body, Lambda, expression and bracket source extents through the retained source-role schema and actual parser configuration."
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+        "symbol": "source_registry_words",
+        "purpose": "Keep source schema, complete original operand producers, actual context and conditional applicability separate from execution facts."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. No native provider observation or executed Rust result is attached to this implementation record."
+    }
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "ordinal": 119,
+  "selector": "cmd_oo::tests::hidden_object_destruction_retires_identity_and_preserves_result",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::hidden_object_destruction_retires_identity_and_preserves_result",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.7176370529923588,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.71s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/119.log",
+  "log_sha256": "9cf40fcf95760a5ef60bdb1b3ff9c43ddb9c3d9fe1f2dc5d1ce2e3159abda73e"
+}

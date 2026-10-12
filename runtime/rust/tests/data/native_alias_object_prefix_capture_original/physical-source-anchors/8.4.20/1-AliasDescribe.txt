@@ -1,0 +1,153 @@
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+AliasDescribe(interp, slaveInterp, namePtr)
+    Tcl_Interp *interp;		/* Interpreter for result & errors. */
+    Tcl_Interp *slaveInterp;	/* Interpreter containing alias. */
+    Tcl_Obj *namePtr;		/* Name of alias to describe. */
+{
+    Slave *slavePtr;
+    Tcl_HashEntry *hPtr;
+    Alias *aliasPtr;	
+    Tcl_Obj *prefixPtr;
+
+    /*
+     * If the alias has been renamed in the slave, the master can still use
+     * the original name (with which it was created) to find the alias to
+     * describe it.
+     */
+
+    slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+    hPtr = Tcl_FindHashEntry(&slavePtr->aliasTable, Tcl_GetString(namePtr));
+    if (hPtr == NULL) {
+        return TCL_OK;
+    }
+    aliasPtr = (Alias *) Tcl_GetHashValue(hPtr);
+    prefixPtr = Tcl_NewListObj(aliasPtr->objc, &aliasPtr->objPtr);
+    Tcl_SetObjResult(interp, prefixPtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * AliasList --
+ *
+ *	Computes a list of aliases defined in a slave interpreter.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+AliasList(interp, slaveInterp)
+    Tcl_Interp *interp;		/* Interp for data return. */
+    Tcl_Interp *slaveInterp;	/* Interp whose aliases to compute. */
+{
+    Tcl_HashEntry *entryPtr;
+    Tcl_HashSearch hashSearch;
+    Tcl_Obj *resultPtr;	
+    Alias *aliasPtr;
+    Slave *slavePtr;
+
+    slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+    resultPtr = Tcl_GetObjResult(interp);
+
+    entryPtr = Tcl_FirstHashEntry(&slavePtr->aliasTable, &hashSearch);
+    for ( ; entryPtr != NULL; entryPtr = Tcl_NextHashEntry(&hashSearch)) {
+        aliasPtr = (Alias *) Tcl_GetHashValue(entryPtr);
+        Tcl_ListObjAppendElement(NULL, resultPtr, aliasPtr->namePtr);
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * AliasObjCmd --
+ *
+ *	This is the procedure that services invocations of aliases in a
+ *	slave interpreter. One such command exists for each alias. When
+ *	invoked, this procedure redirects the invocation to the target
+ *	command in the master interpreter as designated by the Alias
+ *	record associated with this command.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	Causes forwarding of the invocation; all possible side effects
+ *	may occur as a result of invoking the command to which the
+ *	invocation is forwarded.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+AliasObjCmd(clientData, interp, objc, objv)
+    ClientData clientData;	/* Alias record. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument vector. */	
+{
+#define ALIAS_CMDV_PREALLOC 10
+    Tcl_Interp *targetInterp;	
+    Alias *aliasPtr;		
+    int result, prefc, cmdc, i;
+    Tcl_Obj **prefv, **cmdv;
+    Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+    aliasPtr = (Alias *) clientData;
+    targetInterp = aliasPtr->targetInterp;
+
+    /*
+     * Append the arguments to the command prefix and invoke the command
+     * in the target interp's global namespace.
+     */
+     
+    prefc = aliasPtr->objc;
+    prefv = &aliasPtr->objPtr;
+    cmdc = prefc + objc - 1;
+    if (cmdc <= ALIAS_CMDV_PREALLOC) {
+	cmdv = cmdArr;
+    } else {
+	cmdv = (Tcl_Obj **) ckalloc((unsigned) (cmdc * sizeof(Tcl_Obj *)));
+    }
+
+    prefv = &aliasPtr->objPtr;
+    memcpy((VOID *) cmdv, (VOID *) prefv, 
+            (size_t) (prefc * sizeof(Tcl_Obj *)));
+    memcpy((VOID *) (cmdv+prefc), (VOID *) (objv+1), 
+	    (size_t) ((objc-1) * sizeof(Tcl_Obj *)));
+
+    Tcl_ResetResult(targetInterp);
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_IncrRefCount(cmdv[i]);
+    }
+    if (targetInterp != interp) {
+	Tcl_Preserve((ClientData) targetInterp);
+	result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+	TclTransferResult(targetInterp, result, interp);	
+	Tcl_Release((ClientData) targetInterp);
+    } else {
+	result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+    }
+    for (i=0; i<cmdc; i++) {
+	Tcl_DecrRefCount(cmdv[i]);
+    }
+
+    if (cmdv != cmdArr) {
+	ckfree((char *) cmdv);
+    }
+    return result;        
+#undef ALIAS_CMDV_PREALLOC
+}
+

@@ -1,0 +1,81 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json",
+    "sha256": "dbe9d5e543bb0e65bb13c9febdf18d73fa43d17505dd2a70ee6ec09682fbf3b7",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.array-search-free-slot-retirement"
+    ],
+    "reason": "Exact source SHA checked. Each original inline stream agrees with its recorded log SHA when provided; aggregate text agrees with every per-provider selected row. Successful process/compile status is distinct from guest calls. Omitted fields and separately measured header/lifetime/callback purposes remain scoped to their own questions."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json",
+    "sha256": "aa61e180b37b57b4fda6794ea6d6c866a50d3954e52cc56eb3f72edbac1e86f5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-scalar-parsed-header",
+      "naming.variable.original-counted-array-parsed-header"
+    ],
+    "reason": "Exact source SHA checked. Each original inline stream agrees with its recorded log SHA when provided; aggregate text agrees with every per-provider selected row. Successful process/compile status is distinct from guest calls. Omitted fields and separately measured header/lifetime/callback purposes remain scoped to their own questions."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json",
+    "sha256": "af16b31c27a19cdaa44e528d75b34fce13bbd74ca38da9423bc2ae908ea2460d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-scalar-alias-entry-lifetime",
+      "naming.variable.original-parsed-array-child-references"
+    ],
+    "reason": "Exact source SHA checked. Each original inline stream agrees with its recorded log SHA when provided; aggregate text agrees with every per-provider selected row. Successful process/compile status is distinct from guest calls. Omitted fields and separately measured header/lifetime/callback purposes remain scoped to their own questions."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json",
+    "sha256": "df4b6f2479284acbd20750bc3d40656c2af95d4ffbdd0cb67eaf9cc307b02988",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-element-unset-callback-roles"
+    ],
+    "reason": "Exact source SHA checked. Each original inline stream agrees with its recorded log SHA when provided; aggregate text agrees with every per-provider selected row. Successful process/compile status is distinct from guest calls. Omitted fields and separately measured header/lifetime/callback purposes remain scoped to their own questions."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "sha256": "7cbb0d09f92d0e628e6634220b790f873cd53def5ceddc09d6e9a46d1b87a7b1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-element-alias-recreation",
+      "naming.variable.original-element-alias-header-roles"
+    ],
+    "reason": "Exact source SHA checked. Each original inline stream agrees with its recorded log SHA when provided; aggregate text agrees with every per-provider selected row. Successful process/compile status is distinct from guest calls. Omitted fields and separately measured header/lifetime/callback purposes remain scoped to their own questions."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "sha256": "559c1d434d826cab00e78f6fe9d73c95bc104efdb75e1f432a4eabc9edcea024",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-local-cache-before-getter",
+      "naming.variable.original-local-cache-unavailable-updater"
+    ],
+    "reason": "Exact source SHA and all 25 separate original process captures inspected; projected paths exactly derived. Fatal signals\u22126/\u22124 and empty stdout are retained as process outcomes, not erased or labeled ordinary guest Errors."
+  },
+  {
+    "path": "rust/tcl-cshim/tests/data/native_index_cache/manifest.json",
+    "sha256": "7ba270e4579b1ec50bc3f75efd23a1c95982adef3580aae39bd140898108566e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.index.original-table-cache-match",
+      "naming.index.original-table-string-regeneration",
+      "naming.index.original-temporary-table-flag"
+    ],
+    "reason": "Exact probe source SHA, all five full JSONL output digests and each decoded observation object equal the original manifest. Actual table pointers, string observer stages and C9-only conditional temporary calls inspected; no compiler/header/executable fields are invented."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_error_headers/manifest.json",
+    "sha256": "fe5f818e8c364774d335d037beeeb3da22dcfc1354fa786d002a8980b48e8ad0",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.error.original-private-return-options-header",
+      "naming.error.original-private-error-stack-header"
+    ],
+    "reason": "Exact original source SHA and all five successful compiler/process status streams inspected. Retained 38-row TSV equals prefixed inline stdout. Private return-options and error-stack purposes remain separately scoped; compiled field-absence sentinels cannot imply guest rejection."
+  }
+]

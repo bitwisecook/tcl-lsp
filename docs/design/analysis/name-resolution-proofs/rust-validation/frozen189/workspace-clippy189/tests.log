@@ -1,0 +1,103 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error[E0433]: cannot find `MemberSide` in `definer`
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_reference.rs:551:53
+    |
+551 |                     .methods(tcl_registry::definer::MemberSide::Instance)
+    |                                                     ^^^^^^^^^^ could not find `MemberSide` in `definer`
+    |
+help: an enum with a similar name exists
+    |
+551 -                     .methods(tcl_registry::definer::MemberSide::Instance)
+551 +                     .methods(tcl_registry::definer::MemberKind::Instance)
+    |
+help: consider importing this enum through its public re-export
+    |
+369 +     use crate::analyser::MemberSide;
+    |
+help: if you import `MemberSide`, refer to it directly
+    |
+551 -                     .methods(tcl_registry::definer::MemberSide::Instance)
+551 +                     .methods(MemberSide::Instance)
+    |
+
+error[E0433]: cannot find `MemberSide` in `definer`
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_reference.rs:602:49
+    |
+602 |                 .methods(tcl_registry::definer::MemberSide::Instance)
+    |                                                 ^^^^^^^^^^ could not find `MemberSide` in `definer`
+    |
+help: an enum with a similar name exists
+    |
+602 -                 .methods(tcl_registry::definer::MemberSide::Instance)
+602 +                 .methods(tcl_registry::definer::MemberKind::Instance)
+    |
+help: consider importing this enum through its public re-export
+    |
+369 +     use crate::analyser::MemberSide;
+    |
+help: if you import `MemberSide`, refer to it directly
+    |
+602 -                 .methods(tcl_registry::definer::MemberSide::Instance)
+602 +                 .methods(MemberSide::Instance)
+    |
+
+    Checking tcl-irules v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-irules)
+error: the following explicit lifetimes could be elided: 'r, 'w
+ --> rust/tcl-irules/src/source_context.rs:7:36
+  |
+7 | fn selected_rule_procedure_operand<'r, 'w>(
+  |                                    ^^  ^^
+8 |     schema: &tcl_registry::ResolvedInvocation<'r, 'w>,
+  |                                               ^^  ^^
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+  = note: `-D clippy::elidable-lifetime-names` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(clippy::elidable_lifetime_names)]`
+help: elide the lifetimes
+  |
+7 ~ fn selected_rule_procedure_operand(
+8 ~     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+  |
+
+error: this function has too many lines (167/100)
+   --> rust/tcl-irules/src/source_context.rs:147:5
+    |
+147 | /     pub fn from_analysis(
+148 | |         source: &str,
+149 | |         analysis: &AnalysisResult,
+150 | |         module: &Module,
+151 | |         context: &ContextRegistry,
+152 | |     ) -> Option<Self> {
+    | |_____________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this function has too many lines (108/100)
+  --> rust/tcl-irules/src/source_object.rs:73:1
+   |
+73 | / pub fn original_source_object_operands(
+74 | |     selected: &ResolvedInvocation<'_, '_>,
+75 | |     rule_module: Option<&str>,
+76 | | ) -> Vec<IrulesSourceObjectOperand> {
+   | |___________________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: could not compile `tcl-irules` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `tcl-compiler` (lib test) due to 2 previous errors

@@ -257,7 +257,7 @@ fn host_eval_code(caller: Caller<'_, HostState>, h: i32) -> i32 {
             }
             i32::try_from(comp.code.as_int()).unwrap_or(1)
         }
-        Err(e) => match e.code {
+        Err(e) => match e.guest_completion().map(|completion| completion.code) {
             // A non-`Error` code carried out of a substitution propagates as-is.
             Some(c) if c != Code::Error => i32::try_from(c.as_int()).unwrap_or(1),
             _ => {

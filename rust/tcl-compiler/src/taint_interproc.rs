@@ -51,8 +51,8 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 #[cfg(test)]
 use crate::taint::local_instance_classes;
 use crate::taint::{
-    LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice,
-    instance_classes_for_function, propagate_taints, word_taint,
+    LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice, TaintPropagationInputs,
+    TaintSourceContext, instance_classes_for_function, propagate_taints, word_taint,
 };
 use crate::value_shapes::parse_command_substitution_with_config;
 
@@ -283,7 +283,11 @@ fn word_uses_from_versions(
 ) -> HashMap<Symbol, u32> {
     let mut uses: HashMap<Symbol, u32> = HashMap::new();
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(
+        text,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .tokenise_all() else {
         return uses;
     };
     for tok in tokens {
@@ -381,19 +385,21 @@ fn run_propagation(
     instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: TaintSourceContext<'_>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> HashMap<ValueKey, TaintLattice> {
     propagate_taints(
         graph,
-        registry,
-        Some(&fu.rendered_props),
-        interproc,
-        dialect,
-        param_taints,
-        Some(summaries),
-        instance_classes,
+        TaintPropagationInputs {
+            registry,
+            rendered_props: Some(&fu.rendered_props),
+            interproc,
+            source,
+            param_taints,
+            taint_summaries: Some(summaries),
+            instance_classes,
+        },
     )
 }
 
@@ -402,7 +408,7 @@ fn return_ctx<'a>(
     fu: &'a FunctionUnit,
     registry: &'a CommandRegistry,
     interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: TaintSourceContext<'a>,
     known: &'a HashSet<String>,
     summaries: &'a HashMap<String, ProcTaintSummary>,
     instance_classes: &'a LocalInstanceClasses,
@@ -413,10 +419,14 @@ fn return_ctx<'a>(
         interproc,
         known_procs: Some(known),
         caller_qname: Some(fu.ssa.name.as_str()),
-        dialect,
+        dialect: source.dialect(),
+        source,
         taint_summaries: Some(summaries),
         instance_classes: Some(instance_classes),
         source_position: None,
+        source_tokens: None,
+        word_offset: None,
+        source_word: None,
     }
 }
 
@@ -487,10 +497,62 @@ pub fn infer_proc_summary(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> ProcTaintSummary {
+    infer_proc_summary_with_source(ProcSummaryInputs {
+        qname,
+        params,
+        fu,
+        registry,
+        interproc,
+        source: TaintSourceContext::for_function(registry, fu),
+        known,
+        summaries,
+    })
+}
+
+struct ProcSummaryInputs<'a> {
+    qname: &'a str,
+    params: &'a [String],
+    fu: &'a FunctionUnit,
+    registry: &'a CommandRegistry,
+    interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
+    source: TaintSourceContext<'a>,
+    known: &'a HashSet<String>,
+    summaries: &'a HashMap<String, ProcTaintSummary>,
+}
+
+fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSummary {
+    let ProcSummaryInputs {
+        qname,
+        params,
+        fu,
+        registry,
+        interproc,
+        source,
+        known,
+        summaries,
+    } = inputs;
+
+    if fu.cfg.has_opaque_native_accesses() {
+        return ProcTaintSummary {
+            qualified_name: qname.to_owned(),
+            params: params.to_vec(),
+            arity: crate::interprocedural::arity_from_names(params),
+            return_base: TaintLattice::tainted(),
+            return_by_param_basis: params
+                .iter()
+                .map(|param| {
+                    (
+                        param.clone(),
+                        vec![TaintLattice::tainted(); TaintBasis::ALL.len()],
+                    )
+                })
+                .collect(),
+        };
+    }
     // Prune 1 — the return taint does not depend on the taint map at all, so
     // neither the clean base nor any of the `17P` seeded scenarios needs a
     // solve.  Every scenario is `clean`, which is exactly what
@@ -502,14 +564,15 @@ pub fn infer_proc_summary(
 
     // One index build for the baseline propagation and every scenario below.
     let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
-    let instance_classes = instance_classes_for_function(&fu.cfg, registry, interproc, true);
+    let instance_classes =
+        instance_classes_for_function(&fu.cfg, registry, interproc, true, source);
     let base_taints = run_propagation(
         &graph,
         fu,
         &instance_classes,
         registry,
         interproc,
-        dialect,
+        source,
         None,
         summaries,
     );
@@ -517,7 +580,7 @@ pub fn infer_proc_summary(
         fu,
         registry,
         interproc,
-        dialect,
+        source,
         known,
         summaries,
         &instance_classes,
@@ -547,7 +610,7 @@ pub fn infer_proc_summary(
                 &instance_classes,
                 registry,
                 interproc,
-                dialect,
+                source,
                 Some(&seed),
                 summaries,
             );
@@ -575,7 +638,7 @@ fn resolve_call_flows(
     instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: TaintSourceContext<'_>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> Vec<(String, Vec<TaintLattice>)> {
@@ -583,7 +646,7 @@ fn resolve_call_flows(
         fu,
         registry,
         interproc,
-        dialect,
+        source,
         known,
         summaries,
         instance_classes,
@@ -608,10 +671,7 @@ fn resolve_call_flows(
                     Some((command.clone(), args.clone()))
                 }
                 crate::ir::Statement::AssignValue { value, .. } => {
-                    parse_command_substitution_with_config(
-                        value,
-                        tcl_lexer::LexerConfig::for_profile(dialect),
-                    )
+                    parse_command_substitution_with_config(value, source.lexer_config())
                 }
                 _ => None,
             };
@@ -693,19 +753,9 @@ pub fn resolved_callees(
     out
 }
 
-/// Known-proc callees reached through a **command substitution** `[name …]`
-/// embedded in a word (return value, argument, expression operand) of `caller`'s
-/// body — the summaries [`infer_proc_summary`] reads when it evaluates those
-/// words (`word_taint` recurses into nested substitutions), which neither
-/// `direct_calls` nor the CFG-statement scan of [`resolved_callees`] captures
-/// (e.g. `symbolNodeOf` in `return [$t get [symbolNodeOf …] …]`).
-///
-/// A deliberately conservative source scan: every `[` opens a candidate
-/// substitution whose head word is resolved against `known` (a `$`-led dynamic
-/// head is skipped).  It over-approximates (a `[` in a string/comment, an escaped
-/// `\[`) — sound, since an unread callee summary only widens the memo key, never
-/// changes the inferred result — but never misses a real `[name …]` head, so the
-/// cascade memo sees every summary the whole-module solve does.
+/// Source dependencies of candidate command substitutions under the default
+/// standalone grammar. Supplied-source callers use
+/// [`command_subst_callees_with_config`] with their retained configuration.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn command_subst_callees(
@@ -713,40 +763,66 @@ pub fn command_subst_callees(
     caller_qname: &str,
     known: &HashSet<String>,
 ) -> Vec<String> {
-    let bytes = body_source.as_bytes();
-    let is_word = |b: u8| !matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'[' | b']' | b';' | b'\\');
-    let mut out: Vec<String> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    for (i, &b) in bytes.iter().enumerate() {
-        if b != b'[' {
-            continue;
-        }
-        // Skip leading whitespace after the bracket, then read the head word.
-        let mut j = i + 1;
-        while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\r' | b'\n') {
-            j += 1;
-        }
-        let start = j;
-        while j < bytes.len() && is_word(bytes[j]) {
-            j += 1;
-        }
-        if start == j {
-            continue;
-        }
-        let Ok(head) = std::str::from_utf8(&bytes[start..j]) else {
+    command_subst_callees_with_config(
+        body_source,
+        caller_qname,
+        known,
+        tcl_lexer::LexerConfig::default(),
+    )
+}
+
+/// Summary dependencies from complete original substitution words, including
+/// quoted, braced, escaped and Unicode heads under the supplied source grammar.
+/// This is a memo-key overapproximation, not a command selection or call edge.
+/// Brackets in comments, literal data and escaped text may add dependencies.
+/// An incomplete, dynamic or unresolved candidate retains every known summary;
+/// it cannot borrow a target from an unavailable positioned binding.
+#[must_use]
+pub fn command_subst_callees_with_config<S: std::hash::BuildHasher>(
+    body_source: &str,
+    caller_qname: &str,
+    known: &HashSet<String, S>,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
+    let image = tcl_lexer::SourceImage::document(body_source);
+    let mut dependencies = HashSet::new();
+    for (open, _) in body_source.match_indices('[') {
+        let Some(end) = tcl_lexer::command_substitution_end(body_source, open) else {
+            dependencies.extend(known.iter().cloned());
             continue;
         };
-        if head.starts_with('$') {
+        let region = u32::try_from(open + 1)
+            .ok()
+            .zip(u32::try_from(end - 1).ok())
+            .map(|(start, end)| tcl_lexer::Span::new(start, end));
+        let Some(plan) = region.and_then(|region| {
+            tcl_lexer::native_script_words_in(image.clone(), region, config).ok()
+        }) else {
+            dependencies.extend(known.iter().cloned());
             continue;
+        };
+        if plan.fatal_tail.is_some() {
+            dependencies.extend(known.iter().cloned());
         }
-        if let Some(callee) = resolve_call_target(head, &[], caller_qname, known)
-            && seen.insert(callee.clone())
-        {
-            out.push(callee);
+        for command in plan.commands {
+            let head = command
+                .words
+                .first()
+                .and_then(tcl_syntax::word_rules::original_static_word_source_bytes)
+                .and_then(|bytes| String::from_utf8(bytes).ok());
+            if let Some(callee) = head
+                .as_deref()
+                .and_then(|head| resolve_call_target(head, &[], caller_qname, known))
+            {
+                dependencies.insert(callee);
+            } else {
+                dependencies.extend(known.iter().cloned());
+            }
         }
     }
-    out.sort();
-    out
+    let mut dependencies: Vec<_> = dependencies.into_iter().collect();
+    dependencies.sort();
+    dependencies
 }
 
 // Solver
@@ -877,7 +953,7 @@ pub fn converge_summaries_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    _dialect: Option<&'static tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> HashMap<String, ProcTaintSummary> {
     let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
@@ -918,8 +994,7 @@ pub fn converge_summaries_with(
             let Some(fu) = cu.procedures.get(*qname) else {
                 continue;
             };
-            for callee in resolved_callees(fu, &known, tcl_lexer::LexerConfig::for_profile(dialect))
-            {
+            for callee in resolved_callees(fu, &known, fu.source_lexer_config()) {
                 // `resolved_callees` returns owned names; the map borrows from
                 // `known`'s keys, which outlive it and hold the same strings.
                 if let Some(interned) = known.get(&callee) {
@@ -952,7 +1027,21 @@ pub fn converge_summaries_with(
                     continue;
                 };
                 let proc = &cu.ir_module.procedures[*qname];
-                let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
+                let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+                let inferred = if source.metadata_context().is_some() {
+                    infer_fn(qname, &proc.params, fu, &known, &summaries)
+                } else {
+                    infer_proc_summary_with_source(ProcSummaryInputs {
+                        qname,
+                        params: &proc.params,
+                        fu,
+                        registry,
+                        interproc,
+                        source,
+                        known: &known,
+                        summaries: &summaries,
+                    })
+                };
                 if summaries.get(*qname) != Some(&inferred) {
                     summaries.insert((*qname).clone(), inferred);
                     // Re-queue `qname` itself (a self-recursive proc reads its own
@@ -974,7 +1063,21 @@ pub fn converge_summaries_with(
                 continue;
             };
             let proc = &cu.ir_module.procedures[*qname];
-            let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
+            let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+            let inferred = if source.metadata_context().is_some() {
+                infer_fn(qname, &proc.params, fu, &known, &summaries)
+            } else {
+                infer_proc_summary_with_source(ProcSummaryInputs {
+                    qname,
+                    params: &proc.params,
+                    fu,
+                    registry,
+                    interproc,
+                    source,
+                    known: &known,
+                    summaries: &summaries,
+                })
+            };
             if summaries.get(*qname) != Some(&inferred) {
                 summaries.insert((*qname).clone(), inferred);
                 moved.insert(qname.as_str());
@@ -994,16 +1097,16 @@ pub fn converge_summaries_with(
     for qname in &proc_names {
         if let Some(fu) = cu.procedures.get(*qname) {
             let proc = &cu.ir_module.procedures[*qname];
-            let reinferred = infer_proc_summary(
+            let reinferred = infer_proc_summary_with_source(ProcSummaryInputs {
                 qname,
-                &proc.params,
+                params: &proc.params,
                 fu,
                 registry,
                 interproc,
-                dialect,
-                &known,
-                &summaries,
-            );
+                source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                known: &known,
+                summaries: &summaries,
+            });
             debug_assert_eq!(
                 summaries.get(*qname),
                 Some(&reinferred),
@@ -1065,14 +1168,13 @@ fn solve_interprocedural_taints_with_seed_option(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> InterprocTaintResult {
-    // `find_taint_warnings_for_cu` is also a public entry point on a freshly
-    // built unit, before `CompilationUnit::with_interprocedural` has attached
-    // the full call/effect summary.  Preserve the smaller but security-critical
-    // interpreter-global receiver facts in that mode: a top-level `ttk::entry
-    // .user` remains the same command inside a later callback procedure
-    // without retroactively typing a procedure invoked before construction.
+    // A fresh actual CU can retain conditional receiver setup before the full
+    // summary is attached. The map and its Module owner travel together; no
+    // callback frame or live object is supplied by these source candidates.
     let global_instance_classes =
         crate::interprocedural::global_instance_classes(&cu.ir_module, registry);
+    let global_source =
+        crate::interprocedural::global_instance_class_source(&cu.ir_module, registry);
     let fallback_interproc = crate::interprocedural::InterproceduralAnalysis {
         tainted_global_writes: crate::interprocedural::tainted_global_writes(
             &cu.ir_module,
@@ -1080,6 +1182,8 @@ fn solve_interprocedural_taints_with_seed_option(
             &global_instance_classes,
         ),
         global_instance_classes,
+        global_instance_class_input: global_source.as_ref().map(|(input, _)| input.clone()),
+        global_instance_class_owner: global_source.map(|(_, owner)| owner),
         ..crate::interprocedural::InterproceduralAnalysis::default()
     };
     let interproc = cu.interproc.as_ref().or(Some(&fallback_interproc));
@@ -1088,9 +1192,16 @@ fn solve_interprocedural_taints_with_seed_option(
                      fu: &FunctionUnit,
                      known: &HashSet<String>,
                      summaries: &HashMap<String, ProcTaintSummary>| {
-        infer_proc_summary(
-            qname, params, fu, registry, interproc, dialect, known, summaries,
-        )
+        infer_proc_summary_with_source(ProcSummaryInputs {
+            qname,
+            params,
+            fu,
+            registry,
+            interproc,
+            source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+            known,
+            summaries,
+        })
     };
     solve_interprocedural_taints_with_context(
         cu,
@@ -1137,15 +1248,20 @@ fn solve_interprocedural_taints_with_context(
     let known: HashSet<String> = summaries.keys().cloned().collect();
 
     // Top-level taints under the converged summaries.
-    let top_instance_classes =
-        instance_classes_for_function(&cu.top_level.cfg, registry, interproc, false);
+    let top_instance_classes = instance_classes_for_function(
+        &cu.top_level.cfg,
+        registry,
+        interproc,
+        false,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
+    );
     let top_taints = run_propagation(
         &TaintGraph::new(&cu.top_level.cfg, &cu.top_level.ssa, &cu.top_level.sccp),
         &cu.top_level,
         &top_instance_classes,
         registry,
         interproc,
-        dialect,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
         external_variable_seeds,
         &summaries,
     );
@@ -1171,7 +1287,7 @@ fn solve_interprocedural_taints_with_context(
         &top_instance_classes,
         registry,
         interproc,
-        dialect,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
         &known,
         &summaries,
     );
@@ -1208,14 +1324,22 @@ fn solve_interprocedural_taints_with_context(
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
         let instance_classes = instance_classes_by_proc
             .entry(qname.clone())
-            .or_insert_with(|| instance_classes_for_function(&fu.cfg, registry, interproc, true));
+            .or_insert_with(|| {
+                instance_classes_for_function(
+                    &fu.cfg,
+                    registry,
+                    interproc,
+                    true,
+                    TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                )
+            });
         let taints = run_propagation(
             graph,
             fu,
             instance_classes,
             registry,
             interproc,
-            dialect,
+            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
             Some(&entry),
             &summaries,
         );
@@ -1226,7 +1350,7 @@ fn solve_interprocedural_taints_with_context(
             instance_classes,
             registry,
             interproc,
-            dialect,
+            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
             &known,
             &summaries,
         );
@@ -1322,6 +1446,63 @@ mod tests {
     }
 
     #[test]
+    fn summary_dependencies_read_original_static_heads_under_source_grammar() {
+        // naming.compiler.original-summary-dependency-source-heads
+        // docs/design/analysis/name-resolution-proofs/compiler-original-summary-dependency-source-heads.md
+        // Lexical memo dependencies supply no selected command or execution.
+        let known: HashSet<_> = ["::foo", "::café", "::ns::local", "::unused"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let config =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        let dependencies = command_subst_callees_with_config(
+            r#"return ["foo"] [{café}] [\u0066oo] [local]"#,
+            "::ns::caller",
+            &known,
+            config,
+        );
+        assert_eq!(dependencies, ["::café", "::foo", "::ns::local"]);
+        assert_eq!(
+            command_subst_callees_with_config("return [foo; café]", "::ns::caller", &known, config),
+            ["::café", "::foo"],
+        );
+        assert!(
+            command_subst_callees_with_config("return []", "::ns::caller", &known, config)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn summary_dependencies_keep_unresolved_and_dialect_residuals() {
+        // naming.compiler.original-summary-dependency-source-heads
+        // docs/design/analysis/name-resolution-proofs/compiler-original-summary-dependency-source-heads.md
+        let known: HashSet<_> = ["::foo", "::other"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let config =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        for source in ["return [$head]", "return [installed_alias]", "return [foo"] {
+            assert_eq!(
+                command_subst_callees_with_config(source, "::caller", &known, config),
+                ["::foo", "::other"],
+                "unresolved source dependency: {source}",
+            );
+        }
+        assert_eq!(
+            command_subst_callees_with_config(r"return [\U00000066oo]", "::caller", &known, config),
+            ["::foo"],
+        );
+        let older =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.4"));
+        assert_eq!(
+            command_subst_callees_with_config(r"return [\U00000066oo]", "::caller", &known, older),
+            ["::foo", "::other"],
+        );
+    }
+
+    #[test]
     fn cross_proc_entry_taint_into_sink_warns() {
         // A tainted argument flowing into a proc parameter and then into a
         // sink inside that proc is reported (cross-proc entry-taint) — the
@@ -1338,7 +1519,7 @@ mod tests {
     fn clean_argument_into_proc_does_not_warn() {
         // A clean (literal) argument flowing into the same proc must NOT warn.
         let src = "proc s {v} { eval $v }\ns hello\n";
-        assert!(warnings(src).is_empty());
+        assert_eq!(warnings(src), [] as [crate::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -1442,7 +1623,7 @@ mod tests {
             &instance_classes,
             &reg,
             interproc,
-            None,
+            TaintSourceContext::standalone(&reg, reg.profile()),
             None,
             &summaries,
         );
@@ -1450,7 +1631,7 @@ mod tests {
             fu,
             &reg,
             interproc,
-            None,
+            TaintSourceContext::standalone(&reg, reg.profile()),
             &known,
             &summaries,
             &instance_classes,
@@ -1468,7 +1649,7 @@ mod tests {
                     &instance_classes,
                     &reg,
                     interproc,
-                    None,
+                    TaintSourceContext::standalone(&reg, reg.profile()),
                     Some(&seed),
                     &summaries,
                 );
@@ -1532,6 +1713,40 @@ mod tests {
     }
 
     #[test]
+    fn opaque_native_call_cannot_produce_a_clean_constant_return_summary() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {value} {return LITERAL}",
+            registry,
+            false,
+        );
+        let function = unit.procedures.get_mut("::p").unwrap();
+        function
+            .cfg
+            .blocks
+            .get_mut(&function.cfg.entry)
+            .unwrap()
+            .statements
+            .push(crate::ir::native_call_for_test(b"opaque \xff"));
+        let parameters = vec!["value".into()];
+        let summary = infer_proc_summary(
+            "::p",
+            &parameters,
+            function,
+            registry,
+            None,
+            registry.profile(),
+            &HashSet::from(["::p".into()]),
+            &HashMap::new(),
+        );
+        assert_eq!(summary.return_base, TaintLattice::tainted());
+        assert_eq!(
+            apply_proc_return_summary(&summary, &[TaintLattice::clean()]),
+            TaintLattice::tainted()
+        );
+    }
+
+    #[test]
     fn constant_return_prune_yields_the_untainted_summary() {
         // A procedure whose every executable return value is substitution-free
         // cannot carry taint out, so the whole summary is the clean one — with
@@ -1573,12 +1788,13 @@ mod tests {
         );
         // …and a procedure the constant-return prune skips *entirely* (zero
         // solves) must still produce exactly what the unpruned solver did.
-        // The sink check reports `$x` here because the tainted variable is
-        // written literally inside `eval`'s word, independently of what `lit`'s
-        // summary says — behaviour this change does not touch, pinned so a
-        // future prune cannot quietly move it.
+        // The original `eval` operand contains only the selected procedure's
+        // clean result. An input read inside that procedure call cannot supply
+        // bytes to the outer sink independently of the returned value.
         let src = "proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]\n";
         let w = warnings(src);
+        assert!(w.is_empty(), "constant result must remain clean: {w:?}");
+        let w = warnings("proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]$x\n");
         assert_eq!(w.len(), 1, "{w:?}");
         assert_eq!(w[0].code, DiagCode::T100);
         assert_eq!(w[0].variable, "x");
@@ -1600,5 +1816,64 @@ mod tests {
         // Wrong arity → untainted.
         let out = apply_proc_return_summary(&summary, &[TaintLattice::tainted()]);
         assert!(!out.is_tainted());
+    }
+}
+
+#[cfg(test)]
+mod original_return_taint_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_return_word_keeps_bom_and_actual_ssa_exit_versions() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Lexical SSA-use projection only; no executable return-taint closure.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_with_config(
+            "\u{feff}set x VALUE\nreturn $x",
+            &registry,
+            false,
+            config,
+        );
+        let function = &unit.top_level;
+        assert_eq!(function.source_lexer_config(), config);
+        let symbol = function.ssa.var_symbol("x").expect("actual SSA variable");
+        let versions = function
+            .ssa
+            .blocks
+            .values()
+            .find_map(|block| {
+                block
+                    .exit_versions
+                    .contains_key(&symbol)
+                    .then_some(&block.exit_versions)
+            })
+            .expect("actual exit version");
+        let expected = HashMap::from([(symbol, versions[&symbol])]);
+        let text = "\u{feff}#prefix $x $not_in_this_ssa";
+        assert_eq!(
+            word_uses_from_versions(
+                text,
+                versions,
+                &function.ssa,
+                function.source_lexer_config()
+            ),
+            expected
+        );
+        assert_eq!(
+            word_uses_from_versions(text, versions, &function.ssa, config.nested()),
+            expected
+        );
+        assert!(
+            word_uses_from_versions("{\u{feff}#prefix $x}", versions, &function.ssa, config)
+                .is_empty()
+        );
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
     }
 }

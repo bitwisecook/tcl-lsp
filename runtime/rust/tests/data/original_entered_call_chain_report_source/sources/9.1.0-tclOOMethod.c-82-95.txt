@@ -1,0 +1,14 @@
+/*
+ * The types of methods defined by the core OO system.
+ */
+
+static const Tcl_MethodType2 procMethodType = {
+    TCL_OO_METHOD_VERSION_2, "method",
+    InvokeProcedureMethod, DeleteProcedureMethod, CloneProcedureMethod
+};
+static const Tcl_MethodType2 fwdMethodType = {
+    TCL_OO_METHOD_VERSION_2, "forward",
+    InvokeForwardMethod, DeleteForwardMethod, CloneForwardMethod
+};
+
+/*

@@ -1,0 +1,66 @@
+[
+  {
+    "name": "update-read-order",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d read watch; set code [catch {$command update d k v {set v NEW}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-full-order",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d {read write} watch; trace add variable v {read write} watch; set code [catch {$command update d k v {set v NEW}} result]; trace remove variable d {read write} watch; trace remove variable v {read write} watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-root-replacement",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; incr ::reads; if {$::reads == 2} {set ::d {fresh KEPT}}}; trace add variable d read watch; set code [catch {$command update d k v {set v NEW}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-read-error",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; incr ::reads; if {$::reads == 2} {error TRACE}}; trace add variable d read watch; set code [catch {$command update d k v {set v NEW}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-body-error",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d read watch; set code [catch {$command update d k v {set v NEW; error BODY}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-body-return",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d read watch; set code [catch {$command update d k v {set v NEW; return BODY}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-mapped-read",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; set ::v REACHED}; trace add variable v read watch; set code [catch {$command update d k v {set v NEW}} result]; trace remove variable v read watch; list $code $result $events $d"
+  },
+  {
+    "name": "update-root-retirement",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; incr ::reads; if {$::reads == 2} {unset ::d; set ::d {fresh KEPT}}}; trace add variable d read watch; set code [catch {$command update d k v {set v NEW}} result]; list $code $result $events $d"
+  },
+  {
+    "name": "with-read-order",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d read watch; set code [catch {$command with d {set k NEW}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-full-order",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d {read write} watch; trace add variable k {read write} watch; set code [catch {$command with d {set k NEW}} result]; trace remove variable d {read write} watch; trace remove variable k {read write} watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-root-replacement",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; incr ::reads; if {$::reads == 2} {set ::d {fresh KEPT}}}; trace add variable d read watch; set code [catch {$command with d {set k NEW}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-read-error",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; incr ::reads; if {$::reads == 2} {error TRACE}}; trace add variable d read watch; set code [catch {$command with d {set k NEW}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-body-error",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d read watch; set code [catch {$command with d {set k NEW; error BODY}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-body-return",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op}; trace add variable d read watch; set code [catch {$command with d {set k NEW; return BODY}} result]; trace remove variable d read watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-mapped-read",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; set ::k REACHED}; trace add variable k read watch; set code [catch {$command with d {set k NEW}} result]; trace remove variable k read watch; list $code $result $events $d"
+  },
+  {
+    "name": "with-root-retirement",
+    "source": "set command dict; set events {}; set reads 0; set d {k OLD}; proc watch {a b op} {lappend ::events $op; incr ::reads; if {$::reads == 2} {unset ::d; set ::d {fresh KEPT}}}; trace add variable d read watch; set code [catch {$command with d {set k NEW}} result]; list $code $result $events $d"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "source_image": "naming269",
+  "pin_sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+  "list_sha256": "6105d8583653f073d94cbf1e4f77190062537f13d401a2b3a238e6b662d7254a",
+  "inventory_count": 728,
+  "selected": [
+    "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+    "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+    "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+    "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+    "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+    "value::tests::byte_array_carrier_retains_original_storage_and_string_presence"
+  ],
+  "selected_count": 6,
+  "zero_matches": [],
+  "scope": "Exact fresh VM ELF selectors. No assertion outcome follows from inventory match."
+}

@@ -16,22 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Syntax highlighter (ANSI + HTML).
+//! Syntax highlighting over original readonly script regions.
 //!
-//! Lexer-driven (no analyser/optimiser dependency), so this reaches byte-for-byte
-//! agreement with the captured golden output. Command heads and registry-resolved subcommands
-//! are detected via the command segmenter + registry, exactly as
-//! `collect_command_spans` does.
+//! One actual analysis retains the CLI's full dialect grammar and discovered
+//! command store. The shared source-structure owner selects script interiors;
+//! lexical token spans supply the styles. Highlighting supplies syntax advice
+//! only and establishes no Native dispatch, entered body or execution result.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::sync::Arc;
 
 use crate::registry_for_dialect;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{Lexer, LexerConfig, TokenType};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_lexer::{LexerConfig, Span, TokenType};
+use tcl_registry::{CommandRegistry, SubcommandResolution};
 
 const ANSI_RESET: &str = "\x1b[0m";
 
-/// Highlight kind → ANSI SGR escape.
 fn ansi_code(kind: HighlightKind) -> &'static str {
     match kind {
         HighlightKind::Command => "\x1b[1;34m",
@@ -44,7 +45,6 @@ fn ansi_code(kind: HighlightKind) -> &'static str {
     }
 }
 
-/// Highlight kind → inline CSS.
 fn html_style(kind: HighlightKind) -> &'static str {
     match kind {
         HighlightKind::Command => "color:#2b6cb0;font-weight:600;",
@@ -57,7 +57,7 @@ fn html_style(kind: HighlightKind) -> &'static str {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum HighlightKind {
     Command,
     Subcommand,
@@ -68,10 +68,8 @@ enum HighlightKind {
     Expand,
 }
 
-/// Byte-span key `(start, end)` used to tag command / subcommand heads.
 type SpanKey = (u32, u32);
 
-/// Classify a token.
 fn token_kind(
     ty: TokenType,
     span: SpanKey,
@@ -84,174 +82,241 @@ fn token_kind(
         TokenType::Cmd => Some(HighlightKind::CommandSubst),
         TokenType::Str => Some(HighlightKind::Braced),
         TokenType::Expand => Some(HighlightKind::Expand),
-        TokenType::Esc => {
-            if command_spans.contains(&span) {
-                Some(HighlightKind::Command)
-            } else if subcommand_spans.contains(&span) {
-                Some(HighlightKind::Subcommand)
-            } else {
-                None
-            }
-        }
+        TokenType::Esc if command_spans.contains(&span) => Some(HighlightKind::Command),
+        TokenType::Esc if subcommand_spans.contains(&span) => Some(HighlightKind::Subcommand),
         _ => None,
     }
 }
 
-/// Collect the spans of command heads and resolved subcommands.
-fn collect_command_spans(
+fn analyse_source(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
-) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
-    // `crate::registry_for_dialect`, **not** `tcl_registry`'s
-    // `registry_for_profile`: this crate's own by-name entry layers the
-    // discovered SpecTcl packs (`cli_packs()`) on top of the catalogue
-    // registry. Resolving straight from the profile would silently drop them,
-    // so a project-local pack's commands and subcommands would stop being
-    // highlighted — pinned by `highlight_uses_the_current_projects_spec_pack_registry`.
-    let registry = registry_for_dialect(dialect.name);
-    let mut command_spans = HashSet::new();
-    let mut subcommand_spans = HashSet::new();
-    for command in segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-    ) {
-        if let Some(first) = command.argv.first() {
-            command_spans.insert((first.span.start(), first.span.end()));
-        }
-        if command.texts.len() >= 2
-            && let Some(spec) = registry.get(&command.texts[0])
-        {
-            let candidate = &command.texts[1];
-            if !spec.subcommands.is_empty()
-                && spec.subcommands.iter().any(|s| s.name == candidate)
-                && let Some(second) = command.argv.get(1)
-            {
-                subcommand_spans.insert((second.span.start(), second.span.end()));
+    registry: &CommandRegistry,
+) -> AnalysisResult {
+    let config = LexerConfig::for_file_grammar(dialect.grammar);
+    let generation = tcl_lsp_core::context_for_dialect_profile(dialect);
+    let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+    let input = ResolvedAnalysisInput::new(dialect, dialect, context, config);
+    Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, dialect.name)
+}
+
+struct HighlightPlan {
+    structure: tcl_lsp_core::SourceSyntaxStructure,
+    commands: HashSet<SpanKey>,
+    subcommands: HashSet<SpanKey>,
+}
+
+impl HighlightPlan {
+    fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
+        // Implementation contract: naming.cli.original-source-highlight-geometry
+        // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
+        let structure = tcl_lsp_core::SourceSyntaxStructure::capture(source, analysis)?;
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        let mut commands = HashSet::new();
+        let mut subcommands = HashSet::new();
+        for command in structure.commands() {
+            if let Some(head) = command.argv.first() {
+                commands.insert((head.span.start(), head.span.end()));
             }
-        }
-    }
-    (command_spans, subcommand_spans)
-}
-
-/// A braced word that looks like a command body.
-fn is_body_token(text: &str) -> bool {
-    if !text.starts_with('{') {
-        return false;
-    }
-    let inner = text[1..].trim_end_matches('}');
-    inner.contains('\n') || inner.contains(';')
-}
-
-/// ANSI-highlight `source` for the given dialect. Caller decides whether colour
-/// is wanted (ANSI colour variant).
-#[must_use]
-pub fn highlight_ansi(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
-    highlight_ansi_inner(source, dialect, 0)
-}
-
-fn highlight_ansi_inner(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    depth: u32,
-) -> String {
-    if source.is_empty() || depth > 8 {
-        return source.to_owned();
-    }
-    // Depth 0 is the whole file (BOM prologue applies); deeper is a braced body.
-    let config = if depth == 0 {
-        LexerConfig::for_file_grammar(dialect.grammar)
-    } else {
-        LexerConfig::for_profile(Some(dialect))
-    };
-    let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() else {
-        return source.to_owned();
-    };
-    let (command_spans, subcommand_spans) = collect_command_spans(source, dialect);
-
-    let mut out = String::with_capacity(source.len());
-    let mut cursor = 0usize;
-    for token in &tokens {
-        let start = token.span.start() as usize;
-        let end = token.span.end() as usize;
-        if end <= start {
-            continue;
-        }
-        if start > cursor {
-            out.push_str(&source[cursor..start]);
-        }
-        let key = (token.span.start(), token.span.end());
-        let text = &source[start..end];
-
-        if token.kind == TokenType::Str && is_body_token(text) {
-            let (inner, suffix) = if text.ends_with('}') {
-                (&text[1..text.len() - 1], "}")
-            } else {
-                (&text[1..], "")
+            let Some(words) =
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, command,
+                )
+            else {
+                continue;
             };
-            out.push('{');
-            out.push_str(&highlight_ansi_inner(inner, dialect, depth + 1));
-            out.push_str(suffix);
-            cursor = end;
-            continue;
-        }
-
-        match token_kind(token.kind, key, &command_spans, &subcommand_spans) {
-            None => out.push_str(text),
-            Some(kind) => {
-                out.push_str(ansi_code(kind));
-                out.push_str(text);
-                out.push_str(ANSI_RESET);
+            if words.with_source_schema(&context, |schema| {
+                matches!(
+                    schema.subcommand,
+                    SubcommandResolution::Exact(_) | SubcommandResolution::UniquePrefix(_)
+                )
+            }) != Some(true)
+            {
+                continue;
+            }
+            let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+                words.origins().get(1)
+            else {
+                continue;
+            };
+            if let Some(word) = command.argv.get(*written) {
+                subcommands.insert((word.span.start(), word.span.end()));
             }
         }
-        cursor = end;
+        Some(Self {
+            structure,
+            commands,
+            subcommands,
+        })
     }
-    if cursor < source.len() {
-        out.push_str(&source[cursor..]);
+
+    fn styles(&self, source: &str) -> Vec<StyleSpan> {
+        let mut styles = Vec::new();
+        for syntax in self.structure.lexical_regions() {
+            let region = syntax.span();
+            if source.get(region.as_range()).is_none() {
+                continue;
+            }
+            let region_len = region.end() - region.start();
+            // The region's whitespace and delimiters are source syntax too.
+            // This clear layer prevents an outer data-word style from hiding
+            // the independently selected interior's lexical tokens.
+            styles.push(StyleSpan {
+                span: region,
+                region_len,
+                token: false,
+                kind: None,
+            });
+            for token in syntax.tokens() {
+                if token.span.is_empty()
+                    || (token.span.start() < region.start() || token.span.end() > region.end())
+                {
+                    continue;
+                }
+                styles.push(StyleSpan {
+                    span: token.span,
+                    region_len,
+                    token: true,
+                    kind: token_kind(
+                        token.kind,
+                        (token.span.start(), token.span.end()),
+                        &self.commands,
+                        &self.subcommands,
+                    ),
+                });
+            }
+        }
+        styles
+    }
+}
+
+#[derive(Clone, Copy)]
+struct StyleSpan {
+    span: Span,
+    region_len: u32,
+    token: bool,
+    kind: Option<HighlightKind>,
+}
+
+#[derive(Clone, Copy)]
+struct HighlightPiece {
+    span: Span,
+    kind: Option<HighlightKind>,
+}
+
+fn pieces(source: &str, styles: &[StyleSpan]) -> Vec<HighlightPiece> {
+    let mut events: BTreeMap<u32, Vec<(usize, bool)>> = BTreeMap::new();
+    for (index, style) in styles.iter().enumerate() {
+        if style.span.is_empty() || source.get(style.span.as_range()).is_none() {
+            continue;
+        }
+        events
+            .entry(style.span.start())
+            .or_default()
+            .push((index, true));
+        events
+            .entry(style.span.end())
+            .or_default()
+            .push((index, false));
+    }
+    let mut active: BTreeSet<(u32, bool, usize)> = BTreeSet::new();
+    let mut out: Vec<HighlightPiece> = Vec::new();
+    let mut cursor = 0;
+    for (offset, changes) in events {
+        if cursor < offset {
+            let kind = active.first().and_then(|&(_, _, index)| styles[index].kind);
+            if let Some(last) = out
+                .last_mut()
+                .filter(|piece| piece.kind == kind && piece.span.end() == cursor)
+            {
+                last.span = Span::new(last.span.start(), offset);
+            } else {
+                out.push(HighlightPiece {
+                    span: Span::new(cursor, offset),
+                    kind,
+                });
+            }
+        }
+        for (index, starts) in changes {
+            let style = styles[index];
+            let key = (style.region_len, !style.token, index);
+            if starts {
+                active.insert(key);
+            } else {
+                active.remove(&key);
+            }
+        }
+        cursor = offset;
+    }
+    if let Ok(end) = u32::try_from(source.len())
+        && cursor < end
+    {
+        out.push(HighlightPiece {
+            span: Span::new(cursor, end),
+            kind: None,
+        });
     }
     out
 }
 
-/// HTML-highlight `source`.
+fn source_pieces(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<HighlightPiece> {
+    // Project, user and bundled packs belong to this same actual input; a
+    // nominal catalogue lookup cannot replace the discovered command store.
+    let registry = registry_for_dialect(dialect.name);
+    let analysis = analyse_source(source, dialect, &registry);
+    let styles =
+        HighlightPlan::capture(source, &analysis).map_or_else(Vec::new, |plan| plan.styles(source));
+    pieces(source, &styles)
+}
+
+/// ANSI-highlight current original source syntax under the supplied dialect.
+/// Caller chooses whether colour is wanted. Styles preserve source bytes.
+#[must_use]
+pub fn highlight_ansi(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
+    if source.is_empty() {
+        return String::new();
+    }
+    render_ansi(source, &source_pieces(source, dialect))
+}
+
+fn render_ansi(source: &str, pieces: &[HighlightPiece]) -> String {
+    let mut out = String::with_capacity(source.len());
+    for piece in pieces {
+        let text = &source[piece.span.as_range()];
+        if let Some(kind) = piece.kind {
+            out.push_str(ansi_code(kind));
+            out.push_str(text);
+            out.push_str(ANSI_RESET);
+        } else {
+            out.push_str(text);
+        }
+    }
+    out
+}
+
+/// HTML-highlight the same original readonly syntax regions as ANSI output.
 #[must_use]
 pub fn highlight_html(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
     if source.is_empty() {
         return "<pre></pre>\n".to_owned();
     }
-    let Ok(tokens) =
-        Lexer::with_config(source, LexerConfig::for_file_grammar(dialect.grammar)).tokenise_all()
-    else {
-        return format!("<pre>\n{}\n</pre>\n", html_escape(source));
-    };
-    let (command_spans, subcommand_spans) = collect_command_spans(source, dialect);
-
     let mut out = String::with_capacity(source.len());
-    let mut cursor = 0usize;
-    for token in &tokens {
-        let start = token.span.start() as usize;
-        let end = token.span.end() as usize;
-        if end <= start {
-            continue;
+    for piece in source_pieces(source, dialect) {
+        let text = html_escape(&source[piece.span.as_range()]);
+        if let Some(kind) = piece.kind {
+            out.push_str("<span style=\"");
+            out.push_str(html_style(kind));
+            out.push_str("\">");
+            out.push_str(&text);
+            out.push_str("</span>");
+        } else {
+            out.push_str(&text);
         }
-        if start > cursor {
-            out.push_str(&html_escape(&source[cursor..start]));
-        }
-        let key = (token.span.start(), token.span.end());
-        let text = html_escape(&source[start..end]);
-        match token_kind(token.kind, key, &command_spans, &subcommand_spans) {
-            None => out.push_str(&text),
-            Some(kind) => {
-                out.push_str("<span style=\"");
-                out.push_str(html_style(kind));
-                out.push_str("\">");
-                out.push_str(&text);
-                out.push_str("</span>");
-            }
-        }
-        cursor = end;
-    }
-    if cursor < source.len() {
-        out.push_str(&html_escape(&source[cursor..]));
     }
     format!("<pre>\n{out}\n</pre>\n")
 }
@@ -270,4 +335,160 @@ fn html_escape(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ansi(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+        registry: &CommandRegistry,
+    ) -> String {
+        let analysis = analyse_source(source, dialect, registry);
+        let plan = HighlightPlan::capture(source, &analysis).unwrap();
+        render_ansi(source, &pieces(source, &plan.styles(source)))
+    }
+
+    fn plain(rendered: &str) -> String {
+        let mut plain = rendered.replace(ANSI_RESET, "");
+        for kind in [
+            HighlightKind::Command,
+            HighlightKind::Subcommand,
+            HighlightKind::Comment,
+            HighlightKind::Variable,
+            HighlightKind::CommandSubst,
+            HighlightKind::Braced,
+            HighlightKind::Expand,
+        ] {
+            plain = plain.replace(ansi_code(kind), "");
+        }
+        plain
+    }
+
+    fn blue(rendered: &str, command: &str) -> bool {
+        rendered.contains(&format!(
+            "{}{}{}",
+            ansi_code(HighlightKind::Command),
+            command,
+            ANSI_RESET
+        ))
+    }
+
+    #[test]
+    fn original_highlight_keeps_data_inert_and_single_line_bodies_visible() {
+        // naming.cli.original-source-highlight-geometry
+        // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
+        let profile = crate::environment::profile_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::context_for_profile(profile);
+        for (source, inner, expected) in [
+            ("set value {\nnotACommand\n}", "notACommand", false),
+            ("set value {notACommand; stillData}", "notACommand", false),
+            ("if {1} {puts single}", "puts", true),
+            ("if {1} {puts café🙂}", "puts", true),
+            ("set data café🙂; if {1} {  puts offset  }", "puts", true),
+            ("if {1} {if {1} {puts nested}}", "puts", true),
+        ] {
+            let rendered = ansi(source, profile, registry.commands());
+            assert_eq!(blue(&rendered, inner), expected, "{rendered}");
+            assert_eq!(plain(&rendered), source);
+        }
+    }
+
+    #[test]
+    fn original_highlight_html_shares_script_regions_and_source_escaping() {
+        // naming.cli.original-source-highlight-geometry
+        // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
+        let profile = crate::environment::profile_for_dialect("tcl8.6");
+        let data = highlight_html("set value {\nnotACommand\n}", profile);
+        assert!(!data.contains("font-weight:600;\">notACommand</span>"));
+        let body = highlight_html("if {1} {puts <café🙂>&}", profile);
+        assert!(body.contains("font-weight:600;\">puts</span>"), "{body}");
+        assert!(body.contains("&lt;café🙂&gt;&amp;"), "{body}");
+        assert_eq!(highlight_html("", profile), "<pre></pre>\n");
+    }
+
+    #[test]
+    fn original_highlight_keeps_selected_alias_prefix_and_shadow_roles() {
+        // naming.cli.original-source-highlight-geometry
+        // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
+        let profile = crate::environment::profile_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::context_for_profile(profile);
+        for (source, expected) in [
+            ("rename if condition; condition {1} {puts moved}", true),
+            (
+                "interp alias {} condition {} if 1; condition {puts prefix}",
+                true,
+            ),
+            ("proc if {a b} {}; if {1} {puts data}", false),
+            ("unknown {puts data}", false),
+        ] {
+            let rendered = ansi(source, profile, registry.commands());
+            assert_eq!(blue(&rendered, "puts"), expected, "{rendered}");
+            assert_eq!(plain(&rendered), source);
+        }
+    }
+
+    #[test]
+    fn original_highlight_keeps_actual_custom_and_reference_only_source_schemas() {
+        // naming.cli.original-source-highlight-geometry
+        // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
+        fn reference_only(
+            _: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
+            vec![(0, tcl_registry::ScriptTiming::ReferenceOnly)]
+        }
+        let profile = crate::environment::profile_for_dialect("tcl8.6");
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        for (name, timing) in [
+            ("held", None),
+            (
+                "reference",
+                Some(reference_only as tcl_registry::ScriptTimingResolver),
+            ),
+        ] {
+            registry.insert(tcl_registry::CommandSpec {
+                name,
+                arity: tcl_registry::Arity::exact(1),
+                arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+                script_timing_resolver: timing,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+        }
+        for source in ["held {puts custom}", "reference {puts reference}"] {
+            let analysis = analyse_source(source, profile, &registry);
+            let plan = HighlightPlan::capture(source, &analysis).unwrap();
+            let rendered = render_ansi(source, &pieces(source, &plan.styles(source)));
+            assert!(blue(&rendered, "puts"), "{rendered}");
+            assert_eq!(plain(&rendered), source);
+            assert!(HighlightPlan::capture(&format!("{source} "), &analysis).is_none());
+            let mut stale = analysis.clone();
+            stale.body_lexer_config.as_mut().unwrap().expand_syntax = false;
+            assert!(HighlightPlan::capture(source, &stale).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(HighlightPlan::capture(source, &missing).is_none());
+        }
+    }
+
+    #[test]
+    fn original_highlight_uses_actual_c_jim_and_irules_lexical_axes() {
+        // naming.cli.original-source-highlight-geometry
+        // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = crate::environment::profile_for_dialect(name);
+            let context = tcl_registry::model::context_for_profile(profile);
+            let source = "if {1} {puts dialect}";
+            let rendered = ansi(source, profile, context.commands());
+            assert!(blue(&rendered, "puts"), "{name}: {rendered}");
+            assert_eq!(plain(&rendered), source);
+        }
+        let profile = crate::environment::profile_for_dialect("f5-irules");
+        let context = tcl_registry::model::context_for_profile(profile);
+        let source = "when HTTP_REQUEST{puts café🙂}";
+        let rendered = ansi(source, profile, context.commands());
+        assert!(blue(&rendered, "puts"), "{rendered}");
+        assert_eq!(plain(&rendered), source);
+    }
 }

@@ -1,0 +1,10 @@
+input=/tmp/r2286-decode/lex-cli-run.stdout
+envelope_sha256_external=RECORD_WITH_SHA256SUM
+export_rc=0
+export_result_hex=31
+context=tmsh_cli
+identity_hex=4e4f545f544d4d
+declared_rows=1044
+decoded_rows=1044
+unique_keys=1044
+decoded_transcript_bytes=678837

@@ -1,0 +1,27 @@
+{
+  "name": "OriginalSourceFilenameCodecFacets650",
+  "status": "READY private request/source input; unrun",
+  "qid": "naming.source.original-counted-filename-filesystem-extent",
+  "files": [
+    {
+      "path": "probe.c",
+      "sha256": "ebee73cb221c29e32cf7a89a73ca01b0bd8d24f6ccbbfe9f155d92b8f1e80db1"
+    },
+    {
+      "path": "request.json",
+      "sha256": "0cce4f33471da6e7b5f6d243bfd60555f963bc58b2eb2cc46c1d7c7cf8e6a27d"
+    },
+    {
+      "path": "external-files.json",
+      "sha256": "ffc277f663271882c06de260d0e876d0616bcdeb8445d62ed83d71ccb8dd12c4"
+    }
+  ],
+  "predecessor_manifest": "/tmp/sourceperf-source-filename-request648/manifest.json",
+  "predecessor_manifest_sha256": "9cf480d10cad5d4b4d5a1391c8d291eb871137215f77d44154fdb5f12b9213dc",
+  "processes_requested": 6,
+  "fresh_c_interpreters": 25,
+  "fresh_jim_interpreters": 8,
+  "requested_blocks": 133,
+  "observations": 0,
+  "limits": "No Native/Cargo/test/Git/LIVE operations, provider observations or execution claims."
+}

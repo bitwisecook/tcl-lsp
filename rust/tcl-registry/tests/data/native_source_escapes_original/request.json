@@ -1,0 +1,14 @@
+{
+  "question_id": "naming.word.original-source-escape-version-boundaries",
+  "source_sha256": "f8a1829202c7f5fd36852b46f76f7aef9f3e52a3fda4826f29598147bdd2acb0",
+  "input_channel": "ASCII LF source-file CLI",
+  "hex_projection": "binary scan result H*; native getter bytes not inferred",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ]
+}

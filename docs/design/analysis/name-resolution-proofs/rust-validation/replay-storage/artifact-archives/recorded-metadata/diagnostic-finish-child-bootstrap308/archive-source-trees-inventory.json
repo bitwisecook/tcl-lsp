@@ -1,0 +1,264 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/diagnostic-finish-child-bootstrap308.source-trees.tar.gz",
+  "archive_sha256": "71ed98e1a294a57f37f48389d860e38f968d4fdb8324ba3024a76d8cb01a53d2",
+  "archive_bytes": 398157,
+  "uncompressed_bytes": 1702957,
+  "source_manifest_sha256": "0edb191b89e71a84087a1d8da20397e74a09589bae3290f476b123bb336ac4db",
+  "source_patch_sha256": "2f1e791620eec430fd91ce2e312f6998757fb6c776df5ec7547ad061a5901d78",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 22,
+  "members": {
+    "diagnostic-finish-child-bootstrap308/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.57198,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.57198,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.57198,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.9879768,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.57198,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/runtime/rust/src/interp/native_children.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608386.200624,
+      "size": 28935,
+      "sha256": "0d8d2986f332d1ccf8b6df71346cf30e683c4c9258c88d1256a4e920ad5c13ec"
+    },
+    "diagnostic-finish-child-bootstrap308/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608386.3818007,
+      "size": 750306,
+      "sha256": "bccc38c595caa020df63a1e81f62cf8fdeb06c41fef0025552a02467f830d9e1"
+    },
+    "diagnostic-finish-child-bootstrap308/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.2639825,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.2639825,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.2639825,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/base/rust/tcl-registry/src/special_vars.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608386.1575203,
+      "size": 67896,
+      "sha256": "24d648b22895635928c2cd003e9fd4411ce087701afdb59f5393b685569b9dc3"
+    },
+    "diagnostic-finish-child-bootstrap308/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.5770493,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.5770493,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.5770493,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608330.0199766,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/runtime/rust/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.5770493,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/runtime/rust/src/interp/native_children.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608386.2008967,
+      "size": 34746,
+      "sha256": "29f596dd2621d588bc2798f420e83e6be457742759abcaf58110fe7b7b99333a"
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608386.3854346,
+      "size": 750757,
+      "sha256": "3a08503617f81eb848f27fcbb8e31a7e09ffa15eae7887bb96f35570f495afc4"
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.2655127,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.2655127,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608329.2655127,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-child-bootstrap308/candidate/rust/tcl-registry/src/special_vars.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791608386.1582558,
+      "size": 70317,
+      "sha256": "bd8e4187412d815b32db32a6740ee80c9486ede1bf718a6d894073520014cdcc"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-registry/src/special_vars.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "bd8e4187412d815b32db32a6740ee80c9486ede1bf718a6d894073520014cdcc",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/special_vars.rs",
+      "hash_key": "base_sha256",
+      "sha256": "24d648b22895635928c2cd003e9fd4411ce087701afdb59f5393b685569b9dc3",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_children.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "29f596dd2621d588bc2798f420e83e6be457742759abcaf58110fe7b7b99333a",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp/native_children.rs",
+      "hash_key": "base_sha256",
+      "sha256": "0d8d2986f332d1ccf8b6df71346cf30e683c4c9258c88d1256a4e920ad5c13ec",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "3a08503617f81eb848f27fcbb8e31a7e09ffa15eae7887bb96f35570f495afc4",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "base_sha256",
+      "sha256": "bccc38c595caa020df63a1e81f62cf8fdeb06c41fef0025552a02467f830d9e1",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

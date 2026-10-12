@@ -1,0 +1,38 @@
+{
+  "question_id": "naming.embedding.original-command-recreation-discard",
+  "request_sha256": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+  "launcher_sha256": "9b6d71b3f8596e7c6a87f85202e78e67fe5f1133e18431539a57511470fff108",
+  "scope": "Each selected actual original provider independently executes its unchanged public object-command recreation source. Headers/config/library/current original source/CLI/compiler and external linker files are retained by exact byte pins before and after. Prior build receipts are provenance only, not a manufactured historical configure/compiler process. Native callbacks and raw addresses are observations, not generation, procedure, active-retirement, application issuer or semantic equivalence authority. External BIG-IP is not tested.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "status": "closed",
+      "receipt_sha256": "bd4b83c07f0287a9b670a042cd18cc2ec2e7cb77d4d72fd0f844bf3c9726e4aa"
+    },
+    {
+      "provider": "8.5.19",
+      "status": "closed",
+      "receipt_sha256": "6a2eb37a447418007424cc675c8628f26cac405291ec11523907093574f1eabe"
+    },
+    {
+      "provider": "8.6.18",
+      "status": "closed",
+      "receipt_sha256": "c0e2e1923dffdefa72cc1b5e11f4ea7c5b89a9299de9e169330159f847f1d87f"
+    },
+    {
+      "provider": "9.0.4",
+      "status": "closed",
+      "receipt_sha256": "fc30f1c5fdf5caf35582a9d0cc719bfefc16085dec63ca4127064c4905c913d7"
+    },
+    {
+      "provider": "9.1.0",
+      "status": "closed",
+      "receipt_sha256": "6e30ec79d108c2e7b4ecc71f266a9f17bcbbbb06435ba9220f980f59aa46474d"
+    },
+    {
+      "provider": "jim",
+      "status": "closed",
+      "receipt_sha256": "2098e71cdf12e6d06661cd8609f52812ed70adf2810a6186ed81f994d6841b72"
+    }
+  ]
+}

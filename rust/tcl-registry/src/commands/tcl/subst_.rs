@@ -47,20 +47,11 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // interchangeable in matched pairs (`subst -nobackslashes -nocommands
 // $string` and `subst -variables $string` are called equivalent) and that
 // "it is not allowed to combine positive and negated options" in one call.
-// For the negative family, confirmed live on `tclsh` 8.6.14 that a word
-// which is neither a recognised switch nor the final `string` operand is a
-// hard `bad option "…": must be -nobackslashes, -nocommands, or
-// -novariables` error (no `--` terminator recognised) — no 9.1 interpreter
-// was available locally to empirically re-confirm the positive family
-// parses the same way, but the manpage describes both families through the
-// same switch-table convention.
-//
-// Each switch declares its effect on the substitution axis; the negated family
-// starts with every kind on and turns the named ones off, the positive family
-// starts with every kind off and turns the named ones on, and a call mixing
-// the two is the relation below (tclsh 9.1b0: `cannot combine positive and
-// negative options`), never a third answer.
-const OPTIONS: &[OptionSpec] = &[
+// Direct counted-object probes on the pinned C8.4-C9.1 and Jim providers
+// independently reconfirm both families and the mixed-family rejection.
+// Native proof: naming.substitution.original-options-and-flag-families
+// docs/design/analysis/name-resolution-proofs/substitution-original-options-and-flag-families.md
+pub(crate) const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nobackslashes",
         value: OptionValue::flag(),
@@ -144,6 +135,27 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
+fn bare_template_effects(arguments: crate::InvocationArguments<'_>) -> crate::EffectFootprint {
+    if arguments.exact_argv_len() != Some(1) {
+        return crate::EffectFootprint::conservative_unknown_invocation();
+    }
+    crate::substitution::literal_template_effects(
+        arguments,
+        0,
+        crate::substitution::SubstitutionKinds::ALL,
+    )
+}
+
+const NATIVE_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+    name: "template",
+    arity: Arity::exact(1),
+    side_effects: Some(&[]),
+    world_effects: Some(crate::WorldEffectDescriptor {
+        resolver: Some(bare_template_effects),
+        ..crate::WorldEffectDescriptor::EMPTY
+    }),
+    ..crate::forms::CommandForm::DEFAULT
+}];
 /// `subst`'s two switch families: the negated one (every release) starts
 /// from every kind and the positive one (Tcl 9.1) from none, and both
 /// accumulate — a switch may repeat.
@@ -225,9 +237,8 @@ static TEMPLATE: crate::value_transfer::template::TemplateSemantics =
 ///
 /// `subst` performs variable, command, and backslash substitution on
 /// its string argument — even inside braces (`subst {$x}` substitutes
-/// `$x`).  The Rust O129 path hands this the *raw* literal argument (it
-/// has no upstream `$var` resolution — that is the deferred B2 work), so
-/// to stay sound we fold only the bare `subst string` form whose string
+/// `$x`). The fold receives the evaluated template, so it accepts only
+/// the bare `subst string` form whose string
 /// carries **no** substitution: no `$`, `[`, or `\`.  Such a string is
 /// its own `subst` result.  Anything with a substitution bails
 /// (a stricter subset of what a fold with upstream resolution +
@@ -272,6 +283,13 @@ fn subst_evaluates_commands(args: &[&str]) -> bool {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "subst",
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::SubstitutionTemplate),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::SubstitutionTemplate,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("subst"),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
@@ -323,6 +341,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The fully-substituted string: break truncates it at the point of the exception, continue/return substitute their value for just that one embedded command or variable index, and any other error becomes subst's own error.",
         }),
         forms: FORMS,
+        command_forms: NATIVE_FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         taint_sink_gate: Some(subst_evaluates_commands),
@@ -334,6 +353,41 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::{fold_subst, subst_evaluates_commands};
+
+    #[test]
+    fn subst_literal_effects_preserve_enabled_substitutions() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let context = crate::model::ingress::static_context_for(profile);
+            let dialect =
+                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            for (word, closed) in [
+                (crate::InvocationWord::Literal("hello"), true),
+                (crate::InvocationWord::Literal("a\\nb"), true),
+                (crate::InvocationWord::Literal("$value"), false),
+                (crate::InvocationWord::Literal("[operation]"), false),
+                (crate::InvocationWord::Literal("$array([operation])"), false),
+                (crate::InvocationWord::Dynamic, false),
+                (crate::InvocationWord::Expanded, false),
+            ] {
+                let words = [word];
+                let invocation = crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("subst"),
+                    &words,
+                )
+                .with_dialect(dialect);
+                let resolved = context
+                    .commands()
+                    .resolve_structured_invocation(invocation, dialect.authoring_query())
+                    .resolved()
+                    .unwrap();
+                assert_eq!(
+                    !resolved.effects().requires_world_barrier(),
+                    closed,
+                    "{profile}: {word:?}",
+                );
+            }
+        }
+    }
 
     #[test]
     fn subst_evaluates_commands_default_is_true() {

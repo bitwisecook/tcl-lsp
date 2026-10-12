@@ -1,0 +1,136 @@
+static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    /* Must be kept in order with the array below */
+    enum {
+        OPT_CANONICAL,
+        OPT_CODE,
+        OPT_CURRENT,
+        OPT_DELETE,
+        OPT_ENSEMBLE,
+        OPT_EVAL,
+        OPT_EXPORT,
+        OPT_IMPORT,
+        OPT_INSCOPE,
+        OPT_ORIGIN,
+        OPT_PARENT,
+        OPT_QUALIFIERS,
+        OPT_TAIL,
+        OPT_UPVAR,
+        OPT_WHICH,
+        OPT_COUNT,
+    };
+    static const jim_subcmd_type namespace_cmds[OPT_COUNT + 1] = {
+        JIM_DEF_SUBCMD("canonical", "?current? ?name?", 0, 2),
+        JIM_DEF_SUBCMD("code", "arg", 1, 1),
+        JIM_DEF_SUBCMD("current", NULL, 0, 0),
+        JIM_DEF_SUBCMD("delete", "?name ...?", 0, -1),
+        JIM_DEF_SUBCMD("ensemble", "subcommand ?arg ...?", 1, -1),
+        JIM_DEF_SUBCMD("eval", "name arg ?arg ...?", 2, -1),
+        JIM_DEF_SUBCMD("export", "?...?", 0, -1),
+        JIM_DEF_SUBCMD("import", "?...?", 0, -1),
+        JIM_DEF_SUBCMD("inscope", "name arg ?arg ...?", 2, -1),
+        JIM_DEF_SUBCMD("origin", "name", 1, 1),
+        JIM_DEF_SUBCMD("parent", "?name?", 0, 1),
+        JIM_DEF_SUBCMD("qualifiers", "string", 1, 1),
+        JIM_DEF_SUBCMD("tail", "string", 1, 1),
+        JIM_DEF_SUBCMD("upvar", "ns ?arg ...?", 1, -1),
+        JIM_DEF_SUBCMD("which", "?-command|-variable? name", 1, 2),
+        { NULL }
+    };
+    const jim_subcmd_type *ct = Jim_ParseSubCmd(interp, namespace_cmds, argc, argv);
+    if (ct) {
+        if (ct->function) {
+            /* This is -help */
+            return ct->function(interp, argc, argv);
+        }
+
+        /* (ct - namespace_cmds) is the index into the table */
+        switch (ct - namespace_cmds) {
+            case OPT_EVAL:
+                {
+                    Jim_Obj *nsObj;
+                    Jim_Obj *objPtr;
+                    if (argc == 4) {
+                        objPtr = argv[3];
+                    }
+                    else {
+                        objPtr = Jim_ConcatObj(interp, argc - 3, argv + 3);
+                    }
+
+                    nsObj = JimCanonicalNamespace(interp, interp->framePtr->nsObj, argv[2]);
+                    return Jim_EvalNamespace(interp, objPtr, nsObj);
+                }
+
+            case OPT_CURRENT:
+                Jim_SetResult(interp, JimNamespaceCurrent(interp));
+                return JIM_OK;
+
+            case OPT_CANONICAL:
+                if (argc == 2) {
+                    Jim_SetResult(interp, interp->framePtr->nsObj);
+                }
+                else if (argc == 3) {
+                    Jim_SetResult(interp, JimCanonicalNamespace(interp, interp->framePtr->nsObj, argv[2]));
+                }
+                else {
+                    Jim_SetResult(interp, JimCanonicalNamespace(interp, argv[2], argv[3]));
+                }
+                return JIM_OK;
+
+            case OPT_QUALIFIERS:
+                Jim_SetResult(interp, Jim_NamespaceQualifiers(interp, argv[2]));
+                return JIM_OK;
+
+            case OPT_EXPORT:
+                return JIM_OK;
+
+            case OPT_TAIL:
+                if (argc != 3) {
+                    Jim_WrongNumArgs(interp, 2, argv, "string");
+                    return JIM_ERR;
+                }
+                Jim_SetResult(interp, Jim_NamespaceTail(interp, argv[2]));
+                return JIM_OK;
+
+            case OPT_PARENT:
+                {
+                    Jim_Obj *objPtr;
+                    const char *name;
+
+                    if (argc == 3) {
+                        objPtr = argv[2];
+                    }
+                    else {
+                        objPtr = interp->framePtr->nsObj;
+                    }
+                    if (Jim_Length(objPtr) == 0 || Jim_CompareStringImmediate(interp, objPtr, "::")) {
+                        return JIM_OK;
+                    }
+                    objPtr = Jim_NamespaceQualifiers(interp, objPtr);
+
+                    name = Jim_String(objPtr);
+
+                    if (name[0] != ':' || name[1] != ':') {
+                        /* Make it fully scoped */
+                        Jim_SetResultString(interp, "::", 2);
+                        Jim_AppendObj(interp, Jim_GetResult(interp), objPtr);
+                        Jim_IncrRefCount(objPtr);
+                        Jim_DecrRefCount(interp, objPtr);
+                    }
+                    else {
+                        Jim_SetResult(interp, objPtr);
+                    }
+                }
+                return JIM_OK;
+
+                default:
+                    /* Implemented as a Tcl helper proc.
+                     * Note that calling a proc will change the current namespace,
+                     * so helper procs must call [uplevel namespace canon] to get the callers
+                     * namespace.
+                     */
+                    return Jim_EvalEnsemble(interp, "namespace", Jim_String(argv[1]), argc - 2, argv + 2);
+            }
+    }
+    return JIM_ERR;
+}

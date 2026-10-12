@@ -1,0 +1,36 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-dialect)
+   Compiling tcl-core-types v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-core-types)
+   Compiling tcl-platform v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-platform)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-host-c-abi)
+   Compiling tcl-runtime v0.1.0 (/workspace/.checkpoints/naming113/runtime/rust)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-bytecode)
+   Compiling tcl-test-support v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-test-support)
+   Compiling tcl-host-native v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-host-native)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming113/rust/tcl-registry)
+    Finished `test` profile [unoptimized] target(s) in 1m 23s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_runtime-c96e3ee6354433af)
+
+running 11 tests
+test cmd_namespace::tests::origin_refuses_a_stringless_original_namespace_name_before_lookup ... ok
+test cmd_namespace::tests::original_namespace_origin_matches_five_native_import_chains ... ok
+test interp::native_body_artifact::namespace_tests::original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes ... ok
+test interp::native_body_artifact::namespace_tests::original_namespace_artifacts_match_native_instruction_and_local_matrix ... ok
+test interp::native_body_artifact::namespace_tests::original_namespace_declined_attempt_retains_native_pool_order_and_private_headers ... ok
+test interp::native_body_artifact::native_namespace_string::tests::original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows ... ok
+test interp::native_body_artifact::native_namespace_string::tests::original_namespace_tail_matches_one_hundred_counted_native_windows ... ok
+test interp::native_command_names::tests::original_namespace_origin_tracks_native_import_renames_and_replacement ... ok
+test interp::native_command_names::tests::original_namespace_origin_uses_current_stringless_cache_and_refuses_stale_cache ... ok
+test interp::native_namespace_names::tests::original_namespace_lifetime_survives_retirement_without_owning_the_interpreter ... ok
+test interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 1190 filtered out; finished in 12.53s
+

@@ -1,0 +1,19 @@
+{
+  "ordinal": 167,
+  "selector": "cmd_oo::tests::rename_to_empty_frees_object_and_class_names",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::rename_to_empty_frees_object_and_class_names",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.5868576500215568,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.57s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/167.log",
+  "log_sha256": "2c0d73f8315a0cd94fc595c9f8915740b92b786da50db2a5c61cacaf462a76be"
+}

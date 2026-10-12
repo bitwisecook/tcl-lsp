@@ -1,0 +1,19 @@
+{
+  "id": "CONCAT_TRIM",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/9.1.0/probe",
+    "6"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "a32136ba4a21681bd7b12ab8102189ebb744ff23be14fe471476016a5bfd5c3d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|392e312e30",
+    "CONCAT_TRIM_INPUT|0|73657420646f6e6520303b2061667465722030207b207365747d207b20646f6e65207d207b31207d3b20767761697420646f6e653b2073657420646f6e65",
+    "CONCAT_TRIM|0|31",
+    "CONCAT_TRIM_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+  ],
+  "reported_version": "9.1.0"
+}

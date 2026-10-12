@@ -1,0 +1,1 @@
+proc observe {args} {return}; trace add execution expr enter observe; __argv "1 + 2"

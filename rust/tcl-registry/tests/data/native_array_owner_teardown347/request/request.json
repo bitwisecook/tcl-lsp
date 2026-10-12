@@ -1,0 +1,41 @@
+{
+  "question_id": "naming.variable.original-owner-array-trace-retirement-horizon",
+  "question": "What original member registration lists and retained alias operations are observable during procedure-frame teardown and namespace deletion, and can a same-spelled recreated or foreign namespace donate or lose registrations?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Five independent ASCII originals, fresh interpreter for EACH case, unchanged counted fullInit CAPI driver. Original modern trace add/remove variable, uplevel, upvar and namespace APIs. No raw NUL/non-ASCII source, no extension or fallback substitution. Preserve actual unsupported guest errors.",
+  "observation": "Whole original completion and public log/result only. Explicit catches retain final recreated/foreign read outcomes. No assumption that343 explicit-unset chronology applies to owner teardown; no private root/member/frame/namespace identity observed. Pin all six exact providers/source hashes and keep whole stderr/stdout/exit and process receipts.",
+  "cases": [
+    {
+      "id": "frame-root",
+      "source_file": "frame-root.tcl",
+      "source_sha256": "d83ab56e9eb68b2b33ec72425c8571be2b2ce3469f7a748b160e25ae7de1027c"
+    },
+    {
+      "id": "frame-members",
+      "source_file": "frame-members.tcl",
+      "source_sha256": "ee182a7ca5dc500b8b38af4e269a749301385c06a29d6a3344040dce436cedd2"
+    },
+    {
+      "id": "namespace-root",
+      "source_file": "namespace-root.tcl",
+      "source_sha256": "d40dc6851ef9c9f2b041d69540354852da5537d7efa751394e27d6b285e4469a"
+    },
+    {
+      "id": "namespace-recreated",
+      "source_file": "namespace-recreated.tcl",
+      "source_sha256": "3ee977db82a21af1019fa6dcc3409f1f65fa222afcaf9608cfd811ce03f62811"
+    },
+    {
+      "id": "namespace-foreign",
+      "source_file": "namespace-foreign.tcl",
+      "source_sha256": "4b7b0658650a6d8c1edd3bfe423d7160d1c4f4c1887761909e64639412223395"
+    }
+  ]
+}

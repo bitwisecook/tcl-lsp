@@ -327,6 +327,10 @@ pub struct OptionEffects {
     /// the first operand after the options, or where an unreadable word
     /// stopped the scan.
     pub option_end: usize,
+    /// A selected option row ended parsing through `EndsOptions`. Consumers
+    /// also require `complete` and the proved operand boundary; a word used
+    /// as another option's value does not establish this fact.
+    pub ended_by_marker: bool,
 }
 
 impl OptionEffects {
@@ -511,7 +515,13 @@ pub(crate) fn option_effects_over(
         let spelling = match word {
             InvocationWord::Literal(spelling) if spelling.starts_with('-') => spelling,
             InvocationWord::Literal(_) | InvocationWord::DynamicNonOption => break true,
-            InvocationWord::Dynamic | InvocationWord::Expanded | InvocationWord::Opaque => {
+            InvocationWord::KnownBytes(_)
+            | InvocationWord::ArrayElementName { .. }
+            | InvocationWord::Dynamic
+            | InvocationWord::Expanded
+            | InvocationWord::Opaque => {
+                // This text-only option walk has no complete selected option
+                // syntax for opaque bytes or a partially known array name.
                 break false;
             }
         };
@@ -528,7 +538,10 @@ pub(crate) fn option_effects_over(
             continue;
         };
         match effect.kind {
-            OptionEffectKind::EndsOptions => break true,
+            OptionEffectKind::EndsOptions => {
+                walk.ended_by_marker = true;
+                break true;
+            }
             OptionEffectKind::ReservesTrailingWords(words) => {
                 reserve = usize::from(words);
                 walk.shifts
@@ -586,6 +599,7 @@ struct FamilyState<'f> {
 struct Walk<'f> {
     families: Vec<FamilyState<'f>>,
     shifts: Vec<(ArgRole, i8)>,
+    ended_by_marker: bool,
 }
 
 impl<'f> Walk<'f> {
@@ -628,6 +642,7 @@ impl<'f> Walk<'f> {
         Self {
             families,
             shifts: Vec::new(),
+            ended_by_marker: false,
         }
     }
 
@@ -697,6 +712,7 @@ impl<'f> Walk<'f> {
             shifts: self.shifts,
             complete,
             option_end,
+            ended_by_marker: self.ended_by_marker,
         }
     }
 }
@@ -837,6 +853,32 @@ mod tests {
     }
 
     #[test]
+    fn partial_native_option_values_keep_the_effect_walk_unreadable() {
+        // Software value-carrier contract: opaque counted bytes and a partial
+        // array-name root do not become logical option syntax or a worker grant.
+        let spec = subst();
+        for word in [
+            InvocationWord::KnownBytes(b"-nocommands"),
+            InvocationWord::KnownBytes(&[0xff]),
+            InvocationWord::ArrayElementName {
+                root: "-nocommands",
+            },
+        ] {
+            let words = [word, InvocationWord::Literal("$value")];
+            let answer = option_effects(
+                spec.options,
+                spec.option_effect_families,
+                InvocationArguments::structured(&words),
+                spec.reserved_trailing_words,
+                None,
+            );
+            assert!(!answer.complete);
+            assert_eq!(answer.substitution_kinds(), SubstitutionKinds::ALL);
+        }
+        assert!(effects(spec, &["-nocommands", "$value"]).complete);
+    }
+
+    #[test]
     fn fp_a_computed_switch_word_is_unreadable() {
         let spec = subst();
         let words = [InvocationWord::Dynamic, InvocationWord::Literal("x")];
@@ -927,6 +969,7 @@ mod tests {
         let answer = effects(spec, &["-glob", "--", "-x", "{a b}"]);
         assert!(answer.complete);
         assert_eq!(answer.option_end, 2);
+        assert!(answer.ended_by_marker);
         assert_eq!(answer.selection(), Some(CaseMatchMode::Glob));
         assert_eq!(answer.value(EffectAxis::CaseSensitivity), Some(false));
         // Without `--` the scan stops at the first non-option word.
@@ -941,16 +984,60 @@ mod tests {
 
     #[test]
     fn regexp_layout_effects_are_reported_as_shifts() {
-        let spec = shipped("regexp");
-        let inline = effects(spec, &["-inline", "a(b)", "ab"]);
-        assert!(inline.suppresses(ArgRole::VarWrite));
-        assert_eq!(inline.reserved_trailing_words(), None);
-        let about = effects(spec, &["-about", "a(b)"]);
-        assert!(!about.suppresses(ArgRole::VarWrite));
-        assert_eq!(about.reserved_trailing_words(), Some(1));
-        // After `--`, `-inline` is the pattern.
-        let ended = effects(spec, &["--", "-inline", "s", "v"]);
-        assert!(ended.shifts.is_empty());
-        assert_eq!(ended.option_end, 1);
+        // Implementation contract: naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        for (provider, supports_about) in [
+            ("tcl8.4", true),
+            ("tcl8.5", true),
+            ("tcl8.6", true),
+            ("tcl9.0", true),
+            ("tcl9.1", true),
+            ("jim", false),
+        ] {
+            let generation = crate::model::ingress::resolve_known_environment(provider)
+                .expect("selected provider is known")
+                .default_context_registry();
+            let context = generation.context();
+            let registry = generation.commands();
+            let spec = context
+                .resolve_spec(registry, "regexp")
+                .expect("provider has regexp metadata");
+            let dialect = crate::InvocationDialect::of_profile(
+                registry.profile().expect("provider owns its profile"),
+            );
+            let effects = |arguments: &[&str]| {
+                option_effects_with(
+                    spec.options,
+                    spec.option_effect_families,
+                    InvocationArguments::literals(arguments).with_dialect(dialect),
+                    spec.reserved_trailing_words,
+                    Some(context.authoring_query()),
+                    spec.prefix_matching,
+                )
+            };
+            let inline = effects(&["-inline", "a(b)", "ab"]);
+            assert!(inline.complete, "{provider}: {inline:?}");
+            assert!(inline.suppresses(ArgRole::VarWrite));
+            assert_eq!(inline.reserved_trailing_words(), None);
+
+            let about = effects(&["-about", "a(b)"]);
+            assert_eq!(about.complete, supports_about, "{provider}: {about:?}");
+            assert!(!about.suppresses(ArgRole::VarWrite));
+            assert_eq!(
+                about.reserved_trailing_words(),
+                supports_about.then_some(1),
+                "{provider}: {about:?}"
+            );
+            if supports_about {
+                assert_eq!(about.option_end, 1);
+            }
+
+            // After the selected terminator, -inline is the pattern.
+            let ended = effects(&["--", "-inline", "s", "v"]);
+            assert!(ended.complete, "{provider}: {ended:?}");
+            assert!(ended.ended_by_marker);
+            assert!(ended.shifts.is_empty());
+            assert_eq!(ended.option_end, 1);
+        }
     }
 }

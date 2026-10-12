@@ -1,0 +1,113 @@
+static int
+InfoDefaultCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    char *procName, *argName, *varName;
+    Proc *procPtr;
+    CompiledLocal *localPtr;
+    Tcl_Obj *valueObjPtr;
+
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 2, objv, "procname arg varname");
+        return TCL_ERROR;
+    }
+
+    procName = Tcl_GetString(objv[2]);
+    argName = Tcl_GetString(objv[3]);
+
+    procPtr = TclFindProc(iPtr, procName);
+    if (procPtr == NULL) {
+	Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+		"\"", procName, "\" isn't a procedure", (char *) NULL);
+        return TCL_ERROR;
+    }
+
+    for (localPtr = procPtr->firstLocalPtr;  localPtr != NULL;
+            localPtr = localPtr->nextPtr) {
+        if (TclIsVarArgument(localPtr)
+		&& (strcmp(argName, localPtr->name) == 0)) {
+            if (localPtr->defValuePtr != NULL) {
+		valueObjPtr = Tcl_ObjSetVar2(interp, objv[4], NULL,
+			localPtr->defValuePtr, 0);
+                if (valueObjPtr == NULL) {
+                    defStoreError:
+		    varName = Tcl_GetString(objv[4]);
+		    Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+	                    "couldn't store default value in variable \"",
+			    varName, "\"", (char *) NULL);
+                    return TCL_ERROR;
+                }
+		Tcl_SetIntObj(Tcl_GetObjResult(interp), 1);
+            } else {
+                Tcl_Obj *nullObjPtr = Tcl_NewObj();
+		Tcl_IncrRefCount(nullObjPtr);
+                valueObjPtr = Tcl_ObjSetVar2(interp, objv[4], NULL,
+			nullObjPtr, 0);
+		Tcl_DecrRefCount(nullObjPtr); /* free unneeded obj */
+                if (valueObjPtr == NULL) {
+                    goto defStoreError;
+                }
+		Tcl_SetIntObj(Tcl_GetObjResult(interp), 0);
+            }
+            return TCL_OK;
+        }
+    }
+
+    Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+	    "procedure \"", procName, "\" doesn't have an argument \"",
+	    argName, "\"", (char *) NULL);
+    return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InfoExistsCmd --
+ *
+ *      Called to implement the "info exists" command that determines
+ *      whether a variable exists. Handles the following syntax:
+ *
+ *          info exists varName
+ *
+ * Results:
+ *      Returns TCL_OK if successful and TCL_ERROR if there is an error.
+ *
+ * Side effects:
+ *      Returns a result in the interpreter's result object. If there is
+ *	an error, the result is an error message.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+InfoExistsCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    char *varName;
+    Var *varPtr;
+
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 2, objv, "varName");
+        return TCL_ERROR;
+    }
+
+    varName = Tcl_GetString(objv[2]);
+    varPtr = TclVarTraceExists(interp, varName);
+    if ((varPtr != NULL) && !TclIsVarUndefined(varPtr)) {
+        Tcl_SetIntObj(Tcl_GetObjResult(interp), 1);
+    } else {
+        Tcl_SetIntObj(Tcl_GetObjResult(interp), 0);
+    }
+    return TCL_OK;
+}
+
+#ifdef TCL_TIP280
+/*
+ *----------------------------------------------------------------------

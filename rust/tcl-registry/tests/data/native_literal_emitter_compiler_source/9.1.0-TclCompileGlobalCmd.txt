@@ -1,0 +1,60 @@
+TclCompileGlobalCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr;
+    Tcl_LVTIndex localIndex;
+    Tcl_Size i, numWords = parsePtr->numWords;
+
+    if (numWords < 2 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * 'global' has no effect outside of proc bodies; handle that at runtime
+     */
+
+    if (!EnvIsProc(envPtr)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Push the namespace
+     */
+
+    PUSH(			"::");
+
+    /*
+     * Loop over the variables.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    for (i=1; i<numWords; varTokenPtr = TokenAfter(varTokenPtr),i++) {
+	localIndex = IndexTailVarIfKnown(interp, varTokenPtr, envPtr);
+
+	if (OutOfUintRange(localIndex)) {
+	    return TCL_ERROR;
+	}
+
+	/*
+	 * TODO: Consider what value can pass through the
+	 * IndexTailVarIfKnown() screen. Full CompileWord() likely does not
+	 * apply here. Push known value instead.
+	 */
+
+	PUSH_TOKEN(		varTokenPtr, i);
+	OP4(			NSUPVAR, localIndex);
+    }
+
+    /*
+     * Pop the namespace, and set the result to empty
+     */
+
+    OP(				POP);
+    PUSH(			"");
+    return TCL_OK;
+}

@@ -1,0 +1,98 @@
+    procPtr->cmdPtr = NULL;
+
+    InitCmdFrame(iPtr, procPtr);
+
+    return TclNewMethod(
+	    (Tcl_Class) clsPtr, nameObj, flags, typePtr, clientData);
+}
+
+Tcl_Method
+TclOOMakeProcMethod2(
+    Tcl_Interp *interp,		/* The interpreter containing the class. */
+    Class *clsPtr,		/* The class to modify. */
+    int flags,			/* Whether this is a public method. */
+    Tcl_Obj *nameObj,		/* The name of the method, which may be NULL;
+				 * if so, up to caller to manage storage
+				 * (e.g., because it is a constructor or
+				 * destructor). */
+    const char *namePtr,	/* The name of the method as a string, which
+				 * _must not_ be NULL. */
+    Tcl_Obj *argsObj,		/* The formal argument list for the method,
+				 * which _must not_ be NULL. */
+    Tcl_Obj *bodyObj,		/* The body of the method, which _must not_ be
+				 * NULL. */
+    const Tcl_MethodType2 *typePtr,
+				/* The type of the method to create. */
+    void *clientData,		/* The per-method type-specific data. */
+    Proc **procPtrPtr)		/* A pointer to the variable in which to write
+				 * the procedure record reference. Presumably
+				 * inside the structure indicated by the
+				 * pointer in clientData. */
+{
+    Interp *iPtr = (Interp *) interp;
+    Proc *procPtr;
+
+    if (typePtr->version < TCL_OO_METHOD_VERSION_2) {
+	Tcl_Panic("%s: Wrong version in typePtr->version, should be %s",
+		"TclOOMakeProcMethod2", "TCL_OO_METHOD_VERSION_2");
+    }
+    if (TclCreateProc(interp, NULL, namePtr, argsObj, bodyObj,
+	    procPtrPtr) != TCL_OK) {
+	return NULL;
+    }
+    procPtr = *procPtrPtr;
+    procPtr->cmdPtr = NULL;
+
+    InitCmdFrame(iPtr, procPtr);
+
+    return TclNewMethod(
+	    (Tcl_Class) clsPtr, nameObj, flags, (const Tcl_MethodType *)typePtr, clientData);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * InvokeProcedureMethod, FinalizePMCall, PushMethodCallFrame --
+ *
+ *	How to invoke a procedure-like method.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+InvokeProcedureMethod(
+    void *clientData,		/* Pointer to the per-method record. */
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,	/* The method calling context. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Arguments as actually seen. */
+{
+    ProcedureMethod *pmPtr = (ProcedureMethod *) clientData;
+    int result;
+    PMFrameData *fdPtr;		/* Important data that has to have a lifetime
+				 * matched by this function (or rather, by the
+				 * call frame's lifetime). */
+
+    /*
+     * If the object namespace (or interpreter) were deleted, we just skip to
+     * the next thing in the chain.
+     */
+
+    if (TclOOObjectDestroyed(((CallContext *) context)->oPtr)
+	    || Tcl_InterpDeleted(interp)) {
+	return TclNRObjectContextInvokeNext(interp, context, objc, objv,
+		Tcl_ObjectContextSkippedArgs(context));
+    }
+
+    /*
+     * Finishes filling out the extra frame info so that [info frame] works if
+     * that is not already set up.
+     */
+
+    if (pmPtr->efi.length == 0) {
+	Tcl_Method method = Tcl_ObjectContextMethod(context);
+
+	pmPtr->efi.length = 2;
+	pmPtr->efi.fields[0].name = "method";
+	pmPtr->efi.fields[0].proc = RenderMethodName;
+	pmPtr->efi.fields[0].clientData = pmPtr;

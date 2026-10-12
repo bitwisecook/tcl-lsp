@@ -45,7 +45,7 @@
 //!
 //! # What the cut is
 //!
-//! [`first_parse_cut`] walks [`group_commands`] in source order, then each
+//! [`first_parse_cut`] walks [`crate::group_commands`] in source order, then each
 //! command's words in source order, then each word's components in source
 //! order, descending into `[…]` bodies and `$arr(index)` components
 //! exactly as C's `ParseTokens` does.  The first construct C rejects wins,
@@ -55,10 +55,11 @@
 //!
 //! Nothing here is a new scanner.  Each class of failure is delegated to
 //! the primitive that already owns its spelling:
-//! [`quoted_word_close`] for `missing "` and the close-quote position,
+//! [`quoted_word_close`](crate::word_parts::quoted_word_close) for `missing "`
+//! and the close-quote position,
 //! [`word_closer_offset_at`] for an unterminated brace,
-//! [`decompose_spanned`] for everything inside a word, and
-//! [`group_commands`] for `{*}` and the welded close-brace.  This
+//! [`ExecutablePartArena`] for everything inside a word, and
+//! [`crate::group_commands`] for `{*}` and the welded close-brace.  This
 //! module only decides the **order** they are asked in.
 //!
 //! # Not an evaluator's parse
@@ -70,12 +71,16 @@
 //! `parse_cut_owner_agrees` test is what keeps the two applications of this
 //! policy honest.
 
-use crate::script::{CommandSpan, WordKind, group_commands};
+use std::rc::Rc;
+
+use crate::script::{CommandSpan, WordKind, group_commands_bytes};
 use crate::word_parts::{
-    EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, SpannedPart, SubstFlags, WordPart,
-    decompose_spanned, quoted_word_close,
+    ExecutablePart, ExecutablePartArena, PartListId, SubstFlags, quoted_word_close_with_issue_in,
 };
-use crate::{Lexer, LexerConfig, SourceMap, Token, word_closer_offset_at, word_span_at};
+use crate::{
+    Lexer, LexerConfig, SourceChannel, SourceImage, SourceMap, Span, Token, word_closer_offset_at,
+    word_span_at,
+};
 
 /// C's message for content that follows a word's closing `"`.
 ///
@@ -89,7 +94,7 @@ pub const EXTRA_AFTER_CLOSE_QUOTE: &str = "extra characters after close-quote";
 /// Where a script stops parsing, in C's order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseCut {
-    /// Index into [`group_commands`]'s result for the **top-level** script
+    /// Index into [`crate::group_commands`]'s result for the **top-level** script
     /// of the command the failure was found under.
     ///
     /// Commands before this one parse cleanly and, in C, run before the
@@ -101,8 +106,8 @@ pub struct ParseCut {
     ///
     /// Exact for a failure in a word or in a `[…]` body.  For one found
     /// inside a `$arr(index)` the offset is the reference's `$`:
-    /// [`decompose_spanned`] does not carry extents for index components,
-    /// and the `$` is the nearest position that is certainly correct.
+    /// The reporting contract anchors an index failure at its enclosing `$`;
+    /// the arena separately retains the exact inner source extent for `term`.
     ///
     /// An *unterminated* construct — a brace or quote that never closes —
     /// cuts where the parse ran out of input, so the offset is one past the
@@ -126,11 +131,64 @@ pub struct ParseCut {
     /// failure C reports in place, such as `extra characters after
     /// close-brace`.
     pub term: u32,
-    /// C's exact message for the construct.
+    /// Structured issue retained from its original creation site.
+    pub kind: crate::ParseIssueKind,
+    /// C's exact message for the construct, retained as presentation only.
     pub message: &'static str,
 }
 
-/// The first parse cut in `src`, or `None` when the whole script parses.
+/// Whether an authentic syntax cut can be resolved by appending input.
+/// This is a parse projection only; neither case licenses evaluation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseCutCompleteness {
+    /// A closer is absent at the reached original input boundary.
+    Incomplete,
+    /// A terminal syntax error remains complete for the C script query.
+    Terminal,
+}
+
+impl ParseCut {
+    /// Project the retained issue kind into the C parser's incomplete flag.
+    /// Diagnostic presentation does not participate in this query.
+    #[must_use]
+    pub const fn completeness(self) -> ParseCutCompleteness {
+        if self.kind.is_incomplete() {
+            ParseCutCompleteness::Incomplete
+        } else {
+            ParseCutCompleteness::Terminal
+        }
+    }
+}
+
+/// A lexical stream or source geometry the cut owner cannot inspect.
+/// This is distinct from an authentic syntax cut and from a clean script.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseCutUnavailable {
+    /// The selected lexer declined to publish a complete original stream.
+    LexicalStream(crate::LexError),
+    /// Original component geometry could not be retained.
+    SourceGeometry(crate::word_parts::ExecutablePartsUnavailable),
+}
+
+impl std::fmt::Display for ParseCutUnavailable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LexicalStream(error) => {
+                write!(formatter, "parse-cut lexical stream unavailable: {error}")
+            }
+            Self::SourceGeometry(error) => write!(
+                formatter,
+                "parse-cut source geometry unavailable: {error:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ParseCutUnavailable {}
+
+/// Advisory parse-cut projection for Unicode source.
+/// `None` also covers unavailable lexical ownership; executable callers use
+/// [`first_parse_cut_image_checked`] to distinguish it from a clean script.
 ///
 /// Lexes `src` under `config` and delegates to [`first_parse_cut_in`]; a
 /// caller that already holds the token stream should use that instead of
@@ -146,14 +204,25 @@ pub struct ParseCut {
 /// ```
 #[must_use]
 pub fn first_parse_cut(src: &str, config: LexerConfig) -> Option<ParseCut> {
-    let (tokens, commands) = lex_and_group(src, config)?;
-    first_parse_cut_in(&commands, &tokens, src, config)
+    first_parse_cut_image_checked(&SourceImage::document(src), config)
+        .ok()
+        .flatten()
+}
+
+/// Advisory parse-cut projection for original native byte source.
+/// Opaque bytes are ordinary data. Unavailability is omitted by this wrapper;
+/// executable callers use [`first_parse_cut_image_checked`].
+#[must_use]
+pub fn first_parse_cut_bytes(src: &[u8], config: LexerConfig) -> Option<ParseCut> {
+    first_parse_cut_image_checked(&SourceImage::native(src), config)
+        .ok()
+        .flatten()
 }
 
 /// [`first_parse_cut`] over a token stream and grouping the caller already
 /// has.
 ///
-/// `commands` must come from [`group_commands`] over `tokens`, and
+/// `commands` must come from [`crate::group_commands`] over `tokens`, and
 /// `tokens` from a [`Lexer`] run over `src` under `config`.
 #[must_use]
 pub fn first_parse_cut_in(
@@ -162,27 +231,151 @@ pub fn first_parse_cut_in(
     src: &str,
     config: LexerConfig,
 ) -> Option<ParseCut> {
-    commands.iter().enumerate().find_map(|(index, command)| {
-        command_cut(command, tokens, src, config).map(|(offset, term, message)| ParseCut {
-            command: index,
-            offset,
-            term,
-            message,
-        })
-    })
+    first_parse_cut_channel_in(
+        commands,
+        tokens,
+        src.as_bytes(),
+        config,
+        SourceChannel::Document,
+    )
+    .ok()
+    .flatten()
 }
 
-/// Lex and group `src`, or `None` when the lexer could not produce a stream
-/// at all.
+/// Inspect an existing native byte token stream in its original coordinates.
+#[must_use]
+pub fn first_parse_cut_bytes_in(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    src: &[u8],
+    config: LexerConfig,
+) -> Option<ParseCut> {
+    first_parse_cut_channel_in(commands, tokens, src, config, SourceChannel::NativeValue)
+        .ok()
+        .flatten()
+}
+
+/// Advisory parse-cut projection retaining the image's original channel.
+/// Executable callers use [`first_parse_cut_image_checked`] for unavailability.
+#[must_use]
+pub fn first_parse_cut_image(source: &SourceImage, config: LexerConfig) -> Option<ParseCut> {
+    first_parse_cut_image_checked(source, config).ok().flatten()
+}
+
+/// Syntax depth selected by a genuine parser entry, independent of execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ParseCutDescent {
+    /// Validate substituted command scripts through the existing full-depth walk.
+    RecursiveCommands,
+    /// Validate this script's original words and component delimiters, delaying
+    /// command-substitution body syntax until that child parser is entered.
+    EnclosingScript,
+}
+
+/// Inspect an original image without hiding unavailable lexical ownership.
 ///
-/// A hard [`LexError`](crate::LexError) is not a cut: it is the lexer
-/// refusing the input outright (a malformed encoding), which no consumer of
-/// this module models as a Tcl parse error.
-fn lex_and_group(src: &str, config: LexerConfig) -> Option<(Vec<Token>, Vec<CommandSpan>)> {
-    let lexer = Lexer::with_source_map(SourceMap::new(src), config);
-    let tokens = lexer.tokenise_all().ok()?;
-    let commands = group_commands(&tokens, src, config);
-    Some((tokens, commands))
+/// # Errors
+/// Returns the selected lexer or original component geometry refusal.
+pub fn first_parse_cut_image_checked(
+    source: &SourceImage,
+    config: LexerConfig,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    first_parse_cut_image_with_descent_checked(source, config, ParseCutDescent::RecursiveCommands)
+}
+
+/// Inspect an original script under its producer-selected syntax descent.
+/// The same lexical/group/component owners retain source and unavailable cuts.
+/// Delaying command bodies changes no delimiter scanner, variable-index
+/// traversal or parse-error term and supplies no execution/entry authority.
+///
+/// # Errors
+/// Returns unavailable selected lexical or original component ownership.
+pub fn first_parse_cut_image_with_descent_checked(
+    source: &SourceImage,
+    config: LexerConfig,
+    descent: ParseCutDescent,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    let (tokens, commands) = lex_and_group(source.bytes(), config, source.channel())?;
+    first_parse_cut_channel_in_with_descent(
+        &commands,
+        &tokens,
+        source.bytes(),
+        config,
+        source.channel(),
+        descent,
+    )
+}
+
+/// Inspect retained tokens and grouping under the same original image/config.
+/// `commands` and `tokens` must originate from that image's selected lexer.
+///
+/// # Errors
+/// Returns unavailable original component geometry or a nested lexical stream.
+pub fn first_parse_cut_image_in_checked(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    source: &SourceImage,
+    config: LexerConfig,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    first_parse_cut_channel_in(commands, tokens, source.bytes(), config, source.channel())
+}
+
+fn first_parse_cut_channel_in(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    src: &[u8],
+    config: LexerConfig,
+    channel: SourceChannel,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    first_parse_cut_channel_in_with_descent(
+        commands,
+        tokens,
+        src,
+        config,
+        channel,
+        ParseCutDescent::RecursiveCommands,
+    )
+}
+
+fn first_parse_cut_channel_in_with_descent(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    src: &[u8],
+    config: LexerConfig,
+    channel: SourceChannel,
+    descent: ParseCutDescent,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    for (index, command) in commands.iter().enumerate() {
+        if let Some((offset, term, kind)) =
+            command_cut(command, tokens, src, config, channel, descent)?
+        {
+            return Ok(Some(ParseCut {
+                command: index,
+                offset,
+                term,
+                kind,
+                message: kind.message(),
+            }));
+        }
+    }
+    Ok(None)
+}
+
+/// Lex and group `src`, preserving an unavailable lexical stream.
+///
+/// A hard [`LexError`](crate::LexError) is a strict parser-mode rejection.
+/// Original source bytes need no Unicode decoding to produce this stream.
+fn lex_and_group(
+    src: &[u8],
+    config: LexerConfig,
+    channel: SourceChannel,
+) -> Result<(Vec<Token>, Vec<CommandSpan>), ParseCutUnavailable> {
+    let lexer = Lexer::with_source_map(SourceMap::from_bytes_with_channel(src, channel), config);
+    let tokens = lexer
+        .tokenise_all()
+        .map_err(ParseCutUnavailable::LexicalStream)?;
+    let commands = group_commands_bytes(&tokens, src, config);
+    Ok((tokens, commands))
 }
 
 /// One level of the walk's explicit stack.
@@ -197,31 +390,24 @@ fn lex_and_group(src: &str, config: LexerConfig) -> Option<(Vec<Token>, Vec<Comm
 /// one answer this owner must never give.  Depth costs heap frames rather
 /// than native stack, so the walk is O(input) like the parse it mirrors and
 /// needs no limit of its own; the lexer's source-size limit bounds it.
-enum Frame<'s> {
-    /// A grouped script's words, flattened in document order.
+enum Frame {
+    /// A grouped script's original words, in document order.
     Words {
-        jobs: Vec<WordJob<'s>>,
-        next: usize,
-        report_at: Option<u32>,
-    },
-    /// A decomposed word's components.
-    Parts {
-        parts: Vec<SpannedPart<'s>>,
+        image: SourceImage,
+        jobs: Vec<WordJob>,
         base: u32,
         next: usize,
         report_at: Option<u32>,
-        /// The word's own delimiter failure, reported if — and only if —
-        /// nothing *inside* the word fails first.  This is how an
-        /// unterminated quoted word yields C's answer: `puts "[foo"` is
-        /// `missing close-bracket`, not `missing "`.
-        fallback: Option<(u32, u32, &'static str)>,
     },
-    /// A `$arr(index)`'s components, which carry no extents of their own, so
-    /// everything found inside one reports at the reference's `$`.
-    Index {
-        parts: Vec<WordPart<'s>>,
-        at: u32,
+    /// One ordered component list in a retained flat executable arena.
+    Parts {
+        arena: Rc<ExecutablePartArena>,
+        list: PartListId,
+        base: u32,
         next: usize,
+        report_at: Option<u32>,
+        /// The word's own delimiter failure, used only if no inner failure wins.
+        fallback: Option<(u32, u32, crate::ParseIssueKind)>,
     },
 }
 
@@ -230,14 +416,14 @@ enum Frame<'s> {
 /// Resolving every word of a body up front keeps a [`Frame`] free of borrows
 /// into the token stream it was grouped from, which is what lets a nested
 /// body be pushed without the enclosing frame still holding it.
-enum WordJob<'s> {
+enum WordJob {
+    Unavailable,
     /// The word fails here, whatever its content holds.
-    Cut(u32, u32, &'static str),
+    Cut(u32, u32, crate::ParseIssueKind),
     /// Walk this content; if nothing in it fails, report `fallback`.
     Content {
-        content: &'s [u8],
-        base: u32,
-        fallback: Option<(u32, u32, &'static str)>,
+        content: crate::Span,
+        fallback: Option<(u32, u32, crate::ParseIssueKind)>,
     },
     /// A braced word: C does not parse its content as anything.
     Literal,
@@ -247,39 +433,45 @@ enum WordJob<'s> {
 fn command_cut(
     command: &CommandSpan,
     tokens: &[Token],
-    src: &str,
+    src: &[u8],
     config: LexerConfig,
-) -> Option<(u32, u32, &'static str)> {
-    let jobs = word_jobs(&command.words, tokens, src, 0);
+    channel: SourceChannel,
+    descent: ParseCutDescent,
+) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
+    let jobs = word_jobs(&command.words, tokens, src, 0, config);
     let mut stack = vec![Frame::Words {
+        image: SourceImage::from_bytes(src, channel),
         jobs,
+        base: 0,
         next: 0,
         report_at: None,
     }];
-    drain(&mut stack, config)
+    drain(&mut stack, config, channel, descent)
 }
 
 /// Resolve every word of a grouped script into its [`WordJob`], with offsets
 /// already rebased onto the enclosing source.
-fn word_jobs<'s>(
+fn word_jobs(
     words: &[crate::script::WordSpan],
     tokens: &[Token],
-    src: &'s str,
+    src: &[u8],
     base: u32,
-) -> Vec<WordJob<'s>> {
+    config: LexerConfig,
+) -> Vec<WordJob> {
     words
         .iter()
-        .map(|word| word_job(word, tokens, src, base))
+        .map(|word| word_job(word, tokens, src, base, config))
         .collect()
 }
 
 /// Check one word's own delimiters.
-fn word_job<'s>(
+fn word_job(
     word: &crate::script::WordSpan,
     tokens: &[Token],
-    src: &'s str,
+    src: &[u8],
     base: u32,
-) -> WordJob<'s> {
+    config: LexerConfig,
+) -> WordJob {
     let at = |offset: u32| offset.saturating_add(base);
     // A brace group that closed but has content welded to it — `{a}b`,
     // `{a}{b}`, `{a}{*}$b` — is C's first complaint about the word, and the
@@ -287,20 +479,22 @@ fn word_job<'s>(
     if word.welded_after_close {
         // C reports this one in place, so the term is the offending byte.
         let weld = at(weld_offset(word, tokens, src));
-        return WordJob::Cut(weld, weld, EXTRA_AFTER_CLOSE_BRACE);
+        return WordJob::Cut(weld, weld, crate::ParseIssueKind::ExtraAfterBrace);
     }
-    let written = written_span(word, tokens, src);
-    let (start, end) = (written.start() as usize, written.end() as usize);
-    let content = |from: usize, to: usize, fallback: Option<(u32, u32, &'static str)>| match src
-        .get(from..to)
-    {
-        Some(text) => WordJob::Content {
-            content: text.as_bytes(),
-            base: at(offset_of(from)),
-            fallback,
-        },
-        None => WordJob::Literal,
+    let Some(written) = written_span(word, tokens, src, config) else {
+        return WordJob::Unavailable;
     };
+    let (start, end) = (written.start() as usize, written.end() as usize);
+    let content =
+        |from: usize, to: usize, fallback: Option<(u32, u32, crate::ParseIssueKind)>| match src
+            .get(from..to)
+        {
+            Some(_) => WordJob::Content {
+                content: crate::Span::new(offset_of(from), offset_of(to)),
+                fallback,
+            },
+            None => WordJob::Unavailable,
+        };
     match word.kind {
         // A braced word is C's `TCL_TOKEN_SIMPLE_WORD`: its content is not
         // parsed as anything, so the only thing that can fail is the brace
@@ -315,16 +509,18 @@ fn word_job<'s>(
         // [`word_closer_offset_at`](crate::word_closer_offset_at) about the
         // widened span asks whether the byte *after* the `}` is a `}`.
         WordKind::Braced => {
-            if src.as_bytes().get(start) == Some(&b'{')
-                && word_closer_offset_at(src, word.span).is_none()
-            {
+            if src.get(start) == Some(&b'{') && word_closer_offset_at(src, word.span).is_none() {
                 // Unterminated: C's term is the `{` that opened it.
-                WordJob::Cut(at(written.end()), at(written.start()), MISSING_CLOSE_BRACE)
+                WordJob::Cut(
+                    at(written.end()),
+                    at(written.start()),
+                    crate::ParseIssueKind::MissingBrace,
+                )
             } else {
                 WordJob::Literal
             }
         }
-        WordKind::Quoted => match quoted_word_close(src, start) {
+        WordKind::Quoted => match quoted_word_close_with_issue_in(src, start, config) {
             // The quote never closed — but that is not necessarily why C
             // stopped.  `quoted_word_close` steps over complete `[…]`
             // substitutions to find the closer, so an *incomplete* one makes
@@ -333,20 +529,21 @@ fn word_job<'s>(
             // `puts "[foo"` is `missing close-bracket` on 8.6.16 and 9.0.4.
             // Walk the content first and keep `missing "` as the fallback.
             // Unterminated: C's term is the `"` that opened it.
-            Err(message) => content(
+            Err(kind) => content(
                 start + 1,
                 end,
-                Some((at(written.end()), at(written.start()), message)),
+                Some((at(written.end()), at(written.start()), kind)),
             ),
             // Anything written between the closing `"` and the end of the
             // word is C's `extra characters after close-quote`.
-            Ok(close) if end > close + 1 => {
+            Ok(close) if end > close + 1 && config.quote_termination.is_strict() => {
                 // Reported in place, so the term is the offending byte.
                 {
                     let extra = at(offset_of(close + 1));
-                    WordJob::Cut(extra, extra, EXTRA_AFTER_CLOSE_QUOTE)
+                    WordJob::Cut(extra, extra, crate::ParseIssueKind::ExtraAfterQuote)
                 }
             }
+            Ok(close) if end > close + 1 => content(start + 1, end, None),
             Ok(close) => content(start + 1, close, None),
         },
         WordKind::Bare => content(start, end, None),
@@ -354,11 +551,18 @@ fn word_job<'s>(
 }
 
 /// Run the stack down to empty, or to the first cut.
-fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, u32, &'static str)> {
+fn drain(
+    stack: &mut Vec<Frame>,
+    config: LexerConfig,
+    channel: SourceChannel,
+    descent: ParseCutDescent,
+) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     while let Some(frame) = stack.last_mut() {
         match frame {
             Frame::Words {
+                image,
                 jobs,
+                base,
                 next,
                 report_at,
             } => {
@@ -369,115 +573,139 @@ fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, u32, &
                 };
                 *next += 1;
                 match job {
-                    WordJob::Literal => {}
-                    // `report_at` re-points only the reported position.
-                    WordJob::Cut(offset, term, message) => {
-                        return Some((report_at.unwrap_or(*offset), *term, message));
+                    WordJob::Unavailable => {
+                        return Err(ParseCutUnavailable::SourceGeometry(
+                            crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
+                        ));
                     }
-                    WordJob::Content {
-                        content,
-                        base,
-                        fallback,
-                    } => {
-                        let pushed = Frame::Parts {
-                            parts: decompose_spanned(content, SubstFlags::default(), config),
-                            base: *base,
-                            next: 0,
+                    WordJob::Literal => {}
+                    WordJob::Cut(offset, term, kind) => {
+                        return Ok(Some((report_at.unwrap_or(*offset), *term, *kind)));
+                    }
+                    WordJob::Content { content, fallback } => {
+                        let pushed = content_part_frame(
+                            image.clone(),
+                            *content,
+                            *base,
                             report_at,
-                            fallback: fallback.map(|(offset, term, message)| {
-                                (report_at.unwrap_or(offset), term, message)
-                            }),
-                        };
+                            *fallback,
+                            config,
+                        )?;
                         stack.push(pushed);
                     }
                 }
             }
             Frame::Parts {
-                parts,
+                arena,
+                list,
                 base,
                 next,
                 report_at,
                 fallback,
             } => {
                 let (base, report_at) = (*base, *report_at);
-                let Some(part) = parts.get(*next) else {
+                let Some(component) = arena.list(*list).get(*next) else {
                     let fallback = *fallback;
                     stack.pop();
                     if let Some(found) = fallback {
-                        return Some(found);
+                        return Ok(Some(found));
                     }
                     continue;
                 };
                 *next += 1;
-                let here = base.saturating_add(offset_of(part.start));
+                let here = base.saturating_add(component.span.start());
                 let at = report_at.unwrap_or(here);
-                match &part.part {
-                    WordPart::Text(_) => {}
-                    WordPart::ParseError(message) => return Some((at, here, message)),
-                    WordPart::Variable(var) => {
-                        if let Some(index) = var.index.clone() {
-                            stack.push(Frame::Index {
-                                parts: index,
-                                at,
-                                next: 0,
-                            });
+                match component.part {
+                    ExecutablePart::Text(_)
+                    | ExecutablePart::Expression { .. }
+                    | ExecutablePart::Variable { index: None, .. } => {}
+                    ExecutablePart::ParseError(_) => {
+                        let term = component
+                            .parse_error_term()
+                            .and_then(|term| base.checked_add(term))
+                            .ok_or(ParseCutUnavailable::SourceGeometry(
+                                crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
+                            ))?;
+                        let kind = component.parse_issue_kind().ok_or(
+                            ParseCutUnavailable::SourceGeometry(
+                                crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
+                            ),
+                        )?;
+                        return Ok(Some((at, term, kind)));
+                    }
+                    ExecutablePart::Variable {
+                        index: Some(index), ..
+                    } => {
+                        let pushed = Frame::Parts {
+                            arena: Rc::clone(arena),
+                            list: index,
+                            base,
+                            next: 0,
+                            report_at: Some(at),
+                            fallback: None,
+                        };
+                        stack.push(pushed);
+                    }
+                    ExecutablePart::Command { body } => {
+                        if descent == ParseCutDescent::EnclosingScript {
+                            continue;
                         }
+                        // The inner script's original extent is independent of
+                        // the enclosing variable's diagnostic reporting anchor.
+                        let pushed =
+                            command_part_frame(arena, body, base, report_at, config, channel)?;
+                        stack.push(pushed);
                     }
-                    // The `[` is one byte, so the body begins one past the part.
-                    WordPart::Command(body) => {
-                        let pushed = body_frame(body, at.saturating_add(1), report_at, config);
-                        stack.extend(pushed);
-                    }
-                }
-            }
-            Frame::Index { .. } => {
-                if let Some(found) = index_step(stack, config) {
-                    return Some(found);
                 }
             }
         }
     }
-    None
+    Ok(None)
 }
 
-/// One step of an [`Frame::Index`] frame: a `$arr(index)`'s components carry
-/// no extents of their own, so everything found inside one reports at the
-/// reference's `$` — term included, there being no nearer position that is
-/// certainly correct.
-fn index_step(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, u32, &'static str)> {
-    let Some(Frame::Index { parts, at, next }) = stack.last_mut() else {
-        return None;
+fn content_part_frame(
+    image: SourceImage,
+    content: Span,
+    base: u32,
+    report_at: Option<u32>,
+    fallback: Option<(u32, u32, crate::ParseIssueKind)>,
+    config: LexerConfig,
+) -> Result<Frame, ParseCutUnavailable> {
+    let arena = ExecutablePartArena::decompose(image, content, SubstFlags::default(), config)
+        .map_err(ParseCutUnavailable::SourceGeometry)?;
+    let list = arena.root();
+    Ok(Frame::Parts {
+        arena: Rc::new(arena),
+        list,
+        base,
+        next: 0,
+        report_at,
+        fallback: fallback.map(|(offset, term, kind)| (report_at.unwrap_or(offset), term, kind)),
+    })
+}
+
+fn command_part_frame(
+    arena: &ExecutablePartArena,
+    body: Span,
+    base: u32,
+    report_at: Option<u32>,
+    config: LexerConfig,
+    channel: SourceChannel,
+) -> Result<Frame, ParseCutUnavailable> {
+    let unavailable = || {
+        ParseCutUnavailable::SourceGeometry(
+            crate::word_parts::ExecutablePartsUnavailable::SourceBounds,
+        )
     };
-    let at = *at;
-    let Some(part) = parts.get(*next) else {
-        stack.pop();
-        return None;
-    };
-    *next += 1;
-    match part {
-        WordPart::Text(_) => {}
-        WordPart::ParseError(message) => return Some((at, at, message)),
-        WordPart::Variable(var) => {
-            if let Some(index) = var.index.clone() {
-                stack.push(Frame::Index {
-                    parts: index,
-                    at,
-                    next: 0,
-                });
-            }
-        }
-        WordPart::Command(body) => {
-            let pushed = body_frame(body, at, Some(at), config);
-            stack.extend(pushed);
-        }
-    }
-    None
+    let child_base = base.checked_add(body.start()).ok_or_else(unavailable)?;
+    let body = arena.bytes(body).ok_or_else(unavailable)?;
+    body_frame(body, child_base, report_at, config, channel)
 }
 
 /// A complete `[…]` body as a script frame to walk.
 ///
-/// A body that failed to *close* never reaches here — [`decompose_spanned`]
-/// reports that as a [`WordPart::ParseError`] on the enclosing word — so this
+/// A body that failed to *close* never reaches here — [`ExecutablePartArena`]
+/// reports that as an [`ExecutablePart::ParseError`] on the enclosing word — so this
 /// is the descent C performs while parsing an outer command whose bracket is
 /// well-formed but whose inner script is not: `list [set y {a}b]` is
 /// `extra characters after close-brace`, found one level down.
@@ -486,15 +714,18 @@ fn body_frame(
     base: u32,
     report_at: Option<u32>,
     config: LexerConfig,
-) -> Option<Frame<'_>> {
-    let body = std::str::from_utf8(body).ok()?;
-    let (tokens, commands) = lex_and_group(body, config)?;
+    channel: SourceChannel,
+) -> Result<Frame, ParseCutUnavailable> {
+    let config = crate::SourceSegmentationPurpose::NestedScript.config(config);
+    let (tokens, commands) = lex_and_group(body, config, channel)?;
     let jobs = commands
         .iter()
-        .flat_map(|command| word_jobs(&command.words, &tokens, body, base))
+        .flat_map(|command| word_jobs(&command.words, &tokens, body, base, config))
         .collect();
-    Some(Frame::Words {
+    Ok(Frame::Words {
+        image: SourceImage::from_bytes(body, channel),
         jobs,
+        base,
         next: 0,
         report_at,
     })
@@ -502,23 +733,28 @@ fn body_frame(
 
 /// The whole written word, closing delimiter included.
 ///
-/// Widening is the **last token's** job, not the word's: the lexer's
-/// inner-end convention leaves a braced or bracketed final fragment's `}` /
-/// `]` one byte past the token span, and
-/// [`word_span_at`](crate::word_span_at) can only widen a span that *opens*
-/// with a delimiter.  Asking it about the whole word instead leaves
-/// `lappend x pre-[cmd arg]` a byte short and the trailing `]` invisible,
-/// which reads as an unterminated bracket.  This is `build.rs`'s
-/// `widen_word_end` policy, which the boundary owner documents on
-/// [`CommandSpan::span`](crate::CommandSpan::span).
-fn written_span(word: &crate::script::WordSpan, tokens: &[Token], src: &str) -> crate::Span {
-    let end = word
-        .tokens
-        .end
-        .checked_sub(1)
-        .and_then(|last| tokens.get(last))
-        .map_or(word.span.end(), |last| word_span_at(src, last.span).end());
-    crate::Span::new(word.span.start(), end.max(word.span.end()))
+/// Both the grouped word and its final component retain closing delimiters.
+/// A quoted word can end in an escape fragment with no opening quote of its
+/// own; a bare concatenating word can end in a bracketed component with its
+/// own closer. The shared group geometry covers both cases.
+fn written_span(
+    word: &crate::script::WordSpan,
+    tokens: &[Token],
+    src: &[u8],
+    config: LexerConfig,
+) -> Option<crate::Span> {
+    let last = tokens.get(word.tokens.end.checked_sub(1)?)?;
+    let end = match crate::native_word::complete_group_span(src, word.span, *last, config) {
+        Ok(span) => span.end(),
+        // An incomplete variable still needs its original bytes inspected for
+        // the native syntax message, rather than becoming a geometry refusal.
+        Err(crate::word_parts::NativeWordError::Parse(_)) => last.span.end(),
+        Err(_) => return None,
+    };
+    Some(crate::Span::new(
+        word.span.start(),
+        end.max(word.span.end()),
+    ))
 }
 
 /// Byte offset of the content welded to a word's closing brace.
@@ -527,7 +763,7 @@ fn written_span(word: &crate::script::WordSpan, tokens: &[Token], src: &str) -> 
 /// offset is where the *next* fragment of the word starts, which is the
 /// byte after the `}` that C stopped at.  Falls back to the word's own end
 /// if the word somehow holds a single token (it cannot: welding needs two).
-fn weld_offset(word: &crate::script::WordSpan, tokens: &[Token], src: &str) -> u32 {
+fn weld_offset(word: &crate::script::WordSpan, tokens: &[Token], src: &[u8]) -> u32 {
     let after_first = word
         .tokens
         .clone()
@@ -553,6 +789,111 @@ fn offset_of(at: usize) -> u32 {
 mod tests {
     use super::{EXTRA_AFTER_CLOSE_QUOTE, ParseCut, first_parse_cut};
     use crate::LexerConfig;
+    use crate::{
+        ExecutablePartArena, SourceImage, Span, SubstFlags, first_parse_cut_image_checked,
+    };
+
+    #[test]
+    fn original_bracket_child_cut_keeps_bom_content_at_local_zero() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // A true bracket child keeps nested syntax even at its local byte zero.
+        let config = LexerConfig {
+            leading_bom: crate::LeadingBom::Skip,
+            ..LexerConfig::for_dialect("tcl8.6")
+        };
+        for source in ["list [\u{feff}{x}tail]", "list [\u{feff}list {x}]"] {
+            for image in [
+                SourceImage::document(source),
+                SourceImage::native(source.as_bytes()),
+            ] {
+                assert_eq!(first_parse_cut_image_checked(&image, config), Ok(None));
+            }
+        }
+        let malformed = "list [\u{feff}list {x}tail]";
+        for image in [
+            SourceImage::document(malformed),
+            SourceImage::native(malformed.as_bytes()),
+        ] {
+            let cut = first_parse_cut_image_checked(&image, config)
+                .unwrap()
+                .unwrap();
+            assert_eq!(cut.message, crate::word_parts::EXTRA_AFTER_CLOSE_BRACE);
+            assert_eq!(cut.term as usize, malformed.find("tail").unwrap());
+        }
+    }
+
+    #[test]
+    fn deep_index_cut_preserves_outer_anchor_and_exact_inner_term() {
+        let mut source = b"puts pre; list ".to_vec();
+        let anchor = source.len();
+        for _ in 0..2_000 {
+            source.extend_from_slice(b"$a(");
+        }
+        source.extend_from_slice(b"[set y {a}b]");
+        let term = source.windows(4).position(|part| part == b"{a}b").unwrap() + 3;
+        source.extend(std::iter::repeat_n(b')', 2_000));
+        let cut = super::first_parse_cut_image_checked(
+            &crate::SourceImage::native(source),
+            LexerConfig::default(),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(cut.command, 1);
+        assert_eq!(cut.offset as usize, anchor);
+        assert_eq!(cut.term as usize, term);
+        assert_eq!(cut.message, crate::word_parts::EXTRA_AFTER_CLOSE_BRACE);
+    }
+
+    #[test]
+    fn checked_cut_separates_clean_syntax_geometry_and_lexical_refusal() {
+        let config = LexerConfig::default();
+        let image = crate::SourceImage::native(b"list ${x}".as_slice());
+        assert_eq!(
+            super::first_parse_cut_image_checked(&image, config),
+            Ok(None)
+        );
+        let tokens = crate::Lexer::with_source_image(&image, config)
+            .tokenise_all()
+            .unwrap();
+        let mut groups = crate::group_commands_bytes(&tokens, image.bytes(), config);
+        groups[0].words[1].tokens.end = tokens.len() + 1;
+        assert!(matches!(
+            super::first_parse_cut_image_in_checked(&groups, &tokens, &image, config),
+            Err(super::ParseCutUnavailable::SourceGeometry(_)),
+        ));
+        assert!(matches!(
+            super::first_parse_cut_image_checked(
+                &crate::SourceImage::native(b"list \"x\"y".as_slice()),
+                LexerConfig {
+                    strict_quoting: true,
+                    ..config
+                },
+            ),
+            Err(super::ParseCutUnavailable::LexicalStream(_)),
+        ));
+    }
+
+    #[test]
+    fn complete_jim_expression_components_do_not_cut_the_script() {
+        use tcl_dialect::model::{Family, Release, grammar};
+        let config = LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84));
+        for source in [
+            "set (k) ELEMENT; set i k; list $(k) $($i)",
+            "list prefix$(k)",
+            "list $()",
+            "list $(($a+1)*2)",
+            r"list $(a\)b)",
+        ] {
+            assert_eq!(first_parse_cut(source, config), None, "{source}");
+        }
+        let cut = first_parse_cut("set i k; list $($i", config).unwrap();
+        assert_eq!(cut.command, 1);
+        assert_eq!(
+            cut.message,
+            "missing close-paren for expression substitution"
+        );
+    }
 
     /// Measured on tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0 — byte
     /// identical on all five — by running each script in a fresh child
@@ -774,6 +1115,7 @@ mod tests {
                 offset: 17,
                 // Reported in place, so the term is the same byte.
                 term: 17,
+                kind: crate::ParseIssueKind::ExtraAfterBrace,
                 message: crate::word_parts::EXTRA_AFTER_CLOSE_BRACE,
             }),
         );
@@ -812,6 +1154,87 @@ mod tests {
                 Some(want),
                 "{script:?}"
             );
+        }
+    }
+
+    #[test]
+    fn original_nested_parse_error_terms_keep_the_failed_delimiter() {
+        // Native proof: naming.grammar.c84-parser-context-extents (docs/design/analysis/name-resolution-proofs/grammar-c84-parser-context-extents.md).
+        // The original C8.4 capture rows 6 and 9 retain terms 13 and 11.
+        for source in [
+            SourceImage::document("set x [bad x \"abc"),
+            SourceImage::native(b"set x [bad x \"abc".as_slice()),
+        ] {
+            let cut = first_parse_cut_image_checked(&source, LexerConfig::for_dialect("tcl8.4"))
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                (cut.command, cut.offset, cut.term, cut.message),
+                (0, 6, 13, crate::word_parts::MISSING_QUOTE)
+            );
+            let arena = ExecutablePartArena::decompose(
+                source.clone(),
+                Span::new(6, u32::try_from(source.len()).unwrap()),
+                SubstFlags::default(),
+                LexerConfig::for_dialect("tcl8.4"),
+            )
+            .unwrap();
+            let [component] = arena.list(arena.root()) else {
+                panic!("one rejected original component");
+            };
+            assert_eq!(component.span.start(), 6);
+            assert_eq!(component.parse_error_term(), Some(13));
+        }
+        let source = SourceImage::native(b"set x [bad {".as_slice());
+        let cut = first_parse_cut_image_checked(&source, LexerConfig::for_dialect("tcl8.4"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (cut.command, cut.offset, cut.term, cut.message),
+            (0, 6, 11, crate::word_parts::MISSING_CLOSE_BRACE)
+        );
+    }
+
+    #[test]
+    fn original_error_term_rebasing_preserves_native_bytes_and_inner_reference() {
+        // Implementation contract: naming.grammar.original-error-term-geometry (docs/design/analysis/name-resolution-proofs/original-error-term-geometry.md).
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let config = LexerConfig::for_dialect(environment);
+            for (source, offset, term, message) in [
+                (
+                    b"set x [bad \xff \"\0".as_slice(),
+                    6,
+                    13,
+                    crate::word_parts::MISSING_QUOTE,
+                ),
+                (
+                    b"set x [bad ${name".as_slice(),
+                    6,
+                    12,
+                    crate::MISSING_CLOSE_BRACE_FOR_VAR,
+                ),
+                (
+                    b"set x $a([bad \"abc".as_slice(),
+                    6,
+                    14,
+                    crate::word_parts::MISSING_QUOTE,
+                ),
+                (
+                    b"set x [[".as_slice(),
+                    6,
+                    7,
+                    crate::word_parts::MISSING_CLOSE_BRACKET,
+                ),
+            ] {
+                let cut = first_parse_cut_image_checked(&SourceImage::native(source), config)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    (cut.offset, cut.term, cut.message),
+                    (offset, term, message),
+                    "{environment} {source:?}"
+                );
+            }
         }
     }
 
@@ -859,5 +1282,112 @@ mod tests {
             first_parse_cut(&shallow_error, LexerConfig::default()).map(|c| c.message),
             Some(EXTRA_AFTER_CLOSE_QUOTE),
         );
+    }
+}
+
+#[cfg(test)]
+mod original_parse_descent_tests {
+    use super::*;
+
+    #[test]
+    fn original_enclosing_script_cut_delays_child_syntax_without_hiding_root_delimiters() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // naming.source.jim-nested-direct-entry-and-prefix-effects
+        // docs/design/analysis/name-resolution-proofs/source-jim-nested-direct-entry-and-prefix-effects.md
+        // The physical Direct observations are separate from this syntax-only
+        // projection; neither channel nor descent issues an execution receipt.
+        // Syntax depth only; genuine Registry entry independently selects its use.
+        let config = LexerConfig::for_dialect("jim");
+        for source in [
+            "set before 1; list [list {a}b]",
+            "set before 1; list \"[list {a}b]\"",
+            "set before 1; list $arr([list {a}b])",
+        ] {
+            let image = SourceImage::document(source);
+            assert_eq!(
+                first_parse_cut_image_with_descent_checked(
+                    &image,
+                    config,
+                    ParseCutDescent::EnclosingScript
+                ),
+                Ok(None),
+                "{source}"
+            );
+            assert!(
+                first_parse_cut_image_checked(&image, config)
+                    .unwrap()
+                    .is_some(),
+                "{source}"
+            );
+        }
+        for source in [
+            "set before 1; {a}b",
+            "set before 1; list [list {a]",
+            "set before 1; list \"unterminated",
+        ] {
+            let image = SourceImage::document(source);
+            let recursive = first_parse_cut_image_checked(&image, config).unwrap();
+            let enclosing = first_parse_cut_image_with_descent_checked(
+                &image,
+                config,
+                ParseCutDescent::EnclosingScript,
+            )
+            .unwrap();
+            assert!(enclosing.is_some(), "{source}");
+            assert_eq!(enclosing, recursive, "{source}");
+        }
+        let child = SourceImage::document("list {a}b");
+        assert!(
+            first_parse_cut_image_with_descent_checked(
+                &child,
+                config.nested(),
+                ParseCutDescent::EnclosingScript
+            )
+            .unwrap()
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for source in ["list 1", "list [list {a}b]", "list ${a{b}c}"] {
+                let image = SourceImage::document(source);
+                assert_eq!(
+                    first_parse_cut_image_checked(&image, config),
+                    first_parse_cut_image_with_descent_checked(
+                        &image,
+                        config,
+                        ParseCutDescent::RecursiveCommands
+                    )
+                );
+            }
+        }
+        let image = SourceImage::document("list 1");
+        let tokens = Lexer::with_source_image(&image, LexerConfig::default())
+            .tokenise_all()
+            .unwrap();
+        let mut groups = group_commands_bytes(&tokens, image.bytes(), LexerConfig::default());
+        groups[0].words[0].tokens = tokens.len()..tokens.len();
+        for descent in [
+            ParseCutDescent::RecursiveCommands,
+            ParseCutDescent::EnclosingScript,
+        ] {
+            assert!(
+                first_parse_cut_channel_in_with_descent(
+                    &groups,
+                    &tokens,
+                    image.bytes(),
+                    LexerConfig::default(),
+                    image.channel(),
+                    descent
+                )
+                .is_err()
+            );
+        }
     }
 }

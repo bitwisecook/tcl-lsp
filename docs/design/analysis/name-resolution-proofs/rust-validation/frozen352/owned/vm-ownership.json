@@ -1,0 +1,83 @@
+{
+  "executable": "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+  "sha256": "10b2ae8bda8a021532b163c36b93ab3ecb18e1374f5e5c3f008145dda6abb345",
+  "size": 106751832,
+  "package": "tcl-vm",
+  "target": {
+    "kind": [
+      "lib"
+    ],
+    "crate_types": [
+      "lib"
+    ],
+    "name": "tcl_vm",
+    "src_path": "/workspace/.checkpoints/naming-current-validation352/rust/tcl-vm/src/lib.rs",
+    "edition": "2024",
+    "doc": true,
+    "doctest": true,
+    "test": true
+  },
+  "features": [
+    "default",
+    "js-clock"
+  ],
+  "cargo_artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/.checkpoints/naming-current-validation352/rust/tcl-vm#0.1.0",
+    "manifest_path": "/workspace/.checkpoints/naming-current-validation352/rust/tcl-vm/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_vm",
+      "src_path": "/workspace/.checkpoints/naming-current-validation352/rust/tcl-vm/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [
+      "default",
+      "js-clock"
+    ],
+    "filenames": [
+      "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6"
+    ],
+    "executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6",
+    "fresh": false
+  },
+  "original_path": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6",
+  "original_stat": {
+    "st_dev": 27,
+    "st_ino": 553485,
+    "st_mode": 33216,
+    "st_size": 106751832,
+    "st_nlink": 1,
+    "st_mtime_ns": 1791732591238907794,
+    "st_ctime_ns": 1791732591290907388
+  },
+  "sealed_stat": {
+    "st_dev": 27,
+    "st_ino": 553485,
+    "st_mode": 33216,
+    "st_size": 106751832,
+    "st_nlink": 1,
+    "st_mtime_ns": 1791732591238907794,
+    "st_ctime_ns": 1791732745631845906
+  },
+  "build_receipt": "/workspace/.proofs/integration-vm-own-test-build352.json",
+  "build_receipt_sha256": "9a05b65cc6f7c6e84cdb3238e39103ffdc7efb7ae9d1c530004a345c2ac14743",
+  "source_snapshot": "/workspace/.checkpoints/naming352/snapshot.json",
+  "source_snapshot_sha256": "ceb57681457bd275a7e100fdc636c8193db6925346d5444bafe872df71c6278c",
+  "storage_rule": "The exact own-target Cargo-emitted ELF is sealed by same-filesystem rename retaining its inode and all full bytes. Permission mode is set to 0700. No dependency executable or stale/list-only target supplies ownership or assertion credit."
+}

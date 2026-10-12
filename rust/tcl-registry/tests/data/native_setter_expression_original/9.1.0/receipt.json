@@ -1,0 +1,34 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/current-native-setter-expression162/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.011522368004079908,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "36b6678065adfe744cc46ecaffcce83a75a89ccd433d0063d68fa9b5c64038f2",
+  "runner_sha256": "98b2d6cd7e407d2b13839177dbf7a0c933e4746e0632cbf87c978f9555d28a80",
+  "stdout_sha256": "91f5d8d41e81f9a1360ace1c3649ee9e68040909988609aed2eca4fe2250824b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "version 9.1.0",
+    "OBSERVATION builtin 0 4",
+    "OBSERVATION alias_expression 0 4",
+    "OBSERVATION shadowed_expression 0 VALUE",
+    "OBSERVATION alias_setter 0 VALUE"
+  ],
+  "input_channel": "ASCII LF source-file CLI; four independent setter/expression child observations",
+  "boundary": "Question: do expression aliases read their braced expression and does a same-spelled user procedure instead return literal VALUE through direct and aliased setters? Four independent catch observations; unsupported interpreter alias syntax remains a refusal, not a value/reader fact. No compiler admission or physical object identity is inferred."
+}

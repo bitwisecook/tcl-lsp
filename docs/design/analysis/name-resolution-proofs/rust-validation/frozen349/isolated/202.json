@@ -1,0 +1,19 @@
+{
+  "ordinal": 202,
+  "selector": "interp::bootstrap_context_tests::original_bootstrap_reporting_retirement_preserves_the_reached_first_cause",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::bootstrap_context_tests::original_bootstrap_reporting_retirement_preserves_the_reached_first_cause",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.7439799679850694,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.73s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/202.log",
+  "log_sha256": "160962ea640a18c3980155589845dec9103ef149a1e9b261c3fb180d8afafe5b"
+}

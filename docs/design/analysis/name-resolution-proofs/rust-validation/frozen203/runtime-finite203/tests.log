@@ -1,0 +1,362 @@
+
+running 74 tests
+test cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables ... ok
+test cmd_alias::tests::c_child_constructor_refusal_keeps_owner_cause_without_success_result ... ok
+test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... FAILED
+test cmd_alias::tests::jim_child_constructor_refusal_preserves_typed_cause_and_parent_result ... ok
+test cmd_alias::tests::jim_child_counted_crossings_match_original_native_public_rows ... ok
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... ok
+test cmd_alias::tests::jim_interpreter_handle_isolation ... ok
+test cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer ... FAILED
+test cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers ... FAILED
+test cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results ... FAILED
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_coro::tests::coroinject_runs_on_next_resume ... FAILED
+test cmd_coro::tests::original_injection_public_completions_match_both_c9_releases ... FAILED
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... FAILED
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... FAILED
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... FAILED
+test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... FAILED
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... FAILED
+test cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results ... FAILED
+test cmd_namespace::native_holder_routing::original_jim_namespace_library_sources_match_all_native_provider_results ... ok
+test cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy ... ok
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... FAILED
+test cmd_oo::tests::define_context_self_arity ... FAILED
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... ok
+test cmd_oo::tests::definitionnamespace_semantics ... ok
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... FAILED
+test cmd_oo::tests::object_builtin_variable_varname_eval ... FAILED
+test cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries ... FAILED
+test cmd_oo::tests::unknown_method_preserves_original_selector_for_returned_slot_data ... ok
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... ok
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... ok
+test cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces ... FAILED
+test cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies ... FAILED
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... FAILED
+test cmd_var::tests::original_array_read_destruction_matches_six_native_source_results ... FAILED
+test cmd_var::tests::original_upvar_error_publication_matches_all_six_native_sources ... FAILED
+test cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes ... FAILED
+test codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged ... ok
+test codegen_abi::tests::a_logged_statement_site_preserves_the_source_trace_without_instruction_identity ... ok
+test codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read ... ok
+test codegen_abi::tests::invoke_argv_reports_unknown_error_with_options ... ok
+test dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache ... ok
+test frame::native_inventory_tests::trace_member_identity_selects_original_duplicate_root_allocations ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... FAILED
+test interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... ok
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... FAILED
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... FAILED
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers ... FAILED
+test interp::native_children::tests::child_host_failure_keeps_its_typed_cause_and_parent_result ... ok
+test interp::native_children::tests::jim_child_bootstrap_copies_global_variable_extents_without_parent_object_sharing ... ok
+test interp::native_children::tests::jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal ... ok
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... FAILED
+test interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... FAILED
+test interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources ... FAILED
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... FAILED
+test interp::native_variable_names::tests::legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them ... ok
+test interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch ... ok
+test interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit ... FAILED
+test interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards ... ok
+test interp::tests::missing_arity_protocol_refuses_before_guest_state_changes ... ok
+test interp::tests::native_wrong_arguments_string_result_requires_the_structured_presenter ... ok
+test interp::tests::unchanged_primitive_projection_preserves_the_original_string_result ... ok
+test list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow ... ok
+test native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary ... FAILED
+test native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit ... FAILED
+test native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series ... FAILED
+test native_source::tests::original_jim_source_length_preserves_resident_bytes_and_child_source ... ok
+test obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings ... FAILED
+test value_ops::tests::original_value_append_does_not_rebuild_after_unavailable_storage ... ok
+test value_ops::tests::original_value_append_preserves_storage_for_the_next_native_mutation ... ok
+test vars::tests::selected_member_trace_home_requires_original_root_correspondence ... ok
+
+failures:
+
+---- cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis stdout ----
+
+thread 'cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis' (760106) panicked at src/cmd_alias.rs:1311:13:
+tcl8.4: admission None, native access Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer stdout ----
+
+thread 'cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer' (760111) panicked at src/cmd_array.rs:1094:9:
+assertion failed: crate::obj::obj_type_ptr(name.as_ptr()).is_null()
+
+---- cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers stdout ----
+
+thread 'cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers' (760118) panicked at src/cmd_array.rs:1037:17:
+assertion `left == right` failed: tcl8.4: []
+  left: Error
+ right: Ok
+
+---- cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results stdout ----
+
+thread 'cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results' (760119) panicked at src/cmd_array.rs:1063:17:
+assertion failed: !interp.host_refusal_pending()
+
+---- cmd_coro::tests::coroinject_runs_on_next_resume stdout ----
+
+thread 'cmd_coro::tests::coroinject_runs_on_next_resume' (760135) panicked at src/cmd_coro.rs:1048:9:
+admission None, native access Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+
+---- cmd_coro::tests::original_injection_public_completions_match_both_c9_releases stdout ----
+
+thread 'cmd_coro::tests::original_injection_public_completions_match_both_c9_releases' (760137) panicked at src/cmd_coro.rs:1250:17:
+assertion `left == right` failed: V9_0: if {[llength [info commands coroinject]] == 0} {
+    set result UNAVAILABLE
+} else {
+    set log {}
+    proc inject {tag mode kind value} {
+        lappend ::log [list $tag $kind $value]
+        if {$mode eq "error"} {error $tag}
+        return $tag
+    }
+    coroutine c apply {{} {set ::value [yield ready]; return $::value}}
+    coroinject c inject A ok
+    coroinject c inject B ok
+    set completion [catch {c ORIGINAL} result options]
+    list $completion $result $log
+}
+; admission=None; access=Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+  left: Error
+ right: Ok
+
+---- cmd_info::tests::info_consts_includes_only_tcloo_instance_links stdout ----
+
+thread 'cmd_info::tests::info_consts_includes_only_tcloo_instance_links' (760139) panicked at src/cmd_info.rs:974:9:
+assertion `left == right` failed: eval "const G 9; oo::class create C {variable X; constructor {} {const X 1}; method inspect {} {global G; upvar #0 ::G U; list [info consts] [info constant G] [info constant U]}; method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; method shadow {X} {list $X [info consts]}}; set o [C new]; oo::object create O; oo::objdefine O {variable P; method init {} {const P 2}; method inspect {} {info consts}}; O init; oo::class create CA {variable X; method inspect {} {list [info consts] [info constant X] $X}}; set oa [CA new]; namespace eval [info object namespace $oa] {namespace upvar :: G X}; oo::class create CP {method inspect {} {info consts}}; CP create op; oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] [$oa inspect] [op inspect] [info constant [info object namespace op]::Q]": result [], admission None, native access Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+  left: Error
+ right: Ok
+
+---- cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation stdout ----
+
+thread 'cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation' (760140) panicked at src/cmd_list.rs:1166:17:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls stdout ----
+
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (760144) panicked at src/cmd_mathop.rs:166:13:
+assertion `left == right` failed: tcl8.4/0
+  left: 1
+ right: 0
+
+---- cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers stdout ----
+
+thread 'cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers' (760145) panicked at src/cmd_namespace/native_holder_routing.rs:101:5:
+tcl8.4/2/PRELUDE: refusal=Some(CommandProtocolUnavailable("actual indexed variable receiver")), admission=None
+
+---- cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers stdout ----
+
+thread 'cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers' (760146) panicked at src/cmd_namespace/native_holder_routing.rs:101:5:
+tcl8.5/ensemble/0/ORIGINAL: refusal=Some(CommandProtocolUnavailable("actual indexed variable receiver")), admission=None
+
+---- cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results stdout ----
+
+thread 'cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results' (760147) panicked at src/cmd_namespace/native_holder_routing.rs:108:5:
+assertion `left == right` failed: jim/namespace-factory/0/ORIGINAL: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 105, 110, 102, 111, 32, 99, 111, 109, 109, 97, 110, 100, 115, 32, 63, 112, 97, 116, 116, 101, 114, 110, 63, 34]
+  left: 1
+ right: 0
+
+---- cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls stdout ----
+
+thread 'cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls' (760197) panicked at src/cmd_oo/native_variables.rs:148:9:
+RAW_ZERO_DYNAMIC_WRITE: native access Some(CommandProtocolUnavailable("actual indexed variable receiver")), compilation admission None
+
+---- cmd_oo::tests::define_context_self_arity stdout ----
+
+thread 'cmd_oo::tests::define_context_self_arity' (760198) panicked at src/cmd_oo.rs:6663:9:
+assertion `left == right` failed: eval "oo::define Cls {set ::r [self]}; set ::r" -> ""
+  left: Error
+ right: Ok
+
+---- cmd_oo::tests::objdefine_forward_mixin_unexport_copy stdout ----
+
+thread 'cmd_oo::tests::objdefine_forward_mixin_unexport_copy' (760201) panicked at src/cmd_oo.rs:6663:9:
+assertion `left == right` failed: eval "set o [Base new]" -> ""
+  left: Error
+ right: Ok
+
+---- cmd_oo::tests::object_builtin_variable_varname_eval stdout ----
+
+thread 'cmd_oo::tests::object_builtin_variable_varname_eval' (760202) panicked at src/cmd_oo.rs:6663:9:
+assertion `left == right` failed: eval "set o [C new]" -> ""
+  left: Error
+ right: Ok
+
+---- cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries stdout ----
+
+thread 'cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries' (760203) panicked at src/cmd_oo.rs:8679:17:
+tcl8.6: Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+
+---- cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces stdout ----
+
+thread 'cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces' (760207) panicked at src/cmd_trace.rs:1010:9:
+admission None, native access Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+
+---- cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies stdout ----
+
+thread 'cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies' (760208) panicked at src/cmd_var.rs:840:21:
+assertion `left == right` failed: tcl8.4: 
+  left: Error
+ right: Ok
+
+---- cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x stdout ----
+
+thread 'cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x' (760209) panicked at src/cmd_var.rs:1177:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- cmd_var::tests::original_array_read_destruction_matches_six_native_source_results stdout ----
+
+thread 'cmd_var::tests::original_array_read_destruction_matches_six_native_source_results' (760210) panicked at src/cmd_var.rs:602:21:
+tcl8.4: Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+
+---- cmd_var::tests::original_upvar_error_publication_matches_all_six_native_sources stdout ----
+
+thread 'cmd_var::tests::original_upvar_error_publication_matches_all_six_native_sources' (760211) panicked at src/cmd_var.rs:517:17:
+assertion `left == right` failed: tcl8.4: result [], admission None, access Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+  left: Error
+ right: Ok
+
+---- cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes stdout ----
+
+thread 'cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes' (760212) panicked at src/cmd_var.rs:634:21:
+assertion `left == right` failed: host refusal: Some(CommandProtocolUnavailable("actual indexed variable receiver")); case variable_array_unset_root_callback_reads_retained_element
+  left: Error
+ right: Ok
+
+---- interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows stdout ----
+
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows' (760231) panicked at src/interp/native_body_artifact/native_introspection.rs:274:17:
+tcl8.6/19: Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+
+---- interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs stdout ----
+
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (760233) panicked at src/interp/native_body_artifact/native_list_operations.rs:271:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally stdout ----
+
+thread 'interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally' (760234) panicked at src/interp/native_body_artifact/native_try.rs:519:17:
+tcl8.6 try-empty-trap: Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+
+---- interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers stdout ----
+
+thread 'interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers' (760235) panicked at src/interp/native_body_artifact/native_upvar_info_exists_tests.rs:138:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics stdout ----
+
+thread 'interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics' (760239) panicked at src/interp/native_command_names.rs:314:13:
+assertion `left == right` failed: V8_4
+  left: Error
+ right: Ok
+
+---- interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results stdout ----
+
+thread 'interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results' (760241) panicked at src/interp/native_jim_links.rs:389:17:
+assertion `left == right` failed: tcl8.4/scalar-element
+  left: []
+ right: [99, 97, 110, 39, 116, 32, 97, 99, 99, 101, 115, 115, 32, 34, 116, 97, 114, 103, 101, 116, 40, 107, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121]
+
+---- interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources stdout ----
+
+thread 'interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources' (760242) panicked at src/interp/native_precision.rs:217:21:
+assertion `left == right` failed: tcl8.4: [], admission None, access Some(CommandProtocolUnavailable("actual indexed variable receiver"))
+  left: Error
+ right: Ok
+
+---- interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache stdout ----
+
+thread 'interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache' (760243) panicked at src/interp/native_variable_names.rs:2009:21:
+tcl8.4
+
+---- interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit stdout ----
+
+thread 'interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit' (760246) panicked at src/interp.rs:15734:13:
+assertion `left == right` failed
+  left: []
+ right: [116, 111, 111, 32, 109, 97, 110, 121, 32, 110, 101, 115, 116, 101, 100, 32, 101, 118, 97, 108, 117, 97, 116, 105, 111, 110, 115, 32, 40, 105, 110, 102, 105, 110, 105, 116, 101, 32, 108, 111, 111, 112, 63, 41]
+
+---- native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary stdout ----
+
+thread 'native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary' (760252) panicked at src/native_arithseries/tests.rs:338:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit stdout ----
+
+thread 'native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit' (760253) panicked at src/native_arithseries/tests.rs:360:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series stdout ----
+
+thread 'native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series' (760254) panicked at src/native_arithseries/tests.rs:304:13:
+assertion `left == right` failed: [115, 101, 116, 32, 115, 101, 113, 117, 101, 110, 99, 101, 32, 91, 108, 115, 101, 113, 32, 49, 48, 48, 48, 48, 48, 48, 48, 49, 93, 59, 32, 108, 108, 101, 110, 103, 116, 104, 32, 36, 115, 101, 113, 117, 101, 110, 99, 101]
+  left: Error
+ right: Ok
+
+---- obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings stdout ----
+
+thread 'obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings' (760256) panicked at src/obj.rs:2355:9:
+assertion `left == right` failed: set ::tcl_precision 12; set x 1.0; set d [expr {$x/3}]; set ::tcl_precision 4; list $d: []
+  left: Error
+ right: Ok
+
+
+failures:
+    cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis
+    cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer
+    cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers
+    cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results
+    cmd_coro::tests::coroinject_runs_on_next_resume
+    cmd_coro::tests::original_injection_public_completions_match_both_c9_releases
+    cmd_info::tests::info_consts_includes_only_tcloo_instance_links
+    cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers
+    cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers
+    cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results
+    cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls
+    cmd_oo::tests::define_context_self_arity
+    cmd_oo::tests::objdefine_forward_mixin_unexport_copy
+    cmd_oo::tests::object_builtin_variable_varname_eval
+    cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries
+    cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces
+    cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies
+    cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x
+    cmd_var::tests::original_array_read_destruction_matches_six_native_source_results
+    cmd_var::tests::original_upvar_error_publication_matches_all_six_native_sources
+    cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes
+    interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally
+    interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers
+    interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics
+    interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results
+    interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources
+    interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache
+    interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit
+    native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary
+    native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit
+    native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series
+    obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings
+
+test result: FAILED. 38 passed; 36 failed; 0 ignored; 0 measured; 1192 filtered out; finished in 21.13s
+

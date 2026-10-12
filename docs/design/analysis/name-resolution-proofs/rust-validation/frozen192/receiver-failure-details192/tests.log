@@ -1,0 +1,31 @@
+
+running 3 tests
+test document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export ... 
+thread 'document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export' (705003) panicked at rust/tcl-lsp-core/src/document_links.rs:1100:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test implementation::original_implementation_tests::original_class_object_implementation_does_not_borrow_instance_superclass_order ... 
+thread 'implementation::original_implementation_tests::original_class_object_implementation_does_not_borrow_instance_superclass_order' (705006) panicked at rust/tcl-lsp-core/src/implementation.rs:640:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology ... 
+thread 'inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology' (705009) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:2510:9:
+assertion `left == right` failed
+  left: ["name:", "args:", "body:", "first:"]
+ right: ["first:"]
+FAILED
+
+failures:
+
+failures:
+    document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export
+    implementation::original_implementation_tests::original_class_object_implementation_does_not_borrow_instance_superclass_order
+    inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 2703 filtered out; finished in 4.13s
+

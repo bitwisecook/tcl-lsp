@@ -31,26 +31,57 @@ pub(crate) use tcl_registry::model::ingress::{
     DocumentEnvironment, context_for_profile, irules_context, resolve_environment,
 };
 
-/// The generation an analysis reads under pack overlay `overlay`: the
-/// overlaid one once its packs are installed, and the plain one until then.
-///
-/// Analysis advises, and it runs again when the packs arrive — the server
-/// installs the overlay before it publishes the key, and a new key
-/// re-analyses — so reading the plain generation for the window between costs
-/// one diagnostic pass that does not know the packs' commands and nothing that
-/// outlives it. It is the one place that fallback lives. Anything that
-/// compiles reads [`DocumentEnvironment::context_registry`] and answers the
-/// miss itself, since a rewrite computed without the packs' declarations can
-/// be wrong for the workspace.
-#[must_use]
+/// The compiler convenience driver's native target contract. An explicitly
+/// execution release takes precedence. An exact environment-owned profile can
+/// select its separately declared execution default. An unprofiled catalogue
+/// selects the compiler's documented Tcl 9.0 target;
+/// this choice is made by the driver, never inferred by the source interpreter.
+pub(crate) fn authoring_invocation_dialect(
+    registry: &tcl_registry::CommandRegistry,
+    profile: Option<&tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
+) -> tcl_registry::InvocationDialect {
+    let mut dialect = profile.or_else(|| registry.profile()).map_or_else(
+        || tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+        |profile| {
+            let selected = tcl_registry::InvocationDialect::of_profile(profile);
+            if selected.core_point.is_some() || selected.tcl_version.is_some() {
+                return selected;
+            }
+            tcl_registry::model::ingress::default_execution_point_for_profile(profile)
+                .map_or(selected, tcl_registry::InvocationDialect::of_point)
+        },
+    );
+    dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
+    dialect
+}
+
+/// A source document is evaluated as a file: native command selection is late.
+/// Bytecode and procedure drivers must supply their own explicit compilation entry.
+pub(crate) const fn authoring_native_compilation()
+-> tcl_registry::native_compilation::NativeCompilationContext {
+    use tcl_registry::native_compilation::{
+        NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+    };
+    NativeCompilationContext {
+        mode: NativeCompilationMode::Direct,
+        frame: NativeCompilationFrame::ScriptCode,
+        loop_depth: 0,
+        catch_depth: Some(0),
+    }
+}
+
+/// Resolve the exact requested analysis generation. A missing supplied overlay
+/// remains unavailable; its pack key never selects the un-overlaid generation.
 pub(crate) fn analysis_registry(
     environment: &DocumentEnvironment,
     keyed: &tcl_registry::model::KeyedVersions,
     overlay: u64,
-) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
-    environment
-        .context_registry(keyed, overlay)
-        .unwrap_or_else(|_| environment.plain_context_registry(keyed))
+) -> Result<std::sync::Arc<tcl_registry::model::ContextRegistry>, tcl_registry::model::OverlayMiss>
+{
+    environment.context_registry(keyed, overlay)
 }
 
 /// Intern `name` as a `&'static str` — transitional plumbing for the
@@ -71,11 +102,298 @@ pub(crate) fn interned_package_name(name: &str) -> &'static str {
     leaked
 }
 
+/// Capture the real interpreter's original command and fixed-math entry.
+/// This attests registration only: it grants no literal-pool object class,
+/// operand effects or successful execution of the fixture being analysed.
+#[cfg(test)]
+pub(crate) fn captured_native_entry(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> CapturedNativeEntry {
+    let (owner, entry) = captured_native_entry_with_owner(profile);
+    CapturedNativeEntry { entry, owner }
+}
+
+/// The independently captured entry and its actual interpreter lifetime.
+/// Entry clones remain weak observations; this holder grants no Native purpose.
+#[cfg(test)]
+pub(crate) struct CapturedNativeEntry {
+    entry: tcl_runtime_api::NativeCompilationEntry,
+    owner: tcl_vm::Vm,
+}
+
+#[cfg(test)]
+impl CapturedNativeEntry {
+    pub(crate) fn as_entry(&self) -> &tcl_runtime_api::NativeCompilationEntry {
+        &self.entry
+    }
+
+    pub(crate) fn retain<T>(self, value: T) -> RetainedNativeFixture<T> {
+        RetainedNativeFixture::new(value, self.owner)
+    }
+}
+
+#[cfg(test)]
+impl std::ops::Deref for CapturedNativeEntry {
+    type Target = tcl_runtime_api::NativeCompilationEntry;
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+#[cfg(test)]
+impl std::ops::DerefMut for CapturedNativeEntry {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
+}
+
+/// Keep the original interpreter alive when a test consumes a weak observation.
+/// Command snapshots alone deliberately retain no registration-world owner.
+#[cfg(test)]
+pub(crate) fn captured_native_entry_with_owner(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
+    captured_native_entry_with_owner_using(profile, |_| {})
+}
+
+/// The same capture worker after actual public command setup. The entry is
+/// captured from its real owner; no command row or trace flag is manufactured.
+#[cfg(test)]
+pub(crate) fn captured_native_entry_with_owner_using(
+    profile: &'static tcl_dialect::DialectProfile,
+    setup: impl FnOnce(&mut tcl_vm::Vm),
+) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    struct Capture(Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>);
+    impl tcl_runtime_api::CompileService for Capture {
+        type Module = tcl_bytecode::ModuleAsm;
+        fn compile_script_bytes_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            _: &'static tcl_dialect::DialectProfile,
+            _: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            Ok(tcl_runtime_api::ScriptCommandPlan::complete(source.len()))
+        }
+
+        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "entry capture only".into(),
+            ))
+        }
+
+        fn compile_script_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTarget<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+    }
+
+    let captured = Rc::new(RefCell::new(None));
+    let mut vm = tcl_vm::Vm::with_native_core(
+        Box::new(std::io::sink()),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("authentic native registration before entry capture");
+    setup(&mut vm);
+    vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
+    // Capture the compiler's actual entry, including when the physical Jim
+    // Script evaluator has an independent direct execution route.
+    assert!(vm.try_compile_function("set entry_probe 1").is_err());
+    let entry = captured
+        .borrow_mut()
+        .take()
+        .expect("actual interpreter compilation entry");
+    (vm, entry)
+}
+
+/// Test value retires before its actual interpreter, which stays live through
+/// every subsequent query. This does not strengthen any registration observation.
+#[cfg(test)]
+pub(crate) struct RetainedNativeFixture<T> {
+    value: T,
+    _owner: tcl_vm::Vm,
+}
+
+#[cfg(test)]
+impl<T> RetainedNativeFixture<T> {
+    pub(crate) fn new(value: T, owner: tcl_vm::Vm) -> Self {
+        Self {
+            value,
+            _owner: owner,
+        }
+    }
+}
+
+#[cfg(test)]
+impl<T> std::ops::Deref for RetainedNativeFixture<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+#[cfg(test)]
+impl<T> std::ops::DerefMut for RetainedNativeFixture<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+
+#[cfg(test)]
+pub(crate) type RetainedNativeUnit =
+    RetainedNativeFixture<crate::compilation_unit::CompilationUnit>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
     use tcl_registry::model::KeyedVersions;
+
+    #[test]
+    fn captured_entry_keeps_its_actual_interpreter_until_capture_retirement() {
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let capture = captured_native_entry(profile);
+            let snapshot = capture.as_entry().clone();
+            let environment = snapshot.compiler_pass_environment.as_ref().unwrap();
+            assert!(environment.is_current_for(snapshot.interpreter), "{name}");
+            drop(capture);
+            assert!(!environment.is_current_for(snapshot.interpreter), "{name}");
+        }
+    }
+
+    #[test]
+    fn returned_native_fixture_retires_its_value_before_the_actual_interpreter() {
+        struct RetirementProbe {
+            environment: tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment,
+            interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+            current_during_retirement: std::rc::Rc<std::cell::Cell<bool>>,
+        }
+        impl Drop for RetirementProbe {
+            fn drop(&mut self) {
+                self.current_during_retirement
+                    .set(self.environment.is_current_for(self.interpreter));
+            }
+        }
+        fn returned_fixture(
+            current: std::rc::Rc<std::cell::Cell<bool>>,
+        ) -> RetainedNativeFixture<RetirementProbe> {
+            let capture =
+                captured_native_entry(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+            let probe = RetirementProbe {
+                environment: capture.compiler_pass_environment.as_ref().unwrap().clone(),
+                interpreter: capture.interpreter,
+                current_during_retirement: current,
+            };
+            capture.retain(probe)
+        }
+        let current = std::rc::Rc::new(std::cell::Cell::new(false));
+        let fixture = returned_fixture(std::rc::Rc::clone(&current));
+        let environment = fixture.environment.clone();
+        let interpreter = fixture.interpreter;
+        assert!(environment.is_current_for(interpreter));
+        drop(fixture);
+        assert!(current.get());
+        assert!(!environment.is_current_for(interpreter));
+    }
+
+    #[test]
+    fn authoring_target_is_explicit_and_lexical_axes_are_independent() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::for_dialect("jim");
+        let default = authoring_invocation_dialect(&registry, None, config);
+        assert_eq!(default.tcl_version, Some(tcl_dialect::TclVersion::V9_0));
+        assert_eq!(
+            default.lexer_grammar.word_separators,
+            config.word_separators
+        );
+        assert_eq!(default.numbers, tcl_dialect::NumberSyntax::Tcl90);
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let jim = authoring_invocation_dialect(&registry, Some(&profile), config);
+        assert_eq!(jim.tcl_version, None);
+        assert_eq!(jim.family(), Some(tcl_dialect::model::Family::Jim));
+        assert_eq!(jim.numbers, tcl_dialect::NumberSyntax::Jim080);
+    }
+
+    #[test]
+    fn canonical_authoring_profile_has_an_independent_native_execution_default() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let profile = resolve_environment("tcl").unit_profile();
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .tcl_version
+                .is_none()
+        );
+        let config = tcl_lexer::LexerConfig::default();
+        let default = authoring_invocation_dialect(&registry, Some(profile), config);
+        assert_eq!(default.tcl_version, Some(tcl_dialect::TclVersion::V9_0));
+
+        let mut custom = profile.clone();
+        custom.display_name = "Custom unversioned interpreter";
+        let unknown = authoring_invocation_dialect(&registry, Some(&custom), config);
+        assert_eq!(unknown.tcl_version, None);
+        assert_eq!(unknown.core_point, None);
+
+        let explicit = resolve_environment("tcl8.6").unit_profile();
+        let pinned = authoring_invocation_dialect(&registry, Some(explicit), config);
+        assert_eq!(pinned.tcl_version, Some(tcl_dialect::TclVersion::V8_6));
+    }
+
+    #[test]
+    fn explicit_source_options_do_not_inherit_the_convenience_target() {
+        use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::default();
+        let source = "set x 1";
+        let default = SourceCommandBindings::analyse(source, config, &registry);
+        let explicit = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            &registry,
+            SourceAnalysisOptions::default(),
+        );
+        assert_eq!(
+            default
+                .invocation_at_source("set", 0)
+                .variable_context
+                .invocation_dialect
+                .and_then(|d| d.tcl_version),
+            Some(tcl_dialect::TclVersion::V9_0),
+        );
+        assert_eq!(
+            explicit
+                .invocation_at_source("set", 0)
+                .variable_context
+                .invocation_dialect,
+            None
+        );
+    }
 
     #[test]
     fn names_resolve_as_the_old_ingress_did() {
@@ -132,19 +450,18 @@ mod tests {
         );
     }
 
-    /// The analysis door reads the plain generation for an overlay nothing
-    /// installed; the door a compile reads gives the miss instead.
+    /// A supplied missing overlay stays unavailable to analysis and compilation.
     #[test]
-    fn an_analysis_reads_the_plain_generation_until_its_overlay_installs() {
+    fn an_analysis_preserves_the_missing_overlay() {
         let environment = resolve_environment("tcl8.5");
         let keyed = KeyedVersions::default();
-        let plain = environment.plain_context_registry(&keyed);
-        let read = analysis_registry(&environment, &keyed, 0xDEAD);
-        assert!(Arc::ptr_eq(read.commands(), plain.commands()));
-        assert!(
-            environment.context_registry(&keyed, 0xDEAD).is_err(),
-            "the same key is a miss at the door a compile reads"
+        assert_eq!(
+            analysis_registry(&environment, &keyed, 0xDEAD).err(),
+            environment.context_registry(&keyed, 0xDEAD).err(),
         );
+        let plain = environment.plain_context_registry(&keyed);
+        let read = analysis_registry(&environment, &keyed, 0).unwrap();
+        assert!(Arc::ptr_eq(read.commands(), plain.commands()));
     }
 
     #[test]
@@ -153,5 +470,46 @@ mod tests {
         let second = interned_package_name("f5-irules-cmds");
         assert!(std::ptr::eq(first, second));
         assert_eq!(first, "f5-irules-cmds");
+    }
+
+    #[test]
+    fn original_compiler_entry_capture_reaches_actual_c_and_jim_compile_providers() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Genuine VM compiler-entry capture; no external native execution claim.
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let environment =
+                tcl_registry::model::ingress::resolve_known_environment(name).unwrap();
+            let (owner, entry) = captured_native_entry_with_owner(environment.unit_profile());
+            assert_eq!(entry.execution_point, environment.point(), "{name}");
+            assert_eq!(entry.profile, environment.unit_profile().cache_key(), "{name}");
+            assert!(entry.closed, "{name}");
+            assert!(!entry.commands.is_empty(), "{name}");
+            let observation = entry.empty_literal_world.as_ref().unwrap();
+            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            drop(owner);
+            assert!(!observation.is_current(), "{name}");
+        }
+    }
+
+    #[test]
+    fn original_compiler_entry_capture_retains_weak_owner_without_donating_foreign_identity() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original weak registration observation, independent from command semantics.
+        for name in ["tcl8.4", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::resolve_known_environment(name)
+                .unwrap().unit_profile();
+            let (owner, entry) = captured_native_entry_with_owner(profile);
+            let (other_owner, other) = captured_native_entry_with_owner(profile);
+            let observation = entry.empty_literal_world.as_ref().unwrap();
+            assert_ne!(entry.interpreter, other.interpreter, "{name}");
+            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            assert!(!observation.is_current_for(other.interpreter, other.epoch), "{name}");
+            drop(other_owner);
+            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            drop(owner);
+            assert!(!observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+        }
     }
 }

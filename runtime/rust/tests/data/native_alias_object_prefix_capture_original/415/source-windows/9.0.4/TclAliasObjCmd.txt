@@ -1,0 +1,156 @@
+1850:     }
+1851:     TclSkipTailcall(interp);
+1852:     return Tcl_NREvalObj(interp, listPtr, flags);
+1853: }
+1854: 
+1855: int
+1856: TclAliasObjCmd(
+1857:     void *clientData,		/* Alias record. */
+1858:     Tcl_Interp *interp,		/* Current interpreter. */
+1859:     int objc,			/* Number of arguments. */
+1860:     Tcl_Obj *const objv[])	/* Argument vector. */
+1861: {
+1862: #define ALIAS_CMDV_PREALLOC 10
+1863:     Alias *aliasPtr = (Alias *) clientData;
+1864:     Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+1865:     int result;
+1866:     Tcl_Size prefc, cmdc, i;
+1867:     Tcl_Obj **prefv, **cmdv;
+1868:     Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+1869:     int isRootEnsemble;
+1870: 
+1871:     /*
+1872:      * Append the arguments to the command prefix and invoke the command in
+1873:      * the target interp's global namespace.
+1874:      */
+1875: 
+1876:     prefc = aliasPtr->objc;
+1877:     prefv = &aliasPtr->objPtr;
+1878:     cmdc = prefc + objc - 1;
+1879:     if (cmdc <= ALIAS_CMDV_PREALLOC) {
+1880: 	cmdv = cmdArr;
+1881:     } else {
+1882: 	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+1883:     }
+1884: 
+1885:     memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+1886:     memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+1887: 
+1888:     Tcl_ResetResult(targetInterp);
+1889: 
+1890:     for (i=0; i<cmdc; i++) {
+1891: 	Tcl_IncrRefCount(cmdv[i]);
+1892:     }
+1893: 
+1894:     /*
+1895:      * Use the ensemble rewriting machinery to ensure correct error messages:
+1896:      * only the source command should show, not the full target prefix.
+1897:      */
+1898: 
+1899:     isRootEnsemble = TclInitRewriteEnsemble(targetInterp, 1, prefc, objv);
+1900: 
+1901:     /*
+1902:      * Protect the target interpreter if it isn't the same as the source
+1903:      * interpreter so that we can continue to work with it after the target
+1904:      * command completes.
+1905:      */
+1906: 
+1907:     if (targetInterp != interp) {
+1908: 	Tcl_Preserve(targetInterp);
+1909:     }
+1910: 
+1911:     /*
+1912:      * Execute the target command in the target interpreter.
+1913:      */
+1914: 
+1915:     result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+1916: 
+1917:     /*
+1918:      * Clean up the ensemble rewrite info if we set it in the first place.
+1919:      */
+1920: 
+1921:     if (isRootEnsemble) {
+1922: 	TclResetRewriteEnsemble(targetInterp, 1);
+1923:     }
+1924: 
+1925:     /*
+1926:      * If it was a cross-interpreter alias, we need to transfer the result
+1927:      * back to the source interpreter and release the lock we previously set
+1928:      * on the target interpreter.
+1929:      */
+1930: 
+1931:     if (targetInterp != interp) {
+1932: 	Tcl_TransferResult(targetInterp, result, interp);
+1933: 	Tcl_Release(targetInterp);
+1934:     }
+1935: 
+1936:     for (i=0; i<cmdc; i++) {
+1937: 	Tcl_DecrRefCount(cmdv[i]);
+1938:     }
+1939:     if (cmdv != cmdArr) {
+1940: 	TclStackFree(interp, cmdv);
+1941:     }
+1942:     return result;
+1943: #undef ALIAS_CMDV_PREALLOC
+1944: }
+1945: 
+1946: int
+1947: TclLocalAliasObjCmd(
+1948:     void *clientData,		/* Alias record. */
+1949:     Tcl_Interp *interp,		/* Current interpreter. */
+1950:     int objc,			/* Number of arguments. */
+1951:     Tcl_Obj *const objv[])	/* Argument vector. */
+1952: {
+1953: #define ALIAS_CMDV_PREALLOC 10
+1954:     Alias *aliasPtr = (Alias *) clientData;
+1955:     int result;
+1956:     Tcl_Size prefc, cmdc, i;
+1957:     Tcl_Obj **prefv, **cmdv;
+1958:     Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+1959:     int isRootEnsemble;
+1960: 
+1961:     /*
+1962:      * Append the arguments to the command prefix and invoke the command in
+1963:      * the global namespace.
+1964:      */
+1965: 
+1966:     prefc = aliasPtr->objc;
+1967:     prefv = &aliasPtr->objPtr;
+1968:     cmdc = prefc + objc - 1;
+1969:     if (cmdc <= ALIAS_CMDV_PREALLOC) {
+1970: 	cmdv = cmdArr;
+1971:     } else {
+1972: 	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+1973:     }
+1974: 
+1975:     memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+1976:     memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+1977: 
+1978:     for (i=0; i<cmdc; i++) {
+1979: 	Tcl_IncrRefCount(cmdv[i]);
+1980:     }
+1981: 
+1982:     /*
+1983:      * Use the ensemble rewriting machinery to ensure correct error messages:
+1984:      * only the source command should show, not the full target prefix.
+1985:      */
+1986: 
+1987:     isRootEnsemble = TclInitRewriteEnsemble(interp, 1, prefc, objv);
+1988: 
+1989:     /*
+1990:      * Execute the target command in the target interpreter.
+1991:      */
+1992: 
+1993:     result = Tcl_EvalObjv(interp, cmdc, cmdv, TCL_EVAL_INVOKE);
+1994: 
+1995:     /*
+1996:      * Clean up the ensemble rewrite info if we set it in the first place.
+1997:      */
+1998: 
+1999:     if (isRootEnsemble) {
+2000: 	TclResetRewriteEnsemble(interp, 1);
+2001:     }
+2002: 
+2003:     for (i=0; i<cmdc; i++) {
+2004: 	Tcl_DecrRefCount(cmdv[i]);
+2005:     }

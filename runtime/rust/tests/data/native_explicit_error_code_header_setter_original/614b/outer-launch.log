@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-explicit-error-code-header-setter614b/launch.py", line 229, in <module>
+    capture()
+  File "/workspace/.proofs/native-explicit-error-code-header-setter614b/launch.py", line 152, in capture
+    assert str(path) in request['required_sha256'], 'unpinned original header/source input: ' + str(path)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unpinned original header/source input: /workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclUnixPort.h
+Original explicit error-code header API closure: False records: 7 verification: refused

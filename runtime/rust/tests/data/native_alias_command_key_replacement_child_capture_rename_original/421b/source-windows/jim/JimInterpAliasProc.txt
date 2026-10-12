@@ -1,0 +1,126 @@
+50: {
+51:     Jim_Interp *parent = Jim_GetAssocData(interp, "interp.parent");
+52:     Jim_DecrRefCount(parent, (Jim_Obj *)privData);
+53: }
+54: 
+55: static int JimInterpAliasProc(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+56: {
+57:     int i, ret;
+58:     Jim_Interp *parent = Jim_GetAssocData(interp, "interp.parent");
+59:     Jim_Obj *targetPrefixObj = Jim_CmdPrivData(interp);
+60:     Jim_Obj *targetScriptObj;
+61: 
+62:     assert(parent);
+63: 
+64:     /* Build the complete command */
+65:     targetScriptObj = Jim_DuplicateObj(parent, targetPrefixObj);
+66:     for (i = 1; i < argc; i++) {
+67:         Jim_ListAppendElement(parent, targetScriptObj,
+68:             JimInterpCopyObj(parent, argv[i]));
+69:     }
+70: 
+71:     Jim_IncrRefCount(targetScriptObj);
+72:     ret = Jim_EvalObj(parent, targetScriptObj);
+73:     Jim_DecrRefCount(parent, targetScriptObj);
+74: 
+75:     JimInterpCopyResult(interp, parent);
+76:     return ret;
+77: }
+78: 
+79: static int interp_cmd_alias(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+80: {
+81:     Jim_Interp *child = Jim_CmdPrivData(interp);
+82:     Jim_Obj *aliasPrefixList;
+83: 
+84:     /* The prefix list will be held inside the child, but it still belongs
+85:      * to the parent!
+86:      */
+87: 
+88:     aliasPrefixList = Jim_NewListObj(interp, argv + 1, argc - 1);
+89:     Jim_IncrRefCount(aliasPrefixList);
+90: 
+91:     Jim_RegisterCmd(child, Jim_String(argv[0]), NULL, 0, -1, JimInterpAliasProc, JimInterpDelAlias, aliasPrefixList, 0);
+92:     return JIM_OK;
+93: }
+94: 
+95: static const jim_subcmd_type interp_command_table[] = {
+96:     {   "eval",
+97:         "script ...",
+98:         interp_cmd_eval,
+99:         1,
+100:         -1,
+101:         /* Description: Concat the args and evaluate the script in the interpreter */
+102:     },
+103:     {   "delete",
+104:         NULL,
+105:         interp_cmd_delete,
+106:         0,
+107:         0,
+108:         JIM_MODFLAG_FULLARGV,
+109:         /* Description: Delete this interpreter */
+110:     },
+111:     {   "alias",
+112:         "childcmd parentcmd ?arg ...?",
+113:         interp_cmd_alias,
+114:         2,
+115:         -1,
+116:         /* Description: Create an alias which refers to a script in the parent interpreter */
+117:     },
+118:     { NULL }
+119: };
+120: 
+121: static int JimInterpSubCmdProc(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+122: {
+123:     return Jim_CallSubCmd(interp, Jim_ParseSubCmd(interp, interp_command_table, argc, argv), argc, argv);
+124: }
+125: 
+126: static void JimInterpCopyVariable(Jim_Interp *target, Jim_Interp *source, const char *var, const char *default_value)
+127: {
+128:     Jim_Obj *value = Jim_GetGlobalVariableStr(source, var, JIM_NONE);
+129:     const char *str;
+130: 
+131:     str = value ? Jim_String(value) : default_value;
+132:     if (str) {
+133:         Jim_SetGlobalVariableStr(target, var, Jim_NewStringObj(target, str, -1));
+134:     }
+135: }
+136: 
+137: /**
+138:  * [interp] creates a new interpreter.
+139:  */
+140: static int JimInterpCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+141: {
+142:     Jim_Interp *child;
+143:     char buf[34];
+144:     int i;
+145:     static const char * const copyvars[] = {
+146:         "argv", "argc", "argv0", "jim::argv0", "jim::exe", "jim::lineedit", NULL
+147:     };
+148: 
+149:     /* Create the interpreter command */
+150:     child = Jim_CreateInterp();
+151:     Jim_RegisterCoreCommands(child);
+152:     Jim_InitStaticExtensions(child);
+153: 
+154:     /* Copy some core variables to the new interpreter */
+155:     for (i = 0; copyvars[i]; i++) {
+156:         JimInterpCopyVariable(child, interp, copyvars[i], NULL);
+157:     }
+158: 
+159:     /* Allow the child interpreter to find the parent */
+160:     Jim_SetAssocData(child, "interp.parent", NULL, interp);
+161: 
+162:     snprintf(buf, sizeof(buf), "interp.handle%ld", Jim_GetId(interp));
+163:     Jim_RegisterCmd(interp, buf, "subcommand ?arg ...?", 1, -1, JimInterpSubCmdProc, JimInterpDelProc, child, 0);
+164:     Jim_SetResult(interp, Jim_MakeGlobalNamespaceName(interp, Jim_NewStringObj(interp, buf, -1)));
+165:     return JIM_OK;
+166: }
+167: 
+168: int Jim_interpInit(Jim_Interp *interp)
+169: {
+170:     Jim_PackageProvideCheck(interp, "interp");
+171:     Jim_RegisterSimpleCmd(interp, "interp", "", 0, 0, JimInterpCommand);
+172: 
+173:     return JIM_OK;
+174: }
+175: 

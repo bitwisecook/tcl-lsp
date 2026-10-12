@@ -1,0 +1,40 @@
+TclCompileLinsertCmd(
+    Tcl_Interp *interp,		/* Tcl interpreter for context. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the
+				 * command. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds the resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *listToken, *indexToken, *tokenPtr;
+    Tcl_Size i, numWords = parsePtr->numWords;
+    /* TODO: Consider support for compiling expanded args. */
+
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /* Push list, insertion index onto the stack */
+    listToken = TokenAfter(parsePtr->tokenPtr);
+    indexToken = TokenAfter(listToken);
+
+    PUSH_TOKEN(			listToken, 1);
+    PUSH_TOKEN(			indexToken, 2);
+
+    /* Push new elements to be inserted */
+    tokenPtr = TokenAfter(indexToken);
+    for (i=3 ; i<numWords ; i++,tokenPtr=TokenAfter(tokenPtr)) {
+	PUSH_TOKEN(		tokenPtr, i);
+    }
+
+    /*
+     * First operand is count of arguments.
+     * Second operand is bitmask
+     *  TCL_LREPLACE_END_IS_LAST - end refers to last element
+     *  TCL_LREPLACE_SINGLE_INDEX - second index is not present
+     *     indicating this is a pure insert
+     */
+    OP41(			LREPLACE, numWords - 1,
+					TCL_LREPLACE_SINGLE_INDEX);
+    return TCL_OK;
+}

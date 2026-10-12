@@ -1,0 +1,95 @@
+int
+Tcl_ProcObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    register Interp *iPtr = (Interp *) interp;
+    Proc *procPtr;
+    char *fullName;
+    CONST char *procName, *procArgs, *procBody;
+    Namespace *nsPtr, *altNsPtr, *cxtNsPtr;
+    Tcl_Command cmd;
+    Tcl_DString ds;
+
+    if (objc != 4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name args body");
+	return TCL_ERROR;
+    }
+
+    /*
+     * Determine the namespace where the procedure should reside. Unless
+     * the command name includes namespace qualifiers, this will be the
+     * current namespace.
+     */
+
+    fullName = TclGetString(objv[1]);
+    TclGetNamespaceForQualName(interp, fullName, (Namespace *) NULL,
+	    0, &nsPtr, &altNsPtr, &cxtNsPtr, &procName);
+
+    if (nsPtr == NULL) {
+        Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+		"can't create procedure \"", fullName,
+		"\": unknown namespace", (char *) NULL);
+        return TCL_ERROR;
+    }
+    if (procName == NULL) {
+	Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+		"can't create procedure \"", fullName,
+		"\": bad procedure name", (char *) NULL);
+        return TCL_ERROR;
+    }
+    if ((nsPtr != iPtr->globalNsPtr)
+	    && (procName != NULL) && (procName[0] == ':')) {
+	Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+		"can't create procedure \"", procName,
+		"\" in non-global namespace with name starting with \":\"",
+	        (char *) NULL);
+        return TCL_ERROR;
+    }
+
+    /*
+     *  Create the data structure to represent the procedure.
+     */
+    if (TclCreateProc(interp, nsPtr, procName, objv[2], objv[3],
+        &procPtr) != TCL_OK) {
+        return TCL_ERROR;
+    }
+
+    /*
+     * Now create a command for the procedure. This will initially be in
+     * the current namespace unless the procedure's name included namespace
+     * qualifiers. To create the new command in the right namespace, we
+     * generate a fully qualified name for it.
+     */
+
+    Tcl_DStringInit(&ds);
+    if (nsPtr != iPtr->globalNsPtr) {
+	Tcl_DStringAppend(&ds, nsPtr->fullName, -1);
+	Tcl_DStringAppend(&ds, "::", 2);
+    }
+    Tcl_DStringAppend(&ds, procName, -1);
+
+    Tcl_CreateCommand(interp, Tcl_DStringValue(&ds), TclProcInterpProc,
+	    (ClientData) procPtr, TclProcDeleteProc);
+    cmd = Tcl_CreateObjCommand(interp, Tcl_DStringValue(&ds),
+	    TclObjInterpProc, (ClientData) procPtr, TclProcDeleteProc);
+
+    Tcl_DStringFree(&ds);
+    /*
+     * Now initialize the new procedure's cmdPtr field. This will be used
+     * later when the procedure is called to determine what namespace the
+     * procedure will run in. This will be different than the current
+     * namespace if the proc was renamed into a different namespace.
+     */
+
+    procPtr->cmdPtr = (Command *) cmd;
+
+#ifdef TCL_TIP280
+    /* TIP #280 Remember the line the procedure body is starting on. In a
+     * Byte code context we ask the engine to provide us with the necessary
+     * information. This is for the initialization of the byte code compiler
+     * when the body is used for the first time.
+     */
+

@@ -1,0 +1,45 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "provider": "8.5.19",
+  "input_channel": "separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source",
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "source_sha256": "9426f3bb7655531c34759934ddeccf94534b3cf6d106fc229c5d35133ae7ed0b",
+  "queue_sha256": "4b75633ac8519e93e441680edc9fb50dcb392cb95be0fc6fd1eb26ee3068f4fd",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "/workspace/.proofs/current-native-tcloo-forward-registration174/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/current-native-tcloo-forward-registration174/output/8.5.19/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "e40696c7691e5f56c5e8747a3aae9c2cac0109fc056e6fe16892bfdec7a45e0e",
+  "stdout_sha256": "058d3399de6dca9ff1d6a8b4e56666064bc38637ed95d0ac5acdfa126524dd88",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "8.5.19",
+  "rows": [
+    "VERSION|0|0|382e352e3139",
+    "AVAILABILITY|0|0|"
+  ],
+  "seconds": 0.15493908399366774
+}

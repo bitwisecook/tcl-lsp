@@ -1,0 +1,2 @@
+stopped traffic-control pid=2069612 cmd=python3 /tmp/traffic-control.py --bind 192.168.9.80 --port 18082 --traffic /tmp/traffic.py --out-dir /tmp/r2286_20261006c-single-recreate-dev --vip 192.168.9.24 --vip-port 18086 --source-ip 192.168.9.80 --run r2286_20261006c-single 
+ports-18082-18083-absent

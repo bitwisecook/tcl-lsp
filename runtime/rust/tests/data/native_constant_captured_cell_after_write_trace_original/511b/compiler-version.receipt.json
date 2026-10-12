@@ -1,0 +1,31 @@
+{
+  "provider": "compiler",
+  "channel": "compiler-version",
+  "status": "closed",
+  "command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "--version"
+  ],
+  "cwd": "/workspace/.proofs/native-constant-captured-cell-order511b",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "54fbf8b631f1dd107b0504c2954edf604617f3b019461eadc6c4292ec6caef2e",
+  "source_sha256": "20e83e5f595c9d85145260040b5364687c89a6582583ad853e7ee7426a402e1f",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.002436187001876533,
+  "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

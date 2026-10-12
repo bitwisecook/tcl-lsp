@@ -1,0 +1,19 @@
+{
+  "ordinal": 208,
+  "selector": "interp::bootstrap_context_tests::original_native_bootstrap_list_publication_reaches_observer_without_string_conversion",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::bootstrap_context_tests::original_native_bootstrap_list_publication_reaches_observer_without_string_conversion",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.4460106079932302,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.43s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/208.log",
+  "log_sha256": "0150162e764b5a862a6e4c11ce7cea8a39085b71ed4bcf1ca5f710445c5687ef"
+}

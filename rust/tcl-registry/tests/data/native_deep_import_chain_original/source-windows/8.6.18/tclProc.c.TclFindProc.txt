@@ -1,0 +1,134 @@
+ *	usual rules: first in the current namespace and then in the global
+ *	namespace.
+ *
+ * Results:
+ *	NULL is returned if the name doesn't correspond to any procedure.
+ *	Otherwise, the return value is a pointer to the procedure's record. If
+ *	the name is found but refers to an imported command that points to a
+ *	"real" procedure defined in another namespace, a pointer to that
+ *	"real" procedure's structure is returned.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Proc *
+TclFindProc(
+    Interp *iPtr,		/* Interpreter in which to look. */
+    const char *procName)	/* Name of desired procedure. */
+{
+    Tcl_Command cmd;
+    Command *cmdPtr;
+
+    cmd = Tcl_FindCommand((Tcl_Interp *) iPtr, procName, NULL, /*flags*/ 0);
+    if (cmd == (Tcl_Command) NULL) {
+	return NULL;
+    }
+    cmdPtr = (Command *) cmd;
+
+    return TclIsProc(cmdPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclIsProc --
+ *
+ *	Tells whether a command is a Tcl procedure or not.
+ *
+ * Results:
+ *	If the given command is actually a Tcl procedure, the return value is
+ *	the address of the record describing the procedure. Otherwise the
+ *	return value is 0.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Proc *
+TclIsProc(
+    Command *cmdPtr)		/* Command to test. */
+{
+    Tcl_Command origCmd = TclGetOriginalCommand((Tcl_Command) cmdPtr);
+
+    if (origCmd != NULL) {
+	cmdPtr = (Command *) origCmd;
+    }
+    if (cmdPtr->deleteProc == TclProcDeleteProc) {
+	return (Proc *)cmdPtr->objClientData;
+    }
+    return NULL;
+}
+
+static int
+ProcWrongNumArgs(
+    Tcl_Interp *interp,
+    int skip)
+{
+    CallFrame *framePtr = ((Interp *)interp)->varFramePtr;
+    Proc *procPtr = framePtr->procPtr;
+    int localCt = procPtr->numCompiledLocals, numArgs, i;
+    Tcl_Obj **desiredObjs;
+    const char *final = NULL;
+
+    /*
+     * Build up desired argument list for Tcl_WrongNumArgs
+     */
+
+    numArgs = framePtr->procPtr->numArgs;
+    desiredObjs = (Tcl_Obj **)TclStackAlloc(interp,
+	    sizeof(Tcl_Obj *) * (numArgs+1));
+
+    if (framePtr->isProcCallFrame & FRAME_IS_LAMBDA) {
+	desiredObjs[0] = Tcl_NewStringObj("lambdaExpr", -1);
+    } else {
+#ifdef AVOID_HACKS_FOR_ITCL
+	desiredObjs[0] = framePtr->objv[skip-1];
+#else
+	desiredObjs[0] = Tcl_NewListObj(1, framePtr->objv + skip - 1);
+#endif /* AVOID_HACKS_FOR_ITCL */
+    }
+    Tcl_IncrRefCount(desiredObjs[0]);
+
+    if (localCt > 0) {
+	Var *defPtr = (Var *)(&framePtr->localCachePtr->varName0 + localCt);
+
+	for (i=1 ; i<=numArgs ; i++, defPtr++) {
+	    Tcl_Obj *argObj;
+	    Tcl_Obj *namePtr = localName(framePtr, i-1);
+
+	    if (defPtr->value.objPtr != NULL) {
+		TclNewObj(argObj);
+		Tcl_AppendStringsToObj(argObj, "?", TclGetString(namePtr), "?", (char *)NULL);
+	    } else if (defPtr->flags & VAR_IS_ARGS) {
+		numArgs--;
+		final = "?arg ...?";
+		break;
+	    } else {
+		argObj = namePtr;
+		Tcl_IncrRefCount(namePtr);
+	    }
+	    desiredObjs[i] = argObj;
+	}
+    }
+
+    Tcl_ResetResult(interp);
+    Tcl_WrongNumArgs(interp, numArgs+1, desiredObjs, final);
+
+    for (i=0 ; i<=numArgs ; i++) {
+	Tcl_DecrRefCount(desiredObjs[i]);
+    }
+    TclStackFree(interp, desiredObjs);
+    return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclInitCompiledLocals --
+ *
+ *	This routine is invoked in order to initialize the compiled locals

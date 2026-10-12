@@ -32,12 +32,8 @@
 //! shares one ordering rule — ascending `(score, name)` — via
 //! [`rank_suggestions`].
 //!
-//! Also hosts [`fold_interpolation_set`] — a CONSTSET-aware fold
-//! used by the W123 emitter to suppress diagnostics on
-//! command names like ``foo$suffix`` whose interpolated parts
-//! statically resolve to a finite set of known commands.
-
-use std::collections::HashSet;
+//! Also hosts a scalar interpolation fold used by advisory consumers. Command
+//! lookup uses the positioned source owner instead of flattened variable maps.
 
 /// Edit distance between two strings — optimal string alignment
 /// (restricted Damerau–Levenshtein): insertions, deletions,
@@ -199,11 +195,6 @@ where
     rank_suggestions(scored, max_suggestions, |name| name)
 }
 
-/// Maximum size for the Cartesian product when folding an
-/// interpolated word.  The analyser also uses
-/// [`crate::analyses::MAX_CONSTSET_SIZE`].
-const MAX_FOLD_PRODUCT: usize = 32;
-
 /// One piece of a word split by [`split_interpolation_segments`]: either
 /// literal text or a `$name`/`${name}` variable reference (bare name, no
 /// leading `$`).
@@ -214,8 +205,7 @@ enum Segment<'a> {
 
 /// Split a Tcl word into alternating literal and `$var`/`${var}`
 /// segments, in order, without resolving the variables — the shared
-/// front end for [`fold_interpolation_set`] (multi-value SCCP `ConstSet`
-/// resolution) and [`fold_interpolation_single`] (scalar constant-string
+/// front end for [`fold_interpolation_single`] (scalar constant-string
 /// resolution).
 ///
 /// Returns `None` when:
@@ -304,64 +294,9 @@ fn split_interpolation_segments(
     Some(segments)
 }
 
-/// Resolve a Tcl word with `$var` interpolations to the set of
-/// possible literal strings, given a per-variable resolved-value
-/// map.
-///
-/// Returns `None` when [`split_interpolation_segments`] does (see its
-/// doc), when any variable's resolved set is missing from `var_values`
-/// (treated as overdefined / unknown), or when the Cartesian product
-/// would exceed [`MAX_FOLD_PRODUCT`] (a widening cutoff).
-///
-/// `var_values` is keyed by bare variable name (no leading
-/// ``$``); each value is the flat set of constant strings
-/// the variable may take.  Callers materialise this from the
-/// SCCP `LatticeValue::Const` / `LatticeValue::ConstSet` maps
-/// — same shape as the W307 emitter's `all_constsets` aggregator.
-#[must_use]
-pub(crate) fn fold_interpolation_set(
-    word: &str,
-    var_values: &std::collections::HashMap<String, HashSet<String>>,
-    braced_var: tcl_dialect::BracedVarStyle,
-) -> Option<HashSet<String>> {
-    let segments = split_interpolation_segments(word, braced_var)?;
-
-    // Cartesian product, bounded by `MAX_FOLD_PRODUCT`.
-    let mut current: Vec<String> = vec![String::new()];
-    for seg in segments {
-        let piece: Vec<String> = match seg {
-            Segment::Literal(text) => vec![text.to_string()],
-            Segment::Var(name) => {
-                let resolved = var_values.get(name)?;
-                if resolved.is_empty() {
-                    return None;
-                }
-                resolved.iter().cloned().collect()
-            }
-        };
-        let mut next: Vec<String> = Vec::with_capacity(current.len() * piece.len().max(1));
-        for prefix in &current {
-            for piece in &piece {
-                next.push(format!("{prefix}{piece}"));
-                if next.len() > MAX_FOLD_PRODUCT {
-                    return None;
-                }
-            }
-        }
-        current = next;
-    }
-    if current.is_empty() {
-        return None;
-    }
-    Some(current.into_iter().collect())
-}
-
 /// Resolve a Tcl word with `$var` interpolations to a single literal
-/// string, given a variable resolver.  The single-value analogue of
-/// [`fold_interpolation_set`], for a caller that already has a scalar
-/// constant-string lattice (e.g. `Analyser::lookup_const_string`) rather
-/// than the SCCP `ConstSet` map — short-circuits to `None` on the first
-/// unresolvable variable, same rejection rules as
+/// string, given a variable resolver. Returns `None` on the first
+/// unresolvable variable, with the rejection rules from
 /// [`split_interpolation_segments`].
 #[must_use]
 pub(crate) fn fold_interpolation_single(
@@ -436,7 +371,7 @@ mod tests {
         let candidates = ["set", "puts"];
         // ``unknown`` is too far from both — no suggestions.
         let suggestions = suggest_similar("unknown", candidates, 3, 2);
-        assert!(suggestions.is_empty());
+        assert_eq!(suggestions, [] as [&str; 0]);
     }
 
     #[test]
@@ -492,95 +427,10 @@ mod tests {
     #[test]
     fn rank_containment_rejects_empty_needle() {
         let candidates = ["http", "json"];
-        assert!(rank_containment_suggestions("", candidates, 5).is_empty());
-    }
-
-    fn vmap(entries: &[(&str, &[&str])]) -> HashMap<String, HashSet<String>> {
-        entries
-            .iter()
-            .map(|(k, vs)| {
-                (
-                    (*k).to_string(),
-                    vs.iter().map(|s| (*s).to_string()).collect(),
-                )
-            })
-            .collect()
-    }
-
-    #[test]
-    fn fold_interpolation_set_resolves_simple_dollar_var() {
-        // ``foo$x`` with ``x ∈ {a, b}`` → ``{fooa, foob}``.
-        let vars = vmap(&[("x", &["a", "b"])]);
-        let set = fold_interpolation_set("foo$x", &vars, tcl_dialect::BracedVarStyle::default())
-            .expect("resolved");
-        assert!(set.contains("fooa"));
-        assert!(set.contains("foob"));
-        assert_eq!(set.len(), 2);
-    }
-
-    #[test]
-    fn fold_interpolation_set_resolves_braced_form() {
-        let vars = vmap(&[("x", &["a"])]);
-        let set =
-            fold_interpolation_set("foo${x}bar", &vars, tcl_dialect::BracedVarStyle::default())
-                .expect("resolved");
-        assert!(set.contains("fooabar"));
-    }
-
-    #[test]
-    fn fold_interpolation_set_returns_none_for_unknown_var() {
-        let vars: HashMap<String, HashSet<String>> = HashMap::new();
-        assert!(
-            fold_interpolation_set("foo$x", &vars, tcl_dialect::BracedVarStyle::default())
-                .is_none()
+        assert_eq!(
+            rank_containment_suggestions("", candidates, 5),
+            [] as [&str; 0]
         );
-    }
-
-    #[test]
-    fn fold_interpolation_set_returns_none_for_command_substitution() {
-        let vars = vmap(&[("x", &["a"])]);
-        assert!(
-            fold_interpolation_set("foo[bar]", &vars, tcl_dialect::BracedVarStyle::default())
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn fold_interpolation_set_returns_none_for_array_indexed_var() {
-        // ``$arr(idx)`` is rejected.
-        let vars = vmap(&[("arr", &["a"])]);
-        assert!(
-            fold_interpolation_set(
-                "foo$arr(idx)",
-                &vars,
-                tcl_dialect::BracedVarStyle::default()
-            )
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn fold_interpolation_set_widens_oversized_product() {
-        // 6 vars × 6 alternatives each = 7776 — way over
-        // ``MAX_FOLD_PRODUCT``.
-        let vars = vmap(&[("x", &["a", "b", "c", "d", "e", "f"])]);
-        // 4 × 6 = 24 still fits, but 7 × 6 = 42 overflows.
-        let big = "$x$x$x$x$x$x$x";
-        assert!(
-            fold_interpolation_set(big, &vars, tcl_dialect::BracedVarStyle::default()).is_none()
-        );
-    }
-
-    #[test]
-    fn fold_interpolation_set_preserves_pure_literal() {
-        // No ``$`` — just a single literal segment.  The helper
-        // still accepts this and resolves it to a one-element
-        // set containing the literal unchanged.
-        let vars: HashMap<String, HashSet<String>> = HashMap::new();
-        let set = fold_interpolation_set("foo", &vars, tcl_dialect::BracedVarStyle::default())
-            .expect("resolved");
-        assert!(set.contains("foo"));
-        assert_eq!(set.len(), 1);
     }
 
     fn resolver(pairs: &[(&str, &str)]) -> impl FnMut(&str) -> Option<String> {

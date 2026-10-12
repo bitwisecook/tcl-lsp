@@ -1,0 +1,58 @@
+{
+  "provider": {
+    "label": "jim",
+    "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "expected_version": "0.84-9-g5bac7c9",
+    "environment": {}
+  },
+  "version": {
+    "argv": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/tmp/grammar-info-complete-request452/version.tcl"
+    ],
+    "cwd": "/tmp/native-info-complete-original452-capture/jim",
+    "started_utc": "2026-10-10T23:30:06.172925+00:00",
+    "elapsed_seconds": 0.022016855014953762,
+    "returncode": 0,
+    "timed_out": false,
+    "stdout": {
+      "path": "/tmp/native-info-complete-original452-capture/jim/version.stdout",
+      "resolved_path": "/tmp/native-info-complete-original452-capture/jim/version.stdout",
+      "bytes": 16,
+      "sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803"
+    },
+    "stderr": {
+      "path": "/tmp/native-info-complete-original452-capture/jim/version.stderr",
+      "resolved_path": "/tmp/native-info-complete-original452-capture/jim/version.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "version_ok": true,
+  "execute": {
+    "argv": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/tmp/grammar-info-complete-request452/probe.tcl"
+    ],
+    "cwd": "/tmp/native-info-complete-original452-capture/jim",
+    "started_utc": "2026-10-10T23:30:06.195109+00:00",
+    "elapsed_seconds": 0.003510587994242087,
+    "returncode": 0,
+    "timed_out": false,
+    "stdout": {
+      "path": "/tmp/native-info-complete-original452-capture/jim/execute.stdout",
+      "resolved_path": "/tmp/native-info-complete-original452-capture/jim/execute.stdout",
+      "bytes": 1087,
+      "sha256": "94b1067b61b60faabf341c59e74fc3d2159d0162ce08432189d4ea88f97422f1"
+    },
+    "stderr": {
+      "path": "/tmp/native-info-complete-original452-capture/jim/execute.stderr",
+      "resolved_path": "/tmp/native-info-complete-original452-capture/jim/execute.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "row_count": 41,
+  "exact_original_row_labels": true,
+  "all_public_statuses_recorded": true
+}

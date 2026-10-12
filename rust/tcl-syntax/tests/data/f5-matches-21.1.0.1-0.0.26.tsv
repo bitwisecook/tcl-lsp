@@ -1,0 +1,9 @@
+"abcd" matches "a*"	0	1
+"a*" matches "a*"	0	1
+"a*" matches "abcd"	0	0
+"abcd" matches "a.*"	0	0
+"abcd" matches "bc"	0	0
+"abcd" matches "abcd"	0	1
+1 or 0 matches 0	0	1
+not "abc" starts_with "a"	1	can't use non-numeric string as operand of "!"
+not ("abc" starts_with "a")	0	0

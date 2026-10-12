@@ -1,0 +1,8 @@
+version 9.1.0
+trace-command trace
+fire variable cb 0 VALUE {{variable B 3 ::B}}
+fire command cb 0 {} {{command B 3 ::B}}
+fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}}
+fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}}
+fire command ::Dest::cb 0 {} {{command Dest 3 ::B}}
+fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}}

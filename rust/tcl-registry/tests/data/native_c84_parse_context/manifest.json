@@ -1,0 +1,33 @@
+{
+  "actual_rows": 27,
+  "native_parser_failure_rows": 26,
+  "ordinary_runtime_failure_rows": 1,
+  "rust_comparisons": 0,
+  "compile_command": [
+    "cc",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+    "/workspace/.proofs/2286-c84-compile-parse-geometry27/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-c84-compile-parse-geometry27/probe"
+  ],
+  "columns": [
+    "case",
+    "parse_code",
+    "command_start",
+    "command_size",
+    "term",
+    "call_code",
+    "source_hex",
+    "result_hex",
+    "error_info_hex"
+  ],
+  "source_sha256": "d5ff8de697dfce9a486ff2a2c68170f1b3eb463be09be6b306615fd9b9a73b5e",
+  "output_sha256": "9b985563f9617716b3657543d3b5a60b02024d4660f3c18f63e91da7701c5342",
+  "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+  "observer_contract": "Tcl_ParseCommand source geometry recorded before resetting parser result; definitions and invocation use original counted source. Original result captured before successful global metadata observations. No traces installed."
+}

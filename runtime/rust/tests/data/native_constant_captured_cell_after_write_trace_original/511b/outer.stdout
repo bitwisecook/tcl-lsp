@@ -1,0 +1,1 @@
+Original isolated constant case process capture complete: True all successful: False fatal case processes: [{'provider': '9.0.4', 'original_case': 4, 'returncode': -11, 'termination_signal': 11}, {'provider': '9.1.0', 'original_case': 4, 'returncode': -11, 'termination_signal': 11}] records: 61

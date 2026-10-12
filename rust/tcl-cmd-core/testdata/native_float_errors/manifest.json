@@ -1,0 +1,150 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "source_sha256": "5bc11050033bb4ff1d1da3e096e61964da2dfa73b3980b804885887be1d5b51a",
+  "entries": [
+    {
+      "version": "8.4.20",
+      "command": [
+        "gcc",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "/workspace/.proofs/2286-float-error-design/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-float-error-design/probe-8.4.20"
+      ],
+      "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "binary_sha256": "c242a4320a4909062dec039c1279dc48eaa875cb6e344bce72f3fa41e1abb875",
+      "output_sha256": "9098da06353896f0ea79bad6fad117c09571b2c849b77fe78a0bc8ff9d181411",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "rows": 12
+    },
+    {
+      "version": "8.5.19",
+      "command": [
+        "gcc",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/2286-float-error-design/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-float-error-design/probe-8.5.19"
+      ],
+      "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "binary_sha256": "20a3db0e34ad344e37f1c305ae412171176311917fa0d11907e1187d8d111b1a",
+      "output_sha256": "f3b99310d6cf1a5593c62eebec9837da9fd55177af61b59e667b32cb71682438",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "rows": 12
+    },
+    {
+      "version": "8.6.18",
+      "command": [
+        "gcc",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/2286-float-error-design/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-float-error-design/probe-8.6.18"
+      ],
+      "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "binary_sha256": "055f14c7e488e7d85fd8e7a95b16b1fe4db59efae7b593fcc22d79d4c366f441",
+      "output_sha256": "f3b99310d6cf1a5593c62eebec9837da9fd55177af61b59e667b32cb71682438",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "rows": 12
+    },
+    {
+      "version": "9.0.4",
+      "command": [
+        "gcc",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/2286-float-error-design/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-float-error-design/probe-9.0.4"
+      ],
+      "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "binary_sha256": "dfb6cd702bc346f95db20996a1d975f8efb38bdd215b1bc46df3fbc9eff90694",
+      "output_sha256": "f3b99310d6cf1a5593c62eebec9837da9fd55177af61b59e667b32cb71682438",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "rows": 12
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "gcc",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/2286-float-error-design/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-float-error-design/probe-9.1.0"
+      ],
+      "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "binary_sha256": "2372a1521e7b9d0ed62057051b4c9ca78fab86d5eb791ac78effcf78cea6c308",
+      "output_sha256": "f3b99310d6cf1a5593c62eebec9837da9fd55177af61b59e667b32cb71682438",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "rows": 12
+    },
+    {
+      "version": "jim",
+      "command": [
+        "gcc",
+        "-DJIM",
+        "-I",
+        "/tmp/2286-oracles/jimtcl",
+        "/workspace/.proofs/2286-float-error-design/probe.c",
+        "/tmp/2286-oracles/jimtcl/libjim.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-float-error-design/probe-jim"
+      ],
+      "archive_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "binary_sha256": "faeac377b20ff4fc1b310a693eddb4323511a43bb2c7a6ddfd769ba03d1c1398",
+      "output_sha256": "60ace83144dec0fed8f6dad324300865bad5a710b2a0b6b9975bd8fd9a0cd67d",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "rows": 6
+    }
+  ]
+}

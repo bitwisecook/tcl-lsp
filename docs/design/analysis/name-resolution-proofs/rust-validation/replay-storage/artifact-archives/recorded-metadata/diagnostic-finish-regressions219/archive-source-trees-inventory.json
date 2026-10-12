@@ -1,0 +1,246 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/diagnostic-finish-regressions219.source-trees.tar.gz",
+  "archive_sha256": "e5e5e7fa498a28c0430348675c01f99d4cc0ec4109c3a8e73861df2d834636e8",
+  "archive_bytes": 661484,
+  "uncompressed_bytes": 2875632,
+  "source_manifest_sha256": "41f3170715ee74a63bf1ea58fd6d7fb34c054f6ccbcd537d18251fc95c2cb9b7",
+  "source_patch_sha256": "b9331a142fc7c82102853597b20dffcfae72d8cd163fb18c05867b0b75af5014",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 20,
+  "members": {
+    "diagnostic-finish-regressions219/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7564523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7564523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7564523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8444517,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.800452,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7564523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7604127,
+      "size": 630816,
+      "sha256": "9423c3a5fe877364042b0da9b75a85141f72cec436da1071a5d53930a0bc31ea"
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.804452,
+      "size": 798601,
+      "sha256": "17ad573f013393a59a5929d4ac70d56d0f2e3075951426d82ac0ad2ab1a8f6f5"
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src/signature_scan": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8444517,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/base/rust/tcl-compiler/src/signature_scan/arity.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8473167,
+      "size": 7431,
+      "sha256": "2067a0b25e010789a50a3f00291b72f7cdd8e704c032f25ce77d672add4c94a4"
+    },
+    "diagnostic-finish-regressions219/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7604523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7604523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7604523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8473167,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.804452,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7604523,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.7628386,
+      "size": 632106,
+      "sha256": "d7187842cdec672e7e95e1edc06acb60be3dcd3eba6939b36f69a85fa34c3a08"
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8086984,
+      "size": 799227,
+      "sha256": "217d787763b5b51db03a078b68b78ac3b850875a31ad8be08d74c9310623191b"
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src/signature_scan": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8473167,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-regressions219/candidate/rust/tcl-compiler/src/signature_scan/arity.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791590293.8474681,
+      "size": 7451,
+      "sha256": "28243b815ebbf875a75b577adb5df4f1d740b1c464c33790bdb96990199b5546"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/tests.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "d7187842cdec672e7e95e1edc06acb60be3dcd3eba6939b36f69a85fa34c3a08",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/tests.rs",
+      "hash_key": "base_sha256",
+      "sha256": "9423c3a5fe877364042b0da9b75a85141f72cec436da1071a5d53930a0bc31ea",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "217d787763b5b51db03a078b68b78ac3b850875a31ad8be08d74c9310623191b",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "hash_key": "base_sha256",
+      "sha256": "17ad573f013393a59a5929d4ac70d56d0f2e3075951426d82ac0ad2ab1a8f6f5",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/arity.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "28243b815ebbf875a75b577adb5df4f1d740b1c464c33790bdb96990199b5546",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/arity.rs",
+      "hash_key": "base_sha256",
+      "sha256": "2067a0b25e010789a50a3f00291b72f7cdd8e704c032f25ce77d672add4c94a4",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

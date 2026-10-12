@@ -1,0 +1,134 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/recovered-original-math-function067.source-trees.tar.gz",
+  "archive_sha256": "dbdff71e66b462b3f03538b95d807d43c879c28678d627d0471210c86c62c6c2",
+  "archive_bytes": 393731,
+  "uncompressed_bytes": 1838273,
+  "source_manifest_sha256": "e3a30b38f820674657f51087421aa375a809cfb84cb9b76dff0f5593ffaa919d",
+  "source_patch_sha256": "4a66a755eb5d64c55900b6b7d64d7f45e6c07094e652ea712127a92c30840b35",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 13,
+  "members": {
+    "recovered-original-math-function067/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0034482,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-math-function067/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0034482,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0034482,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0714478,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.015448,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.007125,
+      "size": 315514,
+      "sha256": "df9a73ef1585765f355e3530131a0840c2d727606533b7cbc20a4e42b15fd422"
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/analyser/types.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0198827,
+      "size": 217721,
+      "sha256": "e83d40d8ab984128446ba047bae137360b24b1e6a8a77787f33dfaa498c2965b"
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0285456,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/command_binding/declaration_preview.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0267348,
+      "size": 43770,
+      "sha256": "ab9dac0ee1ad86623da9a0bee166fb2af08bf3e86deb419e0939d71323c76321"
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/command_binding/expression_preparation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.028384,
+      "size": 90471,
+      "sha256": "8b4a23d3ec7fb23fee0e880b9df5ded9b32e0b4840f1466a352254eb372a64d4"
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/command_binding/original_math_function.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.0310364,
+      "size": 22215,
+      "sha256": "fe038834ffb932f865bc1424495ea308d2615ffa10d4e69e636a25ddf0b9d108"
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/command_binding.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.035448,
+      "size": 833214,
+      "sha256": "6ae757744219865b726c5e7cc5d378671f543ffd7c0e1312311c82d49519ae2e"
+    },
+    "recovered-original-math-function067/files/rust/tcl-compiler/src/registry_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791508373.076111,
+      "size": 315368,
+      "sha256": "40228c0cfffbef74d50adc7ce29a3c00a7ae206e6aef00aabdc80d05fe8267be"
+    }
+  },
+  "leaf_tree_mapping": [],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

@@ -22,6 +22,64 @@ local as a raw slot is an optimisation layered on top behind a guard, never
 the base case. The compiler-side mirror of this is
 [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md).
 
+## Original variable names and physical owners
+
+The variable resolver selects the table and follows links. Native name primaries
+accelerate that lookup only under a matching actual engine and native name policy.
+An authored name simulation does not issue a physical C variable-name cache.
+`NativeVariableNameProtocol` owns release-specific parsing and retirement rules;
+the concrete object descriptors retain the original parts and actual owners.
+Snapshots report those descriptors and never provide receiver authority.
+
+A parsed scalar name retains no variable or namespace. A parsed array name owns
+its original root name and either an allocated C8 element buffer or the original
+C9 element object. C8 duplicates and string updates use the element's CString
+extent; C9 element objects retain counted bytes. The selected table key and the
+reported name remain separate projections.
+
+An indexed C8.4 local-name primary retains the actual procedure. Later releases
+retain a canonical original name or an explicit self-cache. Canonical names belong
+to `NativeLocalNameTable`, shared by the procedure and activation through its
+header. Cloning that header does not acquire another native member reference.
+`NativeLiteralWorld` owns global registrations; header destruction releases each
+global registration before its local member owner.
+
+Original scalar/root hash keys belong to table entries, independently of retained
+variable cells and lookup caches. C8.4 entries own byte keys; later C entries can
+retain their original name objects. Unqualified Jim births retain the original key,
+while absolute births own a separate stripped key. Removing a Jim entry retires its
+key even when a static alias retains the old variable cell. C operations that hold
+a root entry through a callback retire its key when that retained entry expires.
+
+Use `read_original_named_variable` when the operand is an original name object.
+Use `assign_original_named_variable` for assignment without command result
+publication. `store_original_named_variable` provides the command assignment and
+result publication door. Byte-only coordinator operations remain appropriate for
+already selected addresses; they do not authenticate an original name object.
+
+## Source analysis cell identities
+
+`ResolveContext` carries `SourceNamespaceKey` through namespace bodies,
+procedure frames, selected callers and aliases. A native key retains the
+interpreter, namespace incarnation and exact component boundaries. A display
+such as `::a:::b` can describe different paths; it cannot select either table.
+Jim namespace selection uses the retained original flat namespace-object bytes.
+
+`VariableCellKey` keeps namespace, activation, retained wrapper, lifetime and
+array-member identities separate. `VariableCellTable` and `VariableCellSet`
+accept text queries only for authored entries. Lifetime and element wrappers
+remain structural even for authored keys, so written labels cannot impersonate
+those addresses. Array membership compares the original root lifetime.
+
+The retained current namespace and namespaces available to a new address lookup
+have separate inventories. Deleting an active native namespace detaches its
+address but preserves its cells until the last referring frame exits.
+`PendingNamespaceRetirement` captures the original namespace incarnations;
+pop-time retirement cannot select a replacement created at the same path.
+Trace and contents facts follow those exact cells after links resolve.
+Authored static publication uses its independently captured worker namespace
+and outward observer receipt; an ordinary global does not inherit those effects.
+
 ## The two stacks and the two contexts
 
 Tcl conflates them in surface syntax but they are distinct:
@@ -48,25 +106,27 @@ as a Rust enum in a per-table map:
 * `runtime/rust/src/frame.rs` — `Var::Scalar(*mut TclObj)`,
   `Var::Array(BTreeMap<Vec<u8>, *mut TclObj>)`, `Var::Link(Link)`.
 * `rust/tcl-vm/src/vars.rs` — `VarState::Undefined`, `VarState::Scalar(Value)`,
-  `VarState::Array(VarTable)`, `VarState::Link(VarId)`.  A name table
-  (`VarTable = BTreeMap<String, VarId>`) owns bindings; the interpreter's
-  `VarArena` owns the cells those ids identify.
+  `VarState::Array(VarTable)`, `VarState::Link(VarId)`, and dialect-selected
+  `VarState::NameLink`. A byte-keyed `VarTable` owns bindings and original native
+  keys; the interpreter's `VarArena` owns the cells those ids identify.
 
 Three representation decisions are load-bearing and are contract, not detail:
 
-* **`BTreeMap`, not `HashMap`, for var tables and array elements.**
-  `info vars` and `array names` iterate them, so a randomised hash order would
-  make output vary run-to-run — poison for an oracle-diffed port.
-* **A link never carries a raw pointer.** `runtime/rust`'s `Link` resolves by
-  *path* — `{ home, name, elem }`, where the home is either a frame level or a
-  namespace; the VM's `Link(VarId)` names a stable arena cell, and removing a
-  binding never lets its `VarId` identify a later variable. `global`,
-  `variable`, and `upvar` all produce one of those two shapes, and a target
-  table reallocating cannot dangle. Following links must be cycle-safe.
-* **Traces do not live on the cell.** Each runtime keeps an interpreter-level
-  trace table keyed by the *resolved* variable identity (home namespace or
-  frame level, plus the simple name), so a trace fires through links and
-  survives the cell being unset and recreated.
+* **Lookup storage and native iteration have separate owners.** Byte-keyed
+  maps store the cells. Persistent `NativeEntryLedger` records supply the selected
+  native hash order, bucket history and entry lifetime for `info vars` and array
+  enumeration. Map ordering does not authenticate native iteration.
+* **Links preserve their selected dialect's target ownership.** VM C links name
+  stable cells. Portable-runtime C links retain their selected table home and any
+  captured array generation. Jim links retain the original target-name object
+  and a weak receipt for its actual frame incarnation. The resolver follows the
+  appropriate cell, selected home or original getter. Removing a binding never
+  reuses its stable identity for a replacement. Link traversal is cycle-safe.
+* **Observers attach to stable storage identities.** Interpreter trace
+  registries retain the resolved variable generation independently of diagnostic
+  names. A trace reached through an alias observes the selected cell. Unset and
+  reinstallation distinguish the dying registration from a newly created cell;
+  an equal spelling does not transfer trace ownership.
 
 The VM additionally carries `VarState::Undefined` — a materialised but unset
 cell, which is what `variable` and `trace add variable` create: invisible to

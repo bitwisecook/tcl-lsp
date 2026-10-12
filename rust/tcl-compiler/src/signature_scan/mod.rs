@@ -62,9 +62,19 @@ pub mod arity;
 pub(crate) mod command_prefix;
 mod ctx;
 mod factory;
+pub mod formal_count;
+pub mod formal_parameters;
 mod handlers;
+pub(crate) mod name_value;
+pub mod original_name;
 pub mod params;
+pub mod scope;
+pub mod symbol_name;
 pub mod types;
+pub mod variable_name;
+pub mod variable_symbol;
+pub mod vendor_name;
+pub mod vendor_variable;
 mod walker;
 
 use tcl_registry::CommandRegistry;
@@ -72,24 +82,74 @@ use tcl_registry::CommandRegistry;
 use ctx::ScanCtx;
 pub use types::SignatureScanResult;
 
-/// Extract a lightweight [`SignatureScanResult`] for a Tcl source.
+/// Extract a lightweight [`SignatureScanResult`] for an independently supplied
+/// complete Tcl document, selecting file grammar from the actual Registry.
+/// Configured scripts use [`extract_signatures_with_config`]; retained source
+/// queries use [`extract_signatures_with_original_bindings`].
 ///
-/// The public entry point for the signature scanner. Runs the main
+/// The complete-document entry point for the signature scanner. Runs the main
 /// walker (with segmenter-level error recovery seeded from the
 /// registry's command names), then resolves factory-wrapper
 /// synthetic procs.
 #[must_use]
 pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {
+    let grammar = registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+            profile.grammar
+        });
+    extract_signatures_in(
+        source,
+        tcl_lexer::LexerConfig::for_file_grammar(grammar),
+        registry,
+        None,
+    )
+}
+
+/// Scan under the caller's complete source configuration without issuing
+/// command bindings, an entry receipt or a native execution premise.
+#[must_use]
+pub fn extract_signatures_with_config(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> SignatureScanResult {
+    extract_signatures_in(source, config, registry, None)
+}
+
+/// Scan with an independently retained source binding inventory. Exact source
+/// bytes, channel and complete lexer configuration must match before callback
+/// lookup coordinates can be borrowed. A mismatched inventory is ignored.
+/// This entry point never runs source binding analysis or enters a callback.
+#[must_use]
+pub fn extract_signatures_with_original_bindings(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    bindings: &crate::command_binding::SourceCommandBindings,
+) -> SignatureScanResult {
+    let image = tcl_lexer::SourceImage::document(source);
+    let original = bindings
+        .matches_original_source_image(&image, config)
+        .then_some(bindings);
+    extract_signatures_in(source, config, registry, original)
+}
+
+fn extract_signatures_in(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    bindings: Option<&crate::command_binding::SourceCommandBindings>,
+) -> SignatureScanResult {
     let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
-    // The registry carries the environment's resolved profile, so the scan
-    // reads every word and segments every body under the document's own
-    // grammar — an iRules `}{`, a Jim `$(…)`, an 8.4 `{*}` — rather than
-    // re-deriving C Tcl's answer.
-    let profile = registry.profile();
+    // The caller's full configuration governs every word and body. The
+    // standalone entry point above separately selects its registry profile.
     let mut ctx = ScanCtx {
         registry: Some(registry),
-        rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
-        config: tcl_lexer::LexerConfig::for_profile(profile),
+        original_bindings: bindings,
+        original_image: Some(tcl_lexer::SourceImage::document(source)),
+        rules: tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        config,
         ..ScanCtx::default()
     };
     // Heads that match the factory-wrapper token shape but are not
@@ -106,9 +166,181 @@ pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> Signature
                 .map(|h| (*h).to_owned()),
         )
         .collect();
-    walker::scan(source, None, "", false, &known_commands, &mut ctx);
+    let root = scope::SignatureNamespaceScope::root(ctx.name_policy());
+    walker::scan_in_context(source, None, &root, false, &known_commands, &mut ctx);
     factory::resolve_factory_defs(&mut ctx);
     ctx.result
+}
+
+#[cfg(test)]
+mod original_callback_scan_tests {
+    use super::types::SignatureCommandInvocation;
+    use super::*;
+    use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+    use tcl_registry::native_compilation::{NativeCompilationContext, NativeCompilationMode};
+
+    fn inventory(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        dialect: tcl_registry::InvocationDialect,
+        registry: &CommandRegistry,
+    ) -> SourceCommandBindings {
+        SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                native_compilation: NativeCompilationContext {
+                    mode: NativeCompilationMode::Direct,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+    }
+
+    fn callback(result: &SignatureScanResult) -> &SignatureCommandInvocation {
+        result
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.callback_arity.is_some())
+            .unwrap()
+    }
+
+    #[test]
+    fn original_callback_scan_borrows_only_matching_inventory_scope() {
+        // Implementation contract: naming.callback.lookup-scope-owner (docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md).
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let dialect = tcl_registry::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(name)).unwrap(),
+            );
+            let registry = tcl_registry::model::ingress::static_context_for(name).commands();
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let source = "lsort -command {::cmp fixed} {b a}";
+            let bindings = inventory(source, config, dialect, registry);
+            let result =
+                extract_signatures_with_original_bindings(source, config, registry, &bindings);
+            let row = callback(&result);
+            assert_eq!(
+                row.original_name_input
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{name}: original callback input"))
+                    .bytes(),
+                b"::cmp",
+                "{name}"
+            );
+            assert_eq!(
+                row.original_lookup
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{name}: original callback lookup"))
+                    .callback_lookup_scope(),
+                Some(tcl_registry::ScriptLookupScope::InvokingFrame),
+                "{name}"
+            );
+            assert_eq!(row.callback_baked_args, 1);
+            assert!(!row.rename_safe);
+            let binding = bindings.invocation_at_source("", 0);
+            let mut tokens = binding.original_recorded_command_tokens().unwrap();
+            tokens.source_binding = Some(binding.clone());
+            let original = binding
+                .original_callback_prefix(&tokens, 2, registry)
+                .unwrap();
+            assert_eq!(
+                row.original_name_input.as_ref(),
+                Some(original.name_input())
+            );
+            assert_eq!(row.original_lookup.as_ref(), original.lookup());
+            let changed = source.replace("cmp", "bad");
+            let mismatched =
+                extract_signatures_with_original_bindings(&changed, config, registry, &bindings);
+            assert!(callback(&mismatched).original_lookup.is_none());
+            let mut other_config = config;
+            other_config.expand_syntax = !other_config.expand_syntax;
+            let mismatched = extract_signatures_with_original_bindings(
+                source,
+                other_config,
+                registry,
+                &bindings,
+            );
+            assert!(callback(&mismatched).original_lookup.is_none());
+        }
+    }
+
+    #[test]
+    fn original_callback_scan_respects_selected_installer_moves_and_terminal_barriers() {
+        // naming.callback.lookup-scope-owner
+        // docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::context_for_profile(profile);
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        for (source, expected) in [
+            (
+                "rename lsort sorter; sorter -command {::cmp fixed} {b a}",
+                true,
+            ),
+            (
+                "interp alias {} sorter {} lsort; sorter -command {::cmp fixed} {b a}",
+                true,
+            ),
+            (
+                "proc lsort args {}; lsort -command {::cmp fixed} {b a}",
+                false,
+            ),
+            ("rename lsort {}; lsort -command {::cmp fixed} {b a}", false),
+        ] {
+            let bindings = inventory(source, config, dialect, registry.commands());
+            let result = extract_signatures_with_original_bindings(
+                source,
+                config,
+                registry.commands(),
+                &bindings,
+            );
+            let callbacks = result
+                .command_invocations
+                .iter()
+                .filter(|row| row.name == "::cmp" && row.callback_arity.is_some())
+                .collect::<Vec<_>>();
+            assert_eq!(!callbacks.is_empty(), expected, "{source}");
+            for row in callbacks {
+                assert!(row.original_callback_prefix.is_some());
+                assert!(row.argc.is_none() && !row.rename_safe);
+            }
+        }
+    }
+
+    #[test]
+    fn original_callback_header_scan_keeps_readonly_lineage_without_scope() {
+        // Implementation contract: naming.callback.lookup-scope-owner (docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md).
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        for source in [
+            "lsort -command {::cmp fixed} {b a}",
+            "trace add variable v write {::cmp fixed}",
+        ] {
+            let result = extract_signatures(source, &registry);
+            let row = callback(&result);
+            assert_eq!(row.original_name_input.as_ref().unwrap().bytes(), b"::cmp");
+            assert!(row.original_lookup.is_none());
+            assert!(
+                row.original_name_input
+                    .as_ref()
+                    .unwrap()
+                    .original_word_key()
+                    .is_none()
+            );
+            assert!(!row.rename_safe);
+        }
+        let result = extract_signatures("trace add variable v write {$head fixed}", &registry);
+        assert!(
+            result
+                .command_invocations
+                .iter()
+                .filter(|row| row.callback_arity.is_some())
+                .all(|row| row.original_name_input.is_none() && row.original_lookup.is_none())
+        );
+    }
 }
 
 #[cfg(test)]
@@ -121,10 +353,237 @@ mod tests {
     }
 
     #[test]
+    fn signatures_keep_literal_colon_names_and_namespace_components() {
+        let result = run(
+            "namespace eval : {proc p {} {}; proc : {} {}; namespace eval x {proc q {} {}}}; namespace eval a {proc : {} {}}",
+        );
+        assert_eq!(result.procs[":::::p"].name, "p");
+        assert_eq!(result.procs["::::::"].name, ":");
+        assert_eq!(result.procs["::a:::"].name, ":");
+        assert_eq!(result.procs[":::::x::q"].name, "q");
+        assert!(!result.procs.contains_key("::p"));
+    }
+
+    #[test]
+    fn signature_publication_keys_match_six_native_namespace_controls() {
+        let source = "namespace eval : {proc p {} {}; puts [namespace which -command p]}\nnamespace eval a:::b {proc q {} {}; puts [namespace which -command q]}";
+        let mut engines: Vec<_> = tcl_test_support::required_tclshs(&tcl_dialect::TclVersion::ALL)
+            .unwrap()
+            .into_iter()
+            .map(|interpreter| {
+                (
+                    format!("tcl{}", interpreter.version.version_string()),
+                    interpreter.path,
+                )
+            })
+            .collect();
+        if let Some(jim) = tcl_test_support::locate_jimsh().unwrap() {
+            engines.push(("jim".to_owned(), jim.path));
+        }
+        for (engine, path) in engines {
+            let profile =
+                crate::environment_ingress::resolve_environment(&engine).analyser_profile();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let result = extract_signatures(source, &registry);
+            let outcome = tcl_test_support::run_script(&path, source.as_bytes()).unwrap();
+            let actual = outcome.strict_text().unwrap();
+            let keys: Vec<_> = actual.lines().collect();
+            assert_eq!(keys.len(), 2, "{engine}");
+            assert_eq!(result.procs.len(), 2, "{engine}");
+            for key in keys {
+                assert!(
+                    result.procs.contains_key(key),
+                    "{engine}: {key}, {:?}",
+                    result.procs
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn signature_names_keep_jim_flat_keys_and_old_c_creation_rejections() {
+        let source = "namespace eval a:::b {proc p {} {}; rename p q:::r; alias alias:::name q:::r}; namespace eval : {proc : {} {}}";
+        let jim = CommandRegistry::build_default().project_for_profile(
+            crate::environment_ingress::resolve_environment("jim").analyser_profile(),
+        );
+        let result = extract_signatures(source, &jim);
+        assert!(result.procs.contains_key("::a:::b::p"));
+        assert!(result.renames.contains_key("::a:::b::q:::r"));
+        assert!(result.command_aliases.contains_key("::alias:::name"));
+        for version in ["tcl8.4", "tcl8.5"] {
+            let registry = CommandRegistry::build_default()
+                .project_for_profile(tcl_dialect::DialectProfile::find(version).unwrap());
+            let result = extract_signatures(source, &registry);
+            assert!(result.procs.contains_key("::a::b::p"));
+            assert!(!result.procs.contains_key("::::::"));
+        }
+    }
+
+    fn for_engine(engine: &str, source: &str) -> SignatureScanResult {
+        let profile = crate::environment_ingress::resolve_environment(engine).analyser_profile();
+        extract_signatures(
+            source,
+            &CommandRegistry::build_default().project_for_profile(profile),
+        )
+    }
+
+    #[test]
+    fn reported_colon_tail_preserves_selected_slot_and_body_scope() {
+        use scope::SignatureNamespaceScope;
+        use tcl_core_types::ByteNamespacePath;
+        let source = "namespace eval N {proc :f {} {return [namespace current]}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = for_engine(engine, source);
+            let declaration = &result.procs["::N:::f"];
+            let namespace = SignatureNamespaceScope::C(ByteNamespacePath::from_segments(["N"]));
+            assert_eq!(declaration.body_namespace, namespace, "{engine}");
+            assert_eq!(declaration.name, ":f", "{engine}");
+            assert_eq!(declaration.source_spelling(), None, "{engine}");
+            let policy = declaration.source_name.as_ref().unwrap().policy();
+            assert_eq!(
+                result.procedures_for_written_name(&namespace, ":f", Some(policy)),
+                [declaration]
+            );
+            assert!(
+                result
+                    .procedures_for_written_name(&namespace, "::N:::f", Some(policy))
+                    .is_empty()
+            );
+        }
+        for engine in ["tcl8.4", "tcl8.5"] {
+            assert!(
+                for_engine(engine, source).procedure_declarations.is_empty(),
+                "{engine}"
+            );
+        }
+        let jim = for_engine("jim", source);
+        let declaration = &jim.procs["::N:::f"];
+        assert_eq!(
+            declaration.body_namespace,
+            SignatureNamespaceScope::Jim(b"N:".as_slice().into())
+        );
+    }
+
+    #[test]
+    fn equal_reports_keep_distinct_original_declaration_slots() {
+        use scope::SignatureNamespaceScope;
+        use tcl_core_types::ByteNamespacePath;
+        let source = "namespace eval a: {namespace eval b {proc p {} {return FIRST}}}; namespace eval a {namespace eval :b {proc p {} {return SECOND}}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = for_engine(engine, source);
+            assert_eq!(result.procedure_declarations.len(), 2, "{engine}");
+            assert!(!result.procs.contains_key("::a:::b::p"), "{engine}");
+            assert_ne!(
+                result.procedure_declarations[0].source_name,
+                result.procedure_declarations[1].source_name
+            );
+            for (index, components) in [["a:", "b"], ["a", ":b"]].into_iter().enumerate() {
+                let scope =
+                    SignatureNamespaceScope::C(ByteNamespacePath::from_segments(components));
+                let declaration = &result.procedure_declarations[index];
+                assert_eq!(declaration.body_namespace, scope);
+                let policy = declaration.source_name.as_ref().unwrap().policy();
+                assert_eq!(
+                    result.procedures_for_written_name(&scope, "p", Some(policy)),
+                    [declaration]
+                );
+                assert_eq!(declaration.source_spelling(), None);
+            }
+        }
+        let jim = for_engine("jim", source);
+        assert_eq!(jim.procedure_declarations.len(), 2);
+        assert_eq!(
+            jim.procedure_declarations[0].source_name,
+            jim.procedure_declarations[1].source_name
+        );
+        assert_eq!(
+            jim.procs["::a:::b::p"].body_range,
+            jim.procedure_declarations[1].body_range
+        );
+    }
+
+    #[test]
+    fn alias_target_report_keeps_original_slot_without_global_spelling() {
+        use types::SignatureCommandAliasTarget;
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = for_engine(engine, "interp alias {} A {} :target");
+            let target = &result.command_aliases["::A"].target;
+            let policy = result.command_aliases["::A"]
+                .source_name
+                .as_ref()
+                .unwrap()
+                .policy();
+            let selected = target.selected_global_name(Some(policy)).unwrap();
+            assert!(selected.slot().namespace.is_root(), "{engine}");
+            assert_eq!(selected.slot().simple.as_bytes(), b":target", "{engine}");
+            assert_eq!(
+                target.reported_global_key(Some(policy)).as_deref(),
+                Some(":::target"),
+                "{engine}"
+            );
+            assert_eq!(target.checked_global_key(Some(policy)), None, "{engine}");
+            let absolute = SignatureCommandAliasTarget::WrittenGlobal(":::target".to_owned());
+            assert_ne!(
+                absolute.selected_global_name(Some(policy)),
+                Some(selected),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn jim_alias_keeps_caller_lookup_without_global_target_projection() {
+        let result = for_engine("jim", "namespace eval N {alias alias:::name target baked}");
+        let alias = &result.command_aliases["::alias:::name"];
+        assert_eq!(
+            alias.target,
+            types::SignatureCommandAliasTarget::WrittenCaller("target".to_owned())
+        );
+        assert_eq!(alias.extras, ["baked"]);
+        assert_eq!(
+            alias.target.selected_global_name(
+                alias
+                    .source_name
+                    .as_ref()
+                    .map(scope::SignatureSourceCommand::policy)
+            ),
+            None
+        );
+        assert_eq!(
+            alias.target.reported_global_key(
+                alias
+                    .source_name
+                    .as_ref()
+                    .map(scope::SignatureSourceCommand::policy)
+            ),
+            None
+        );
+        assert_eq!(
+            alias.target.checked_global_key(
+                alias
+                    .source_name
+                    .as_ref()
+                    .map(scope::SignatureSourceCommand::policy)
+            ),
+            None
+        );
+        assert!(
+            for_engine("jim", "interp alias {} alias:::name {} target")
+                .command_aliases
+                .is_empty()
+        );
+        assert!(
+            for_engine("jim", "alias a $target")
+                .command_aliases
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn proc_only() {
         let r = run("proc foo {} {}");
         assert!(r.procs.contains_key("::foo"));
-        assert!(r.classes.is_empty());
+        assert_eq!(r.classes.len(), 0);
         assert_eq!(r.command_invocations.len(), 1);
     }
 
@@ -155,7 +614,7 @@ mod tests {
     fn class_only() {
         let r = run("oo::class create MyCls { method foo {} {} }");
         assert!(r.classes.contains_key("::MyCls"));
-        assert!(r.procs.is_empty());
+        assert_eq!(r.procs.len(), 0);
     }
 
     #[test]
@@ -190,7 +649,7 @@ mod tests {
     #[test]
     fn rename_to_empty_deletes_not_recorded() {
         let r = run("rename puts {}");
-        assert!(r.renames.is_empty());
+        assert_eq!(r.renames.len(), 0);
     }
 
     #[test]
@@ -213,6 +672,196 @@ mod tests {
         assert!(r.procs.contains_key("::ChildB"));
         // Synthetic procs have empty params (per-call arg map is
         // not statically known).
-        assert!(r.procs["::ChildA"].params.is_empty());
+        assert_eq!(
+            r.procs["::ChildA"].params,
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_native_scan_tests {
+    use super::*;
+    use scope::{SignatureSourceLookup, SignatureSourceNameInput};
+
+    #[test]
+    fn background_scan_keeps_opaque_slots_after_ui_maps_are_cleared() {
+        let source = r"proc p\uD800 {} {return FIRST}
+proc p\uD801 {} {return SECOND}
+p\uD800
+p\uD801";
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut result = extract_signatures(source, &registry);
+        assert_eq!(result.procedure_declarations.len(), 2);
+        let first = result.procedure_declarations[0]
+            .source_name
+            .as_ref()
+            .unwrap();
+        let second = result.procedure_declarations[1]
+            .source_name
+            .as_ref()
+            .unwrap();
+        assert_eq!(first.slot().simple.as_bytes(), b"p\xed\xa0\x80");
+        assert_eq!(second.slot().simple.as_bytes(), b"p\xed\xa0\x81");
+        assert_ne!(first.slot(), second.slot());
+        let calls = result
+            .command_invocations
+            .iter()
+            .filter(|invocation| {
+                [
+                    source.rfind(r"p\uD800").unwrap(),
+                    source.rfind(r"p\uD801").unwrap(),
+                ]
+                .contains(&(invocation.range.start() as usize))
+            })
+            .filter_map(|invocation| invocation.original_name_input.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        result.procs.clear();
+        let root = scope::SignatureNamespaceScope::root(Some(calls[0].policy()));
+        let first = result.procedures_for_original_name(&calls[0], &root);
+        let second = result.procedures_for_original_name(&calls[1], &root);
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_ne!(first[0].name_range, second[0].name_range);
+    }
+
+    #[test]
+    fn escaped_namespace_and_name_keep_complete_native_producers() {
+        let source = r"namespace eval N\u0000tail {proc p\u0069ck {} {return BODY}; pick}";
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let result = extract_signatures(source, &registry);
+        assert_eq!(result.procedure_declarations.len(), 1);
+        let declaration = &result.procedure_declarations[0];
+        let name = declaration.source_name.as_ref().unwrap();
+        assert_eq!(
+            name.slot().namespace.as_segments()[0].as_bytes(),
+            b"N\xc0\x80tail"
+        );
+        assert_eq!(name.slot().simple.as_bytes(), b"pick");
+        let call = result
+            .command_invocations
+            .iter()
+            .find(|invocation| {
+                invocation.range.start() == u32::try_from(source.rfind("pick").unwrap()).unwrap()
+            })
+            .unwrap();
+        let input = call.original_name_input.as_ref().unwrap();
+        let lookup =
+            SignatureSourceLookup::from_input(declaration.body_namespace.clone(), input).unwrap();
+        assert_eq!(lookup.candidates().unwrap()[0], *name.slot());
+        assert_eq!(
+            result
+                .procedures_for_original_name(input, &declaration.body_namespace)
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn dynamic_and_expanded_heads_do_not_borrow_literal_word_identity() {
+        let source = "$head\n{*}{p a}";
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let result = extract_signatures(source, &registry);
+        assert!(
+            result
+                .command_invocations
+                .iter()
+                .all(|invocation| invocation.original_name_input.is_none())
+        );
+        let image = tcl_lexer::SourceImage::document("p");
+        let line = scope::SignatureSourceNameValue::from_original_source_line(
+            &image,
+            0,
+            tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar),
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6),
+        )
+        .unwrap();
+        let lookup = SignatureSourceLookup::from_input(
+            scope::SignatureNamespaceScope::root(Some(line.policy())),
+            &SignatureSourceNameInput::OriginalValue(line),
+        )
+        .unwrap();
+        assert!(lookup.original_name_key().is_none());
+        assert!(lookup.original_name_input().is_some());
+    }
+}
+
+#[cfg(test)]
+mod original_document_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn complete_document_signature_ingress_keeps_root_and_nested_bom_roles_dialect_aware() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Source declarations/geometry only, without procedure creation or execution.
+        let source = "\u{feff}proc visible {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc nested {} {}}";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::resolve_known_environment(name).expect(name);
+            let context = environment.default_context_registry();
+            let registry = context.commands();
+            let grammar = registry.profile().expect("actual selected profile").grammar;
+            let scan = extract_signatures(source, registry);
+            assert_eq!(
+                scan.procs.contains_key("::visible"),
+                grammar.script_skips_leading_bom,
+                "{name}"
+            );
+            assert!(
+                !scan.procs.contains_key("::hidden"),
+                "{name}: nested BOM is content"
+            );
+            let nested = scan.procs.get("::nested").expect(name);
+            assert_eq!(source.get(nested.name_range.as_range()), Some("nested"));
+            if grammar.script_skips_leading_bom {
+                let visible = scan.procs.get("::visible").unwrap();
+                assert_eq!(source.get(visible.name_range.as_range()), Some("visible"));
+            }
+        }
+    }
+
+    #[test]
+    fn configured_signature_ingress_retains_explicit_content_and_custom_full_policy() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let environment = tcl_registry::model::resolve_known_environment("tcl9.1").unwrap();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let parent = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            base_line: 17,
+            ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+        };
+        let source = "\u{feff}proc visible {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc nested {} {}}";
+        let document = extract_signatures_with_config(source, parent, registry);
+        assert!(document.procs.contains_key("::visible"));
+        assert!(!document.procs.contains_key("::hidden"));
+        assert!(document.procs.contains_key("::nested"));
+        let child_config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(parent);
+        let script = extract_signatures_with_config(source, child_config, registry);
+        assert!(!script.procs.contains_key("::visible"));
+        assert!(!script.procs.contains_key("::hidden"));
+        assert!(script.procs.contains_key("::nested"));
+        let original = script
+            .command_invocations
+            .iter()
+            .find(|call| call.name == "\u{feff}proc" && call.range.start() == 0)
+            .unwrap();
+        assert_eq!(source.get(original.range.as_range()), Some("\u{feff}proc"));
     }
 }

@@ -1,0 +1,72 @@
+{
+  "timeout_seconds": 60,
+  "source_sha256": "1de91b9f671f8c3b87e9284304453fa2b1331a91c485d1d990dda6e8c0a64579",
+  "runs": [
+    {
+      "engine": "8.4.20",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-consumer-unknown-compiler-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout_sha256": "3df58d89fdb05e7f7c07bb4cc53435da9396c43831638acf996efb1145cbf9e3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "8.5.19",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-consumer-unknown-compiler-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout_sha256": "d05feba0fff5934d70f49767338779a9aa6de5d54e08d98f574305d6366a9839",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "8.6.18",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-consumer-unknown-compiler-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout_sha256": "d05feba0fff5934d70f49767338779a9aa6de5d54e08d98f574305d6366a9839",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "9.0.4",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-consumer-unknown-compiler-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout_sha256": "d05feba0fff5934d70f49767338779a9aa6de5d54e08d98f574305d6366a9839",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "9.1.0",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-consumer-unknown-compiler-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout_sha256": "d05feba0fff5934d70f49767338779a9aa6de5d54e08d98f574305d6366a9839",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "jim",
+      "argv": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-consumer-unknown-compiler-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout_sha256": "4f3489f706b9d05591d3e1906d19d04803b9ffa7e8220f0d9724f317fc88024e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

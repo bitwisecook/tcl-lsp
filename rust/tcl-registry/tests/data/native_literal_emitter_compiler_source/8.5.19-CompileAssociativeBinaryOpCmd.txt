@@ -1,0 +1,31 @@
+CompileAssociativeBinaryOpCmd(
+    Tcl_Interp *interp,
+    Tcl_Parse *parsePtr,
+    const char *identity,
+    int instruction,
+    CompileEnv *envPtr)
+{
+    Tcl_Token *tokenPtr = parsePtr->tokenPtr;
+    DefineLineInformation;	/* TIP #280 */
+    int words;
+
+    for (words=1 ; words<parsePtr->numWords ; words++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, words);
+    }
+    if (parsePtr->numWords <= 2) {
+	PushLiteral(envPtr, identity, -1);
+	words++;
+    }
+    if (words > 3) {
+	/*
+	 * Reverse order of arguments to get precise agreement with
+	 * [expr] in calcuations, including roundoff errors.
+	 */
+	TclEmitInstInt4(INST_REVERSE, words-1, envPtr);
+    }
+    while (--words > 1) {
+	TclEmitOpcode(instruction, envPtr);
+    }
+    return TCL_OK;
+}

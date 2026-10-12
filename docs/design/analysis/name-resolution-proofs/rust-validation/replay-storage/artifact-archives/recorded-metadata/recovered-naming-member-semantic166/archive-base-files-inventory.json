@@ -1,0 +1,141 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-naming-member-semantic166.base-files.tar.gz",
+  "archive_sha256": "f58f11b89e7182722048e4b7899287adb13618c24a72f647f9414c0e34f6a17d",
+  "archive_bytes": 258758,
+  "uncompressed_bytes": 1087302,
+  "source_manifest_sha256": "063b0a31afd88156ea04eebc039c5e4e395738df81b2c5404ebbce5debfcfc21",
+  "source_patch_sha256": "53f42547d1fbc3677ab15f0489fb6a4a6249fbc6ad575518cd714120333ad5d4",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/53f42547d1fbc3677ab15f0489fb6a4a6249fbc6ad575518cd714120333ad5d4.patch",
+  "original_application_journal_sha256": "53f42547d1fbc3677ab15f0489fb6a4a6249fbc6ad575518cd714120333ad5d4",
+  "member_count": 14,
+  "members": {
+    "recovered-naming-member-semantic166/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2822983,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2822983,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2822983,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2982981,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/base/rust/tcl-lsp-core/src/semantic_tokens": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2982981,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/base/rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.3028595,
+      "size": 45308,
+      "sha256": "147576cfb60b51dd638c44fb143e263a42b5f9dca92f2ae82633af09be8591c4"
+    },
+    "recovered-naming-member-semantic166/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2862983,
+      "size": 496163,
+      "sha256": "5a33187098f5cedb5c375672fb2c389854929b0f285b75a88cca885774ec06ce"
+    },
+    "recovered-naming-member-semantic166/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2902982,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2902982,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.2902982,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.3028595,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/files/rust/tcl-lsp-core/src/semantic_tokens": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.3028595,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-member-semantic166/files/rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791537191.9189756,
+      "size": 49529,
+      "sha256": "c46c0bf30187361a896a50083bdd30a6ca0fb651b9d12033a35b9c448ea455da"
+    },
+    "recovered-naming-member-semantic166/files/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791536780.5302963,
+      "size": 496302,
+      "sha256": "81d8b3ee7fb0f7f5d2dab909ee6aab11ce26ea92d6253b10a12aa6b53d44a71b"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

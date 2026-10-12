@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-callback-alias-source255/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.010353742996812798,
+  "reported_version_row": "version 0.84-9-g5bac7c9 alias_command alias",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "aa5887af2a1f90a6ef9658d0ac679ef72567670eb67df30b08753ee3830454b0",
+  "stdout_sha256": "50485609e60840dba425b74ddd71e1ac9b93e6db421cfef5512fa691ebb4228c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9"
+  },
+  "rows": [
+    "version 0.84-9-g5bac7c9 alias_command alias",
+    "single 0 {2 1} {{FIXED 2 1}}",
+    "baked 0 {2 1} {{FIXED BAKED 2 1}}",
+    "nested 0 {2 1} {{INNER OUTER BAKED 2 1}}",
+    "moved_alias 0 {2 1} {{FIXED 2 1}}",
+    "moved_target 1 {invalid command name \"target\"} {}",
+    "replacement_four 1 {wrong # args: should be \"target a b c d\"}",
+    "replacement_baked_four 0 {2 1}"
+  ],
+  "input_channel": "Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.",
+  "question": "naming.callback.alias-capture-source-control"
+}

@@ -1,0 +1,22 @@
+{
+  "question": "naming.property.original-configurable-availability-counted-argv",
+  "input_channel": "original-counted-object-vector (Tcl_EvalObjv or Jim_EvalObjVector); actual info patchlevel from separate ASCII startup source",
+  "source_sha256": "d002f896107884e9aa995e1363f5acf25700c2b5be97e65c05d9508586c77940",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "scope": "Availability and the fresh ASCII configurable create/class object create argv only. No property storage, opaque names, Native source preflight, compilation or callback absence claim. Source-script CREATE rows of native_property_counted_original are a separate retained channel.",
+  "rows": [
+    "VERSION",
+    "AVAILABILITY_OBJV",
+    "FACTORY_OBJV",
+    "OBJECT_OBJV (only after factory code0)"
+  ],
+  "process_limit_seconds": 30,
+  "native_launch_status": "not-launched"
+}

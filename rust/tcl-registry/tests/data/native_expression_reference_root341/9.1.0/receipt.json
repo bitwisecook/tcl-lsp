@@ -1,0 +1,41 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-expression-reference-root341/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.04808867702377029,
+  "provider": "9.1.0",
+  "provider_version_association": "version 9.1.0 initial_class {} alias_command {}",
+  "version_association_receipt": "/workspace/.proofs/native-jim-class-source269/9.1.0/receipt.json",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "76bc797db154598f002be8a2aeed8aae94360f988edd817042281b9ab10eef19",
+  "stdout_sha256": "61541f7d3a6761c1847e77f0991c0984bac441e958c90b3b107eee54a408861d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684"
+  },
+  "rows": [
+    "META patchlevel 9.1.0",
+    "EXPR label unmatched_scalar_open expression_hex 247b7363616c6172286f70656e7d code 0 result_hex 3131",
+    "EXPR label scalar_parenthesis_tail expression_hex 247b7363616c6172286f70656e297461696c7d code 0 result_hex 3132",
+    "EXPR label combined_closed_element expression_hex 247b617272286b6579297d code 0 result_hex 3231",
+    "EXPR label separate_closed_element expression_hex 24617272286b657929 code 0 result_hex 3231",
+    "EXPR label combined_multiple_parentheses expression_hex 247b61727228696e6e657229286b6579297d code 0 result_hex 3232",
+    "EXPR label first_close_reference expression_hex 247b617b627d code 1 result_hex 6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d650a696e2065787072657373696f6e2022247b617b627d22",
+    "EXPR label nested_close_reference expression_hex 247b617b627d637d code 0 result_hex 3332",
+    "EXPR label literal_dollar_scalar expression_hex 247b63617368246e616d657d code 0 result_hex 3431"
+  ],
+  "input_channel": "Exact ASCII LF source-file CLI. binary format H* explicitly constructs the declared variable name and reached expr argument. Public catch completion/result are sampled; no private parsed AST, table/header/cache, opaque source-byte, execution-entry or BIG-IP claim.",
+  "question": "naming.expression.variable-reference-boundaries"
+}

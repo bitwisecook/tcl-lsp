@@ -1,0 +1,18 @@
+version 0.84-9-g5bac7c9 initial_class class
+oo_package 0 1.0 class_command class
+initialiser new 0 0 0
+initialiser finalize 0 0 0
+initialiser method 0 0 0
+initialiser vars 0 0 0
+initialiser classvars 0 0 0
+initialiser classname 0 0 0
+initialiser methods 0 0 0
+initialiser defaultconstructor 0 0 0
+initialiser constructor 0 1 0
+initialiser destroy 0 0 0
+initialiser get 0 0 0
+initialiser eval 0 0 0
+baseclass_without_bases 0 0 1
+baseclass_with_base 0 0 0
+baseclass_current_target 0 ActualBase
+custom_after_factory 0 CUSTOM

@@ -1,0 +1,111 @@
+    Tcl_CmdInfo info2;
+    Tcl_Command buildInfoCmd = Tcl_CreateObjCommand(interp, "::tcl::build-info",
+	    BuildInfoObjCmd, (void *)version, NULL);
+    Tcl_GetCommandInfoFromToken(buildInfoCmd, &info2);
+    info2.objProc2 = BuildInfoObjCmd2;
+    info2.objClientData2 = (void *)version;
+    Tcl_SetCommandInfoFromToken(buildInfoCmd, &info2);
+
+    if (TclTommath_Init(interp) != TCL_OK) {
+	Tcl_Panic("%s", Tcl_GetStringResult(interp));
+    }
+
+    if (TclOOInit(interp) != TCL_OK) {
+	Tcl_Panic("%s", Tcl_GetStringResult(interp));
+    }
+
+    if (TclZlibInit(interp) != TCL_OK || TclZipfs_Init(interp) != TCL_OK) {
+	Tcl_Panic("%s", Tcl_GetStringResult(interp));
+    }
+
+    TOP_CB(iPtr) = NULL;
+    return interp;
+}
+
+static void
+DeleteOpCmdClientData(
+    void *clientData)
+{
+    TclOpCmdClientData *occdPtr = (TclOpCmdClientData *)clientData;
+
+    Tcl_Free(occdPtr);
+}
+
+/*
+ * ---------------------------------------------------------------------
+ *
+ * TclRegisterCommandTypeName, TclGetCommandTypeName --
+ *
+ *	Command type registration and lookup mechanism. Everything is keyed by
+ *	the Tcl_ObjCmdProc for the command, and that is used as the *key* into
+ *	the hash table that maps to constant strings that are names. (It is
+ *	recommended that those names be ASCII.)
+ *
+ * ---------------------------------------------------------------------
+ */
+
+void
+TclRegisterCommandTypeName(
+    Tcl_ObjCmdProc *implementationProc,
+    const char *nameStr)
+{
+    Tcl_HashEntry *hPtr;
+
+    Tcl_MutexLock(&commandTypeLock);
+    if (commandTypeInit == 0) {
+	Tcl_InitHashTable(&commandTypeTable, TCL_ONE_WORD_KEYS);
+	commandTypeInit = 1;
+    }
+    if (nameStr != NULL) {
+	int isNew;
+
+	hPtr = Tcl_CreateHashEntry(&commandTypeTable,
+		(void *)implementationProc, &isNew);
+	Tcl_SetHashValue(hPtr, nameStr);
+    } else {
+	hPtr = Tcl_FindHashEntry(&commandTypeTable,
+		implementationProc);
+	if (hPtr != NULL) {
+	    Tcl_DeleteHashEntry(hPtr);
+	}
+    }
+    Tcl_MutexUnlock(&commandTypeLock);
+}
+
+const char *
+TclGetCommandTypeName(
+    Tcl_Command command)
+{
+    Command *cmdPtr = (Command *) command;
+    Tcl_ObjCmdProc *procPtr = cmdPtr->objProc;
+    const char *name = "native";
+
+    if (procPtr == NULL) {
+	procPtr = cmdPtr->nreProc;
+    }
+    Tcl_MutexLock(&commandTypeLock);
+    if (commandTypeInit) {
+	Tcl_HashEntry *hPtr = Tcl_FindHashEntry(&commandTypeTable, procPtr);
+
+	if (hPtr && Tcl_GetHashValue(hPtr)) {
+	    name = (const char *) Tcl_GetHashValue(hPtr);
+	}
+    }
+    Tcl_MutexUnlock(&commandTypeLock);
+
+    return name;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclHideUnsafeCommands --
+ *
+ *	Hides base commands that are not marked as safe from this interpreter.
+ *
+ * Results:
+ *	TCL_OK if it succeeds, TCL_ERROR else.
+ *
+ * Side effects:
+ *	Hides functionality in an interpreter.
+ *

@@ -1,0 +1,104 @@
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "COMMAND",
+		TclGetString(objv[1]), (char *)NULL);
+	return TCL_ERROR;
+    }
+    origCmd = TclGetOriginalCommand(cmd);
+    TclNewObj(resultPtr);
+    if (origCmd == NULL) {
+	/*
+	 * The specified command isn't an imported command. Return the
+	 * command's name qualified by the full name of the namespace it was
+	 * defined in.
+	 */
+
+	Tcl_GetCommandFullName(interp, cmd, resultPtr);
+    } else {
+	Tcl_GetCommandFullName(interp, origCmd, resultPtr);
+    }
+    Tcl_SetObjResult(interp, resultPtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NamespaceParentCmd --
+ *
+ *	Invoked to implement the "namespace parent" command that returns the
+ *	fully-qualified name of the parent namespace for a specified
+ *	namespace. Handles the following syntax:
+ *
+ *	    namespace parent ?name?
+ *
+ * Results:
+ *	Returns TCL_OK if successful, and TCL_ERROR if anything goes wrong.
+ *
+ * Side effects:
+ *	Returns a result in the interpreter's result object. If anything goes
+ *	wrong, the result is an error message.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+NamespaceParentCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Tcl_Namespace *nsPtr;
+
+    if (objc == 1) {
+	nsPtr = TclGetCurrentNamespace(interp);
+    } else if (objc == 2) {
+	if (TclGetNamespaceFromObj(interp, objv[1], &nsPtr) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+    } else {
+	Tcl_WrongNumArgs(interp, 1, objv, "?name?");
+	return TCL_ERROR;
+    }
+
+    /*
+     * Report the parent of the specified namespace.
+     */
+
+    if (nsPtr->parentPtr != NULL) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		nsPtr->parentPtr->fullName, -1));
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NamespacePathCmd --
+ *
+ *	Invoked to implement the "namespace path" command that reads and
+ *	writes the current namespace's command resolution path. Has one
+ *	optional argument: if present, it is a list of named namespaces to set
+ *	the path to, and if absent, the current path should be returned.
+ *	Handles the following syntax:
+ *
+ *	    namespace path ?nsList?
+ *
+ * Results:
+ *	Returns TCL_OK if successful, and TCL_ERROR if anything goes wrong
+ *	(most notably if the namespace list contains the name of something
+ *	other than a namespace). In the successful-exit case, may set the
+ *	interpreter result to the list of names of the namespaces on the
+ *	current namespace's path.
+ *
+ * Side effects:
+ *	May update the namespace path (triggering a recomputing of all command
+ *	names that depend on the namespace for resolution).
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+NamespacePathCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */

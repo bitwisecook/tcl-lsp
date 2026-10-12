@@ -1,0 +1,35 @@
+TclCompileDictExistsCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    int i;
+
+    /*
+     * There must be at least two arguments after the command (the single-arg
+     * case is legal, but too special and magic for us to deal with here).
+     */
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (parsePtr->numWords < 3) {
+	return TCL_ERROR;
+    }
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    /*
+     * Now we do the code generation.
+     */
+
+    for (i=1 ; i<parsePtr->numWords ; i++) {
+	CompileWord(envPtr, tokenPtr, interp, i);
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+    TclEmitInstInt4(INST_DICT_EXISTS, parsePtr->numWords-2, envPtr);
+    TclAdjustStackDepth(-1, envPtr);
+    return TCL_OK;
+}

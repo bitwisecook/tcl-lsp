@@ -1,0 +1,25 @@
+static void JimDecrCmdRefCount(Jim_Interp *interp, Jim_Cmd *cmdPtr)
+{
+    if (--cmdPtr->inUse == 0) {
+        if (cmdPtr->flags & JIM_CMD_ISPROC) {
+            Jim_DecrRefCount(interp, cmdPtr->u.proc.argListObjPtr);
+            Jim_DecrRefCount(interp, cmdPtr->u.proc.bodyObjPtr);
+            Jim_DecrRefCount(interp, cmdPtr->u.proc.nsObj);
+            if (cmdPtr->u.proc.staticVars) {
+                Jim_FreeHashTable(cmdPtr->u.proc.staticVars);
+                Jim_Free(cmdPtr->u.proc.staticVars);
+            }
+        }
+        else {
+            /* native (C) */
+            if (cmdPtr->u.native.delProc) {
+                cmdPtr->u.native.delProc(interp, cmdPtr->u.native.privData);
+            }
+        }
+        if (cmdPtr->prevCmd) {
+            /* Delete any pushed command too */
+            JimDecrCmdRefCount(interp, cmdPtr->prevCmd);
+        }
+
+        /* Preserve the structure with inUse = 0 so that
+         * cached references will continue to work.

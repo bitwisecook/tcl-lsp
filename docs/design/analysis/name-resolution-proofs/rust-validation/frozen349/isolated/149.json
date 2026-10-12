@@ -1,0 +1,19 @@
+{
+  "ordinal": 149,
+  "selector": "cmd_oo::tests::object_command_roles_retire_public_myclass_my",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::object_command_roles_retire_public_myclass_my",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.0647785109758843,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.06s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/149.log",
+  "log_sha256": "b390aa5019f9175a1dca18b0283ec0527963969d75f41760501cc1448c426106"
+}

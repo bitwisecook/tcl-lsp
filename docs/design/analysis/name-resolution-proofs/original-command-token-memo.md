@@ -1,0 +1,113 @@
+# naming.source.original-command-token-memo
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+Repeated readonly analyser queries prepare and stamp the same original command vector under one immutable source interpretation. Reusing an unrelated source, configuration or realm would substitute its provenance.
+
+## Question
+
+How can repeated analyser queries share original lexical preparation without reusing a foreign source or interpretation?
+
+## Conclusion
+
+The immutable command realm owns a bounded memo of unchanged lexical segmentation, word construction and original source stamping. Complete image/channel, full lexer configuration, invocation offset and representative tokens identify the query. Clones of the same realm share immutable results; a new realm starts with an independent cache. A zero-written-argument call obtains its original whole head extent from the retained source record only after complete source-image/config/site correspondence and original argv count one; captured alias prefixes do not become written argument geometry.
+
+## Scope
+
+Rust preparation and retention only. At most 256 entries are retained, including missing results. Beyond the bound queries use unchanged ordinary preparation. Derived memo state is excluded from semantic equality; no Input, lookup, frame, Normal or compiler purpose is granted by a hit. Existing depth and default test-stack remain unchanged. Timing and successful depth execution require independent actual validation.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+### jim
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+### bigip
+
+Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+
+No interpreter observation is attached to this Rust preparation invariant.
+
+## Exact evidence
+
+No evidence artifact is attached.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `OriginalCommandTokenCache::get_or_prepare`: Share immutable complete results only under exact keys, retaining no lock during original lookup and bounding retained entries.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `CommandBindingRealm::retained_original_tokens`: Retain unchanged lexical preparation and original source stamping under the same immutable owner.
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `Analyser::retained_invocation_tokens`: Consume the immutable retained carrier for repeated source-role, body, reference and diagnostic queries.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `realm::original_tokens::tests::original_token_memo_shares_only_the_same_immutable_query` (linked): The same complete query and immutable realm clone return the same retained Arc; the genuine namespace carrier retains nested bindings and cache state does not affect realm equality.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `realm::original_tokens::tests::original_token_memo_retains_full_source_config_and_representatives` (linked): Same spans with changed complete content, full lexer configuration, representative token or source channel do not reuse the first carrier.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `realm::original_tokens::tests::original_token_memo_does_not_reuse_a_foreign_or_unknown_realm` (linked): An independent realm and an actual unknown-entry realm do not reuse the original carrier; unknown-entry binding withdrawal stays present.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `realm::original_tokens::tests::original_token_memo_has_bounded_retention` (linked): 257 complete source queries with their actual token vectors retain at most 256 entries while uncached preparation still returns its ordinary result.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `realm::original_tokens::tests::original_token_memo_keeps_zero_written_arguments_and_captured_prefix_separate` (linked): An alias with a captured unset option retains one original written head at a zero-argument call, shares only the exact immutable query, and declines stale complete source or a site whose original vector has arguments. This is source acquisition and does not execute unset.
+- [rust/tcl-compiler/src/realm/original_tokens.rs](../../../../rust/tcl-compiler/src/realm/original_tokens.rs), `realm::original_tokens::original_command_slice_purpose_tests::original_token_memo_preserves_bom_heads_after_the_actual_file_prologue` (linked): Finite source-defined control: original token memo preserves bom heads after the actual file prologue. Authentic complete C9 parent input plus original command vector: two file BOMs skip only the prologue; selected command slice at site3 and independent content atsite0 keep remaining literal head and original geometry. Cache uses unchanged full key; unknown head cannot gain execution. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+Linked Rust tests are not an execution claim. The unchanged 80-level/default-stack selector is measured independently, with timeout reported distinctly from a passing result.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

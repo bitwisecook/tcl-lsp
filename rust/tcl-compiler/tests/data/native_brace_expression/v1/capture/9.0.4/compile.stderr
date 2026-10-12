@@ -1,0 +1,11 @@
+/workspace/.proofs/native-brace-expression129/probe.c: In function ‘main’:
+/workspace/.proofs/native-brace-expression129/probe.c:119:35: error: passing argument 3 of ‘Tcl_CreateObjCommand’ from incompatible pointer type [-Wincompatible-pointer-types]
+  119 |   Tcl_CreateObjCommand(i,"__argv",collector,NULL,NULL);
+      |                                   ^~~~~~~~~
+      |                                   |
+      |                                   int (*)(void *, Interp *, Count,  Obj * const*) {aka int (*)(void *, Tcl_Interp *, long int,  Tcl_Obj * const*)}
+In file included from /workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h:2430,
+                 from /workspace/.proofs/native-brace-expression129/probe.c:19:
+/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclDecls.h:299:70: note: expected ‘int (*)(void *, Tcl_Interp *, int,  struct Tcl_Obj * const*)’ but argument is of type ‘int (*)(void *, Interp *, Count,  Obj * const*)’ {aka ‘int (*)(void *, Tcl_Interp *, long int,  Tcl_Obj * const*)’}
+  299 |                                 const char *cmdName, Tcl_ObjCmdProc *proc,
+      |                                                      ~~~~~~~~~~~~~~~~^~~~

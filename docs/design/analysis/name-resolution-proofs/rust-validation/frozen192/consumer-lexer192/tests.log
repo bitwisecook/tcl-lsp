@@ -1,0 +1,12 @@
+
+running 7 tests
+test jim_script_tokens::tests::original_script_roster_keeps_native_fragments_and_lines ... ok
+test jim_subst_tokens::tests::original_substitution_roster_matches_native_flag_and_line_windows ... ok
+test lexer::grammar_carriage_tests::native_grammar_selection_preserves_source_coordinates_and_parser_modes ... ok
+test source_map::immutable_image_geometry_tests::original_image_positions_reuse_immutable_geometry_without_changing_identity ... ok
+test source_map::immutable_image_geometry_tests::original_native_byte_positions_need_no_unicode_or_document_channel ... ok
+test source_map::source_image_hash_tests::source_image_cached_hash_preserves_full_equality_order_and_channel ... ok
+test source_map::source_image_hash_tests::source_image_digest_collision_does_not_merge_map_or_order_identity ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 523 filtered out; finished in 0.00s
+

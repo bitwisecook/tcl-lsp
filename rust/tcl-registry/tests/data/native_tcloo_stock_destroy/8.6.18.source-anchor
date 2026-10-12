@@ -1,0 +1,1 @@
+111:    DCM("destroy", 1,	TclOO_Object_Destroy),

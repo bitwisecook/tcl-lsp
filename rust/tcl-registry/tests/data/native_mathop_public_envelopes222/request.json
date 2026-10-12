@@ -1,0 +1,35 @@
+{
+  "question": "Does replacement of ::tcl::mathop::+ in original native_mathop_identity case9 have the same public code/result when evaluated as bare counted source, the exact original CLI catch envelope, and a separate variable-source catch envelope?",
+  "problem": "A Runtime bare-source comparison fails5OVERRIDE against the native fixture captured under a CLI catch envelope. Establish exact channel observations before attributing cause or changing native compiler selection.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse exact independent original-counted CAPI driver and actual full provider initialization from Native210. Guest stdout from the original CLI envelope remains separate from driver ORIGINAL code/result.",
+  "cases": [
+    {
+      "id": "original-counted-source",
+      "source_file": "original-counted-source.tcl",
+      "source_sha256": "54e22f4f49a8449bfd9f4caa4638025007c6674427e1dbf689e15cf14d49a482",
+      "source_notes": "ASCII only; original bare source is byteidentical native_mathop_identity case9. Each envelope is independent; preserve raw guest stdout and counted CAPI original completion separately."
+    },
+    {
+      "id": "original-cli-envelope",
+      "source_file": "original-cli-envelope.tcl",
+      "source_sha256": "9d53162bd7efbe894431720ebdd2d1d1364d8d63eb0d75c4d571edbc7850ffb0",
+      "source_notes": "ASCII only; original bare source is byteidentical native_mathop_identity case9. Each envelope is independent; preserve raw guest stdout and counted CAPI original completion separately."
+    },
+    {
+      "id": "variable-source-envelope",
+      "source_file": "variable-source-envelope.tcl",
+      "source_sha256": "669fe384380bd4b3f46a998896091182d593008f4d47e7a67698620e5accefd0",
+      "source_notes": "ASCII only; original bare source is byteidentical native_mathop_identity case9. Each envelope is independent; preserve raw guest stdout and counted CAPI original completion separately."
+    }
+  ],
+  "original_run_sha256": "377479d23cd672e257831b8228a0990320e30bee209df34df1b09d24e25d85b8",
+  "scope": "Public observations only; neither envelope agreement nor differences prove private compiler/opcode identity or cache/epoch mechanisms."
+}

@@ -1,0 +1,110 @@
+ */
+
+void
+TclOODelMethodRef(
+    Method *mPtr)
+{
+    if ((mPtr != NULL) && (mPtr->refCount-- <= 1)) {
+	if (mPtr->type2Ptr != NULL && mPtr->type2Ptr->deleteProc != NULL) {
+	    mPtr->type2Ptr->deleteProc(mPtr->clientData);
+	}
+	if (mPtr->namePtr != NULL) {
+	    Tcl_DecrRefCount(mPtr->namePtr);
+	}
+
+	Tcl_Free(mPtr);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineBasicMethods --
+ *
+ *	Helper that makes it cleaner to create very simple methods during
+ *	basic system initialization. Not suitable for general use.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODefineBasicMethods(
+    Class *clsPtr,		/* Class to attach the methods to. */
+    const DeclaredClassMethod *dcmAry)
+				/* Static table of method definitions. */
+{
+    for (const DeclaredClassMethod *dcm = dcmAry; dcm->name ; dcm++) {
+	Tcl_Obj *namePtr = Tcl_NewStringObj(dcm->name, TCL_AUTO_LENGTH);
+
+	TclNewMethod((Tcl_Class) clsPtr, namePtr,
+		(dcm->isPublic ? PUBLIC_METHOD : 0), &dcm->definition, NULL);
+	Tcl_BounceRefCount(namePtr);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOONewProcInstanceMethod --
+ *
+ *	Create a new procedure-like method for an object.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+Method *
+TclOONewProcInstanceMethod(
+    Tcl_Interp *interp,		/* The interpreter containing the object. */
+    Object *oPtr,		/* The object to modify. */
+    int flags,			/* Whether this is a public method. */
+    Tcl_Obj *nameObj,		/* The name of the method, which must not be
+				 * NULL. */
+    Tcl_Obj *argsObj,		/* The formal argument list for the method,
+				 * which must not be NULL. */
+    Tcl_Obj *bodyObj,		/* The body of the method, which must not be
+				 * NULL. */
+    ProcedureMethod **pmPtrPtr)	/* Place to write pointer to procedure method
+				 * structure to allow for deeper tuning of the
+				 * structure's contents. NULL if caller is not
+				 * interested. */
+{
+    Tcl_Size argsLen;
+    ProcedureMethod *pmPtr;
+    Tcl_Method method;
+
+    if (TclListObjLength(interp, argsObj, &argsLen) != TCL_OK) {
+	return NULL;
+    }
+    pmPtr = AllocProcedureMethodRecord(flags);
+    method = TclOOMakeProcInstanceMethod2(interp, oPtr, flags, nameObj,
+	    argsObj, bodyObj, &procMethodType, pmPtr, &pmPtr->procPtr);
+    if (method == NULL) {
+	Tcl_Free(pmPtr);
+    } else if (pmPtrPtr != NULL) {
+	*pmPtrPtr = pmPtr;
+    }
+    return (Method *) method;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOONewProcMethod --
+ *
+ *	Create a new procedure-like method for a class.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+Method *
+TclOONewProcMethod(
+    Tcl_Interp *interp,		/* The interpreter containing the class. */
+    Class *clsPtr,		/* The class to modify. */
+    int flags,			/* Whether this is a public method. */
+    Tcl_Obj *nameObj,		/* The name of the method, which may be NULL;
+				 * if so, up to caller to manage storage
+				 * (e.g., because it is a constructor or
+				 * destructor). */
+    Tcl_Obj *argsObj,		/* The formal argument list for the method,
+				 * which may be NULL; if so, it is equivalent
+				 * to an empty list. */

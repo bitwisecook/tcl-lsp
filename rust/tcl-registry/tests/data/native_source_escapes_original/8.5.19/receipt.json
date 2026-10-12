@@ -1,0 +1,42 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/current-native-source-escapes173/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0054620330047328025,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "f8a1829202c7f5fd36852b46f76f7aef9f3e52a3fda4826f29598147bdd2acb0",
+  "runner_sha256": "beebf4a9b79c7d4c1bdf4c96c797c123f91c76735e29b914a96fb06de2f29c4e",
+  "stdout_sha256": "00915e9c37333faba1ae2d7b78ec694105182e39f79b5accdd6aa5fc10cbe624",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "VERSION|8.5.19",
+    "ROW|bare-x25b|0|1|5b|",
+    "ROW|quoted-x25b|0|1|5b|",
+    "ROW|braced-x25b|0|5|5c78323562|",
+    "ROW|bare-x25-ub|0|2|2562|",
+    "ROW|quoted-x25-ub|0|2|2562|",
+    "ROW|braced-x25-ub|0|10|5c7832355c7530303632|",
+    "ROW|bare-x4142|0|1|42|",
+    "ROW|quoted-x4142|0|1|42|",
+    "ROW|bare-x25z|0|2|257a|",
+    "ROW|bare-x25-upper|0|1|5b|",
+    "ROW|bare-x0|0|1|00|",
+    "ROW|bare-cu|0|2|6375|",
+    "ROW|braced-cu|0|7|635c7530303735|"
+  ],
+  "input_channel": "ASCII LF source-file CLI; thirteen independently caught source escape cases",
+  "boundary": "Question: source literal escape outcomes by exact release and grouping. The hex field is the binary scan H* projection of each result, not a native string getter or header identity. Length is native string length. No format-handler, native compiler admission, cache or physical identity is inferred."
+}

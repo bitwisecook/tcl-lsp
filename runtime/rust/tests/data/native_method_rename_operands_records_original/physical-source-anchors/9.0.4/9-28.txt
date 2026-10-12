@@ -1,0 +1,112 @@
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    Tcl_Size varc;
+    Tcl_Obj **varv;
+
+    if (Tcl_ObjectContextSkippedArgs(context) + 1 != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		"propertyList");
+	return TCL_ERROR;
+    }
+    objv += Tcl_ObjectContextSkippedArgs(context);
+
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (TclListObjGetElements(interp, objv[0], &varc,
+	    &varv) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    TclOOInstallWritableProperties(&oPtr->properties, varc, varv);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOORegisterProperty, TclOORegisterInstanceProperty --
+ *
+ *	Helpers to add or remove a name from the property slots of a class or
+ *	instance.
+ *
+ * BuildPropertyList --
+ *
+ *	Helper for the helpers. Scans a property list and does the filtering
+ *	or adding of the property to add or remove
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+BuildPropertyList(
+    PropertyList *propsList,	/* Property list to scan. */
+    Tcl_Obj *propName,		/* Property to add/remove. */
+    int addingProp,		/* True if we're adding, false if removing. */
+    Tcl_Obj *listObj)		/* The list of property names we're building */
+{
+    int present = 0, changed = 0, i;
+    Tcl_Obj *other;
+
+    Tcl_SetListObj(listObj, 0, NULL);
+    FOREACH(other, *propsList) {
+	if (!TclStringCmp(propName, other, 1, 0, TCL_INDEX_NONE)) {
+	    present = 1;
+	    if (!addingProp) {
+		changed = 1;
+		continue;
+	    }
+	}
+	Tcl_ListObjAppendElement(NULL, listObj, other);
+    }
+    if (!present && addingProp) {
+	Tcl_ListObjAppendElement(NULL, listObj, propName);
+	changed = 1;
+    }
+    return changed;
+}
+
+void
+TclOORegisterInstanceProperty(
+    Object *oPtr,		/* Object that owns the property slots. */
+    Tcl_Obj *propName,		/* Property to add/remove. Must include the
+				 * hyphen if one is desired; this is the value
+				 * that is actually placed in the slot. */
+    int registerReader,		/* True if we're adding the property name to
+				 * the readable property slot. False if we're
+				 * removing the property name from the slot. */
+    int registerWriter)		/* True if we're adding the property name to
+				 * the writable property slot. False if we're
+				 * removing the property name from the slot. */
+{
+    Tcl_Obj *listObj = Tcl_NewObj();	/* Working buffer. */
+    Tcl_Obj **objv;
+    Tcl_Size count;
+
+    if (BuildPropertyList(&oPtr->properties.readable, propName, registerReader,
+	    listObj)) {
+	TclListObjGetElements(NULL, listObj, &count, &objv);
+	TclOOInstallReadableProperties(&oPtr->properties, count, objv);
+    }
+
+    if (BuildPropertyList(&oPtr->properties.writable, propName, registerWriter,
+	    listObj)) {
+	TclListObjGetElements(NULL, listObj, &count, &objv);
+	TclOOInstallWritableProperties(&oPtr->properties, count, objv);
+    }
+    Tcl_BounceRefCount(listObj);
+}
+
+void
+TclOORegisterProperty(
+    Class *clsPtr,		/* Class that owns the property slots. */
+    Tcl_Obj *propName,		/* Property to add/remove. Must include the
+				 * hyphen if one is desired; this is the value
+				 * that is actually placed in the slot. */
+    int registerReader,		/* True if we're adding the property name to
+				 * the readable property slot. False if we're
+				 * removing the property name from the slot. */
+    int registerWriter)		/* True if we're adding the property name to
+				 * the writable property slot. False if we're
+				 * removing the property name from the slot. */

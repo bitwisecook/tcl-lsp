@@ -1,0 +1,15 @@
+
+running 1 test
+test value_ops::native_coercion_tests::actual_valueops_primitives_keep_selected_cache_and_native_reference_roles ... 
+thread 'value_ops::native_coercion_tests::actual_valueops_primitives_keep_selected_cache_and_native_reference_roles' (1218631) panicked at src/value_ops/native_coercion_tests.rs:119:17:
+assertion failed: !obj::has_string_rep(boolean.as_ptr())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    value_ops::native_coercion_tests::actual_valueops_primitives_keep_selected_cache_and_native_reference_roles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.55s
+

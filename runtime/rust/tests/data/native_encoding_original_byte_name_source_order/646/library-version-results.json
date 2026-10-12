@@ -1,0 +1,35 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "1beee117abf7c78c42695f1dc6e60763f9a9008ded534a4fcb3b86503a177991",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "aa8d9d8ffa5917ef8de2e76399df1346c3a4362a353bf286bdcbaf18eefab411",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "45893d772e03e534477cdc4ac9b3e710df4300a5c94aa61a85b4d92a5aec244e",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "0157a3e6a5264d2be6a537259af6b3049215687dcb89c1d8fc1652d0b65c1236",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "81ec2fa4a1b287f3fd2700a8e08f6ff8b79a625c1706a97dcc4e50aea3654b94",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "Jim",
+      "receipt_sha256": "4d9791b4bafa859cb3a0df3ad15ff5c8294e7b7e752086144ba19e4b33bdb765",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original selected public-object processes."
+}

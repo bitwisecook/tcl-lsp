@@ -75,11 +75,11 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "divmod",
-        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; unsupported in runtime/rust",
     ),
     (
         "fpclassify",
-        "Tcl 9.0 floating-point classifier (TIP 521); not yet implemented in runtime/rust",
+        "Tcl 9.0 floating-point classifier (TIP 521); unsupported in runtime/rust",
     ),
     (
         "frexp",
@@ -87,7 +87,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "lfilter",
-        "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
+        "Tcl 9.1 list-filter command; unsupported in runtime/rust",
     ),
     (
         "link",
@@ -95,7 +95,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "modf",
-        "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) integer/fractional split; unsupported in runtime/rust",
     ),
     (
         "mymethod",
@@ -107,15 +107,15 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "remquo",
-        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; unsupported in runtime/rust",
     ),
     (
         "tcl::dict::",
-        "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`",
+        "qualified dictionary worker without a matching actual Runtime registration report",
     ),
     (
         "tcl::unsupported::grapheme",
-        "Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust",
+        "Tcl 9.1.0 grapheme-cluster ensemble; requires UAX #29 segmentation tables absent from runtime/rust",
     ),
     (
         "tcl::zipfs",
@@ -123,15 +123,15 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "timer",
-        "Tcl 9.1 timer command; not yet implemented in runtime/rust",
+        "Tcl 9.1 timer command; unsupported in runtime/rust",
     ),
     (
         "unicode",
-        "Tcl 9.1 Unicode-introspection ensemble; not yet implemented in runtime/rust",
+        "Tcl 9.1 Unicode-introspection ensemble; unsupported in runtime/rust",
     ),
     (
         "zipfs",
-        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
+        "ZIP virtual filesystem; unsupported in runtime/rust",
     ),
 ];
 
@@ -140,7 +140,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
 /// registry carries both fully-qualified and bare spellings of some commands;
 /// this collapses them for cross-referencing.
 fn canon(name: &str) -> &str {
-    name.strip_prefix("::").unwrap_or(name)
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
 }
 
 /// The reason [`KNOWN_UNBACKED`] gives for the core command `name`, exactly or
@@ -219,8 +219,10 @@ struct Reports {
 impl Reports {
     fn ask() -> Self {
         Self {
-            wasm: BackingReport::from_entries(tcl_runtime::interp::Interp::new().backing_report()),
-            vm: BackingReport::from_entries(tcl_vm::Vm::new().backing_report()),
+            wasm: BackingReport::from_unrooted_entries(
+                tcl_runtime::interp::Interp::new().backing_report(),
+            ),
+            vm: BackingReport::from_unrooted_entries(tcl_vm::Vm::new().backing_report()),
         }
     }
 }

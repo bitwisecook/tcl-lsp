@@ -1,0 +1,30 @@
+{
+  "question": "Which original array member trace list is selected when the root or an earlier member teardown callback changes registrations through retained aliases, and do same-spelled recreated members donate callbacks?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Fresh interpreter for EACH original ASCII source, unchanged counted fullInit CAPI driver. No raw NUL or Unicode. Preserve original completion code, exact public result bytes, full stdout/stderr/exit and source/build pins.",
+  "observation": "Whole-program log outcomes NEW, OLD NEW OLD, and oldx oldy root are existing corpus expectations to independently reconfirm, not assumed provider answers. The programs use original trace add/remove variable. Record Jim API failure exactly without substituted operations or unsupported success. No member/cell/header identity observations.",
+  "cases": [
+    {
+      "id": "variable_array_unset_root_changes_original_member_trace_via_alias",
+      "source_file": "variable_array_unset_root_changes_original_member_trace_via_alias.tcl",
+      "source_sha256": "ae2d854c370bb4cef995d28b290f48b7a150ad1af7c52d63ea1a9c0683c5c194"
+    },
+    {
+      "id": "variable_array_unset_first_member_changes_later_member_trace_via_alias",
+      "source_file": "variable_array_unset_first_member_changes_later_member_trace_via_alias.tcl",
+      "source_sha256": "e4db1fe88e685592e073addf6c501d7072aa2d15634c0f8b2e033e4965b27d03"
+    },
+    {
+      "id": "variable_array_unset_captured_member_prefixes_ignore_recreated_root",
+      "source_file": "variable_array_unset_captured_member_prefixes_ignore_recreated_root.tcl",
+      "source_sha256": "7e45cb91d400bcb1d6a603bbdb189d2e3b837e4ed0a226af2aad44f302b13c7e"
+    }
+  ]
+}

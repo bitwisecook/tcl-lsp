@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "version": "0.84-9-g5bac7c9",
+  "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "original_path": "jim.c",
+  "function": "Jim_LassignCoreCommand",
+  "lines": [
+    13245,
+    13270
+  ],
+  "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "snippet": "static int Jim_LassignCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    int result = JIM_ERR;\n    int i;\n    Jim_ListIter iter;\n    Jim_Obj *resultObj;\n\n    JimListIterInit(&iter, argv[1]);\n\n    for (i = 2; i < argc; i++) {\n        Jim_Obj *valObj = JimListIterNext(interp, &iter);\n        result = Jim_SetVariable(interp, argv[i], valObj ? valObj : interp->emptyObj);\n        if (result != JIM_OK) {\n            return result;\n        }\n    }\n\n    resultObj = Jim_NewListObj(interp, NULL, 0);\n    while (!JimListIterDone(interp, &iter)) {\n        Jim_ListAppendElement(interp, resultObj, JimListIterNext(interp, &iter));\n    }\n\n    Jim_SetResult(interp, resultObj);\n\n    return JIM_OK;\n}\n",
+  "snippet_sha256": "ee04785cafd71b47e3164e0d24252dc257f3df67c2e72cd65503fc26c2f5ca5e"
+}

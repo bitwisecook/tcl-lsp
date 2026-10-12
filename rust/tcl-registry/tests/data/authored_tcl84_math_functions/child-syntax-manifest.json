@@ -1,0 +1,17 @@
+{
+  "source_sha256": "eb4287197135aaa2da91716194cbb4dee9aab60783c0b72ce10550f0279ae967",
+  "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+  "global_slots": 2,
+  "timeout_seconds": 60,
+  "exit": 0,
+  "stderr": "",
+  "headers": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a"
+  },
+  "implementation_sources": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompExpr.c": "c4138e547b833c39d0c6da3bb4042fc7a7052a6146a2e7635aedcd53ac492514",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77"
+  },
+  "libraries": {}
+}

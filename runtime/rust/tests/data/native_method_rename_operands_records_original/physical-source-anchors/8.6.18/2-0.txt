@@ -1,0 +1,113 @@
+    {"export", TclOODefineExportObjCmd, 0},
+    {"forward", TclOODefineForwardObjCmd, 0},
+    {"method", TclOODefineMethodObjCmd, 0},
+    {"renamemethod", TclOODefineRenameMethodObjCmd, 0},
+    {"self", TclOODefineSelfObjCmd, 0},
+    {"unexport", TclOODefineUnexportObjCmd, 0},
+    {NULL, NULL, 0}
+}, objdefCmds[] = {
+    {"class", TclOODefineClassObjCmd, 1},
+    {"deletemethod", TclOODefineDeleteMethodObjCmd, 1},
+    {"export", TclOODefineExportObjCmd, 1},
+    {"forward", TclOODefineForwardObjCmd, 1},
+    {"method", TclOODefineMethodObjCmd, 1},
+    {"renamemethod", TclOODefineRenameMethodObjCmd, 1},
+    {"unexport", TclOODefineUnexportObjCmd, 1},
+    {NULL, NULL, 0}
+};
+
+/*
+ * What sort of size of things we like to allocate.
+ */
+
+#define ALLOC_CHUNK 8
+
+/*
+ * Function declarations for things defined in this file.
+ */
+
+static Object *		AllocObject(Tcl_Interp *interp, const char *nameStr,
+			    Namespace *nsPtr, const char *nsNameStr);
+static int		CloneClassMethod(Tcl_Interp *interp, Class *clsPtr,
+			    Method *mPtr, Tcl_Obj *namePtr,
+			    Method **newMPtrPtr);
+static int		CloneObjectMethod(Tcl_Interp *interp, Object *oPtr,
+			    Method *mPtr, Tcl_Obj *namePtr);
+static void		DeletedDefineNamespace(ClientData clientData);
+static void		DeletedObjdefNamespace(ClientData clientData);
+static void		DeletedHelpersNamespace(ClientData clientData);
+static Tcl_NRPostProc	FinalizeAlloc;
+static Tcl_NRPostProc	FinalizeNext;
+static Tcl_NRPostProc	FinalizeObjectCall;
+static void		initClassPath(Tcl_Interp * interp, Class *clsPtr);
+static int		InitFoundation(Tcl_Interp *interp);
+static void		KillFoundation(ClientData clientData,
+			    Tcl_Interp *interp);
+static void		MyDeleted(ClientData clientData);
+static void		ObjectNamespaceDeleted(ClientData clientData);
+static void		ObjectRenamedTrace(ClientData clientData,
+			    Tcl_Interp *interp, const char *oldName,
+			    const char *newName, int flags);
+static inline void	SquelchCachedName(Object *oPtr);
+
+static int		PublicObjectCmd(ClientData clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+static int		PublicNRObjectCmd(ClientData clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+static int		PrivateObjectCmd(ClientData clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+static int		PrivateNRObjectCmd(ClientData clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+static void		RemoveClass(Class ** list, int num, int idx);
+static void		RemoveObject(Object ** list, int num, int idx);
+
+/*
+ * Methods in the oo::object and oo::class classes. First, we define a helper
+ * macro that makes building the method type declaration structure a lot
+ * easier. No point in making life harder than it has to be!
+ *
+ * Note that the core methods don't need clone or free proc callbacks.
+ */
+
+#define DCM(name,visibility,proc) \
+    {name,visibility,\
+	{TCL_OO_METHOD_VERSION_CURRENT,"core method: "#name,proc,NULL,NULL}}
+
+static const DeclaredClassMethod objMethods[] = {
+    DCM("destroy", 1,	TclOO_Object_Destroy),
+    DCM("eval", 0,	TclOO_Object_Eval),
+    DCM("unknown", 0,	TclOO_Object_Unknown),
+    DCM("variable", 0,	TclOO_Object_LinkVar),
+    DCM("varname", 0,	TclOO_Object_VarName),
+    {NULL, 0, {0, NULL, NULL, NULL, NULL}}
+}, clsMethods[] = {
+    DCM("create", 1,	TclOO_Class_Create),
+    DCM("new", 1,	TclOO_Class_New),
+    DCM("createWithNamespace", 0, TclOO_Class_CreateNs),
+    {NULL, 0, {0, NULL, NULL, NULL, NULL}}
+};
+
+/*
+ * And for the oo::class constructor...
+ */
+
+static const Tcl_MethodType classConstructor = {
+    TCL_OO_METHOD_VERSION_CURRENT,
+    "oo::class constructor",
+    TclOO_Class_Constructor, NULL, NULL
+};
+
+/*
+ * Scripted parts of TclOO. First, the main script (cannot be outside this
+ * file).
+ */
+
+static const char initScript[] =
+"package ifneeded TclOO " TCLOO_PATCHLEVEL " {# Already present, OK?};"
+"namespace eval ::oo { variable version " TCLOO_VERSION " };"
+"namespace eval ::oo { variable patchlevel " TCLOO_PATCHLEVEL " };";
+/* "tcl_findLibrary tcloo $oo::version $oo::version" */

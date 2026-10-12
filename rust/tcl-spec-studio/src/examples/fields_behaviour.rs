@@ -79,6 +79,79 @@ pub(super) const FIELD_SCRIPT_TIMING: Example = Example {
 
 /// One entry per field key this half owns, in the order of the field list.
 pub(super) const ENTRIES: &[(&str, Example)] = &[
+    (
+        "native_compilation",
+        Example {
+            code: "proc run {} {set x [proc set {args} {return CUSTOM}]}\nrun",
+            focuses: &[focus(
+                0,
+                "set x",
+                "the compiled native operation is selected before its argument changes the command table",
+            )],
+        },
+    ),
+    (
+        "native_result",
+        Example {
+            code: "set value [list a b]\nset same [set value]",
+            focuses: &[focus(
+                1,
+                "[set value]",
+                "the proved native getter returns the retained value object",
+            )],
+        },
+    ),
+    (
+        "variable_receivers",
+        Example {
+            code: "array set a(b) {key value}\ntrace info variable a(b)",
+            focuses: &[
+                focus(
+                    0,
+                    "a(b)",
+                    "a combined receiver denotes an element; naming metadata does not promise that a whole-array operation succeeds",
+                ),
+                focus(
+                    1,
+                    "a(b)",
+                    "a trace subject uses its selected name ingress before root/index parsing; the descriptor grants no trace installation",
+                ),
+            ],
+        },
+    ),
+    (
+        "successful_handler",
+        Example {
+            code: "append ::counter x",
+            focuses: &[focus(
+                0,
+                "::counter",
+                "normal transfer targets the proved physical variable after native handler identity converges",
+            )],
+        },
+    ),
+    (
+        "procedure_definition",
+        Example {
+            code: "proc identity {value} {return $value}",
+            focuses: &[focus(
+                0,
+                "{value}",
+                "native installation captures the formal binding grammar and procedure body",
+            )],
+        },
+    ),
+    (
+        "body_execution",
+        Example {
+            code: "catch {set value OK} result",
+            focuses: &[focus(
+                0,
+                "{set value OK}",
+                "the proved native body protocol defines entry and captured completion",
+            )],
+        },
+    ),
     ("traits", FIELD_TRAITS),
     (
         "arg_role_resolver",
@@ -1077,6 +1150,16 @@ append log $line",
         },
     ),
     (
+        "channel_configuration",
+        Example {
+            code: "fconfigure $channel -encoding binary -translation crlf",
+            focuses: &[
+                focus(0, "-encoding binary", "original encoding value"),
+                focus(0, "-translation crlf", "original translation value"),
+            ],
+        },
+    ),
+    (
         "credential_options",
         Example {
             code: "http::geturl $url -headers [list Authorization \"Bearer s3cr3t\"]",
@@ -1153,6 +1236,17 @@ append log $line",
                 ),
                 focus(1, "IP::remote_addr", "what the quick fix offers instead"),
             ],
+        },
+    ),
+    (
+        "source_deprecation_advice",
+        Example {
+            code: "when HTTP_REQUEST {\n    matchclass [HTTP::uri] starts_with paths\n}",
+            focuses: &[focus(
+                1,
+                "matchclass",
+                "typed Registry source advice proposes class match for review",
+            )],
         },
     ),
     (
@@ -1506,6 +1600,28 @@ append log $line",
                     "the open sees a path rooted at $root, not opaque text",
                 ),
             ],
+        },
+    ),
+    (
+        "source_index_bounds",
+        Example {
+            code: "lindex {a b} 9",
+            focuses: &[focus(
+                0,
+                "9",
+                "the selected source ListIndex relationship compares this original operand with the literal container",
+            )],
+        },
+    ),
+    (
+        "source_path_operation",
+        Example {
+            code: "set target [file join /project lib]",
+            focuses: &[focus(
+                0,
+                "[file join /project lib]",
+                "the selected source Join algebra keeps each argument as one value",
+            )],
         },
     ),
     (

@@ -1,0 +1,12 @@
+{"case":"formal-raw-nul","path":"raw-string","op":"compiled-full-definition","code":0,"result":"70","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-raw-nul","path":"raw-string","op":"compiled-full-invocation","code":0,"result":"415247","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-raw-nul","path":"raw-string","op":"compiled-short-definition","code":0,"result":"70","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-raw-nul","path":"raw-string","op":"compiled-short-invocation","code":1,"result":"63616e2774207265616420226b223a206e6f2073756368207661726961626c65","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-raw-nul","path":"raw-string","op":"dynamic-full-definition","code":0,"result":"70","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-raw-nul","path":"raw-string","op":"dynamic-full-invocation","code":0,"result":"30203120415247","result_type":"list","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-modified-nul","path":"raw-string","op":"compiled-full-definition","code":0,"result":"70","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-modified-nul","path":"raw-string","op":"compiled-full-invocation","code":0,"result":"415247","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-modified-nul","path":"raw-string","op":"compiled-short-definition","code":0,"result":"70","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-modified-nul","path":"raw-string","op":"compiled-short-invocation","code":1,"result":"63616e2774207265616420226b223a206e6f2073756368207661726961626c65","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-modified-nul","path":"raw-string","op":"dynamic-full-definition","code":0,"result":"70","result_type":"string","error_code":null,"error_info":null,"return_options":null}
+{"case":"formal-modified-nul","path":"raw-string","op":"dynamic-full-invocation","code":0,"result":"30203120415247","result_type":"list","error_code":null,"error_info":null,"return_options":null}

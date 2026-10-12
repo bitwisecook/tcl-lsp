@@ -1,0 +1,20 @@
+{
+  "probe_sha256": "85591ce9af05c47fac5debaaec0187ca6b608bd151ba26bc26e440874fbea8a5",
+  "question": "How do compiled word concatenation and subst original template caching differ for retained physical input objects and repeated invocation?",
+  "input_channel": "C Tcl_EvalObjEx original source String versus Tcl_EvalObjv subst argv; Jim_EvalObj / Jim_EvalObjVector",
+  "kind_labels": {
+    "0": "ordinary String A",
+    "1": "Unicode units0000,D800 (C only; Jim unavailable)",
+    "2": "counted resident String A00B",
+    "3": "proper ByteArray00FF (C only; Jim unavailable)",
+    "4": "counted resident String ffeda080",
+    "5": "empty List",
+    "6": "pure Double1.5",
+    "7": "empty String"
+  },
+  "mode_labels": {
+    "0": "original source set result \"${x}${y}\"",
+    "1": "subst original source ${x}${y}"
+  },
+  "observer_boundary": "Snapshot all original primary/resident/result pointer facts before result string getter; result getter may affect second-call inputs where result aliases an original."
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "path": "rust/tcl-compiler/tests/data/native_activation_presence/manifest.json",
+    "sha256": "2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.activation.fresh-local-absence"
+    ],
+    "reason": "Exact source SHA and all six embedded process/stream rows inspected: fresh b and Params(key) local absence. Release association/executable checksum retained; exact patch/channel unknown, no current provider metadata borrowed."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "sha256": "f0e02e608610b666d482cce11afad98f203a90985d3a42b22154ebbfed10ddf8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.command-head.literal-expansion-and-inline-replacement",
+      "naming.command-head.dynamic-expansion-after-replacement",
+      "naming.command-head.empty-dynamic-expansion-exposes-written-head"
+    ],
+    "reason": "Exact source SHA, all six full outputs and byte-equal derived marker matrix verified. Literal mutation, dynamic replacement and empty-prefix exposed head are separate questions. Stored disassembly is not instruction execution; guest errors and C84 syntax rejection retained independently of outer0."
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "sha256": "a8716f94efaaab63bffbd739f07526e8800699e6b6c07efaec36d11481789e51",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.scope-repeated-colon-home",
+      "naming.variable.scope-repeated-colon-written-key",
+      "naming.variable.scope-root-qualified-declaration",
+      "naming.variable.scope-root-namespace-activation",
+      "naming.variable.scope-namespace-local-and-linked-publication"
+    ],
+    "reason": "All30 original source/output full digests, embedded stdout versus exact files, process0 and empty stderr checked. Five independently scoped questions preserve C8/C9/Jim receiver differences; unknown exact invocation/patch/build context is not filled by another receipt."
+  }
+]

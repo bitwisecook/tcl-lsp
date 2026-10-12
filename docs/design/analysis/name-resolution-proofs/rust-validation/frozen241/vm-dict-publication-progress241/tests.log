@@ -1,0 +1,1235 @@
+
+running 1 test
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=vm-new-complete elapsed_ms=882
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=profile-complete elapsed_ms=882
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=compiler-complete elapsed_ms=882
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=eval-complete elapsed_ms=2419
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=assertions-complete elapsed_ms=2419
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change operation=vm-drop-complete elapsed_ms=2420
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-change completed=1
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=eval-complete elapsed_ms=563
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=assertions-complete elapsed_ms=563
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink operation=vm-drop-complete elapsed_ms=564
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-relink completed=2
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=eval-complete elapsed_ms=411
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=assertions-complete elapsed_ms=411
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error operation=vm-drop-complete elapsed_ms=412
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-read-error completed=3
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=eval-complete elapsed_ms=344
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=assertions-complete elapsed_ms=344
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change operation=vm-drop-complete elapsed_ms=344
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-change completed=4
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=eval-complete elapsed_ms=231
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=assertions-complete elapsed_ms=231
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error operation=vm-drop-complete elapsed_ms=232
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-write-error completed=5
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=eval-complete elapsed_ms=227
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=assertions-complete elapsed_ms=227
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change operation=vm-drop-complete elapsed_ms=227
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-change completed=6
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=eval-complete elapsed_ms=354
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=assertions-complete elapsed_ms=354
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink operation=vm-drop-complete elapsed_ms=355
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-relink completed=7
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=eval-complete elapsed_ms=376
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=assertions-complete elapsed_ms=376
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error operation=vm-drop-complete elapsed_ms=377
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-read-error completed=8
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=vm-new-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=profile-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=compiler-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=eval-complete elapsed_ms=549
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=assertions-complete elapsed_ms=549
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change operation=vm-drop-complete elapsed_ms=550
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-change completed=9
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=eval-complete elapsed_ms=473
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=assertions-complete elapsed_ms=473
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error operation=vm-drop-complete elapsed_ms=474
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-write-error completed=10
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=vm-new-complete elapsed_ms=58
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=profile-complete elapsed_ms=58
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=compiler-complete elapsed_ms=58
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=eval-complete elapsed_ms=508
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=assertions-complete elapsed_ms=508
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change operation=vm-drop-complete elapsed_ms=508
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-change completed=11
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=vm-new-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=profile-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=compiler-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=eval-complete elapsed_ms=478
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=assertions-complete elapsed_ms=478
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink operation=vm-drop-complete elapsed_ms=479
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-relink completed=12
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=eval-complete elapsed_ms=348
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=assertions-complete elapsed_ms=348
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error operation=vm-drop-complete elapsed_ms=350
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-read-error completed=13
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=vm-new-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=profile-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=compiler-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=eval-complete elapsed_ms=590
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=assertions-complete elapsed_ms=590
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change operation=vm-drop-complete elapsed_ms=591
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-change completed=14
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=eval-complete elapsed_ms=526
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=assertions-complete elapsed_ms=526
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error operation=vm-drop-complete elapsed_ms=526
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-write-error completed=15
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=vm-new-complete elapsed_ms=56
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=profile-complete elapsed_ms=56
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=compiler-complete elapsed_ms=56
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=eval-complete elapsed_ms=530
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=assertions-complete elapsed_ms=530
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change operation=vm-drop-complete elapsed_ms=530
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-change completed=16
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=vm-new-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=profile-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=compiler-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=eval-complete elapsed_ms=352
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=assertions-complete elapsed_ms=352
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink operation=vm-drop-complete elapsed_ms=352
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-relink completed=17
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=eval-complete elapsed_ms=224
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=assertions-complete elapsed_ms=224
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error operation=vm-drop-complete elapsed_ms=225
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-read-error completed=18
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=eval-complete elapsed_ms=243
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=assertions-complete elapsed_ms=243
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change operation=vm-drop-complete elapsed_ms=244
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-change completed=19
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=eval-complete elapsed_ms=269
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=assertions-complete elapsed_ms=269
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error operation=vm-drop-complete elapsed_ms=270
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-write-error completed=20
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=eval-complete elapsed_ms=226
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=assertions-complete elapsed_ms=226
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change operation=vm-drop-complete elapsed_ms=226
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-change completed=21
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=eval-complete elapsed_ms=338
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=assertions-complete elapsed_ms=339
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink operation=vm-drop-complete elapsed_ms=339
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-relink completed=22
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=eval-complete elapsed_ms=225
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=assertions-complete elapsed_ms=225
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error operation=vm-drop-complete elapsed_ms=225
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-read-error completed=23
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=eval-complete elapsed_ms=226
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=assertions-complete elapsed_ms=226
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change operation=vm-drop-complete elapsed_ms=227
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-change completed=24
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=eval-complete elapsed_ms=221
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=assertions-complete elapsed_ms=221
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error operation=vm-drop-complete elapsed_ms=221
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-write-error completed=25
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=eval-complete elapsed_ms=166
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=assertions-complete elapsed_ms=166
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain operation=vm-drop-complete elapsed_ms=167
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-set-plain completed=26
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=eval-complete elapsed_ms=139
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=assertions-complete elapsed_ms=139
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain operation=vm-drop-complete elapsed_ms=139
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-unset-plain completed=27
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=eval-complete elapsed_ms=133
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=assertions-complete elapsed_ms=133
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain operation=vm-drop-complete elapsed_ms=133
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-incr-plain completed=28
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=eval-complete elapsed_ms=137
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=assertions-complete elapsed_ms=137
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain operation=vm-drop-complete elapsed_ms=137
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-append-plain completed=29
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=eval-complete elapsed_ms=153
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=assertions-complete elapsed_ms=153
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain operation=vm-drop-complete elapsed_ms=155
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=compiled-lappend-plain completed=30
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=vm-new-complete elapsed_ms=27
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=profile-complete elapsed_ms=27
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=compiler-complete elapsed_ms=27
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=eval-complete elapsed_ms=294
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=assertions-complete elapsed_ms=294
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change operation=vm-drop-complete elapsed_ms=295
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-change completed=31
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=eval-complete elapsed_ms=205
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=assertions-complete elapsed_ms=205
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink operation=vm-drop-complete elapsed_ms=205
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-relink completed=32
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=eval-complete elapsed_ms=359
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=assertions-complete elapsed_ms=359
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error operation=vm-drop-complete elapsed_ms=360
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-read-error completed=33
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=vm-new-complete elapsed_ms=29
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=profile-complete elapsed_ms=84
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=compiler-complete elapsed_ms=84
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=eval-complete elapsed_ms=518
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=assertions-complete elapsed_ms=518
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change operation=vm-drop-complete elapsed_ms=519
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-change completed=34
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=eval-complete elapsed_ms=338
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=assertions-complete elapsed_ms=338
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error operation=vm-drop-complete elapsed_ms=339
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-write-error completed=35
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=vm-new-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=profile-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=compiler-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=eval-complete elapsed_ms=318
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=assertions-complete elapsed_ms=318
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change operation=vm-drop-complete elapsed_ms=318
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-change completed=36
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=vm-new-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=profile-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=compiler-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=eval-complete elapsed_ms=416
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=assertions-complete elapsed_ms=417
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink operation=vm-drop-complete elapsed_ms=417
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-relink completed=37
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=eval-complete elapsed_ms=209
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=assertions-complete elapsed_ms=209
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error operation=vm-drop-complete elapsed_ms=210
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-read-error completed=38
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=eval-complete elapsed_ms=311
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=assertions-complete elapsed_ms=311
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change operation=vm-drop-complete elapsed_ms=311
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-change completed=39
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=eval-complete elapsed_ms=324
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=assertions-complete elapsed_ms=324
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error operation=vm-drop-complete elapsed_ms=325
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-write-error completed=40
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=eval-complete elapsed_ms=437
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=assertions-complete elapsed_ms=437
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change operation=vm-drop-complete elapsed_ms=437
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-change completed=41
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=eval-complete elapsed_ms=378
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=assertions-complete elapsed_ms=378
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink operation=vm-drop-complete elapsed_ms=379
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-relink completed=42
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=eval-complete elapsed_ms=446
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=assertions-complete elapsed_ms=446
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error operation=vm-drop-complete elapsed_ms=447
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-read-error completed=43
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=eval-complete elapsed_ms=192
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=assertions-complete elapsed_ms=192
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change operation=vm-drop-complete elapsed_ms=192
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-change completed=44
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=eval-complete elapsed_ms=448
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=assertions-complete elapsed_ms=448
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error operation=vm-drop-complete elapsed_ms=449
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-write-error completed=45
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=vm-new-complete elapsed_ms=26
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=profile-complete elapsed_ms=26
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=compiler-complete elapsed_ms=26
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=eval-complete elapsed_ms=507
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=assertions-complete elapsed_ms=507
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change operation=vm-drop-complete elapsed_ms=508
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-change completed=46
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=vm-new-complete elapsed_ms=17
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=profile-complete elapsed_ms=17
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=compiler-complete elapsed_ms=17
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=eval-complete elapsed_ms=317
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=assertions-complete elapsed_ms=317
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink operation=vm-drop-complete elapsed_ms=318
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-relink completed=47
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=eval-complete elapsed_ms=333
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=assertions-complete elapsed_ms=333
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error operation=vm-drop-complete elapsed_ms=333
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-read-error completed=48
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=vm-new-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=profile-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=compiler-complete elapsed_ms=7
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=eval-complete elapsed_ms=204
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=assertions-complete elapsed_ms=204
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change operation=vm-drop-complete elapsed_ms=204
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-change completed=49
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=vm-new-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=profile-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=compiler-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=eval-complete elapsed_ms=440
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=assertions-complete elapsed_ms=440
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error operation=vm-drop-complete elapsed_ms=441
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-write-error completed=50
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=eval-complete elapsed_ms=203
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=assertions-complete elapsed_ms=203
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change operation=vm-drop-complete elapsed_ms=204
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-change completed=51
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=eval-complete elapsed_ms=317
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=assertions-complete elapsed_ms=317
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink operation=vm-drop-complete elapsed_ms=318
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-relink completed=52
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=eval-complete elapsed_ms=197
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=assertions-complete elapsed_ms=197
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error operation=vm-drop-complete elapsed_ms=197
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-read-error completed=53
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=eval-complete elapsed_ms=328
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=assertions-complete elapsed_ms=328
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change operation=vm-drop-complete elapsed_ms=328
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-change completed=54
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=eval-complete elapsed_ms=243
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=assertions-complete elapsed_ms=243
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error operation=vm-drop-complete elapsed_ms=246
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-write-error completed=55
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=vm-new-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=profile-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=compiler-complete elapsed_ms=12
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=eval-complete elapsed_ms=194
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=assertions-complete elapsed_ms=194
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain operation=vm-drop-complete elapsed_ms=195
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-set-plain completed=56
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=eval-complete elapsed_ms=121
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=assertions-complete elapsed_ms=121
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain operation=vm-drop-complete elapsed_ms=121
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-unset-plain completed=57
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=eval-complete elapsed_ms=294
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=assertions-complete elapsed_ms=294
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain operation=vm-drop-complete elapsed_ms=295
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-incr-plain completed=58
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=vm-new-complete elapsed_ms=17
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=profile-complete elapsed_ms=17
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=compiler-complete elapsed_ms=17
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=eval-complete elapsed_ms=192
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=assertions-complete elapsed_ms=192
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain operation=vm-drop-complete elapsed_ms=193
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-append-plain completed=59
+oracle-row start suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=vm-new-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=profile-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=compiler-complete elapsed_ms=6
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=eval-complete elapsed_ms=114
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=assertions-complete elapsed_ms=114
+oracle-phase suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain operation=vm-drop-complete elapsed_ms=114
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.4 case=generic-lappend-plain completed=60
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=vm-new-complete elapsed_ms=69
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=profile-complete elapsed_ms=69
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=compiler-complete elapsed_ms=69
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=eval-complete elapsed_ms=1090
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=assertions-complete elapsed_ms=1090
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change operation=vm-drop-complete elapsed_ms=1090
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-change completed=61
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=vm-new-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=profile-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=compiler-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=eval-complete elapsed_ms=382
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=assertions-complete elapsed_ms=382
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error operation=vm-drop-complete elapsed_ms=383
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-read-error completed=62
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=eval-complete elapsed_ms=422
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=assertions-complete elapsed_ms=422
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change operation=vm-drop-complete elapsed_ms=423
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-change completed=63
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=eval-complete elapsed_ms=362
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=assertions-complete elapsed_ms=362
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error operation=vm-drop-complete elapsed_ms=363
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-write-error completed=64
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=eval-complete elapsed_ms=444
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=assertions-complete elapsed_ms=444
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change operation=vm-drop-complete elapsed_ms=445
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-change completed=65
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=eval-complete elapsed_ms=564
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=assertions-complete elapsed_ms=564
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink operation=vm-drop-complete elapsed_ms=565
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-relink completed=66
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=eval-complete elapsed_ms=540
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=assertions-complete elapsed_ms=540
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error operation=vm-drop-complete elapsed_ms=541
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-read-error completed=67
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=vm-new-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=profile-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=compiler-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=eval-complete elapsed_ms=542
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=assertions-complete elapsed_ms=542
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change operation=vm-drop-complete elapsed_ms=543
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-change completed=68
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=eval-complete elapsed_ms=512
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=assertions-complete elapsed_ms=512
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error operation=vm-drop-complete elapsed_ms=513
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-write-error completed=69
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=eval-complete elapsed_ms=690
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=assertions-complete elapsed_ms=690
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change operation=vm-drop-complete elapsed_ms=693
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-change completed=70
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=vm-new-complete elapsed_ms=42
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=profile-complete elapsed_ms=42
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=compiler-complete elapsed_ms=42
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=eval-complete elapsed_ms=690
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=assertions-complete elapsed_ms=690
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error operation=vm-drop-complete elapsed_ms=691
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-read-error completed=71
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=eval-complete elapsed_ms=599
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=assertions-complete elapsed_ms=599
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change operation=vm-drop-complete elapsed_ms=600
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-change completed=72
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=eval-complete elapsed_ms=535
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=assertions-complete elapsed_ms=535
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error operation=vm-drop-complete elapsed_ms=539
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-write-error completed=73
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=vm-new-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=profile-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=compiler-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=eval-complete elapsed_ms=556
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=assertions-complete elapsed_ms=556
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change operation=vm-drop-complete elapsed_ms=562
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-change completed=74
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=vm-new-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=profile-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=compiler-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=eval-complete elapsed_ms=468
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=assertions-complete elapsed_ms=468
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error operation=vm-drop-complete elapsed_ms=469
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-read-error completed=75
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=eval-complete elapsed_ms=586
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=assertions-complete elapsed_ms=586
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change operation=vm-drop-complete elapsed_ms=587
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-change completed=76
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=vm-new-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=profile-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=compiler-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=eval-complete elapsed_ms=508
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=assertions-complete elapsed_ms=508
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error operation=vm-drop-complete elapsed_ms=509
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-write-error completed=77
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=eval-complete elapsed_ms=462
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=assertions-complete elapsed_ms=462
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change operation=vm-drop-complete elapsed_ms=463
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-change completed=78
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=eval-complete elapsed_ms=601
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=assertions-complete elapsed_ms=601
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink operation=vm-drop-complete elapsed_ms=602
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-relink completed=79
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=eval-complete elapsed_ms=523
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=assertions-complete elapsed_ms=523
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error operation=vm-drop-complete elapsed_ms=524
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-read-error completed=80
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=eval-complete elapsed_ms=622
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=assertions-complete elapsed_ms=623
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change operation=vm-drop-complete elapsed_ms=628
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-change completed=81
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=vm-new-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=profile-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=compiler-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=eval-complete elapsed_ms=517
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=assertions-complete elapsed_ms=517
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error operation=vm-drop-complete elapsed_ms=518
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-write-error completed=82
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=eval-complete elapsed_ms=162
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=assertions-complete elapsed_ms=162
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain operation=vm-drop-complete elapsed_ms=177
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-set-plain completed=83
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=vm-new-complete elapsed_ms=13
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=profile-complete elapsed_ms=13
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=compiler-complete elapsed_ms=13
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=eval-complete elapsed_ms=199
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=assertions-complete elapsed_ms=199
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain operation=vm-drop-complete elapsed_ms=200
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-unset-plain completed=84
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=vm-new-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=profile-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=compiler-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=eval-complete elapsed_ms=159
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=assertions-complete elapsed_ms=159
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain operation=vm-drop-complete elapsed_ms=160
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-incr-plain completed=85
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=eval-complete elapsed_ms=161
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=assertions-complete elapsed_ms=161
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain operation=vm-drop-complete elapsed_ms=162
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-append-plain completed=86
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=vm-new-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=profile-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=eval-complete elapsed_ms=159
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=assertions-complete elapsed_ms=159
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain operation=vm-drop-complete elapsed_ms=160
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=compiled-lappend-plain completed=87
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=vm-new-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=profile-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=compiler-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=eval-complete elapsed_ms=449
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=assertions-complete elapsed_ms=449
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change operation=vm-drop-complete elapsed_ms=450
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-change completed=88
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=eval-complete elapsed_ms=445
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=assertions-complete elapsed_ms=445
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink operation=vm-drop-complete elapsed_ms=446
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-relink completed=89
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=eval-complete elapsed_ms=379
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=assertions-complete elapsed_ms=379
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error operation=vm-drop-complete elapsed_ms=379
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-read-error completed=90
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=eval-complete elapsed_ms=485
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=assertions-complete elapsed_ms=485
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change operation=vm-drop-complete elapsed_ms=486
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-change completed=91
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=vm-new-complete elapsed_ms=25
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=profile-complete elapsed_ms=25
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=compiler-complete elapsed_ms=25
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=eval-complete elapsed_ms=861
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=assertions-complete elapsed_ms=861
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error operation=vm-drop-complete elapsed_ms=862
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-write-error completed=92
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=eval-complete elapsed_ms=498
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=assertions-complete elapsed_ms=498
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change operation=vm-drop-complete elapsed_ms=498
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-change completed=93
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=eval-complete elapsed_ms=502
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=assertions-complete elapsed_ms=502
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink operation=vm-drop-complete elapsed_ms=504
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-relink completed=94
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=eval-complete elapsed_ms=529
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=assertions-complete elapsed_ms=529
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error operation=vm-drop-complete elapsed_ms=530
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-read-error completed=95
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=eval-complete elapsed_ms=558
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=assertions-complete elapsed_ms=558
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change operation=vm-drop-complete elapsed_ms=563
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-change completed=96
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=vm-new-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=profile-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=compiler-complete elapsed_ms=11
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=eval-complete elapsed_ms=524
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=assertions-complete elapsed_ms=524
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error operation=vm-drop-complete elapsed_ms=525
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-write-error completed=97
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=vm-new-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=profile-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=compiler-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=eval-complete elapsed_ms=657
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=assertions-complete elapsed_ms=658
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change operation=vm-drop-complete elapsed_ms=658
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-change completed=98
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=eval-complete elapsed_ms=651
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=assertions-complete elapsed_ms=651
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink operation=vm-drop-complete elapsed_ms=652
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-relink completed=99
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=vm-new-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=profile-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=compiler-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=eval-complete elapsed_ms=542
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=assertions-complete elapsed_ms=542
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error operation=vm-drop-complete elapsed_ms=543
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-read-error completed=100
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=vm-new-complete elapsed_ms=13
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=profile-complete elapsed_ms=13
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=compiler-complete elapsed_ms=13
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=eval-complete elapsed_ms=572
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=assertions-complete elapsed_ms=572
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change operation=vm-drop-complete elapsed_ms=573
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-change completed=101
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=eval-complete elapsed_ms=636
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=assertions-complete elapsed_ms=636
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error operation=vm-drop-complete elapsed_ms=637
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-write-error completed=102
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=vm-new-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=profile-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=compiler-complete elapsed_ms=10
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=eval-complete elapsed_ms=700
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=assertions-complete elapsed_ms=700
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change operation=vm-drop-complete elapsed_ms=701
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-change completed=103
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=eval-complete elapsed_ms=604
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=assertions-complete elapsed_ms=604
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink operation=vm-drop-complete elapsed_ms=608
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-relink completed=104
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=vm-new-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=profile-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=compiler-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=eval-complete elapsed_ms=525
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=assertions-complete elapsed_ms=525
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error operation=vm-drop-complete elapsed_ms=526
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-read-error completed=105
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=vm-new-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=profile-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=compiler-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=eval-complete elapsed_ms=606
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=assertions-complete elapsed_ms=606
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change operation=vm-drop-complete elapsed_ms=607
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-change completed=106
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=vm-new-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=profile-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=compiler-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=eval-complete elapsed_ms=531
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=assertions-complete elapsed_ms=531
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error operation=vm-drop-complete elapsed_ms=532
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-write-error completed=107
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=eval-complete elapsed_ms=431
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=assertions-complete elapsed_ms=432
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change operation=vm-drop-complete elapsed_ms=432
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-change completed=108
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=eval-complete elapsed_ms=430
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=assertions-complete elapsed_ms=430
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink operation=vm-drop-complete elapsed_ms=430
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-relink completed=109
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=vm-new-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=profile-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=compiler-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=eval-complete elapsed_ms=364
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=assertions-complete elapsed_ms=364
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error operation=vm-drop-complete elapsed_ms=365
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-read-error completed=110
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=eval-complete elapsed_ms=425
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=assertions-complete elapsed_ms=425
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change operation=vm-drop-complete elapsed_ms=425
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-change completed=111
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=eval-complete elapsed_ms=365
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=assertions-complete elapsed_ms=365
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error operation=vm-drop-complete elapsed_ms=365
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-write-error completed=112
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=eval-complete elapsed_ms=152
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=assertions-complete elapsed_ms=152
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain operation=vm-drop-complete elapsed_ms=153
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-set-plain completed=113
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=vm-new-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=profile-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=compiler-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=eval-complete elapsed_ms=150
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=assertions-complete elapsed_ms=150
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain operation=vm-drop-complete elapsed_ms=151
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-unset-plain completed=114
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=eval-complete elapsed_ms=165
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=assertions-complete elapsed_ms=165
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain operation=vm-drop-complete elapsed_ms=165
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-incr-plain completed=115
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=vm-new-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=profile-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=compiler-complete elapsed_ms=9
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=eval-complete elapsed_ms=153
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=assertions-complete elapsed_ms=153
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain operation=vm-drop-complete elapsed_ms=154
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-append-plain completed=116
+oracle-row start suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=vm-new-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=profile-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=compiler-complete elapsed_ms=8
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=eval-complete elapsed_ms=151
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=assertions-complete elapsed_ms=151
+oracle-phase suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain operation=vm-drop-complete elapsed_ms=152
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.5 case=generic-lappend-plain completed=117
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=vm-new-complete elapsed_ms=87
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=profile-complete elapsed_ms=87
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=compiler-complete elapsed_ms=87
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=eval-complete elapsed_ms=2685
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=assertions-complete elapsed_ms=2685
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change operation=vm-drop-complete elapsed_ms=2686
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-change completed=118
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=vm-new-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=profile-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=compiler-complete elapsed_ms=18
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=eval-complete elapsed_ms=875
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=assertions-complete elapsed_ms=876
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error operation=vm-drop-complete elapsed_ms=880
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-read-error completed=119
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=vm-new-complete elapsed_ms=31
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=profile-complete elapsed_ms=31
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=compiler-complete elapsed_ms=31
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=eval-complete elapsed_ms=865
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=assertions-complete elapsed_ms=865
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change operation=vm-drop-complete elapsed_ms=866
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-change completed=120
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=vm-new-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=profile-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=compiler-complete elapsed_ms=19
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=eval-complete elapsed_ms=657
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=assertions-complete elapsed_ms=657
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error operation=vm-drop-complete elapsed_ms=658
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-set-write-error completed=121
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=vm-new-complete elapsed_ms=24
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=profile-complete elapsed_ms=24
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=compiler-complete elapsed_ms=24
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=eval-complete elapsed_ms=966
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=assertions-complete elapsed_ms=966
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change operation=vm-drop-complete elapsed_ms=970
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-change completed=122
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=vm-new-complete elapsed_ms=26
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=profile-complete elapsed_ms=26
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=compiler-complete elapsed_ms=26
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=eval-complete elapsed_ms=891
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=assertions-complete elapsed_ms=891
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error operation=vm-drop-complete elapsed_ms=892
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-read-error completed=123
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=vm-new-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=profile-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=compiler-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=eval-complete elapsed_ms=1090
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=assertions-complete elapsed_ms=1091
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change operation=vm-drop-complete elapsed_ms=1092
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-change completed=124
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=vm-new-complete elapsed_ms=25
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=profile-complete elapsed_ms=25
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=compiler-complete elapsed_ms=25
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=eval-complete elapsed_ms=760
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=assertions-complete elapsed_ms=760
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error operation=vm-drop-complete elapsed_ms=761
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-unset-write-error completed=125
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=vm-new-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=profile-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=compiler-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=eval-complete elapsed_ms=609
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=assertions-complete elapsed_ms=609
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change operation=vm-drop-complete elapsed_ms=610
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-change completed=126
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=eval-complete elapsed_ms=514
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=assertions-complete elapsed_ms=514
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error operation=vm-drop-complete elapsed_ms=515
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-read-error completed=127
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=eval-complete elapsed_ms=569
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=assertions-complete elapsed_ms=569
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change operation=vm-drop-complete elapsed_ms=570
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-change completed=128
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=eval-complete elapsed_ms=515
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=assertions-complete elapsed_ms=515
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error operation=vm-drop-complete elapsed_ms=516
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-incr-write-error completed=129
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=vm-new-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=profile-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=compiler-complete elapsed_ms=14
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=eval-complete elapsed_ms=584
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=assertions-complete elapsed_ms=584
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change operation=vm-drop-complete elapsed_ms=585
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-change completed=130
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=vm-new-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=profile-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=compiler-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=eval-complete elapsed_ms=522
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=assertions-complete elapsed_ms=522
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error operation=vm-drop-complete elapsed_ms=523
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-read-error completed=131
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=vm-new-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=profile-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=compiler-complete elapsed_ms=15
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=eval-complete elapsed_ms=817
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=assertions-complete elapsed_ms=817
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change operation=vm-drop-complete elapsed_ms=819
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-change completed=132
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=vm-new-complete elapsed_ms=20
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=profile-complete elapsed_ms=20
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=compiler-complete elapsed_ms=20
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=eval-complete elapsed_ms=727
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=assertions-complete elapsed_ms=727
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error operation=vm-drop-complete elapsed_ms=728
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-append-write-error completed=133
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=vm-new-complete elapsed_ms=22
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=profile-complete elapsed_ms=22
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=compiler-complete elapsed_ms=22
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=eval-complete elapsed_ms=865
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=assertions-complete elapsed_ms=865
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change operation=vm-drop-complete elapsed_ms=867
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-change completed=134
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=vm-new-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=profile-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=compiler-complete elapsed_ms=21
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=eval-complete elapsed_ms=1015
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=assertions-complete elapsed_ms=1016
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink operation=vm-drop-complete elapsed_ms=1017
+oracle-row complete suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-relink completed=135
+oracle-row start suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-error
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-error operation=vm-new-start elapsed_ms=0
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-error operation=vm-new-complete elapsed_ms=31
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-error operation=profile-complete elapsed_ms=31
+oracle-phase suite=dictionary-rmw345 engine=tcl8.6 case=compiled-lappend-read-error operation=compiler-complete elapsed_ms=31
+
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes' (868903) panicked at rust/tcl-vm/src/value.rs:4989:18:
+selected compound updater requires checked child storage: StringUpdater
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 64.86s
+

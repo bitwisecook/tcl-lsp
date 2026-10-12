@@ -1,0 +1,1 @@
+interp create kid; rename kid moved; interp delete kid; interp create kid; list [interp slaves] [info commands moved] [kid issafe]

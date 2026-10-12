@@ -1,0 +1,15 @@
+{
+  "question_id": "naming.interpreter.original-created-parent-command-move",
+  "source_sha256": "0e567db2ed35848ccdb44149ca1d7823804456eeef32c6e305572e027719dade",
+  "input_channel": "ASCII LF source-file CLI",
+  "scope": "Sequential exact child creation, rename once/twice/qualified, independent parent command and unchanged child path observations, deletion by child path and moved parent command",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "limits": "Only the actual fixed CLI observations support a source-level parent-key lifetime model. No original object/token/allocation, physical child namespace, successful arbitrary invocation, Native compiler admission or runtime effects are inferred."
+}

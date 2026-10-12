@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen301/sealed-syntax-image/pinned-syntax301.elf.gz",
+  "stored_sha256": "7ef40904efd3e6ed1ed4c1bd9e445830a0486a321347c34132c9c230ca75e482",
+  "stored_bytes": 2731138,
+  "original_sha256": "cb7617f3c2c9b6d31815ab05dd5bbc98c80367a36cbec2bdcb2501f47f278b2c",
+  "original_bytes": 11261216,
+  "original_recorded_executable": "/workspace/.proofs/pinned-syntax301.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen301/sealed-syntax-image/pinned-syntax301.json",
+  "pin_metadata_sha256": "d7e951eb5659b6b44af39f11ecfc635e1889f45bf5984f9b9fc86ac810e7395d",
+  "build_receipt_id": "rust.frozen301.integration-syntax-own-test-build301",
+  "build_receipt_sha256": "b7adcfd51aa457e518dfaf86d1ce19733145f475d7e39efaa8be001bdb1b8b9a",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen301/sealed-syntax-image/source-snapshot.json.gz",
+    "sha256": "dfc195a1c985981d9e8e080ab817234de71c82e198754750954353c56548f0d5",
+    "compression": "gzip",
+    "uncompressed_sha256": "b604f58e37ce9e3ca04ea77144960ac3da21c7698238bd08d639c3ecd9cdc6db"
+  },
+  "verification": "Independent successful num-bigint Syntax own-producer; strict pin/source correspondence and full original byte/SHA/size gzip round trip. No original unlink or launch."
+}

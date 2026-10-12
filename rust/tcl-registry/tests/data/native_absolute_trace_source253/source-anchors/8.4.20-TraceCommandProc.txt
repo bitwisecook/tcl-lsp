@@ -1,0 +1,7 @@
+	    tcmdPtr->flags |= TCL_TRACE_DESTROYED;
+	}
+
+	code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),
+		Tcl_DStringLength(&cmd), 0);
+	if (code != TCL_OK) {	     
+	    /* We ignore errors in these traced commands */

@@ -1,0 +1,5 @@
+namespace_install 1 {namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+namespace_create 0 resolution_scope_handler
+namespace_trigger 1 {invalid command name "resolution_scope_missing_command"} observed {}
+package_install 1 {package, unknown command "unknown": should be forget, names, provide, require}
+package_trigger 1 {Can't load package resolution_scope_missing_package} observed {}

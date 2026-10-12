@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_dict::native_path_publication_tests::original_path_missing_variable_publication_matches_all_15_available_native_windows ... 
+thread 'cmd_dict::native_path_publication_tests::original_path_missing_variable_publication_matches_all_15_available_native_windows' (1356827) panicked at src/cmd_dict.rs:2251:17:
+assertion `left == right` failed: tcl8.5/missing-member-failed-path-unset
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 111, 117, 116, 101, 114, 40, 109, 101, 109, 98, 101, 114, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125, 32, 48, 32, 49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 111, 117, 116, 101, 114, 40, 109, 101, 109, 98, 101, 114, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125, 32, 123, 125]
+ right: [49, 32, 123, 107, 101, 121, 32, 34, 109, 105, 115, 115, 105, 110, 103, 34, 32, 110, 111, 116, 32, 107, 110, 111, 119, 110, 32, 105, 110, 32, 100, 105, 99, 116, 105, 111, 110, 97, 114, 121, 125, 32, 48, 32, 49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 111, 117, 116, 101, 114, 40, 109, 101, 109, 98, 101, 114, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125, 32, 123, 125]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_dict::native_path_publication_tests::original_path_missing_variable_publication_matches_all_15_available_native_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 12.26s
+

@@ -1,0 +1,44 @@
+[
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_EvalObj parse failure before frame entry",
+    "lines": [
+      11568,
+      11575
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet_sha256": "f2df84187410d03f1d7f3d867fe7f6a1d4c178ad93b0d746dc5bdf92e7ef9ddb",
+    "snippet": "\n    Jim_IncrRefCount(scriptObjPtr);     /* Make sure it's shared. */\n    script = JimGetScript(interp, scriptObjPtr);\n    if (JimParseCheckMissing(interp, script->missing) == JIM_ERR) {\n        JimSetErrorStack(interp, script);\n        Jim_DecrRefCount(interp, scriptObjPtr);\n        return JIM_ERR;\n    }\n"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_EvalObj frame entry and reset",
+    "lines": [
+      11626,
+      11636
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet_sha256": "36c4ba3eb9ba119dab9896a94105b57f623e8000bc30c331d5afb374e71966ca",
+    "snippet": "    script->inUse++;\n\n    JimPushEvalFrame(interp, &frame, scriptObjPtr);\n\n    /* Collect a new error stack trace if an error occurs */\n    interp->hasErrorStackTrace = 0;\n    argv = sargv;\n\n    /* Execute every command sequentially until the end of the script\n     * or an error occurs.\n     */\n"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+    "function": "Jim_EvalObj capture before frame teardown",
+    "lines": [
+      11780,
+      11786
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet_sha256": "8987c30883d1d34fb12f5c5ab407b3d4e9d9e47d3874ab942ec49fe803c90ffe",
+    "snippet": "    /* Possibly add to the error stack trace */\n    if (retcode == JIM_ERR) {\n        JimSetErrorStack(interp, NULL);\n    }\n\n    JimPopEvalFrame(interp);\n\n"
+  }
+]

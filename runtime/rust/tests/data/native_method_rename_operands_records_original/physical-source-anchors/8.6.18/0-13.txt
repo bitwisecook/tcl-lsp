@@ -1,0 +1,111 @@
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (!isInstanceMethod && !oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)
+	    ? PUBLIC_METHOD : 0;
+
+    /*
+     * Create the method by using the right back-end API.
+     */
+
+    if (isInstanceMethod) {
+	if (TclOONewProcInstanceMethod(interp, oPtr, isPublic, objv[1],
+		objv[2], objv[3], NULL) == NULL) {
+	    return TCL_ERROR;
+	}
+    } else {
+	if (TclOONewProcMethod(interp, oPtr->classPtr, isPublic, objv[1],
+		objv[2], objv[3], NULL) == NULL) {
+	    return TCL_ERROR;
+	}
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineRenameMethodObjCmd --
+ *	Implementation of the "renamemethod" subcommand of the "oo::define"
+ *	and "oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineRenameMethodObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    int isInstanceRenameMethod = (clientData != NULL);
+    Object *oPtr;
+
+    if (objc != 3) {
+	Tcl_WrongNumArgs(interp, 1, objv, "oldName newName");
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (!isInstanceRenameMethod && !oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Delete the method entry from the appropriate hash table, and transfer
+     * the thing it points to to its new entry. To do this, we first need to
+     * get the entries from the appropriate hash tables (this can generate a
+     * range of errors...)
+     */
+
+    if (RenameDeleteMethod(interp, oPtr, !isInstanceRenameMethod,
+	    objv[1], objv[2]) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    if (isInstanceRenameMethod) {
+	oPtr->epoch++;
+    } else {
+	BumpGlobalEpoch(interp, oPtr->classPtr);
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineUnexportObjCmd --
+ *	Implementation of the "unexport" subcommand of the "oo::define" and
+ *	"oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineUnexportObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    int isInstanceUnexport = (clientData != NULL);
+    Object *oPtr;
+    Method *mPtr;
+    Tcl_HashEntry *hPtr;

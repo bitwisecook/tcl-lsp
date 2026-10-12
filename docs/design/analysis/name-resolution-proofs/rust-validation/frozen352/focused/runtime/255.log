@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_append::original_c84_pending_scalar_tests::original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 1.65s
+

@@ -1,0 +1,19 @@
+{
+  "ordinal": 170,
+  "selector": "cmd_oo::tests::tip558_property_and_info_options_match_tcl_prefix_diagnostics",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::tip558_property_and_info_options_match_tcl_prefix_diagnostics",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.4824472210020758,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.45s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/170.log",
+  "log_sha256": "856a81bdb8c58e28a1849c8b2f9e0e3f29f12d9562dc27cebcae7b6836b7d267"
+}

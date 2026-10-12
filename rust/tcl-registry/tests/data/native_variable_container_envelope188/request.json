@@ -1,0 +1,25 @@
+{
+  "purpose": "Separate actual old variable-container specimen guard and evaluator envelope; independent isolated script-file processes per leaf/provider, preserving ASCII LF source bytes. This does not infer bytecode/private argv from public output.",
+  "cases": [
+    {
+      "label": "original-guarded-eval",
+      "path": "/workspace/.proofs/native-variable-container-envelope188/original-guarded-eval.tcl",
+      "source_sha256": "65a493b1ee29448cc138b910da5a17b98fa4e200babbe24dbd906f156d0430b9"
+    },
+    {
+      "label": "bare-eval",
+      "path": "/workspace/.proofs/native-variable-container-envelope188/bare-eval.tcl",
+      "source_sha256": "e7e7210054a994a4c51347c4e2c70bfe7954c2428e938f49d8b36646c214e7c1"
+    },
+    {
+      "label": "guarded-variable-catch",
+      "path": "/workspace/.proofs/native-variable-container-envelope188/guarded-variable-catch.tcl",
+      "source_sha256": "113ddc243d57ead024a1cfaa63a0d7d84b287c972c659ce7cd7ac2baae47309b"
+    },
+    {
+      "label": "bare-variable-catch",
+      "path": "/workspace/.proofs/native-variable-container-envelope188/bare-variable-catch.tcl",
+      "source_sha256": "aa07ef985ababca9fa473e267cb6b23f1c987c3d8654f1eef976c301a6663dde"
+    }
+  ]
+}

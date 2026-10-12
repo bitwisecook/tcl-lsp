@@ -1,0 +1,4 @@
+/workspace/.proofs/current-tail-frame-release-probe/probe-v2.c: In function ‘make_value’:
+/workspace/.proofs/current-tail-frame-release-probe/probe-v2.c:17:181: warning: assignment discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+   17 | static int make_value(ClientData data,Tcl_Interp *interp,int argc,Tcl_Obj *const *argv) {(void)data;(void)argc;(void)argv;Tcl_Obj *value=Tcl_NewStringObj("OPAQUE",6);value->typePtr=&tracked;value->internalRep.twoPtrValue.ptr1=(void*)(uintptr_t)++made;Tcl_SetObjResult(interp,value);return TCL_OK;}
+      |                                                                                                                                                                                     ^

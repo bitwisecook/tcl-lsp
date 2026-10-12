@@ -1,0 +1,138 @@
+{
+  "id": "naming.ensemble.original-command-holder-routing",
+  "channel": "read-only pinned C source inspection; independently gathered, not native205 execution receipt",
+  "providers": [
+    {
+      "version": "8.5.19",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "source_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h",
+      "header_sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "excerpts": [
+        {
+          "first_line": 4780,
+          "last_line": 4810,
+          "file": "8.5.19-tclNamesp.c-4780-4810.txt",
+          "sha256": "726f85b8c7a3ffd7b8356fe78132ad3b3ab59159863236f971725ddf2b1ca608"
+        },
+        {
+          "first_line": 4835,
+          "last_line": 4858,
+          "file": "8.5.19-tclNamesp.c-4835-4858.txt",
+          "sha256": "982c92c858a39e040da797c80adb13700be7962027b885a3ee7334e8eb1dc9e3"
+        },
+        {
+          "first_line": 4948,
+          "last_line": 4980,
+          "file": "8.5.19-tclNamesp.c-4948-4980.txt",
+          "sha256": "b98ed85c15494b1b0e8a95debf152bbcc992fda2740f14cd88612c6fa7ee7a96"
+        },
+        {
+          "first_line": 5273,
+          "last_line": 5337,
+          "file": "8.5.19-tclNamesp.c-5273-5337.txt",
+          "sha256": "aa4db821010bd0cbc21e83929cfa3b69cc67c7371d2a555cc187d10c429898c4"
+        }
+      ]
+    },
+    {
+      "version": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEnsemble.c",
+      "source_sha256": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h",
+      "header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "excerpts": [
+        {
+          "first_line": 145,
+          "last_line": 175,
+          "file": "8.6.18-tclEnsemble.c-145-175.txt",
+          "sha256": "df1e7e61b4dd7685c084c96b5ed2c74c1c4a1e2ad437ad0ce59f3ec3435ea957"
+        },
+        {
+          "first_line": 190,
+          "last_line": 225,
+          "file": "8.6.18-tclEnsemble.c-190-225.txt",
+          "sha256": "6b9479677c7daae5b4f84b743fd159e5df91b637ee36d83890e11aad85d08e3b"
+        },
+        {
+          "first_line": 333,
+          "last_line": 359,
+          "file": "8.6.18-tclEnsemble.c-333-359.txt",
+          "sha256": "8c1d32e940e51ec5b4f37375284c5e4c42172088f257875fe05ae8e7bf77d3e9"
+        },
+        {
+          "first_line": 725,
+          "last_line": 745,
+          "file": "8.6.18-tclEnsemble.c-725-745.txt",
+          "sha256": "a33eba1a6531d2366c826144fea000bdbde8c5337dc5087190359e39d4375ab1"
+        }
+      ]
+    },
+    {
+      "version": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEnsemble.c",
+      "source_sha256": "6d0c49c5a53f2c7f89eafb3dc9113b4f2f418e48d6b9256f3c99150be9dd12e7",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h",
+      "header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "excerpts": [
+        {
+          "first_line": 151,
+          "last_line": 176,
+          "file": "9.0.4-tclEnsemble.c-151-176.txt",
+          "sha256": "6ccd927cd5913244ae1e0985c7b1a88908dbe387d56fc9bee24fd557c865d588"
+        },
+        {
+          "first_line": 255,
+          "last_line": 301,
+          "file": "9.0.4-tclEnsemble.c-255-301.txt",
+          "sha256": "0fd3bf201c6b05c112099f4af360dabe9eb01e7d88af0a9c13014447cca5c16b"
+        },
+        {
+          "first_line": 393,
+          "last_line": 414,
+          "file": "9.0.4-tclEnsemble.c-393-414.txt",
+          "sha256": "407eaac559c0631d7b6d876bdd4157ca5738b29c39f3fc587a868ce8779962c4"
+        },
+        {
+          "first_line": 830,
+          "last_line": 851,
+          "file": "9.0.4-tclEnsemble.c-830-851.txt",
+          "sha256": "77b7eadf79313a5ef6541629e154ca91fca74d44c0c1e86f578f8c768487302d"
+        }
+      ]
+    },
+    {
+      "version": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEnsemble.c",
+      "source_sha256": "3ad1e9efbb692a831d5d4b7545e3030868621532bb62ba94c551c0ce42983664",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h",
+      "header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "excerpts": [
+        {
+          "first_line": 151,
+          "last_line": 176,
+          "file": "9.1.0-tclEnsemble.c-151-176.txt",
+          "sha256": "30651deb094025e9e4023ec11913a9246800fbf01ce34d8e219de0dd60214e6f"
+        },
+        {
+          "first_line": 255,
+          "last_line": 301,
+          "file": "9.1.0-tclEnsemble.c-255-301.txt",
+          "sha256": "4006526cfcae6512269c2d8bc98bafe203e0eb07ed0fd05f6e27f6523811d388"
+        },
+        {
+          "first_line": 393,
+          "last_line": 414,
+          "file": "9.1.0-tclEnsemble.c-393-414.txt",
+          "sha256": "407eaac559c0631d7b6d876bdd4157ca5738b29c39f3fc587a868ce8779962c4"
+        },
+        {
+          "first_line": 830,
+          "last_line": 851,
+          "file": "9.1.0-tclEnsemble.c-830-851.txt",
+          "sha256": "77b7eadf79313a5ef6541629e154ca91fca74d44c0c1e86f578f8c768487302d"
+        }
+      ]
+    }
+  ]
+}

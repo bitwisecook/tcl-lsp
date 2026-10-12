@@ -1,0 +1,12 @@
+    TclNewLiteralStringObj(fPtr->slotResolveName, "Resolve");
+    TclNewLiteralStringObj(fPtr->slotDefOpName, "--default-operation");
+    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);
+    Tcl_IncrRefCount(fPtr->constructorName);
+    Tcl_IncrRefCount(fPtr->destructorName);
+    Tcl_IncrRefCount(fPtr->clonedName);
+    Tcl_IncrRefCount(fPtr->defineName);
+    Tcl_IncrRefCount(fPtr->myName);
+    Tcl_IncrRefCount(fPtr->slotGetName);
+    Tcl_IncrRefCount(fPtr->slotSetName);
+    Tcl_IncrRefCount(fPtr->slotResolveName);
+    Tcl_IncrRefCount(fPtr->slotDefOpName);

@@ -1,0 +1,212 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-callback-transport242.source-trees.tar.gz",
+  "archive_sha256": "5bf996e1e74115dd782c6c180baed7428108fe286cc5ff2bf929e3d15d7aed74",
+  "archive_bytes": 175494,
+  "uncompressed_bytes": 813672,
+  "source_manifest_sha256": "6555906fe0852acbe16e29debf74d58fe3e9cc2036abeff44323d77921047e62",
+  "source_patch_sha256": "ae42211610722d652305a35f31b8c91c30f1bfb5afebc11aaf42c80437d7f2e6",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 18,
+  "members": {
+    "consumer-callback-transport242/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.055559,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0610707,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0610707,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0610707,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0610707,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust/tcl-compiler/src/analyser/oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0612235,
+      "size": 325992,
+      "sha256": "ca6da378a752fd37eef462cb78635d85f3afa09ccf40bcf88096bd7d78fb641b"
+    },
+    "consumer-callback-transport242/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.055559,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.055559,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/base/rust/tcl-lsp-core/src/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0608122,
+      "size": 79698,
+      "sha256": "fddff5d44d71c6086151ec5abbea330e12727ae905b51410d27bc961fd51c3ca"
+    },
+    "consumer-callback-transport242/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0608122,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0612235,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0612235,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0612235,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0612235,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-compiler/src/analyser/oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.1715581,
+      "size": 325973,
+      "sha256": "b11e45184edabe1d2395ef7407491aed7bdc7ce1c19885fe7d914b7456dd65fe"
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0608122,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.0608122,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-transport242/candidate/rust/tcl-lsp-core/src/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791602212.1035585,
+      "size": 82009,
+      "sha256": "6069e8536f5be3aa8fca59adf604e50d5ef09454464d511b6d4cd606925fd939"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/oo.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "b11e45184edabe1d2395ef7407491aed7bdc7ce1c19885fe7d914b7456dd65fe",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/oo.rs",
+      "hash_key": "base_sha256",
+      "sha256": "ca6da378a752fd37eef462cb78635d85f3afa09ccf40bcf88096bd7d78fb641b",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "6069e8536f5be3aa8fca59adf604e50d5ef09454464d511b6d4cd606925fd939",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+      "hash_key": "base_sha256",
+      "sha256": "fddff5d44d71c6086151ec5abbea330e12727ae905b51410d27bc961fd51c3ca",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

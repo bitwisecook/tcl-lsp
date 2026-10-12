@@ -1,0 +1,142 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/diagnostic-finish-jim-inline-lifetime269.source-trees.tar.gz",
+  "archive_sha256": "81e96b5ef4843d25e1033e663eb52ffa387bb568647da809024a63af7762cc12",
+  "archive_bytes": 146879,
+  "uncompressed_bytes": 630528,
+  "source_manifest_sha256": "a5c853c03811fefc174e9fa3656249ab8ad0cae3140b9d5adb9df392410294b0",
+  "source_patch_sha256": "f9e7ec07b2464167187e5a42ad04a99272f413956080bff5a9b1b68b4cb8a6ac",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 12,
+  "members": {
+    "diagnostic-finish-jim-inline-lifetime269/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0436969,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0436969,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0436969,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0436969,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0436969,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/base/rust/tcl-compiler/src/analyser/oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0483875,
+      "size": 315260,
+      "sha256": "c8b63eeb9529e1d712423f637ff96be2b7e5f9ca20aa908afd810bc6aa174911"
+    },
+    "diagnostic-finish-jim-inline-lifetime269/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0483875,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0483875,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0483875,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0483875,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0483875,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-jim-inline-lifetime269/candidate/rust/tcl-compiler/src/analyser/oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791596042.0535715,
+      "size": 315268,
+      "sha256": "f22fd8bff956b879929bdcb382c13370f5116128c9631fda7ca53b1cf933b79b"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/oo.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "f22fd8bff956b879929bdcb382c13370f5116128c9631fda7ca53b1cf933b79b",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/oo.rs",
+      "hash_key": "base_sha256",
+      "sha256": "c8b63eeb9529e1d712423f637ff96be2b7e5f9ca20aa908afd810bc6aa174911",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

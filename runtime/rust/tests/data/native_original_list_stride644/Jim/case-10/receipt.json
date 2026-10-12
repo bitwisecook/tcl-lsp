@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-list-stride644/Jim/probe.elf",
+    "10"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-stride644/Jim/case-10",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.0039578540017828345,
+  "stdout": "/workspace/.proofs/root-native-list-stride644/Jim/case-10/execute.stdout",
+  "stdout_sha256": "48f0d4edf63dfa4a59ceab6d4956d76a63f6ca9fbc73e3ee6c6c10aa87eec1da",
+  "stderr": "/workspace/.proofs/root-native-list-stride644/Jim/case-10/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 10,
+  "executable_sha256_before": "b51675368c6e48265732e24199ea9d07281356077de9f93ac0fd99c354ed91a4",
+  "executable_sha256_after": "b51675368c6e48265732e24199ea9d07281356077de9f93ac0fd99c354ed91a4"
+}

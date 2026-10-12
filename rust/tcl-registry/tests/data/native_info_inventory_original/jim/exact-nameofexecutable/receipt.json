@@ -1,0 +1,17 @@
+{
+  "id": "exact-nameofexecutable",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+    "29"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "aebd5b1aeeefddb26a71339e23a8fab4126742e602f05d261c6028a7b158a475",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|15|302e38342d392d6735626163376339",
+    "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206e616d656f6665786563757461626c6522"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

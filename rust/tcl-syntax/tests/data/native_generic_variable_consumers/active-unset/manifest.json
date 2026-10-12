@@ -1,0 +1,320 @@
+{
+  "purpose": "Native C original active read trace destruction, unset callback delivery, pending registration retirement and recursive ordinary read/write suppression controls. No Rust equivalence claimed.",
+  "engines": [
+    {
+      "engine": "tcl8.4",
+      "launcher": "/tmp/2286-oracles/bin/tclsh8.4",
+      "launcher_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "real_binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh8.4"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      },
+      "cases": [
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "090ba9d88c9b221c32010cabe50c947513c96cded7a3ffb79c2ef4eade04ddac",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "element"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "819158870bc82219e286cde36795d44c72ab178f8342d109b2f498306dba2391",
+          "exit": 0,
+          "stdout_sha256": "f7237ef80d4cd3610c01da5d9bf25ffbdf1c4c42e7683a03f0415283ce4a83f3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "pending-read-chain"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "5b44ab6012c0b6f30c258a1a055f32871a21a6699868aa21ffad5b0500a2b831",
+          "exit": 0,
+          "stdout_sha256": "c25063fef0fca5a54dc7f49983feeffc9942f49344856e21911cd73fee3837d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "recursive-read-write"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "scalar"
+        }
+      ]
+    },
+    {
+      "engine": "tcl8.5",
+      "launcher": "/tmp/2286-oracles/bin/tclsh8.5",
+      "launcher_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "real_binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh8.5"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      },
+      "cases": [
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "090ba9d88c9b221c32010cabe50c947513c96cded7a3ffb79c2ef4eade04ddac",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "element"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "819158870bc82219e286cde36795d44c72ab178f8342d109b2f498306dba2391",
+          "exit": 0,
+          "stdout_sha256": "f7237ef80d4cd3610c01da5d9bf25ffbdf1c4c42e7683a03f0415283ce4a83f3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "pending-read-chain"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "5b44ab6012c0b6f30c258a1a055f32871a21a6699868aa21ffad5b0500a2b831",
+          "exit": 0,
+          "stdout_sha256": "c25063fef0fca5a54dc7f49983feeffc9942f49344856e21911cd73fee3837d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "recursive-read-write"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "scalar"
+        }
+      ]
+    },
+    {
+      "engine": "tcl8.6",
+      "launcher": "/tmp/2286-oracles/bin/tclsh8.6",
+      "launcher_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "real_binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh8.6"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      },
+      "cases": [
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "090ba9d88c9b221c32010cabe50c947513c96cded7a3ffb79c2ef4eade04ddac",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "element"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "819158870bc82219e286cde36795d44c72ab178f8342d109b2f498306dba2391",
+          "exit": 0,
+          "stdout_sha256": "f7237ef80d4cd3610c01da5d9bf25ffbdf1c4c42e7683a03f0415283ce4a83f3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "pending-read-chain"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "5b44ab6012c0b6f30c258a1a055f32871a21a6699868aa21ffad5b0500a2b831",
+          "exit": 0,
+          "stdout_sha256": "c25063fef0fca5a54dc7f49983feeffc9942f49344856e21911cd73fee3837d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "recursive-read-write"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "scalar"
+        }
+      ]
+    },
+    {
+      "engine": "tcl9.0",
+      "launcher": "/tmp/2286-oracles/bin/tclsh9.0",
+      "launcher_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "real_binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh9.0"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      },
+      "cases": [
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "090ba9d88c9b221c32010cabe50c947513c96cded7a3ffb79c2ef4eade04ddac",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "element"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "819158870bc82219e286cde36795d44c72ab178f8342d109b2f498306dba2391",
+          "exit": 0,
+          "stdout_sha256": "f7237ef80d4cd3610c01da5d9bf25ffbdf1c4c42e7683a03f0415283ce4a83f3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "pending-read-chain"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "5b44ab6012c0b6f30c258a1a055f32871a21a6699868aa21ffad5b0500a2b831",
+          "exit": 0,
+          "stdout_sha256": "c25063fef0fca5a54dc7f49983feeffc9942f49344856e21911cd73fee3837d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "recursive-read-write"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "scalar"
+        }
+      ]
+    },
+    {
+      "engine": "tcl9.1",
+      "launcher": "/tmp/2286-oracles/bin/tclsh9.1",
+      "launcher_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "real_binary_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh9.1"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      },
+      "cases": [
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "090ba9d88c9b221c32010cabe50c947513c96cded7a3ffb79c2ef4eade04ddac",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "element"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "819158870bc82219e286cde36795d44c72ab178f8342d109b2f498306dba2391",
+          "exit": 0,
+          "stdout_sha256": "f7237ef80d4cd3610c01da5d9bf25ffbdf1c4c42e7683a03f0415283ce4a83f3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "pending-read-chain"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "5b44ab6012c0b6f30c258a1a055f32871a21a6699868aa21ffad5b0500a2b831",
+          "exit": 0,
+          "stdout_sha256": "c25063fef0fca5a54dc7f49983feeffc9942f49344856e21911cd73fee3837d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "recursive-read-write"
+        },
+        {
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5",
+          "exit": 0,
+          "stdout_sha256": "1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60,
+          "case": "scalar"
+        }
+      ]
+    }
+  ]
+}

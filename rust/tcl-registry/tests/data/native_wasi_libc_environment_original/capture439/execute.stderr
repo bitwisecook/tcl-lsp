@@ -1,0 +1,5 @@
+Error: failed to create cache directory: /home/agent/.cache/wasmtime
+
+Caused by:
+    Read-only file system (os error 30)
+

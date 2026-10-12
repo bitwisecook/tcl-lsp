@@ -1,0 +1,16 @@
+{
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c": {
+    "canonical_path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclOODefineCmds.c.gz",
+    "compressed_sha256": "ba3c1ac83506d4f059ee8617ab4310049ca33152ad80f3a19e1f81bd863a44e3",
+    "original_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "original_bytes": 111662,
+    "compression": "gzip"
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c": {
+    "canonical_path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclObj.c.gz",
+    "compressed_sha256": "6819a79ab8be653325f72f5fec504ed36b2de8f4b6228788ca759effc7578078",
+    "original_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+    "original_bytes": 132032,
+    "compression": "gzip"
+  }
+}

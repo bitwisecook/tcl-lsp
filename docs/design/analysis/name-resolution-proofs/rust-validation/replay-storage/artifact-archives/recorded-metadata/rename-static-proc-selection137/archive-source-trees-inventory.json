@@ -1,0 +1,142 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/rename-static-proc-selection137.source-trees.tar.gz",
+  "archive_sha256": "0e51406c88ff071638eb2b82620a79fff3a1db240651ccbae3b8fbb41e7e352f",
+  "archive_bytes": 371439,
+  "uncompressed_bytes": 1580398,
+  "source_manifest_sha256": "ed7dea66614241f856b8bd01ad2cc02b6e908a72cb0f9e0da7f0cf71b30eb059",
+  "source_patch_sha256": "ca07e4b1f5a86616dbff018794f44cfdffa0e52bdd6bc5900c60aacc8fe9c518",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 12,
+  "members": {
+    "rename-static-proc-selection137/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.7994666,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.7994666,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.7994666,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.7994666,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.7994666,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/base/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791543637.6098137,
+      "size": 786741,
+      "sha256": "422ba0618f9ecdfa6f84a54df326bce571904e55a148ab749b16e5957129d1f4"
+    },
+    "rename-static-proc-selection137/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.8022883,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.8022883,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.8022883,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.8022883,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559184.8022883,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-static-proc-selection137/candidate/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560095.6003687,
+      "size": 793657,
+      "sha256": "f1886286488e209cb30f3ffb7a125d25755fcb88fe0e74a81ab417fff6683dfb"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "f1886286488e209cb30f3ffb7a125d25755fcb88fe0e74a81ab417fff6683dfb",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "hash_key": "base_sha256",
+      "sha256": "422ba0618f9ecdfa6f84a54df326bce571904e55a148ab749b16e5957129d1f4",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

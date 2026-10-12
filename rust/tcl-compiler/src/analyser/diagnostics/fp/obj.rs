@@ -25,13 +25,15 @@ use super::{D, codes, fires};
 
 #[test]
 fn w250_fires_on_abstract_new_and_create() {
-    for shape in ["Base new", "Base create obj", "set o [Base new]"] {
-        let src = format!("oo::abstract create Base {{}}\n{shape}\n");
-        assert!(
-            fires(&src, D, "W250"),
-            "abstract instantiation `{shape}` did not fire W250: {:?}",
-            codes(&src, D)
-        );
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        for shape in ["Base new", "Base create obj", "set o [Base new]"] {
+            let src = format!("oo::abstract create Base {{}}\n{shape}\n");
+            assert!(
+                fires(&src, dialect, "W250"),
+                "{dialect}: abstract instantiation `{shape}` did not fire W250: {:?}",
+                codes(&src, dialect)
+            );
+        }
     }
 }
 
@@ -41,10 +43,131 @@ fn w250_not_on_definition_or_concrete_subclass() {
     // subclass `Sub` (metaclass oo::class) instantiated normally must not.
     let src = "oo::abstract create Base {}\noo::class create Sub {\n    superclass Base\n}\nSub new\nset s [Sub create obj]\n";
     assert!(
-        !fires(src, D, "W250"),
+        !fires(src, "tcl9.0", "W250"),
         "W250 false positive on definition / concrete subclass: {:?}",
-        codes(src, D)
+        codes(src, "tcl9.0")
     );
+}
+
+#[test]
+fn abstract_class_semantics_are_unavailable_before_tcl90() {
+    let src = "oo::abstract create Base {}\nBase new";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+        let diagnostics = codes(src, dialect);
+        assert!(
+            diagnostics.iter().any(|code| code == "W002"),
+            "{dialect}: {diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().all(|code| code != "W250"),
+            "{dialect}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn w250_follows_a_live_class_alias_prefix() {
+    let src = "oo::abstract create Base {}\ninterp alias {} makeAbstract {} Base new\nmakeAbstract";
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        assert!(
+            fires(src, dialect, "W250"),
+            "{dialect}: {:?}",
+            codes(src, dialect)
+        );
+    }
+}
+
+#[test]
+fn w250_does_not_borrow_a_replaced_class_definition() {
+    let src =
+        "oo::abstract create Base {}\nrename Base Backup\nproc Base args {return ok}\nBase new";
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        assert!(
+            !fires(src, dialect, "W250"),
+            "{dialect}: {:?}",
+            codes(src, dialect)
+        );
+    }
+}
+
+#[test]
+fn w250_does_not_borrow_an_abstract_factory_after_method_mutation() {
+    for mutation in [
+        "oo::objdefine Base export new",
+        "oo::objdefine Base method new {} {return custom}",
+        "oo::objdefine Base method unknown args {return custom}",
+    ] {
+        let source = format!("oo::abstract create Base {{}}\n{mutation}\nBase new");
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert!(
+                !fires(&source, dialect, "W250"),
+                "{dialect}: {mutation}: {:?}",
+                codes(&source, dialect)
+            );
+        }
+    }
+}
+
+#[test]
+fn w250_follows_the_same_class_incarnation_after_rename() {
+    let source = "oo::abstract create Base {}\nrename Base Other\nOther new";
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        assert!(
+            fires(source, dialect, "W250"),
+            "{dialect}: {:?}",
+            codes(source, dialect)
+        );
+    }
+}
+
+#[test]
+fn constructor_reclassification_does_not_donate_the_original_method_set() {
+    let source = "oo::class create B {method valid {} {return ok}}\n\
+                  oo::class create C {constructor {} {oo::objdefine [self] class B}}\n\
+                  set object [C new]\n$object valid";
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            !fires(source, dialect, "W308"),
+            "{dialect}: {:?}",
+            codes(source, dialect)
+        );
+    }
+}
+
+#[test]
+fn object_method_validation_uses_the_inventory_at_each_dispatch() {
+    let before = "oo::class create C {}\nset object [C new]\ncatch {$object bogus}\noo::define C method bogus {} {return ok}\n";
+    let after = "oo::class create C {}\nset object [C new]\noo::define C method bogus {} {return ok}\n$object bogus\n";
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            fires(before, dialect, "W308"),
+            "{dialect}: a later method installation must not hide the earlier missing method: {:?}",
+            codes(before, dialect),
+        );
+        assert!(
+            !fires(after, dialect, "W308"),
+            "{dialect}: a later receiver must not borrow the old empty method inventory: {:?}",
+            codes(after, dialect),
+        );
+    }
+}
+
+#[test]
+fn instance_name_inventory_does_not_prove_fallback_or_visibility() {
+    for source in [
+        "oo::class create C {method unknown {name args} {return YES}}\nset object [C new]\n$object missing\n",
+        "oo::class create C {}\noo::define oo::object method unknown {name args} {return YES}\nset object [C new]\n$object missing\n",
+        "oo::class create C {method Hidden {} {return YES}}\nset object [C new]\n$object Hidden\n",
+        "oo::class create C {superclass External}\nset object [C new]\n$object missing\n",
+    ] {
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(
+                !fires(source, dialect, "W308"),
+                "{dialect}: neither an unknown handler, private visibility, nor unknown inheritance licenses absence: {:?}",
+                codes(source, dialect),
+            );
+        }
+    }
 }
 
 // FP-OBJ-01 — snit self-references ($self/$type/$selfns/$win) are method
@@ -145,7 +268,14 @@ proc f {} {
 fn fp_obj_04_namespaced_factory_no_w307() {
     // FP-OBJ-04: a var assigned from a namespaced cmd-sub is treated as an object handle.
     assert!(
-        !fires(FP_OBJ_04_REPRO, D, "W307"),
+        !crate::provider_fixtures::analyse(
+            &format!("package require struct::tree\n{FP_OBJ_04_REPRO}"),
+            D,
+            &[crate::provider_fixtures::Provider::Tree],
+        )
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code.as_str() == "W307"),
         "FP-OBJ-04: namespaced factory dispatch must NOT fire W307; emitted: {:?}",
         codes(FP_OBJ_04_REPRO, D)
     );
@@ -156,7 +286,14 @@ fn fp_obj_04_short_namespace_form_no_w307() {
     // FP-OBJ-04: same applies to single-segment namespaced factories ([struct::matrix]).
     let src = "proc f {} {\n    set m [struct::matrix]\n    $m add row\n}";
     assert!(
-        !fires(src, D, "W307"),
+        !crate::provider_fixtures::analyse(
+            &format!("package require struct::matrix\n{src}"),
+            D,
+            &[crate::provider_fixtures::Provider::Matrix],
+        )
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code.as_str() == "W307"),
         "FP-OBJ-04: short-namespace factory dispatch must NOT fire W307; emitted: {:?}",
         codes(src, D)
     );
@@ -237,35 +374,56 @@ proc use {} {
 }
 ";
 
+fn loaded_snit_codes(source: &str) -> Vec<String> {
+    crate::provider_fixtures::analyse(
+        &format!("package require snit\n{source}"),
+        D,
+        &[crate::provider_fixtures::Provider::Snit],
+    )
+    .diagnostics
+    .into_iter()
+    .map(|diagnostic| diagnostic.code.to_string())
+    .collect()
+}
+
 #[test]
 fn fp_obj_05_snit_create_auto_no_w307() {
-    // FP-OBJ-05: locally-defined snit-type's create-form returns OBJECT-typed value.
+    let diagnostics = loaded_snit_codes(FP_OBJ_05_REPRO);
     assert!(
-        !fires(FP_OBJ_05_REPRO, D, "W307"),
-        "FP-OBJ-05: snit create %AUTO% dispatch must NOT fire W307; emitted: {:?}",
-        codes(FP_OBJ_05_REPRO, D)
+        !diagnostics.iter().any(|code| code == "W307"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        fires(FP_OBJ_05_REPRO, D, "W307"),
+        "unloaded recipe cannot prove a name result"
     );
 }
 
 #[test]
 fn fp_obj_05_snit_create_named_no_w307() {
-    // FP-OBJ-05: same for the named-create form.
-    let src = "snit::type ::Counter { method bump {} { return 1 } }\nproc use {} {\n    set b [Counter create mine]\n    $b bump\n}\n";
+    let source = "snit::type ::Counter { method bump {} { return 1 } }\nproc use {} {\n    set b [Counter create mine]\n    $b bump\n}\n";
+    let diagnostics = loaded_snit_codes(source);
     assert!(
-        !fires(src, D, "W307"),
-        "FP-OBJ-05: snit create named dispatch must NOT fire W307; emitted: {:?}",
-        codes(src, D)
+        !diagnostics.iter().any(|code| code == "W307"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        fires(source, D, "W307"),
+        "unloaded recipe cannot prove a name result"
     );
 }
 
 #[test]
 fn fp_obj_05_snit_create_shorthand_no_w307() {
-    // FP-OBJ-05: the create-shorthand `Foo %AUTO%` form.
-    let src = "snit::type ::Counter { method bump {} { return 1 } }\nproc use {} {\n    set c [Counter %AUTO%]\n    $c bump\n}\n";
+    let source = "snit::type ::Counter { method bump {} { return 1 } }\nproc use {} {\n    set c [Counter %AUTO%]\n    $c bump\n}\n";
+    let diagnostics = loaded_snit_codes(source);
     assert!(
-        !fires(src, D, "W307"),
-        "FP-OBJ-05: snit shorthand create dispatch must NOT fire W307; emitted: {:?}",
-        codes(src, D)
+        !diagnostics.iter().any(|code| code == "W307"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        fires(source, D, "W307"),
+        "unloaded recipe cannot prove a name result"
     );
 }
 
@@ -487,10 +645,22 @@ $t op }
 fn fp_obj_11_factory_dispatch_no_w307() {
     // FP-OBJ-11: `createGraph` directly returns `[struct::tree]` (a namespaced object factory).
     // Interproc fixpoint inference marks createGraph as object-returning, so callers are suppressed.
+    let loaded = crate::provider_fixtures::analyse(
+        &format!("package require struct::tree\n{FP_OBJ_11_REPRO}"),
+        D,
+        &[crate::provider_fixtures::Provider::Tree],
+    );
     assert!(
-        !fires(FP_OBJ_11_REPRO, D, "W307"),
+        !loaded
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == "W307"),
         "FP-OBJ-11: interprocedural factory dispatch must NOT fire W307; emitted: {:?}",
-        codes(FP_OBJ_11_REPRO, D)
+        loaded.diagnostics
+    );
+    assert!(
+        fires(FP_OBJ_11_REPRO, D, "W307"),
+        "unloaded factories remain unknown"
     );
 }
 
@@ -505,10 +675,18 @@ return $t }
 proc f {} { set g [createGraph]
 $g op }
 ";
+    let loaded = crate::provider_fixtures::analyse(
+        &format!("package require struct::tree\n{src}"),
+        D,
+        &[crate::provider_fixtures::Provider::Tree],
+    );
     assert!(
-        !fires(src, D, "W307"),
+        !loaded
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == "W307"),
         "FP-OBJ-11: transitive factory dispatch must NOT fire W307; emitted: {:?}",
-        codes(src, D)
+        loaded.diagnostics
     );
 }
 
@@ -603,13 +781,18 @@ fn fp_obj_14_namespaced_known_object_factory_silent() {
 
 #[test]
 fn fp_obj_14_unregistered_external_namespaced_still_silent() {
-    // Deferred-coverage TN: an unregistered external `::pkg::plain` with NO proc visible
-    // AND no registry spec still suppresses W307.
-    let src = "proc f {} {\n    set x [::pkg::plain]\n    $x op\n}\n";
+    let original = "proc f {} {\n    set x [::pkg::plain]\n    $x op\n}\n";
+    let src = format!(
+        "namespace eval ::pkg {{oo::class create Object {{method op args {{}}}}; proc plain {{}} {{return [::pkg::Object new]}}}}\n{original}"
+    );
     assert!(
-        !fires(src, D, "W307"),
-        "FP-OBJ-14: unregistered external ::pkg::plain still suppresses W307 (deferred until D1-11); emitted: {:?}",
-        codes(src, D)
+        !fires(&src, D, "W307"),
+        "FP-OBJ-14: the original declared object result must suppress W307; emitted: {:?}",
+        codes(&src, D)
+    );
+    assert!(
+        fires(original, D, "W307"),
+        "a namespace spelling supplies no result or allocation authority"
     );
 }
 
@@ -763,6 +946,25 @@ fn fp_w307_oo_class_method_local_literal_fires() {
 }
 
 #[test]
+fn method_command_value_advice_retains_original_local_read_and_scope() {
+    let local = "oo::class create C {method m {} {::set cmd nope; $cmd arg}}";
+    assert!(fires(local, D, "W307"), "{:?}", codes(local, D));
+    for source in [
+        "oo::class create C {method m {cmd} {$cmd arg}}",
+        "oo::class create C {variable cmd; method m {} {$cmd arg}}",
+        "oo::class create C {method m {} {::global cmd; $cmd arg}}",
+        "oo::class create C {method m {cmd} {::set other nope; $cmd arg}}",
+        "::set cmd nope; oo::class create C {method m {cmd} {$cmd arg}}",
+    ] {
+        assert!(
+            !fires(source, D, "W307"),
+            "{source}: {:?}",
+            codes(source, D)
+        );
+    }
+}
+
+#[test]
 fn fp_w307_oo_class_instance_var_dispatch_silent() {
     // FP: a dispatch on an oo::class instance variable inside a method body is suppressed.
     let src = "oo::class create C {\n    variable handle\n    method m {} { $handle op }\n}";
@@ -801,10 +1003,22 @@ fn fp_w307_itcl_created_instance_dispatch_silent() {
     // FP: an itcl object captured from a factory call (`ClassName #auto`) and
     // dispatched by `$var method` is a known-created instance — no W307.
     let src = "itcl::class Counter { method bump {} { return 1 } }\nproc use {} {\n    set c [Counter #auto]\n    $c bump\n}\n";
+    let loaded = crate::provider_fixtures::analyse(
+        &format!("package require Itcl\n{src}"),
+        D,
+        &[crate::provider_fixtures::Provider::Itcl],
+    );
     assert!(
-        !fires(src, D, "W307"),
+        !loaded
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == "W307"),
         "dispatch on a created itcl instance must NOT fire W307; emitted: {:?}",
-        codes(src, D)
+        loaded.diagnostics
+    );
+    assert!(
+        fires(src, D, "W307"),
+        "unloaded Itcl has no constructor authority"
     );
 }
 
@@ -934,6 +1148,8 @@ fn fp_var_as_cmd_mixed_callers_conservative_silent() {
     );
 }
 
+const OO19_CLASS_DECLARATIONS: &str = "oo::class create C {constructor args {}; method configure args {}; method actOnParam args {}}\noo::class create L {constructor args {}; method configure args {}; method actOnParam args {}}\n";
+
 // FP-OBJ-19 — `CLASS create NAME` binds a command NAME; later `NAME method`
 // dispatch (and `$var method` where var provably holds NAME) is a real call,
 // not an unknown command / stray dispatch.
@@ -978,11 +1194,11 @@ fn fp_obj_19_known_class_create_name_no_w123() {
 fn fp_obj_19_created_name_via_var_no_w307() {
     // FP: a created command name flowing through a variable — the dispatch is on
     // a value SCCP proves is a known (created) command, so W307 must not fire.
-    let src = "C create c1 1 out 0\nset e c1\n$e configure\n";
+    let src = format!("{OO19_CLASS_DECLARATIONS}C create c1 1 out 0\nset e c1\n$e configure\n");
     assert!(
-        !fires(src, D, "W307"),
+        !fires(&src, D, "W307"),
         "dispatch on a var holding a created command name must NOT fire W307; emitted: {:?}",
-        codes(src, D),
+        codes(&src, D),
     );
 }
 
@@ -992,7 +1208,7 @@ fn fp_obj_19_created_names_via_list_foreach_no_w307() {
     // iterated with `foreach elem [list c1 l1 …]` and dispatched via `$elem`.
     // SCCP folds the `[list …]` to the element set, each of which is a created
     // command, so W307 must not fire.
-    let src = "\
+    let original = "\
 C create c1 1 out 0 -c 1e-9
 L create l1 1 out 0 -l 10e-6
 C create c2 2 n002 0 -c 1e-9
@@ -1000,10 +1216,11 @@ foreach elem [list c1 l1 c2] {
     $elem actOnParam -set 1
 }
 ";
+    let src = format!("{OO19_CLASS_DECLARATIONS}{original}");
     assert!(
-        !fires(src, D, "W307"),
+        !fires(&src, D, "W307"),
         "dispatch over `[list c1 l1 …]` of created names must NOT fire W307; emitted: {:?}",
-        codes(src, D),
+        codes(&src, D),
     );
 }
 
@@ -1028,13 +1245,40 @@ foreach elem [list c1 nope] {
 fn fp_obj_19_uncreated_name_still_w123() {
     // TP control: registering `c1` must not silence a *different* undefined
     // command `d1` — it is still an unknown command.
-    let src = "C create c1 1 out 0\nd1 configure\n";
+    let src = format!("{OO19_CLASS_DECLARATIONS}C create c1 1 out 0\nd1 configure\n");
     let mut a = crate::analyser::Analyser::new();
-    let r = a.analyse(src, D);
+    let r = a.analyse(&src, D);
     assert!(
         r.unresolved_command_sites.iter().any(|(_, n)| n == "d1"),
         "an uncreated name must still be unresolved: {:?}",
         r.unresolved_command_sites,
+    );
+}
+
+#[test]
+fn undeclared_external_constructor_words_do_not_publish_command_slots() {
+    for source in [
+        "C create c1 1 out 0\nset e c1\n$e configure\n",
+        "C create c1 1 out 0 -c 1e-9\nL create l1 1 out 0 -l 10e-6\nC create c2 2 n002 0 -c 1e-9\nforeach elem [list c1 l1 c2] {$elem actOnParam -set 1}\n",
+        "C create c1 1 out 0\nd1 configure\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(source, D);
+        let unresolved = result
+            .unresolved_command_sites
+            .iter()
+            .map(|(_, name)| name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(unresolved, ["C"], "{source}: {unresolved:?}");
+    }
+    let source = "L create l1 1 out 0\nl1 configure\n";
+    let result = crate::analyser::Analyser::new().analyse(source, D);
+    assert_eq!(
+        result
+            .unresolved_command_sites
+            .iter()
+            .map(|(_, name)| name.as_str())
+            .collect::<Vec<_>>(),
+        ["L"]
     );
 }
 
@@ -1115,6 +1359,23 @@ fn fp_obj_20_local_mixin_unknown_method_still_w308() {
 }
 
 #[test]
+fn mixin_method_inventory_withdraws_after_original_base_mutation() {
+    for mutation in [
+        "rename ::Observable ::Retired; oo::class create ::Observable {}",
+        "oo::define ::Observable method unknown {args} {return dynamicallyHandled}",
+    ] {
+        let source = format!(
+            "oo::class create ::Observable {{method subscribe {{h}} {{}}}}\noo::class create Reactive {{mixin ::Observable}}\n{mutation}\nset o [Reactive new]\n$o nosuch"
+        );
+        assert!(
+            !fires(&source, D, "W308"),
+            "{source}: {:?}",
+            codes(&source, D)
+        );
+    }
+}
+
+#[test]
 fn fp_obj_20_local_mixin_provides_method_silent() {
     // An in-file mixin providing the method resolves through the
     // MRO — silent, with no reliance on the external-mixin abstention.
@@ -1124,4 +1385,57 @@ fn fp_obj_20_local_mixin_provides_method_silent() {
         "FP-OBJ-20: in-file mixin providing the method must NOT fire W308; emitted: {:?}",
         codes(src, D)
     );
+}
+
+#[test]
+fn dynamic_command_lookup_does_not_borrow_an_unrelated_namespace_tail() {
+    let source = "namespace eval ::other {proc native_same_tail_2286 {} {return yes}}\nset dispatch native_same_tail_2286\n$dispatch";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            fires(source, dialect, "W307"),
+            "{dialect}: {:?}",
+            codes(source, dialect)
+        );
+    }
+}
+
+#[test]
+fn dynamic_command_lookup_retains_a_selected_namespace() {
+    let source = "namespace eval ::selected {proc native_same_tail_2286 {} {return yes}; proc invoke {} {set dispatch native_same_tail_2286; $dispatch}}\n::selected::invoke";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            !fires(source, dialect, "W307"),
+            "{dialect}: {:?}",
+            codes(source, dialect)
+        );
+    }
+}
+
+#[test]
+fn dynamic_command_lookup_retains_dialect_availability() {
+    let source = "set dispatch dict\n$dispatch create";
+    assert!(
+        fires(source, "tcl8.4", "W307"),
+        "{:?}",
+        codes(source, "tcl8.4")
+    );
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            !fires(source, dialect, "W307"),
+            "{dialect}: {:?}",
+            codes(source, dialect)
+        );
+    }
+}
+
+#[test]
+fn interpolated_command_lookup_does_not_borrow_another_functions_value() {
+    let source = "proc unrelated {} {set suffix _present}\nproc native_target_present {} {}\nset suffix _missing\nnative_target$suffix";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            fires(source, dialect, "W123"),
+            "{dialect}: {:?}",
+            codes(source, dialect)
+        );
+    }
 }

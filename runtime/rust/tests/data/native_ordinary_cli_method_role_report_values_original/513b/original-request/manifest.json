@@ -1,0 +1,21 @@
+{
+  "request": "ReceiverNativeMethodRoleReport513b",
+  "status": "READY unlaunched Jim-only original channel retry",
+  "capture_owner": "Root only",
+  "required_launch": [
+    "python3",
+    "/tmp/receiver-native-method-role-report513b/capture.py"
+  ],
+  "output_directory": "/workspace/.proofs/native-method-role-report513b",
+  "files": {
+    "launch-plan.json": "b100e89a90caee15b3b8314eda665b930a90476fb7a2f91bdaf2b9e3b40ea4c2",
+    "request.json": "9c4af45b7295009f373eded7c0009d493f92e4ab71933cf0b279e9003cf05280",
+    "capture.py": "fc9466657b508bf29dc56870dbc2b541881006668c532a851066002578ae5b5e",
+    "source-windows.json": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e",
+    "values.tcl": "551780f59e60d5452b6ed108ec95ee4a66809cffe0eaf90fe5822804f102a899",
+    "availability.tcl": "77af6fc579c311aeea98c82cc33cd212ca03635658d7d77584af2247449c75a7",
+    "jim-version.tcl": "118605c132e6ba1883056716869773b7be82715b7a21616236a5962d1be254fe",
+    "c-version.tcl": "b0d529bfc48a01ac7c363eb0cdc2b2ac2d6c035264754ec6f61f79b5a354aaa4"
+  },
+  "source_check": "Same original scripts, one provider only, actual newly reached zstd dependency prepinned, generic provider count marker; Python syntax and all pins checked without launching."
+}

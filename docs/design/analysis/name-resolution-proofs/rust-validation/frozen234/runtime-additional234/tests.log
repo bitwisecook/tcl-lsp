@@ -1,0 +1,11 @@
+
+running 6 tests
+test cmd_array::tests::jim_dictionary_worker_requires_explicit_distribution_initialisation ... ok
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... ok
+test cmd_proc::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls ... ok
+test cmd_proc::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames ... ok
+test interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1302 filtered out; finished in 15.09s
+

@@ -1,0 +1,19 @@
+{
+  "id": "ARRAY_NESTED",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original110/9.1.0/probe",
+    "1"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "8b917f68ae73fe6105c77d1a1c7d0ddf6af210d44292b599275563fbfb722766",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|392e312e30",
+    "ARRAY_NESTED_INPUT|0|6172726179207365742061207b6b204f4c447d3b2061667465722030207b7365742061286b29204f4c443b2061667465722030207b7365742061286b29204e45577d7d3b2076776169742061286b293b207365742061286b29",
+    "ARRAY_NESTED|0|4f4c44",
+    "ARRAY_NESTED_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+  ],
+  "reported_version": "9.1.0"
+}

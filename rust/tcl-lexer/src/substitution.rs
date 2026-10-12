@@ -42,7 +42,9 @@ pub fn backslash_subst(text: &str) -> Cow<'_, str> {
 
 /// Process Tcl backslash escapes in `text` under `escapes`.
 ///
-/// Byte-exact with the release's `TclParseBackslash`. Recognises:
+/// Unicode presentation of the selected escape grammar. Byte-valued runtimes
+/// use [`backslash_subst_bytes_in`] to retain Jim byte escapes and numeric
+/// UTF8 units outside Rust Unicode. Recognises:
 ///
 /// - Simple mappings: `\a \b \f \n \r \t \v \\ \{ \} \[ \] \$ \" \<space> \;`
 /// - Line continuation: `\<LF>` followed by any run of space/tab, collapsed
@@ -90,85 +92,260 @@ pub fn backslash_subst_in(text: &str, escapes: EscapeSyntax) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// One backslash escape starting at `text[i] == '\'`: where it ends, and the
-/// single character it resolves to.
-///
-/// `TclParseBackslash` always yields exactly one code point, so the extent and
-/// the value come from one scan and cannot disagree — which matters because
-/// both are release-variant and a consumer that measured an escape under one
-/// release and decoded it under another would slice mid-escape. Both
-/// [`backslash_subst_in`] and [`backslash_escape_end_in`] are this function.
-fn decode_escape(text: &str, i: usize, escapes: EscapeSyntax) -> (usize, char) {
-    let b = text.as_bytes();
-    debug_assert_eq!(b.get(i), Some(&b'\\'), "caller must point at a backslash");
-    let Some(&next) = b.get(i + 1) else {
-        // A trailing lone backslash is itself.
-        return (i + 1, '\\');
-    };
-    match next {
-        // Absolute values, as C uses, so no compiler's idea of `\n` can differ.
-        b'a' => (i + 2, '\u{07}'),
-        b'b' => (i + 2, '\u{08}'),
-        b'f' => (i + 2, '\u{0C}'),
-        b'n' => (i + 2, '\u{0A}'),
-        b'r' => (i + 2, '\u{0D}'),
-        b't' => (i + 2, '\u{09}'),
-        b'v' => (i + 2, '\u{0B}'),
-        b'\n' => (
-            backslash_continuation_end(b, i).expect("caller matched a continuation"),
-            ' ',
-        ),
-        b'x' => {
-            let (end, value) = hex_run(b, i + 2, escapes.hex_escape_digits(), false);
-            // No hex digit at all means the escape is a literal `x`.
-            if end == i + 2 {
-                (i + 2, 'x')
-            } else {
-                // Only the low byte survives, in every release.
-                (end, scalar(value & 0xFF, escapes))
+/// Decoded lexical escape value. Native units and original byte ranges do
+/// not pass through Rust Unicode; presentation consumers select their own
+/// checked or replacement view after the shared grammar scan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackslashFragmentValue {
+    /// Numeric/native unit, including values outside Rust Unicode scalars.
+    Codepoint(u32),
+    /// Fixed mapping or an explicitly byte-valued escape.
+    Byte(u8),
+    /// Original bytes consumed by the selected input-unit resolver.
+    Literal(std::ops::Range<usize>),
+}
+
+/// Decode escapes while preserving the original bytes outside each escape.
+/// Jim's byte escapes and numeric UTF8 units do not enter a Rust String.
+#[must_use]
+pub fn backslash_subst_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
+    if !raw.contains(&b'\\') {
+        return Cow::Borrowed(raw);
+    }
+    let mut out = Vec::with_capacity(raw.len());
+    let mut pos = 0;
+    while pos < raw.len() {
+        if raw[pos] != b'\\' {
+            out.push(raw[pos]);
+            pos += 1;
+            continue;
+        }
+        let (end, value) = decode_escape_value(raw, pos, escapes);
+        match value {
+            BackslashFragmentValue::Byte(byte) => out.push(byte),
+            BackslashFragmentValue::Literal(range) => out.extend_from_slice(&raw[range]),
+            BackslashFragmentValue::Codepoint(value) if escapes == EscapeSyntax::Jim => {
+                encode_jim084_unicode(&mut out, value);
+            }
+            BackslashFragmentValue::Codepoint(value) => {
+                let mut encoded = [0; 4];
+                out.extend_from_slice(scalar(value, escapes).encode_utf8(&mut encoded).as_bytes());
             }
         }
-        // `JimTcl`'s `\u{…}`: any number of hex digits, delimited rather than
-        // width-limited. Measured identical on jimsh 0.76 and 0.84. A run that
-        // is empty (`\u{}`) or unclosed (`\u{41`, `\u{ 41}`) is not the
-        // braced form at all — the escape is a literal `u` and the brace is
-        // ordinary text, so only `u` is consumed.
-        b'u' if escapes.has_braced_unicode() && b.get(i + 2) == Some(&b'{') => {
-            let (end, value) = hex_run(b, i + 3, None, true);
-            if end > i + 3 && b.get(end) == Some(&b'}') {
-                (end + 1, scalar(value, escapes))
-            } else {
-                (i + 2, 'u')
+        pos = end;
+    }
+    Cow::Owned(out)
+}
+
+fn decode_escape(text: &str, i: usize, escapes: EscapeSyntax) -> (usize, char) {
+    let (end, value) = decode_escape_value(text.as_bytes(), i, escapes);
+    let character = match value {
+        BackslashFragmentValue::Codepoint(value) => scalar(value, escapes),
+        BackslashFragmentValue::Byte(value) => char::from(value),
+        BackslashFragmentValue::Literal(range) => text[range].chars().next().unwrap_or('\\'),
+    };
+    (end, character)
+}
+
+/// Value produced by decoding an unrecognised escape's original input unit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EscapedInputValue {
+    /// Preserve the consumed original bytes without re-encoding.
+    CopyOriginal,
+    /// A native character unit; it may be a surrogate or exceed Rust Unicode.
+    Codepoint(u32),
+    /// An explicitly selected byte.
+    Byte(u8),
+}
+
+/// Extent and value selected together by an original-input unit owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EscapedInputUnit {
+    /// Number of original suffix bytes consumed by this unit.
+    pub width: usize,
+    /// Value selected from exactly those original suffix bytes.
+    pub value: EscapedInputValue,
+}
+
+/// One escape's selected extent and value from the shared lexical grammar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackslashFragment {
+    /// End of this escape in the supplied original byte buffer.
+    pub end: usize,
+    /// Decoded value belonging to the same selected extent.
+    pub value: BackslashFragmentValue,
+}
+
+/// Decode a backslash fragment with an independently selected original-unit
+/// resolver. Numeric escapes, fixed mappings, continuation and raw NUL share
+/// this scanner; Unicode presentation and native strings supply their own unit
+/// owner for unrecognised escapes. The returned width and value belong together.
+#[must_use]
+pub fn backslash_fragment_in(
+    raw: &[u8],
+    i: usize,
+    escapes: EscapeSyntax,
+    original_unit: impl FnOnce(&[u8]) -> EscapedInputUnit,
+) -> Option<BackslashFragment> {
+    if raw.get(i) != Some(&b'\\') {
+        return None;
+    }
+    if let Some((end, value)) = known_escape_value(raw, i, escapes) {
+        return Some(BackslashFragment { end, value });
+    }
+    let suffix = &raw[i + 1..];
+    let unit = original_unit(suffix);
+    if unit.width > suffix.len() {
+        return None;
+    }
+    let end = i + 1 + unit.width;
+    let value = match unit.value {
+        EscapedInputValue::CopyOriginal => BackslashFragmentValue::Literal(i + 1..end),
+        EscapedInputValue::Codepoint(value) => BackslashFragmentValue::Codepoint(value),
+        EscapedInputValue::Byte(value) => BackslashFragmentValue::Byte(value),
+    };
+    Some(BackslashFragment { end, value })
+}
+
+fn decode_escape_value(
+    raw: &[u8],
+    i: usize,
+    escapes: EscapeSyntax,
+) -> (usize, BackslashFragmentValue) {
+    let fragment = backslash_fragment_in(raw, i, escapes, |suffix| {
+        let suffix = &suffix[..suffix.len().min(4)];
+        let valid = match std::str::from_utf8(suffix) {
+            Ok(text) => Some(text),
+            Err(error) => std::str::from_utf8(&suffix[..error.valid_up_to()]).ok(),
+        };
+        let width = valid
+            .and_then(|text| text.chars().next())
+            .map_or(1, char::len_utf8);
+        EscapedInputUnit {
+            width,
+            value: EscapedInputValue::CopyOriginal,
+        }
+    })
+    .expect("caller points to a backslash and unit width fits its input");
+    (fragment.end, fragment.value)
+}
+
+fn known_escape_value(
+    raw: &[u8],
+    i: usize,
+    escapes: EscapeSyntax,
+) -> Option<(usize, BackslashFragmentValue)> {
+    let Some(&next) = raw.get(i + 1) else {
+        return Some((i + 1, BackslashFragmentValue::Byte(b'\\')));
+    };
+    if next == 0 {
+        let width = if escapes == EscapeSyntax::Jim { 2 } else { 1 };
+        return Some((i + width, BackslashFragmentValue::Byte(b'\\')));
+    }
+    let simple = match next {
+        b'a' => Some(7),
+        b'b' => Some(8),
+        b'f' => Some(12),
+        b'n' => Some(10),
+        b'r' => Some(13),
+        b't' => Some(9),
+        b'v' => Some(11),
+        _ => None,
+    };
+    if let Some(value) = simple {
+        return Some((i + 2, BackslashFragmentValue::Byte(value)));
+    }
+    if next == b'\n' {
+        return Some((
+            backslash_continuation_end(raw, i).expect("matched continuation"),
+            BackslashFragmentValue::Byte(b' '),
+        ));
+    }
+    if let Some(numeric) = numeric_escape(raw, i, escapes) {
+        return Some(numeric);
+    }
+    None
+}
+
+fn numeric_escape(
+    raw: &[u8],
+    i: usize,
+    escapes: EscapeSyntax,
+) -> Option<(usize, BackslashFragmentValue)> {
+    let next = *raw.get(i + 1)?;
+    let jim = escapes == EscapeSyntax::Jim;
+    let (end, value, byte) = match next {
+        b'x' => {
+            let (end, value) = hex_run(raw, i + 2, escapes.hex_escape_digits(), false);
+            (end, value & 255, jim)
+        }
+        b'u' if escapes.has_braced_unicode() && raw.get(i + 2) == Some(&b'{') => {
+            let (end, value) = hex_run(raw, i + 3, Some(6), false);
+            if end == i + 3 || value > 0x1f_ffff || raw.get(end) != Some(&b'}') {
+                return None;
             }
+            (end + 1, value, false)
         }
         b'u' => {
-            let (end, value) = hex_run(b, i + 2, Some(4), true);
-            if end == i + 2 {
-                (i + 2, 'u')
-            } else {
-                (end, scalar(value, escapes))
-            }
+            let (end, value) = hex_run(raw, i + 2, Some(4), !jim);
+            (end, value, false)
         }
         b'U' if escapes.has_wide_unicode() => {
-            let (end, value) = hex_run(b, i + 2, Some(8), true);
-            if end == i + 2 {
-                (i + 2, 'U')
-            } else {
-                (end, scalar(value, escapes))
-            }
+            let (end, value) = hex_run(raw, i + 2, Some(8), !jim);
+            (end, value, false)
         }
         b'0'..=b'7' => {
-            let (end, value) = octal_run(b, i + 1, escapes);
-            (end, scalar(value, escapes))
+            let (end, value) = octal_run(raw, i + 1, escapes);
+            return Some((
+                end,
+                if jim {
+                    BackslashFragmentValue::Byte(escape_byte(value))
+                } else {
+                    BackslashFragmentValue::Codepoint(value)
+                },
+            ));
         }
-        // Anything else — the punctuation escapes, a pre-8.6 `\U`, an unknown
-        // letter — is the character itself. It may be multi-byte (`\é`, `\你`),
-        // so advance by its real UTF-8 width rather than a fixed two bytes.
-        _ => {
-            let ch = text[i + 1..].chars().next().unwrap_or('\u{FFFD}');
-            (i + 1 + ch.len_utf8(), ch)
-        }
+        _ => return None,
+    };
+    (end > i + 2).then_some((
+        end,
+        if byte {
+            BackslashFragmentValue::Byte(escape_byte(value))
+        } else {
+            BackslashFragmentValue::Codepoint(value)
+        },
+    ))
+}
+
+/// Append the numeric unit encoded by pinned Jim084's `utf8_fromunicode`.
+/// Surrogates are retained; the four-byte path truncates to 21 bits. Consumers
+/// must select the actual Jim protocol independently of this encoder.
+pub fn encode_jim084_unicode(out: &mut Vec<u8>, value: u32) {
+    if value <= 0x7f {
+        out.push(escape_byte(value));
+    } else if value <= 0x7ff {
+        out.extend_from_slice(&[
+            0xc0 | escape_byte(value >> 6),
+            0x80 | escape_byte(value & 63),
+        ]);
+    } else if value <= 0xffff {
+        out.extend_from_slice(&[
+            0xe0 | escape_byte(value >> 12),
+            0x80 | escape_byte((value >> 6) & 63),
+            0x80 | escape_byte(value & 63),
+        ]);
+    } else {
+        out.extend_from_slice(&[
+            0xf0 | escape_byte((value >> 18) & 7),
+            0x80 | escape_byte((value >> 12) & 63),
+            0x80 | escape_byte((value >> 6) & 63),
+            0x80 | escape_byte(value & 63),
+        ]);
     }
+}
+
+fn escape_byte(value: u32) -> u8 {
+    u8::try_from(value & 255).expect("masked escape byte fits u8")
 }
 
 /// The decoded scalar for `value`, degraded to U+FFFD when the release cannot
@@ -209,6 +386,51 @@ pub fn backslash_continuation_end(bytes: &[u8], i: usize) -> Option<usize> {
         j += 1;
     }
     Some(j)
+}
+
+/// End of a source-channel continuation in original byte coordinates.
+/// Document input translates CR and CRLF to one LF before Tcl parsing; native
+/// value input accepts only raw LF. Both consume the following spaces/tabs.
+#[must_use]
+pub fn source_backslash_continuation_end(
+    bytes: &[u8],
+    at: usize,
+    channel: crate::SourceChannel,
+) -> Option<usize> {
+    if channel != crate::SourceChannel::Document || bytes.get(at + 1) != Some(&b'\r') {
+        return backslash_continuation_end(bytes, at);
+    }
+    if bytes.get(at) != Some(&b'\\') {
+        return None;
+    }
+    let mut end = at + 2;
+    if bytes.get(end) == Some(&b'\n') {
+        end += 1;
+    }
+    while matches!(bytes.get(end), Some(b' ' | b'\t')) {
+        end += 1;
+    }
+    Some(end)
+}
+
+/// One escape under the retained source channel, using the same raw scanner
+/// for every non-continuation escape. The returned extent always addresses the
+/// original bytes, while the value records channel-selected continuation folding.
+#[must_use]
+pub fn source_backslash_fragment_in(
+    raw: &[u8],
+    at: usize,
+    channel: crate::SourceChannel,
+    escapes: EscapeSyntax,
+    original_unit: impl FnOnce(&[u8]) -> EscapedInputUnit,
+) -> Option<BackslashFragment> {
+    if let Some(end) = source_backslash_continuation_end(raw, at, channel) {
+        return Some(BackslashFragment {
+            end,
+            value: BackslashFragmentValue::Byte(b' '),
+        });
+    }
+    backslash_fragment_in(raw, at, escapes, original_unit)
 }
 
 /// Scan the hex digits of an escape from `start`: where they end, and their
@@ -524,6 +746,13 @@ pub fn backslash_escape_end(text: &str, i: usize) -> usize {
 #[must_use]
 pub fn backslash_escape_end_in(text: &str, i: usize, escapes: EscapeSyntax) -> usize {
     decode_escape(text, i, escapes).0
+}
+
+/// Return the end of a native backslash escape in original script bytes.
+/// This is the same decoder used by native byte substitution.
+#[must_use]
+pub fn backslash_escape_end_bytes_in(text: &[u8], i: usize, escapes: EscapeSyntax) -> usize {
+    decode_escape_value(text, i, escapes).0
 }
 
 #[cfg(test)]
@@ -906,7 +1135,7 @@ mod split_escape_tests {
     #[test]
     fn no_backslash_is_one_literal_run() {
         assert_eq!(pieces("plain"), vec![("plain", false)]);
-        assert!(split_backslash_escapes("").is_empty());
+        assert_eq!(split_backslash_escapes(""), [] as [EscapeSegment; 0]);
     }
 
     #[test]
@@ -992,6 +1221,104 @@ mod jim_braced_unicode_tests {
         assert_eq!(
             backslash_escape_end_in(r"\u{41}", 0, EscapeSyntax::Tcl90),
             2
+        );
+    }
+}
+
+#[cfg(test)]
+mod raw_escape_tests {
+    use super::backslash_subst_bytes_in;
+    use tcl_dialect::EscapeSyntax;
+
+    #[test]
+    fn jim_numeric_escapes_preserve_native_bytes_and_extents() {
+        let cases: &[(&[u8], &[u8])] = &[
+            (br"\xff", &[0xff]),
+            (br"\377", &[0xff]),
+            (br"\uD800", &[0xed, 0xa0, 0x80]),
+            (br"\U001FFFFF", &[0xf7, 0xbf, 0xbf, 0xbf]),
+            (br"\u{100000}", &[0xf4, 0x80, 0x80, 0x80]),
+            (br"\u{1000000}", b"u{1000000}"),
+            (br"\UFFFFFFFF", &[0xf7, 0xbf, 0xbf, 0xbf]),
+        ];
+        for &(source, expected) in cases {
+            assert_eq!(
+                backslash_subst_bytes_in(source, EscapeSyntax::Jim).as_ref(),
+                expected
+            );
+        }
+        for grammar in [
+            EscapeSyntax::Tcl84,
+            EscapeSyntax::Tcl86,
+            EscapeSyntax::Tcl90,
+        ] {
+            assert_eq!(
+                backslash_subst_bytes_in(br"\xff", grammar).as_ref(),
+                &[0xc3, 0xbf]
+            );
+        }
+    }
+
+    #[test]
+    fn literal_invalid_bytes_survive_escape_decoding() {
+        let literal = [0xff, 0xed, 0xa0, 0x80];
+        assert!(matches!(
+            backslash_subst_bytes_in(&literal, EscapeSyntax::Jim),
+            std::borrow::Cow::Borrowed(_)
+        ));
+        assert_eq!(
+            backslash_subst_bytes_in(&[0xff, b'\\', b'n', b'\\', 0xff], EscapeSyntax::Jim).as_ref(),
+            &[0xff, b'\n', 0xff]
+        );
+    }
+}
+
+#[cfg(test)]
+mod fragment_tests {
+    use super::*;
+
+    #[test]
+    fn common_grammar_keeps_numeric_unit_and_resolver_extent_together() {
+        let numeric = backslash_fragment_in(br"\uD800suffix", 0, EscapeSyntax::Tcl90, |_| {
+            panic!("numeric escape has no original-unit lookup")
+        })
+        .unwrap();
+        assert_eq!(numeric.end, 6);
+        assert_eq!(numeric.value, BackslashFragmentValue::Codepoint(0xd800));
+        let original = backslash_fragment_in(&[b'\\', 0xff, b'x'], 0, EscapeSyntax::Tcl90, |_| {
+            EscapedInputUnit {
+                width: 1,
+                value: EscapedInputValue::Codepoint(255),
+            }
+        })
+        .unwrap();
+        assert_eq!(original.end, 2);
+        assert_eq!(original.value, BackslashFragmentValue::Codepoint(255));
+        assert!(backslash_fragment_in(b"x", 0, EscapeSyntax::Tcl90, |_| unreachable!()).is_none());
+    }
+
+    #[test]
+    fn native_raw_nul_escape_extent_is_distinct_from_numeric_nul() {
+        let raw = [b'\\', 0, b'z'];
+        let c = backslash_fragment_in(&raw, 0, EscapeSyntax::Tcl90, |_| unreachable!()).unwrap();
+        let jim = backslash_fragment_in(&raw, 0, EscapeSyntax::Jim, |_| unreachable!()).unwrap();
+        assert_eq!(
+            c,
+            BackslashFragment {
+                end: 1,
+                value: BackslashFragmentValue::Byte(b'\\')
+            }
+        );
+        assert_eq!(
+            jim,
+            BackslashFragment {
+                end: 2,
+                value: BackslashFragmentValue::Byte(b'\\')
+            }
+        );
+        assert_eq!(
+            backslash_subst_bytes_in(&raw, EscapeSyntax::Jim).as_ref(),
+            b"\\z"
         );
     }
 }

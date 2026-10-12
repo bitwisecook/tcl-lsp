@@ -1,0 +1,185 @@
+{
+  "source_sha256": "54d1ea302fd422ea940a6515829534de798a4966bcb849d78cab715f2a2c68dd",
+  "captures": [
+    {
+      "engine": "tcl8.4",
+      "case": 0,
+      "source": "namespace eval : {proc p {} {return [namespace current]}; p}",
+      "exit": 0,
+      "stdout": "0 3a3a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 1,
+      "source": "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b63616e2774206372656174652070726f63656475726520223a2220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a227d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 2,
+      "source": "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b63616e2774206372656174652070726f63656475726520223a2220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a227d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 0,
+      "source": "namespace eval : {proc p {} {return [namespace current]}; p}",
+      "exit": 0,
+      "stdout": "0 3a3a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 1,
+      "source": "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b63616e2774206372656174652070726f63656475726520223a2220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a227d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 2,
+      "source": "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b63616e2774206372656174652070726f63656475726520223a2220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a227d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 0,
+      "source": "namespace eval : {proc p {} {return [namespace current]}; p}",
+      "exit": 0,
+      "stdout": "0 3a3a3a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 1,
+      "source": "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 30207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 2,
+      "source": "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b756e6d617463686564206f70656e20627261636520696e206c6973747d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 0,
+      "source": "namespace eval : {proc p {} {return [namespace current]}; p}",
+      "exit": 0,
+      "stdout": "0 3a3a3a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 1,
+      "source": "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 30207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 2,
+      "source": "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b756e6d617463686564206f70656e20627261636520696e206c6973747d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 0,
+      "source": "namespace eval : {proc p {} {return [namespace current]}; p}",
+      "exit": 0,
+      "stdout": "0 3a3a3a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 1,
+      "source": "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 30207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 2,
+      "source": "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b756e6d617463686564206f70656e20627261636520696e206c6973747d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "jim",
+      "case": 0,
+      "source": "namespace eval : {proc p {} {return [namespace current]}; p}",
+      "exit": 0,
+      "stdout": "0 3a3a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 1,
+      "source": "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 30203a\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 2,
+      "source": "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}",
+      "exit": 0,
+      "stdout": "0 31207b617267756d656e742077697468206e6f206e616d657d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    }
+  ]
+}

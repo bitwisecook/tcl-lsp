@@ -1,0 +1,5 @@
+VERSION	status=0	hex=382e342e323020382e34
+BUILD	HEADER=8.4.20	GetVersion=8.4.20/2
+ABI	int=4	long=8	ptr=8	CHAR_BIT=8
+AVAILABILITY	status=0	hex=3020302030
+UNAVAILABLE	command_available=0	reason=original-initialized-provider-has-no-TclOO

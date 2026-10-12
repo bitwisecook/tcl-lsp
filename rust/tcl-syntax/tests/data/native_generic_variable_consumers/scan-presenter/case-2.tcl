@@ -1,0 +1,1 @@
+proc bad {args} {error BOOM}; set first 0; trace variable first w bad; scan {1 2} {%d %d} first output

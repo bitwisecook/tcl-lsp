@@ -1,0 +1,16 @@
+[
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+  "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}"
+]

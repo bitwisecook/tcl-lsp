@@ -1,0 +1,17 @@
+{
+  "source_only": true,
+  "window": {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "revision": "9.0.4",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+    "function": "TclOO_Object_Eval",
+    "lines": [
+      733,
+      792
+    ],
+    "source_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+    "snippet_sha256": "0502e157f3930fb6eaaaa1a369c75b43aaee2ada9a172293ef88ba4dd22fa097",
+    "snippet": "TclOO_Object_Eval(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Interpreter in which to create the object;\n\t\t\t\t * also used for error reporting. */\n    Tcl_ObjectContext context,\t/* The object/call context. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* The actual arguments. */\n{\n    CallContext *contextPtr = (CallContext *) context;\n    Tcl_Object object = Tcl_ObjectContextObject(context);\n    size_t skip = Tcl_ObjectContextSkippedArgs(context);\n    CallFrame *framePtr, **framePtrPtr = &framePtr;\n    Tcl_Obj *scriptPtr;\n    CmdFrame *invoker;\n\n    if ((size_t) objc < skip + 1) {\n\tTcl_WrongNumArgs(interp, skip, objv, \"arg ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Make the object's namespace the current namespace and evaluate the\n     * command(s).\n     */\n\n    (void) TclPushStackFrame(interp, (Tcl_CallFrame **) framePtrPtr,\n\t    Tcl_GetObjectNamespace(object), FRAME_IS_METHOD);\n    framePtr->clientData = context;\n    framePtr->objc = objc;\n    framePtr->objv = objv;\t/* Reference counts do not need to be\n\t\t\t\t * incremented here. */\n\n    if (!(contextPtr->callPtr->flags & PUBLIC_METHOD)) {\n\tobject = NULL;\t\t/* Now just for error mesage printing. */\n    }\n\n    /*\n     * Work out what script we are actually going to evaluate.\n     *\n     * When there's more than one argument, we concatenate them together with\n     * spaces between, then evaluate the result. Tcl_EvalObjEx will delete the\n     * object when it decrements its refcount after eval'ing it.\n     */\n\n    if ((size_t) objc != skip+1) {\n\tscriptPtr = Tcl_ConcatObj(objc-skip, objv+skip);\n\tinvoker = NULL;\n    } else {\n\tscriptPtr = objv[skip];\n\tinvoker = ((Interp *) interp)->cmdFramePtr;\n    }\n\n    /*\n     * Evaluate the script now, with FinalizeEval to do the processing after\n     * the script completes.\n     */\n\n    TclNRAddCallback(interp, FinalizeEval, object, NULL, NULL, NULL);\n    return TclNREvalObjEx(interp, scriptPtr, 0, invoker, skip);\n}\n"
+  }
+}

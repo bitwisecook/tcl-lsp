@@ -1,0 +1,17 @@
+{
+  "id": "inventory-c-map",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+    "2"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "3ada506cb5851a3a0ad76b11d5e268851140a33e58928c5309ebbc69112c24dd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|15|302e38342d392d6735626163376339",
+    "INFO|1|45|6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

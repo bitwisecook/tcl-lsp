@@ -1,0 +1,3425 @@
+{
+  "scope": "Derived review of exact original public catch/result rows only. Whole raw output and receipts remain the authorities; no private token/header, compiler identity or software assertion is observed.",
+  "rows": [
+    {
+      "provider": "8.4.20",
+      "case": "version.patchlevel",
+      "catch_code": 0,
+      "result_hex": "382e342e3230"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "version.executable",
+      "catch_code": 0,
+      "result_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f74636c382e342e32302f756e69782f74636c7368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "helper.namespace_origin",
+      "catch_code": 1,
+      "result_hex": "226e616d657370616365206f726967696e222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "helper.namespace_import",
+      "catch_code": 1,
+      "result_hex": "226e616d65737061636520696d706f7274222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "setup.P",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before63.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before63.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before63.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before64.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before64.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before64.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before65.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before65.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before65.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before200.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before200.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before200.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.rename",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.after_rename.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.after_rename.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.after_rename.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.source_call",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "P.vacated_call",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "setup.R",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.middle_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.after_middle_replacement.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.after_middle_replacement.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.after_middle_replacement.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.after_middle_replacement.default",
+      "catch_code": 0,
+      "result_hex": "31205245504c41434544"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "R.after_middle_replacement.invoke",
+      "catch_code": 0,
+      "result_hex": "5245504c41434544"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "setup.D",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.delete_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_delete.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_delete.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_delete.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_delete.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_delete.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.recreate_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_recreate.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_recreate.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_recreate.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_recreate.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "D.after_recreate.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "setup.E",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before63.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36333a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before63.exists",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before63.map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before63.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36333a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before63.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36333a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before64.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36343a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before64.exists",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before64.map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before64.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36343a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before64.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36343a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before65.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36353a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before65.exists",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before65.map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before65.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36353a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before65.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36353a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before200.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before200.exists",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before200.map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before200.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e3230303a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.before200.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.configure_import",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.source_map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.import_map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.rename_source",
+      "catch_code": 1,
+      "result_hex": "63616e27742072656e616d6520223a3a453a3a6e303a3a656e73223a20636f6d6d616e6420646f65736e2774206578697374"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.after_rename.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.after_rename.exists",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.after_rename.map",
+      "catch_code": 1,
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.after_rename.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "8.4.20",
+      "case": "E.vacated_call",
+      "catch_code": 0,
+      "result_hex": "564143415445445f454e53454d424c45"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "version.patchlevel",
+      "catch_code": 0,
+      "result_hex": "382e352e3139"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "version.executable",
+      "catch_code": 0,
+      "result_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f74636c382e352e31392f756e69782f74636c7368"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "helper.namespace_origin",
+      "catch_code": 1,
+      "result_hex": "226e616d657370616365206f726967696e222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "helper.namespace_import",
+      "catch_code": 1,
+      "result_hex": "226e616d65737061636520696d706f7274222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "setup.P",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before63.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before63.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before63.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before64.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before64.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before64.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before65.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before65.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before65.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before200.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before200.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before200.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.rename",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.after_rename.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.after_rename.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.after_rename.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.source_call",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "P.vacated_call",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "setup.R",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.middle_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.after_middle_replacement.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.after_middle_replacement.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.after_middle_replacement.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.after_middle_replacement.default",
+      "catch_code": 0,
+      "result_hex": "31205245504c41434544"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "R.after_middle_replacement.invoke",
+      "catch_code": 0,
+      "result_hex": "5245504c41434544"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "setup.D",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.delete_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_delete.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_delete.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_delete.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_delete.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_delete.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.recreate_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_recreate.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_recreate.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_recreate.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_recreate.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "D.after_recreate.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "setup.E",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before63.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before63.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before63.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36333a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before64.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before64.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before64.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36343a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before65.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before65.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before65.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36353a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before200.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before200.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before200.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e3230303a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.configure_import",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.source_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.import_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.rename_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.after_rename.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.after_rename.map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.5.19",
+      "case": "E.vacated_call",
+      "catch_code": 0,
+      "result_hex": "564143415445445f454e53454d424c45"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "version.patchlevel",
+      "catch_code": 0,
+      "result_hex": "382e362e3138"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "version.executable",
+      "catch_code": 0,
+      "result_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f74636c382e362e31382f756e69782f74636c7368"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "helper.namespace_origin",
+      "catch_code": 1,
+      "result_hex": "226e616d657370616365206f726967696e222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "helper.namespace_import",
+      "catch_code": 1,
+      "result_hex": "226e616d65737061636520696d706f7274222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "setup.P",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before63.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before63.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before63.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before64.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before64.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before64.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before65.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before65.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before65.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before200.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before200.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before200.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.rename",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.after_rename.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.after_rename.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.after_rename.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.source_call",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "P.vacated_call",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "setup.R",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.middle_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.after_middle_replacement.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.after_middle_replacement.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.after_middle_replacement.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.after_middle_replacement.default",
+      "catch_code": 0,
+      "result_hex": "31205245504c41434544"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "R.after_middle_replacement.invoke",
+      "catch_code": 0,
+      "result_hex": "5245504c41434544"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "setup.D",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.delete_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_delete.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_delete.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_delete.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_delete.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_delete.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.recreate_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_recreate.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_recreate.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_recreate.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_recreate.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "D.after_recreate.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "setup.E",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before63.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before63.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before63.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36333a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before64.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before64.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before64.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36343a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before65.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before65.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before65.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36353a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before200.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before200.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before200.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e3230303a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.configure_import",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.source_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.import_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.rename_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.after_rename.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.after_rename.map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "8.6.18",
+      "case": "E.vacated_call",
+      "catch_code": 0,
+      "result_hex": "564143415445445f454e53454d424c45"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "version.patchlevel",
+      "catch_code": 0,
+      "result_hex": "392e302e34"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "version.executable",
+      "catch_code": 0,
+      "result_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f74636c392e302e342f756e69782f74636c7368"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "helper.namespace_origin",
+      "catch_code": 1,
+      "result_hex": "226e616d657370616365206f726967696e222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "helper.namespace_import",
+      "catch_code": 1,
+      "result_hex": "226e616d65737061636520696d706f7274222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "setup.P",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before63.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before63.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before63.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before64.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before64.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before64.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before65.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before65.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before65.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before200.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before200.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before200.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.rename",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.after_rename.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.after_rename.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.after_rename.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.source_call",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "P.vacated_call",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "setup.R",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.middle_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.after_middle_replacement.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.after_middle_replacement.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.after_middle_replacement.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.after_middle_replacement.default",
+      "catch_code": 0,
+      "result_hex": "31205245504c41434544"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "R.after_middle_replacement.invoke",
+      "catch_code": 0,
+      "result_hex": "5245504c41434544"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "setup.D",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.delete_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_delete.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_delete.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_delete.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_delete.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_delete.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.recreate_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_recreate.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_recreate.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_recreate.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_recreate.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "D.after_recreate.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "setup.E",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before63.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before63.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before63.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36333a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before64.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before64.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before64.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36343a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before65.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before65.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before65.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36353a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before200.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before200.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before200.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e3230303a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.configure_import",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.source_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.import_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.rename_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.after_rename.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.after_rename.map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.0.4",
+      "case": "E.vacated_call",
+      "catch_code": 0,
+      "result_hex": "564143415445445f454e53454d424c45"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "version.patchlevel",
+      "catch_code": 0,
+      "result_hex": "392e312e30"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "version.executable",
+      "catch_code": 0,
+      "result_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f74636c392e312e302f756e69782f74636c7368"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "helper.namespace_origin",
+      "catch_code": 1,
+      "result_hex": "226e616d657370616365206f726967696e222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "helper.namespace_import",
+      "catch_code": 1,
+      "result_hex": "226e616d65737061636520696d706f7274222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "setup.P",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before63.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before63.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before63.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before64.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before64.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before64.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before65.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before65.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before65.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before200.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before200.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before200.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.rename",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.after_rename.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.after_rename.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.after_rename.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.source_call",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "P.vacated_call",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "setup.R",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.middle_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.after_middle_replacement.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.after_middle_replacement.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.after_middle_replacement.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.after_middle_replacement.default",
+      "catch_code": 0,
+      "result_hex": "31205245504c41434544"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "R.after_middle_replacement.invoke",
+      "catch_code": 0,
+      "result_hex": "5245504c41434544"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "setup.D",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.before.args",
+      "catch_code": 0,
+      "result_hex": "78"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.before.body",
+      "catch_code": 0,
+      "result_hex": "72657475726e202478"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.before.default",
+      "catch_code": 0,
+      "result_hex": "31204f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.delete_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_delete.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_delete.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_delete.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_delete.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_delete.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.recreate_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_recreate.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_recreate.args",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_recreate.body",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_recreate.default",
+      "catch_code": 1,
+      "result_hex": "223a3a443a3a6e3230303a3a70222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "D.after_recreate.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a443a3a6e3230303a3a7022"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "setup.E",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before63.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before63.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before63.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36333a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before64.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before64.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before64.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36343a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before65.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before65.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before65.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e36353a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before200.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before200.map",
+      "catch_code": 0,
+      "result_hex": "676f203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before200.args",
+      "catch_code": 1,
+      "result_hex": "223a3a453a3a6e3230303a3a656e73222069736e277420612070726f636564757265"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.configure_import",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.source_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.import_map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.rename_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a6d6f766564"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.after_rename.exists",
+      "catch_code": 0,
+      "result_hex": "31"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.after_rename.map",
+      "catch_code": 0,
+      "result_hex": "6368616e676564203a3a453a3a6e303a3a746172676574"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "454e53454d424c45"
+    },
+    {
+      "provider": "9.1.0",
+      "case": "E.vacated_call",
+      "catch_code": 0,
+      "result_hex": "564143415445445f454e53454d424c45"
+    },
+    {
+      "provider": "jim",
+      "case": "version.patchlevel",
+      "catch_code": 0,
+      "result_hex": "302e38342d392d6735626163376339"
+    },
+    {
+      "provider": "jim",
+      "case": "version.executable",
+      "catch_code": 0,
+      "result_hex": "2f776f726b73706163652f2e70726f6f66732f6e61746976652d70726f7669646572732f6a696d74636c2f6a696d7368"
+    },
+    {
+      "provider": "jim",
+      "case": "helper.namespace_origin",
+      "catch_code": 0,
+      "result_hex": "0a09736574206e7363616e6f6e205b75706c6576656c2031205b6c697374203a3a6e616d6573706163652063616e6f6e20246e616d655d5d0a096966207b5b657869737473202d616c69617320246e7363616e6f6e5d7d207b0a09097461696c63616c6c207b6e616d657370616365206f726967696e7d205b696e666f20616c69617320246e7363616e6f6e5d0a097d0a096966207b5b657869737473202d636f6d6d616e6420246e7363616e6f6e5d7d207b0a090972657475726e203a3a246e7363616e6f6e0a097d0a096966207b5b657869737473202d636f6d6d616e6420246e616d655d7d207b0a090972657475726e203a3a246e616d650a097d0a0a0972657475726e202d636f6465206572726f722022696e76616c696420636f6d6d616e64206e616d65205c22246e616d655c22220a"
+    },
+    {
+      "provider": "jim",
+      "case": "helper.namespace_import",
+      "catch_code": 0,
+      "result_hex": "0a097365742063757272656e74205b75706c6576656c2031203a3a6e616d6573706163652063616e6f6e5d0a0a09666f7265616368207061747465726e202461726773207b0a0909666f726561636820636d64205b696e666f20636f6d6d616e6473205b6e616d6573706163652063616e6f6e202463757272656e7420247061747465726e5d5d207b0a0909096966207b5b6e616d657370616365207175616c6966696572732024636d645d206571202463757272656e747d207b0a0909090972657475726e202d636f6465206572726f722022696d706f7274207061747465726e205c22247061747465726e5c2220747269657320746f20696d706f72742066726f6d206e616d657370616365205c222463757272656e745c2220696e746f20697473656c66220a0909097d0a0a0a090909736574206e6577636d6420247b63757272656e747d3a3a5b6e616d657370616365207461696c2024636d645d0a0a09090973657420616c6961732024636d640a0909097768696c65207b5b657869737473202d616c6961732024616c6961735d7d207b0a0909090973657420616c696173205b696e666f20616c6961732024616c6961735d0a090909096966207b24616c69617320657120246e6577636d647d207b0a090909090972657475726e202d636f6465206572726f722022696d706f7274207061747465726e205c22247061747465726e5c2220776f756c64206372656174652061206c6f6f70220a090909097d0a0909097d0a0a090909616c69617320246e6577636d642024636d640a09097d0a097d0a"
+    },
+    {
+      "provider": "jim",
+      "case": "setup.P",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "jim",
+      "case": "P.before63.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before63.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e36333a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before63.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e36333a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before63.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before63.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before64.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before64.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e36343a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before64.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e36343a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before64.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before64.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before65.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before65.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e36353a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before65.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e36353a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before65.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before65.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before200.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before200.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before200.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before200.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "P.before200.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "P.rename",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "jim",
+      "case": "P.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "P.after_rename.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a503a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "P.after_rename.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.after_rename.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a503a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "P.after_rename.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "P.after_rename.invoke",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "jim",
+      "case": "P.source_call",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "P.vacated_call",
+      "catch_code": 0,
+      "result_hex": "56414341544544"
+    },
+    {
+      "provider": "jim",
+      "case": "setup.R",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "jim",
+      "case": "R.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "R.before.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a523a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "R.before.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a523a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "R.before.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "R.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "R.middle_replacement",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "R.after_middle_replacement.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a523a3a6e3130303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "R.after_middle_replacement.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a523a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "R.after_middle_replacement.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a523a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "R.after_middle_replacement.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "R.after_middle_replacement.invoke",
+      "catch_code": 0,
+      "result_hex": "5245504c41434544"
+    },
+    {
+      "provider": "jim",
+      "case": "setup.D",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "jim",
+      "case": "D.before.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "D.before.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a443a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "D.before.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a443a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "D.before.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "D.before.invoke",
+      "catch_code": 0,
+      "result_hex": "4f524947494e414c"
+    },
+    {
+      "provider": "jim",
+      "case": "D.delete_source",
+      "catch_code": 0,
+      "result_hex": ""
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_delete.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d652022443a3a6e303a3a7022"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_delete.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a443a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_delete.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a443a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_delete.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_delete.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d652022443a3a6e303a3a7022"
+    },
+    {
+      "provider": "jim",
+      "case": "D.recreate_source",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_recreate.origin",
+      "catch_code": 0,
+      "result_hex": "3a3a443a3a6e303a3a70"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_recreate.args",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a443a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_recreate.body",
+      "catch_code": 1,
+      "result_hex": "636f6d6d616e6420223a3a443a3a6e3230303a3a7022206973206e6f7420612070726f636564757265"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_recreate.default",
+      "catch_code": 1,
+      "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+    },
+    {
+      "provider": "jim",
+      "case": "D.after_recreate.invoke",
+      "catch_code": 0,
+      "result_hex": "524543524541544544"
+    },
+    {
+      "provider": "jim",
+      "case": "setup.E",
+      "catch_code": 1,
+      "result_hex": "77726f6e67202320617267733a2073686f756c642062652022656e73656d626c6520636f6d6d616e64203f2d6175746f6d6170207072656669783f22"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before63.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36333a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before63.exists",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before63.map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before63.args",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36333a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before63.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36333a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before64.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36343a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before64.exists",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before64.map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before64.args",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36343a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before64.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36343a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before65.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36353a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before65.exists",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before65.map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before65.args",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36353a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before65.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e36353a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before200.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before200.exists",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before200.map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before200.args",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.before200.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.configure_import",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.source_map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.import_map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.rename_source",
+      "catch_code": 1,
+      "result_hex": "63616e27742072656e616d6520223a3a453a3a6e303a3a656e73223a20636f6d6d616e6420646f65736e2774206578697374"
+    },
+    {
+      "provider": "jim",
+      "case": "E.vacated_replacement",
+      "catch_code": 0,
+      "result_hex": "3a3a453a3a6e303a3a656e73"
+    },
+    {
+      "provider": "jim",
+      "case": "E.after_rename.origin",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.after_rename.exists",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.after_rename.map",
+      "catch_code": 1,
+      "result_hex": "6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+    },
+    {
+      "provider": "jim",
+      "case": "E.after_rename.invoke",
+      "catch_code": 1,
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a453a3a6e3230303a3a656e7322"
+    },
+    {
+      "provider": "jim",
+      "case": "E.vacated_call",
+      "catch_code": 0,
+      "result_hex": "564143415445445f454e53454d424c45"
+    }
+  ]
+}

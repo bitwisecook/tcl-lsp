@@ -1,0 +1,11 @@
+exported-distinct-source-units 0 {FIRST SECOND}
+export-filter-keeps-distinct-units 0 {1 1}
+import-source-move-identity 1 {invalid command name "Scope88MoveA::p"}
+forget-local-distinct-units 1 {namespace, unknown command "forget": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+forget-renamed-import-by-origin 1 {namespace, unknown command "forget": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+import-invalid-no-source 0 {}
+import-missing-source 0 {}
+import-same-namespace 1 {import pattern "::Scope88A::pÌ†Å" tries to import from namespace "Scope88A" into itself}
+export-qualified-invalid 0 {}
+force-replacement-order 0 {0 SOURCE SOURCE}
+export-leading-clear 0 {1 AFTER}

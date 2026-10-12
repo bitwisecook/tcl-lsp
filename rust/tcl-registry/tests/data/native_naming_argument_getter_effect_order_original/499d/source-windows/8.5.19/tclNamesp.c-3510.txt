@@ -1,0 +1,51 @@
+static int
+NamespaceForgetCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    char *pattern;
+    register int i, result;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 2, objv, "?pattern pattern...?");
+	return TCL_ERROR;
+    }
+
+    for (i = 2;  i < objc;  i++) {
+	pattern = TclGetString(objv[i]);
+	result = Tcl_ForgetImport(interp, NULL, pattern);
+	if (result != TCL_OK) {
+	    return result;
+	}
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NamespaceImportCmd --
+ *
+ *	Invoked to implement the "namespace import" command that imports
+ *	commands into a namespace. Handles the following syntax:
+ *
+ *	    namespace import ?-force? ?pattern pattern...?
+ *
+ *	Each pattern is a namespace-qualified name like "foo::*", "a::b::x*",
+ *	or "bar::p". That is, the pattern may include the special pattern
+ *	matching characters recognized by the "string match" command, but only
+ *	in the command name at the end of the qualified name; the special
+ *	pattern characters may not appear in a namespace name. All of the
+ *	commands that match the pattern and which are exported from their
+ *	namespace are made accessible from the current namespace context. This
+ *	is done by creating a new "imported command" in the current namespace
+ *	that points to the real command in its original namespace; when the
+ *	imported command is called, it invokes the real command.
+ *
+ *	If an imported command conflicts with an existing command, it is
+ *	treated as an error. But if the "-force" option is included, then
+ *	existing commands are overwritten by the imported commands.
+ *
+ *	If there are no pattern arguments and the "-force" flag isn't given,

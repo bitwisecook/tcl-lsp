@@ -191,7 +191,7 @@ fn whole_document_axis() -> VersionSet {
 
 /// One argument of a declared command: its written name, its registry
 /// [`ArgRole`], and whether the directive wrapped it in `?…?`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeclaredArgument {
     /// Argument name as the directive wrote it (optional markers stripped).
     pub name: String,
@@ -365,6 +365,53 @@ impl DeclaredCommand {
         self.declaration.provenance
     }
 
+    /// Complete argument-count contract supplied by the declaration itself.
+    /// This metadata supplies no successful execution or builtin behaviour.
+    #[must_use]
+    pub fn source_arity(&self) -> Option<crate::Arity> {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let required = self
+            .arguments
+            .iter()
+            .filter(|argument| !argument.optional)
+            .count();
+        let maximum = u16::try_from(self.arguments.len()).ok()?;
+        if maximum == crate::Arity::UNLIMITED {
+            return None;
+        }
+        Some(crate::Arity::new(u16::try_from(required).ok()?, maximum))
+    }
+
+    /// Effective post-head roles under the same optional-slot convention as
+    /// `arg_indices_for_role`. Invalid counts have no complete source layout.
+    #[must_use]
+    pub fn supplied_argument_roles(&self, supplied: usize) -> Option<Vec<(usize, ArgRole)>> {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let arity = self.source_arity()?;
+        if !arity.accepts(u16::try_from(supplied).ok()?) {
+            return None;
+        }
+        let mut roles = self
+            .arguments
+            .iter()
+            .map(|argument| argument.role)
+            .collect::<Vec<_>>();
+        roles.sort_by_key(|role| *role as u8);
+        roles.dedup();
+        let mut result = roles
+            .into_iter()
+            .flat_map(|role| {
+                self.arg_indices_for_role(role, supplied)
+                    .into_iter()
+                    .map(move |index| (index, role))
+            })
+            .collect::<Vec<_>>();
+        result.sort_by_key(|&(index, _)| index);
+        Some(result)
+    }
+
     /// The 0-based indices **into a call's own post-head argument list**
     /// whose declared role is `role`, for a call supplying `supplied` words.
     ///
@@ -416,6 +463,19 @@ impl DeclaredCommand {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeclaredSurface {
     commands: BTreeMap<String, DeclaredCommand>,
+}
+
+impl std::hash::Hash for DeclaredSurface {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash is only an index. Full derived equality above retains declaration
+        // providers, availability, predicates, and provenance on collisions.
+        self.commands.len().hash(state);
+        for (name, command) in &self.commands {
+            name.hash(state);
+            command.name.hash(state);
+            command.arguments.hash(state);
+        }
+    }
 }
 
 impl DeclaredSurface {
@@ -502,6 +562,13 @@ impl<'a> DocumentCommandSurface<'a> {
     #[must_use]
     pub const fn declared(&self) -> Option<&'a DeclaredSurface> {
         self.declared
+    }
+
+    /// Read one declared assistance contract through the document surface owner.
+    /// This is metadata from a document or workspace, not a runtime binding proof.
+    #[must_use]
+    pub fn declared_command(&self, name: &str) -> Option<&'a DeclaredCommand> {
+        self.declared?.get(name)
     }
 
     /// Whether this document declares `name` for itself.

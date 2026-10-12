@@ -1,0 +1,30 @@
+ROW original 2 0 3 {}
+ROW rewritten 2 0 3 {}
+ROW original abc 1 {cannot use non-numeric string "abc" as left operand of "+"} {errorCode {ARITH DOMAIN {non-numeric string}} errorInfo {cannot use non-numeric string "abc" as left operand of "+"
+    while executing
+"expr {$x+1}"
+    (procedure "original" line 1)
+    invoked from within
+"original abc"}}
+ROW rewritten abc 1 {cannot use non-numeric string "abc" as left operand of "+"} {errorCode {ARITH DOMAIN {non-numeric string}} errorInfo {cannot use non-numeric string "abc" as left operand of "+"
+    while executing
+"expr {$x+1}"
+    (procedure "rewritten" line 1)
+    invoked from within
+"rewritten abc"}}
+ROW original 1.0 0 2.0 {}
+ROW rewritten 1.0 0 2.0 {}
+ROW original Inf 0 Inf {}
+ROW rewritten Inf 0 Inf {}
+ROW original NaN 1 {cannot use non-numeric floating-point value "NaN" as left operand of "+"} {errorCode {ARITH DOMAIN {non-numeric floating-point value}} errorInfo {cannot use non-numeric floating-point value "NaN" as left operand of "+"
+    while executing
+"expr {$x+1}"
+    (procedure "original" line 1)
+    invoked from within
+"original NaN"}}
+ROW rewritten NaN 1 {cannot use non-numeric floating-point value "NaN" as left operand of "+"} {errorCode {ARITH DOMAIN {non-numeric floating-point value}} errorInfo {cannot use non-numeric floating-point value "NaN" as left operand of "+"
+    while executing
+"expr {$x+1}"
+    (procedure "rewritten" line 1)
+    invoked from within
+"rewritten NaN"}}

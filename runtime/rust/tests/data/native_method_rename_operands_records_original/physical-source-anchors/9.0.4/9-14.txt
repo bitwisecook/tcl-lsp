@@ -1,0 +1,112 @@
+    }
+
+    /* Build the lambda */
+    object = TclOOGetDefineCmdContext(interp);
+    if (object == NULL) {
+	return TCL_ERROR;
+    }
+    lambdaWords[0] = Tcl_NewObj();
+    lambdaWords[1] = objv[1];
+    lambdaWords[2] = TclNewNamespaceObj(Tcl_GetObjectNamespace(object));
+
+    /* Delegate to [apply] to run it */
+    applyArgs[0] = Tcl_NewStringObj("apply", -1);
+    applyArgs[1] = Tcl_NewListObj(3, lambdaWords);
+    Tcl_IncrRefCount(applyArgs[0]);
+    Tcl_IncrRefCount(applyArgs[1]);
+    result = Tcl_ApplyObjCmd(NULL, interp, 2, applyArgs);
+    Tcl_DecrRefCount(applyArgs[0]);
+    Tcl_DecrRefCount(applyArgs[1]);
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineMethodObjCmd --
+ *
+ *	Implementation of the "method" subcommand of the "oo::define" and
+ *	"oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineMethodObjCmd(
+    void *clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    /*
+     * Table of export modes for methods and their corresponding enum.
+     */
+
+    static const char *const exportModes[] = {
+	"-export",
+	"-private",
+	"-unexport",
+	NULL
+    };
+    enum ExportMode {
+	MODE_EXPORT,
+	MODE_PRIVATE,
+	MODE_UNEXPORT
+    } exportMode;
+
+    int isInstanceMethod = (clientData != NULL);
+    Object *oPtr;
+    int isPublic = 0;
+
+    if (objc < 4 || objc > 5) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name ?option? args body");
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (!isInstanceMethod && !oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return TCL_ERROR;
+    }
+    if (objc == 5) {
+	if (Tcl_GetIndexFromObj(interp, objv[2], exportModes, "export flag",
+		0, &exportMode) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+	switch (exportMode) {
+	case MODE_EXPORT:
+	    isPublic = PUBLIC_METHOD;
+	    break;
+	case MODE_PRIVATE:
+	    isPublic = TRUE_PRIVATE_METHOD;
+	    break;
+	case MODE_UNEXPORT:
+	    isPublic = 0;
+	    break;
+	default:
+	    TCL_UNREACHABLE();
+	}
+    } else {
+	if (IsPrivateDefine(interp)) {
+	    isPublic = TRUE_PRIVATE_METHOD;
+	} else {
+	    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)
+		    ? PUBLIC_METHOD : 0;
+	}
+    }
+
+    /*
+     * Create the method by using the right back-end API.
+     */
+
+    if (isInstanceMethod) {
+	if (TclOONewProcInstanceMethod(interp, oPtr, isPublic, objv[1],
+		objv[objc - 2], objv[objc - 1], NULL) == NULL) {
+	    return TCL_ERROR;
+	}
+    } else {

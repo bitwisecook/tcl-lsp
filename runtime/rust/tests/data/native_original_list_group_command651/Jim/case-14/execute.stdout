@@ -1,0 +1,35 @@
+provider	Jim
+case	14	stride-search-integer-exact-index0
+operation	lsearch
+mode	integer
+index	0
+input-roles	key-holds=sole-containing-list	additional-key-observer-holds=0	argv-caller-hold=1	returned-original-explicit-hold=0	flat-length=4
+input-key0	counted-string	32
+input-key1	counted-string	41
+input-key2	counted-string	31
+input-key3	counted-string	42
+input-callback-return	absent
+before-key0	none	1	1	1
+before-key1	none	1	1	1
+before-key2	none	1	1	1
+before-key3	none	1	1	1
+before-container	list	0	1	0
+before-prefix	absent
+before-callback-return	absent
+before-pattern	none	1	1	1
+code	1
+callback-count	0
+reached-key0	none	1	1	1
+reached-key1	none	1	1	1
+reached-key2	none	1	1	1
+reached-key3	none	1	1	1
+reached-container	list	0	2	0
+reached-prefix	absent
+reached-callback-return	absent
+reached-pattern	none	1	2	1
+reached-result	string	1	1	120
+result-alias	container=0	callback-return=0
+result-bytes	626164206f7074696f6e20222d696e7465676572223a206d757374206265202d616c6c2c202d626f6f6c2c202d636f6d6d616e642c202d65786163742c202d676c6f622c202d696e6465782c202d696e6c696e652c202d6e6f636173652c202d6e6f742c202d7265676578702c206f72202d737472696465
+materialised-result	string	1	1	120
+after-result-getter-container	list	0	2	0
+after-result-getter-callback-return	absent

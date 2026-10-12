@@ -1,0 +1,25 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json",
+    "sha256": "7cc2753d7e037243b5d94d610fa501a1ea4be8ad63c5d68bdf23c5870b55f555",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.autoload.separator-rebuild-opaque",
+      "naming.autoload.separator-rebuild-zero",
+      "naming.autoload.root-prefix-rebuild-zero",
+      "naming.autoload.unqualified-opaque-preservation"
+    ],
+    "reason": "Exact same retained observer digest across all five C builds; all25 reached counted result-key rows inspected. Four distinct original input purposes are mapped, with transformed raw/C080 pair in one precise question. This is candidate library output only, not autoload installation or compiler authority; missing original bootstrap argument-vector provenance remains explicit."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/authored_procedure_names/manifest.json",
+    "sha256": "e69a52fda2314c95787f3ace31fbcb25c38b6a24158525204a30f1c22d66d47e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.local-colon-creation-result",
+      "naming.procedure.root-colon-creation-result",
+      "naming.procedure.ordinary-local-creation-result"
+    ],
+    "reason": "Exact source checksum, six stdout checksums and all18 annotated TSV rows checked against the actual three self-presenting declarations and original caught completion/result streams. Covers local colon, root colon and ordinary local controls separately; annotations supply no physical header or entered execution."
+  }
+]

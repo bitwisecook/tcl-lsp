@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_error_headers::original_prepared_stack_tests::original_stack_configuration_publishes_roles_before_mandatory_header_retirement ... 
+thread 'interp::native_error_headers::original_prepared_stack_tests::original_stack_configuration_publishes_roles_before_mandatory_header_retirement' (1338451) panicked at src/interp/native_error_headers.rs:1363:21:
+assertion `left == right` failed: tcl8.5 mode0
+  left: []
+ right: [(0, 0), (1, 0)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_error_headers::original_prepared_stack_tests::original_stack_configuration_publishes_roles_before_mandatory_header_retirement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.16s
+

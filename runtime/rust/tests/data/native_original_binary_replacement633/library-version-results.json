@@ -1,0 +1,30 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "7dba01d55a657b807c07a51e4fd9e220110554af8917d768869b44c6c2a5ea70",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "53d91a5ae0c26885b732ce3886fbf69185df28fae9c79f00bfb58b3bfbc2c00d",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "55d73feb60fb5c0f9b0e6810b76912aaaeec253853c8901e1ff99a2e6828de2a",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "366b3da86fb981d3d464e03d105fd39ebb2af46b79052a364efc62f08881f3a8",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "82ca20463dc7905ecfe4b9118132afda6369dd033632b0273cd576270e957641",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original replacement processes."
+}

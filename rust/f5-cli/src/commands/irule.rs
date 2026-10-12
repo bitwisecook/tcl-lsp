@@ -47,7 +47,7 @@ use tcl_bigip_io::paths::read_path;
 use tcl_cli_support::registry_for_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
-use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact};
+use tcl_lsp_core::minify::{MinifyOptions, MinifyTier, minify_with_profile};
 
 use crate::cli::{IruleColourArgs, IruleCommand, IruleFormatterArgs, IruleInputArgs};
 
@@ -1206,21 +1206,30 @@ fn run_minify(
 
     let mut minified: Vec<String> = Vec::with_capacity(loaded.inputs.len());
     let mut symbol_maps: Vec<String> = Vec::new();
-    if aggressive {
-        for entry in &loaded.inputs {
-            let result = minify_tcl_aggressive(&entry.source, profile, isolated, &registry);
-            minified.push(result.source);
-            symbol_maps.push(result.symbol_map.format());
-        }
+    let tier = if aggressive {
+        MinifyTier::Aggressive
     } else if compact {
-        for entry in &loaded.inputs {
-            let (text, sm) = minify_tcl_compact(&entry.source, profile, isolated, &registry);
-            minified.push(text);
-            symbol_maps.push(sm.format());
-        }
+        MinifyTier::Compact
     } else {
-        for entry in &loaded.inputs {
-            minified.push(minify_tcl(&entry.source, profile, &registry));
+        MinifyTier::Default
+    };
+    for entry in &loaded.inputs {
+        let result = minify_with_profile(
+            &entry.source,
+            profile,
+            &registry,
+            MinifyOptions {
+                tier,
+                isolated,
+                ..MinifyOptions::default()
+            },
+        );
+        for refusal in &result.refusals {
+            eprintln!("minify {}: {}", entry.label, refusal.reason());
+        }
+        minified.push(result.source);
+        if tier != MinifyTier::Default {
+            symbol_maps.push(result.symbol_map.format());
         }
     }
 

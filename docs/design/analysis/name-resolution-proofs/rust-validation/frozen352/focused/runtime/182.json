@@ -1,0 +1,22 @@
+{
+  "ordinal": 182,
+  "selector": "cmd_switch::tests::switch_integer_is_refused_before_tcl91",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "cmd_switch::tests::switch_integer_is_refused_before_tcl91",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 8.011948398023378,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 7.95s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/182.log",
+  "log_sha256": "97fae57880af6a9231dbf77de4f04c03dc48cc04f49a6e147438f6a87feabdaa"
+}

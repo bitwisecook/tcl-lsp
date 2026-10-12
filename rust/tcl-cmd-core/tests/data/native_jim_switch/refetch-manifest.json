@@ -1,0 +1,14 @@
+{
+  "exit": 0,
+  "original_budget": 60,
+  "rows": 12,
+  "observer": "Actual host witness retains old body +1 across shimmer. Native callback root/pattern owners unchanged; no extra getters between physical windows. Same old header remains live, distinct refetched body chosen on success. Refetch also occurs on callback guest Error and noninteger OK.",
+  "sha256": {
+    "/workspace/.proofs/2286-packages-dialects/jim-switch-original/refetch_probe.c": "dcd3b7762ce398782574114d091df529f55d4a1fb77773bf613765e72084e05a",
+    "/workspace/.proofs/2286-packages-dialects/jim-switch-original/refetch_probe": "889374c48febda50eee65d5ec91dd04f447b84b4a9e89773da251554d1019e11",
+    "/workspace/.proofs/2286-packages-dialects/jim-switch-original/refetch.tsv": "beb0bb0b0f9115f5e12aacee61efc0384080fe8bf4e0a9b6b0951a3ada3012ed",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff"
+  }
+}

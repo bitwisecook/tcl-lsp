@@ -41,9 +41,11 @@ pub mod graph;
 pub mod hints;
 pub mod phi;
 pub mod sharing;
+mod source_context;
 pub mod span;
 pub mod thunking;
 pub mod use_site;
+pub use source_context::ShimmerContext;
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
@@ -185,6 +187,7 @@ pub(crate) fn committed_from_label(
 /// representation decides whether a use of it converts
 /// ([`hints::is_free_first_conversion`]).
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -192,6 +195,17 @@ pub(crate) fn find_shimmer_warnings(
     sccp: &crate::sccp::SccpResult,
     registry: &CommandRegistry,
 ) -> Vec<ShimmerWarning> {
+    find_shimmer_warnings_with_context(cfg, ssa, types, sccp, ShimmerContext::standalone(registry))
+}
+
+pub(crate) fn find_shimmer_warnings_with_context(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    sccp: &crate::sccp::SccpResult,
+    context: ShimmerContext<'_>,
+) -> Vec<ShimmerWarning> {
+    let registry = context.registry();
     let executable_blocks = &sccp.executable_blocks;
     // The committed-intrep dataflow (first-use commit) is shared by the
     // use-site and expr detectors: it tells each use whether the value has
@@ -199,7 +213,9 @@ pub(crate) fn find_shimmer_warnings(
     // conversion) or is still pure (a free first conversion).
     let commit_ctx = commit::CommitCtx {
         registry,
+        context,
         ssa,
+        source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
         values: &sccp.values,
         folded: &sccp.folded_types,
@@ -216,7 +232,7 @@ pub(crate) fn find_shimmer_warnings(
     // A use reads the type a refinement in force at its block proves.
     let in_force = crate::type_infer::types_in_force(types, sccp);
     let mut out = Vec::new();
-    out.extend(use_site::find_use_site_shimmers(
+    out.extend(use_site::find_use_site_shimmers_with_context(
         cfg,
         &commit_ctx,
         (executable_blocks, &in_force),
@@ -229,7 +245,7 @@ pub(crate) fn find_shimmer_warnings(
         sccp,
         &facts.loop_blocks,
     ));
-    out.extend(expr::find_expr_shimmers(
+    out.extend(expr::find_expr_shimmers_with_context(
         cfg,
         &commit_ctx,
         (executable_blocks, &in_force),
@@ -309,8 +325,11 @@ pub fn find_shimmer_warnings_for_cu(
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_shimmer_warnings(
-            &fu.cfg, &fu.ssa, &fu.types, &fu.sccp, registry,
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_shimmer_warnings_with_context(
+            &fu.cfg, &fu.ssa, &fu.types, &fu.sccp, context,
         ));
     }
     out
@@ -329,9 +348,14 @@ pub fn first_use_commitments_for_cu(
 ) -> HashMap<String, HashMap<String, TclType>> {
     let mut out: HashMap<String, HashMap<String, TclType>> = HashMap::new();
     for fu in cu.analysable_functions() {
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
         let ctx = commit::CommitCtx {
             registry,
+            context,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
             folded: &fu.sccp.folded_types,
@@ -375,12 +399,15 @@ pub fn find_thunking_warnings_for_cu(
 ) -> Vec<ThunkingWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_thunking_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_thunking_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
-            registry,
+            context,
             cu.method_instance_vars(&fu.name),
         ));
     }
@@ -392,6 +419,7 @@ pub fn find_thunking_warnings_for_cu(
 /// Identifies variables that oscillate between two intrep types across
 /// loop iterations, causing a type conversion on every pass (S102).
 #[must_use]
+#[cfg(test)]
 pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -400,12 +428,30 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
-    thunking::find_thunking_warnings(
+    find_thunking_warnings_with_context(
         cfg,
         ssa,
         types,
         executable_blocks,
-        registry,
+        ShimmerContext::standalone(registry),
+        extra_scope_aliases,
+    )
+}
+
+pub(crate) fn find_thunking_warnings_with_context<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+    context: ShimmerContext<'_>,
+    extra_scope_aliases: Option<&HashSet<String, S>>,
+) -> Vec<ThunkingWarning> {
+    thunking::find_thunking_warnings_with_context(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        context,
         extra_scope_aliases,
     )
 }
@@ -416,21 +462,20 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
 /// where both holders are provably alive — C Tcl duplicates the shared
 /// value before every such mutation. See [`sharing`] for the pattern and
 /// its deliberate exclusions.
-#[must_use]
-pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
+pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     def_use: &crate::def_use::DefUseResult,
     executable_blocks: &HashSet<BlockId>,
-    registry: &CommandRegistry,
+    context: ShimmerContext<'_>,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<SharingWarning> {
-    sharing::find_sharing_warnings(
+    sharing::find_sharing_warnings_with_context(
         cfg,
         ssa,
         def_use,
         executable_blocks,
-        registry,
+        context,
         extra_scope_aliases,
     )
 }
@@ -444,12 +489,15 @@ pub fn find_sharing_warnings_for_cu(
 ) -> Vec<SharingWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_sharing_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_sharing_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.def_use,
             &fu.sccp.executable_blocks,
-            registry,
+            context,
             cu.method_instance_vars(&fu.name),
         ));
     }
@@ -464,15 +512,14 @@ pub fn find_sharing_warnings_for_cu(
 /// (`*::payload replace`), or case-folded / re-encoded directly. See
 /// [`byte_array`]. `payload_layouts` is the dialect-gated `*::payload` byte
 /// command set (empty under non-iRules dialects).
-#[must_use]
-pub(crate) fn find_byte_array_warnings(
+pub(crate) fn find_byte_array_warnings_with_context(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp: &crate::sccp::SccpResult,
-    registry: &CommandRegistry,
+    context: ShimmerContext<'_>,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
-    byte_array::find_byte_array_warnings(cfg, ssa, sccp, registry, payload_layouts)
+    byte_array::find_byte_array_warnings_with_context(cfg, ssa, sccp, context, payload_layouts)
 }
 
 /// Find every byte-array-corruption warning (S110) across a whole compilation
@@ -486,11 +533,14 @@ pub fn find_byte_array_warnings_for_cu(
     let payload_layouts = registry.byte_array_payload_layouts();
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_byte_array_warnings(
+        let Some(context) = ShimmerContext::for_function(fu, registry) else {
+            continue;
+        };
+        out.extend(find_byte_array_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
             &fu.sccp,
-            registry,
+            context,
             &payload_layouts,
         ));
     }
@@ -525,6 +575,7 @@ mod tests {
             None,
             crate::tcl_expr_eval::FoldPolicy::default(),
             crate::sccp::TraceInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 traced_variables: &std::collections::BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -535,7 +586,7 @@ mod tests {
         );
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         assert!(find_shimmer_warnings(&f, &ssa, &types, &sccp, &registry()).is_empty());
-        assert!(
+        assert_eq!(
             find_thunking_warnings(
                 &f,
                 &ssa,
@@ -544,7 +595,8 @@ mod tests {
                 &registry(),
                 None::<&HashSet<String>>
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 }

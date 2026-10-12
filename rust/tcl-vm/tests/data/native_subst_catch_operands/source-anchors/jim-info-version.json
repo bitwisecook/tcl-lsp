@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "version": "jim",
+  "original_path": "jim.c",
+  "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "lines": [
+    16274,
+    16287
+  ],
+  "function": "Jim_InfoCoreCommand",
+  "snippet": "        case INFO_PATCHLEVEL:\n           /* bootstrap jimsh doesn't have this so fall through */\n#ifdef JIM_GITVERSION\n            Jim_SetResultString(interp, JIM_GITVERSION, -1);\n            return JIM_OK;\n#endif\n\n        case INFO_VERSION:{\n                char versionbuf[64];\n                snprintf(versionbuf, sizeof(versionbuf), \"%d.%d\", JIM_VERSION / 100, JIM_VERSION % 100);\n                Jim_SetResultString(interp, versionbuf, -1);\n                return JIM_OK;\n            }\n\n",
+  "snippet_sha256": "8e03b49279e12d3f4447e34a0661816c3df70d605c7ab4d6c331f693b85bcf98",
+  "source_association": "Exact restored pinned source used by the retained public header/library build; full source digest and actual excerpt, not a native result inference."
+}

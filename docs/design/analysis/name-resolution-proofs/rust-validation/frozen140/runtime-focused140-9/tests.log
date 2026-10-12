@@ -1,0 +1,69 @@
+
+running 1 test
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f748805f910
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488bf01d0
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74890776e0
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488be4d00
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7489071b10
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488912530
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74888dc050
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74890a2000
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f748891c3e0
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f748909fee0
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=Some(V8_4) epochs=None source_protocol=Some(C(V8_4)) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_4) in_proc=true list_dispatch=false compiles=true namespace=0 original=0x7f7488ca0d80
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74888c7610
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488c989f0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488bed950
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488904e70
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f748890a8e0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74888fb4b0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74888e5bd0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488ca02c0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74888cc160
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488958fd0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7488c45f20
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f7489073ec0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 no-stamp physical=Some(V8_5) epochs=None source_protocol=Some(C(V8_5)) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_5) in_proc=true list_dispatch=false compiles=true namespace=0 original=0x7f74884e5cd0
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f74888e7930
+ADMISSION140 no-stamp physical=Some(V8_6) epochs=None source_protocol=Some(C(V8_6)) procedure=false frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7f748898c710
+ADMISSION140 no-stamp physical=Some(V8_6) epochs=None source_protocol=Some(C(V8_6)) procedure=false frame_in_proc=false local_table=false namespace=0
+
+thread 'cmd_array::tests::variable_container_storage_matches_all_native_columns' (552684) panicked at src/cmd_array.rs:815:21:
+assertion `left == right` failed: tcl8.6 case 1: array set a {k OLD};set c [catch {set a NEW} r];list $c $r [array exists a]; result=[]; refusal=Some(CommandProtocolUnavailable("original variable lookup diagnostic"))
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_array::tests::variable_container_storage_matches_all_native_columns
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 11.63s
+

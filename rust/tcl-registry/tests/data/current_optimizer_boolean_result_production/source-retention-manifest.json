@@ -1,0 +1,378 @@
+{
+  "request": {
+    "path": "/workspace/.proofs/optimizer-source-interpretation471/request.json",
+    "sha256": "b228c1ae1c97e968776ec67791d2c2a24317298fefbf798e05fa0ac774d19df1",
+    "bytes": 64860
+  },
+  "preparer": {
+    "path": "/workspace/.proofs/optimizer-source-interpretation471/prepare.py",
+    "sha256": "d2732fe9a4491fa2e4fe8279b2559049d38aeee1148770cc69605fd32ddb6b25",
+    "bytes": 7716
+  },
+  "retained_files": [
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/context/original465-cli-version.stdout",
+      "sha256": "ede2f9015aff14bc8edd1fd1b2ec6ecc3dc7b6a649207bbb9c4c2f7aa18b31a9",
+      "bytes": 11
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/context/original465-receipt.json",
+      "sha256": "0a92bce78100ac13b0b8df1015014466fef913b7919c6b97bd3f814767c565b4",
+      "bytes": 198903
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/generic/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "bytes": 84169
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/generic/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "bytes": 203688
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/generic/tclCompExpr.c",
+      "sha256": "c4138e547b833c39d0c6da3bb4042fc7a7052a6146a2e7635aedcd53ac492514",
+      "bytes": 28144
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/generic/tclCompile.c",
+      "sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+      "bytes": 127763
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/generic/tclCompile.h",
+      "sha256": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec",
+      "bytes": 49933
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/generic/tclInt.h",
+      "sha256": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+      "bytes": 107203
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/unix/Makefile",
+      "sha256": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+      "bytes": 53244
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.4.20/sources/unix/tclConfig.sh",
+      "sha256": "e67ced9d9a920741fd6ed13a7462acf7f7ccd75283e7ce1daa0ef8f3e7f712ca",
+      "bytes": 8019
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/context/original465-cli-version.stdout",
+      "sha256": "510e2d09d60dc006dfc5d5878788779520c3f1bc62afb4fe7e48870f9de74fe1",
+      "bytes": 11
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/context/original465-receipt.json",
+      "sha256": "455351d44073645b3adb314743a40c1fe9bf0009e119e45bd3d725de347abcd5",
+      "bytes": 192949
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/generic/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "bytes": 86963
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/generic/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "bytes": 203084
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/generic/tclCompExpr.c",
+      "sha256": "0a6d97e0800151eeb85e60635c9862ac111022a56d8535d38d8d2fd34fd779f5",
+      "bytes": 82658
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/generic/tclCompile.c",
+      "sha256": "8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988",
+      "bytes": 132871
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/generic/tclCompile.h",
+      "sha256": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+      "bytes": 54268
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/generic/tclInt.h",
+      "sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "bytes": 151951
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/unix/Makefile",
+      "sha256": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+      "bytes": 68980
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.5.19/sources/unix/tclConfig.sh",
+      "sha256": "305b56696cc9b02162fef44ffcaa8f2a99b096aede7e53986d2a53acf7d8cac7",
+      "bytes": 8086
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/context/original465-cli-version.stdout",
+      "sha256": "7ca7e2ae25a10e99a9945869f21ac489508c93f296803490941ae66587c10ec0",
+      "bytes": 11
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/context/original465-receipt.json",
+      "sha256": "6d30d6e4f3dd67ecdd929cfab8428c8ee4213a097f6e5726cac2a73f9c1b6e6c",
+      "bytes": 195291
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "bytes": 94296
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "bytes": 264771
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tclCompExpr.c",
+      "sha256": "970b54cc3b24299ff47e64ec6dccc14fdbffd6fdc9f0904170c2071bfd3f8ca0",
+      "bytes": 83708
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tclCompile.c",
+      "sha256": "d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8",
+      "bytes": 148396
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tclCompile.h",
+      "sha256": "be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9",
+      "bytes": 70845
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tclInt.h",
+      "sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "bytes": 174090
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/generic/tclOptimize.c",
+      "sha256": "058fea33a68fd490f4550fb4b4d53116ed134901b8cf715674b88d9a5c2d1c64",
+      "bytes": 11520
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/unix/Makefile",
+      "sha256": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+      "bytes": 80480
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/sources/unix/tclConfig.sh",
+      "sha256": "beddc87cb1aa1dd414e2be975085bfa07d46e4a9822710e8974da16e8868dfd9",
+      "bytes": 8193
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/windows/optimizer-call.txt",
+      "sha256": "16be4e717e02ac593c245f03cbf3f67699e75edfe702081181ec316ec49ee1e1",
+      "bytes": 437
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/windows/optimizer-installation.txt",
+      "sha256": "ff3fb243215a0865acfc474db2cbf9b0cf2caccbcdd5e0a785a7830fab42f394",
+      "bytes": 781
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/8.6.18/windows/try-numeric-next-instruction.txt",
+      "sha256": "c4e6f971b7b46ea972750451a00ae26ec41fa0c8785274da1ae3f58570b82373",
+      "bytes": 1069
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/context/original465-cli-version.stdout",
+      "sha256": "32ada7140f59d3bb7c967706b61cdf727ee4051c1f011f7477694f5b232d1ec9",
+      "bytes": 10
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/context/original465-receipt.json",
+      "sha256": "9a788720eee4080be87fcf17f3f7ea1df4a1cba0e49bb61f3a09a8ebb2ec753c",
+      "bytes": 192887
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "bytes": 93953
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "bytes": 282535
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tclCompExpr.c",
+      "sha256": "f82f94056112b9c76292b384ddb0f84b1d4889d1c14c4776fa0929e02767ded1",
+      "bytes": 85523
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tclCompile.c",
+      "sha256": "51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3",
+      "bytes": 150353
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tclCompile.h",
+      "sha256": "22f512199d2e57370496d8a6713921d9ac57538497a3a64966fa1dee7a6a5dc5",
+      "bytes": 70044
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tclInt.h",
+      "sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "bytes": 197762
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/generic/tclOptimize.c",
+      "sha256": "3e0166030d973686e2c974ba88f7010437cf9e82b6b36e96e0839d27bce95424",
+      "bytes": 11488
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/unix/Makefile",
+      "sha256": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+      "bytes": 94015
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/sources/unix/tclConfig.sh",
+      "sha256": "7e808c1d9a006c98ca7b819a43a206ef9e0527ec2ea8dfbb9a1d348659a2ebfe",
+      "bytes": 8276
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/windows/optimizer-call.txt",
+      "sha256": "c6f975cf2e19121afc134b9e23b946a58f7cfaadc59d17356a340c5658177195",
+      "bytes": 427
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/windows/optimizer-installation.txt",
+      "sha256": "c1cfc45b4b2a0430c36166e28f2f982db7645dcd121df8c9828a65f32fc66ee1",
+      "bytes": 823
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.0.4/windows/try-numeric-next-instruction.txt",
+      "sha256": "8fa38ec8ebff2d341a27ffa4c69b416e4f25f226b94f3bece09fe179259bd174",
+      "bytes": 1101
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/context/original465-cli-version.stdout",
+      "sha256": "a88879ffa7ac4f34863959ff7f314ea863fd002511e61073c6fb8f586394d310",
+      "bytes": 10
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/context/original465-receipt.json",
+      "sha256": "fd54d48a651dbc7bdddd56f98aaeef82e07719e337f2c283f10e47be0a4caeb6",
+      "bytes": 193032
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "bytes": 92559
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "bytes": 292230
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tclCompExpr.c",
+      "sha256": "16191591d5dd04ac05c3e3200799bf27167ec1d90c9985c3dbbed04e3c07d1b0",
+      "bytes": 85086
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tclCompile.c",
+      "sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+      "bytes": 161179
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tclCompile.h",
+      "sha256": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e",
+      "bytes": 85719
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tclInt.h",
+      "sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "bytes": 199725
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/generic/tclOptimize.c",
+      "sha256": "fd9b0b5f0d289d5e09780de2acf3259e0373cfb5ba243abff566ac3a2b9035e4",
+      "bytes": 13709
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/unix/Makefile",
+      "sha256": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+      "bytes": 94302
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/sources/unix/tclConfig.sh",
+      "sha256": "3151ba756040c3f86a08eb4a249c26f71d6f2d600b3f7425385c9434c1d41eb2",
+      "bytes": 8304
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/windows/optimizer-call.txt",
+      "sha256": "b79125fd66bcf2ab18a763cc379f0ecce631f109ffcf88d7a1a615da5dd334fc",
+      "bytes": 431
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/windows/optimizer-installation.txt",
+      "sha256": "c1cfc45b4b2a0430c36166e28f2f982db7645dcd121df8c9828a65f32fc66ee1",
+      "bytes": 823
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/providers/9.1.0/windows/try-numeric-next-instruction.txt",
+      "sha256": "1a009049af27edb4701b780af0790802554be396f07793512ea3ba242b01c593",
+      "bytes": 1113
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/context/original465-closure.json",
+      "sha256": "f7a3ee2db11c0177934d846a9f88c3bad404069c6c675bd8a0d20d12cc8ce5d4",
+      "bytes": 1619
+    },
+    {
+      "path": "/workspace/.proofs/optimizer-source-interpretation471/context/original465-request.json",
+      "sha256": "b554cf39546d1978dfe3311329f3f7e58e3275e4121abf52aab5dc4ceccabee9",
+      "bytes": 25981
+    }
+  ],
+  "required_external_library_inputs": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+      "bytes": 1518852,
+      "same_whole_sha_as_original465_launch_input": true,
+      "original465_recorded_sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+      "retention": "Exact library is an existing original465 required input; this source interpretation keeps a hash reference, not a new duplicate or new source-to-library build proof."
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+      "bytes": 2234578,
+      "same_whole_sha_as_original465_launch_input": true,
+      "original465_recorded_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+      "retention": "Exact library is an existing original465 required input; this source interpretation keeps a hash reference, not a new duplicate or new source-to-library build proof."
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "bytes": 3244104,
+      "same_whole_sha_as_original465_launch_input": true,
+      "original465_recorded_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "retention": "Exact library is an existing original465 required input; this source interpretation keeps a hash reference, not a new duplicate or new source-to-library build proof."
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+      "bytes": 3866510,
+      "same_whole_sha_as_original465_launch_input": true,
+      "original465_recorded_sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+      "retention": "Exact library is an existing original465 required input; this source interpretation keeps a hash reference, not a new duplicate or new source-to-library build proof."
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "bytes": 4113834,
+      "same_whole_sha_as_original465_launch_input": true,
+      "original465_recorded_sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "retention": "Exact library is an existing original465 required input; this source interpretation keeps a hash reference, not a new duplicate or new source-to-library build proof."
+    }
+  ],
+  "windows": 9,
+  "launches": 0
+}

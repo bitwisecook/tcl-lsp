@@ -1,0 +1,18 @@
+{
+  "question": "naming.lambda.original-namespace-constructor-and-getter",
+  "question_id": "naming.lambda.original-namespace-constructor-and-getter",
+  "source_sha256": "bde05653f858df36a95413c968b0f94e16ee4cdce66f21ec07c2b568c5b24ec9",
+  "input_channel": "C SDK direct original object vector; counted Tcl_NewStringObj versus Tcl_NewByteArrayObj third lambda elements; Jim_NewStringObj original string only, native Jim byte-array constructor unavailable",
+  "scope": "Nine fixed namespace inputs each in a fresh initialized interpreter with independent namespace setup. Complete original lambda is an SDK list object and Apply receives that object directly. Observe setup completion, constructor input bytes, resident-string/type fields before and after Apply without preliminary getter, Apply completion/native result bytes, then original namespace object getter bytes. Raw00 versus ByteArray materialized bytes are distinct. C84 Apply rejection and Jim byte-array API absence remain explicit.",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "boundary": "The single result getter follows actual Apply; original namespace getter follows AFTER field sample. No original source word, command token or header preservation, entered frame correspondence, arbitrary name operation, or Rust execution is inferred. Jim output does not select the C prefix recipe.",
+  "process_limit_seconds": 30,
+  "native_launch_status": "not-launched"
+}

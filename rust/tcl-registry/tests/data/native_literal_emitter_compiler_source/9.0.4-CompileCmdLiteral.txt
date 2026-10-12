@@ -1,0 +1,23 @@
+CompileCmdLiteral(
+    Tcl_Interp *interp,
+    Tcl_Obj *cmdObj,
+    CompileEnv *envPtr)
+{
+    const char *bytes;
+    Command *cmdPtr;
+    int cmdLitIdx, extraLiteralFlags = LITERAL_CMD_NAME;
+    Tcl_Size length;
+
+    cmdPtr = (Command *) Tcl_GetCommandFromObj(interp, cmdObj);
+    if ((cmdPtr != NULL) && (cmdPtr->flags & CMD_VIA_RESOLVER)) {
+	extraLiteralFlags |= LITERAL_UNSHARED;
+    }
+
+    bytes = TclGetStringFromObj(cmdObj, &length);
+    cmdLitIdx = TclRegisterLiteral(envPtr, bytes, length, extraLiteralFlags);
+
+    if (cmdPtr && TclRoutineHasName(cmdPtr)) {
+	TclSetCmdNameObj(interp, TclFetchLiteral(envPtr, cmdLitIdx), cmdPtr);
+    }
+    TclEmitPush(cmdLitIdx, envPtr);
+}

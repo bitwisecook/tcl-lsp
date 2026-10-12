@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-lexer192.elf",
+  "sha256": "f3414886f7ee8ce892fbcab5fa4c00008dbb568085e27e67c4f2b9b128a8d4ff",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-build192.json",
+  "build_receipt_sha256": "02d4d15d824d288f66077291260123bb597bfe4f6eaf438f80d1d3262099e3cd",
+  "source_snapshot_sha256": "064496a1841a529416f6de626e5909bc6570a31e19cec4bcc087840d035c8567"
+}

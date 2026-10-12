@@ -1,83 +1,94 @@
 # Formatter engine contracts
 
-How Tcl source is reformatted, and the rules that keep the output stable
-between runs and consistent with what the parser and the language features
-expect of it.
+The formatter retains one complete source input and selected Registry context
+for each document. Layout options remain separate from source grammar and
+command advice. LSP formatting, format on save, the CLI, MCP and hosted callers
+use the same core engine.
 
-Formatting is an engine + config pipeline in `tcl-lsp-core`, surfaced through
-the LSP formatting handlers, the `tcl fmt` CLI verb, and the MCP tools.
-`format_tcl(source, config, registry)` is a **pure function**: source in,
-formatted source out. It parses the source into commands, identifies
-body / expr / param-list arguments **through the registry** (never a
-command-name list in the formatter), recursively formats bodies, and
-reconstructs the output — K&R braces, blank-line policy, comment
-normalisation, switch bodies, long-line backslash splitting, and `&&`/`||`
-expression wrapping.
+`format_tcl_with_input` and `range_formatting_with_input` accept the caller's
+`ResolvedAnalysisInput`. It supplies the complete `LexerConfig`, source policy,
+profile and structural `ContextRegistry`, including overlays and library axes.
+The compatibility entry retains its documented lenient modern-Tcl context and
+the supplied Registry generation; a heterogeneous Registry cannot select the
+last inserted dialect as the document's provider. CLI inputs keep separate
+source analyses even when their formatted output is joined.
 
-Document-wide command-identity facts (what a head word actually binds to, after
-`rename` / `interp alias`) are computed once per file and threaded through, so
-the formatter's registry lookups agree with the analyser's.
+## Selected source layout
 
-## Decision rules / contracts
+`FormattingSourceLayout` retains the whole document, resolved input and command
+realm. Each command's shared `OriginalRegistryWords` selects authored argument
+roles, traits and presentation from its actual ContextRegistry. Effective
+arguments map back only to their own written operands. Captured alias prefixes
+and expanded values cannot borrow another word's source position.
 
-1. **Formatting is idempotent.** `format_tcl(format_tcl(x)) == format_tcl(x)`,
-   including for structurally malformed input — an unbalanced `{`, `[`, or `"`
-   must reach a stable shape rather than being reshaped into a guess and
-   growing by a delimiter on every pass. The engine's own tests
-   (`malformed_clauses_stay_stable_and_idempotent`,
-   `param_list_shapes_round_trip_and_are_idempotent`) assert exactly this.
-2. Formatting preserves parseability and command semantics. A rewrite that
-   changes what the script does is a defect regardless of how it looks.
-3. Body / expr / param-list classification is registry-driven (`ArgRole`,
-   `Traits`). A new construct is formatted by declaring it in the registry, not
-   by adding a branch to the engine.
-4. Recursion into nested bodies is depth-capped (`MAX_FORMAT_DEPTH`, 128).
-   The crate is consumed both from binaries that format on a generously-sized
-   dedicated thread and, through `bigip-query-wasm`, from a WASM host whose
-   stack budget this crate does not control, so the cap is set to be safe on a
-   small ambient stack. The minifier carries the same discipline with its own
-   cap.
-5. A new formatting option requires config wiring plus regression coverage.
-   Settings are declared once on `FormatterConfig` and code-generated into the
-   editor extensions by `cargo xtask gen-editor-settings`.
-6. The formatter never rewrites an *existing* docstring. Docstring generation
-   is an explicit code action — see
-   [docstring-handling.md](docstring-handling.md).
-7. **The dialect reaches the formatter as one resolved profile.**
-   `FormatterConfig::profile` (a `&'static DialectProfile`) is the single
-   dialect fact; the three the engine needs are derived accessors on it —
-   `lexer_config()` (the grammar it tokenises with, including the iRules `}{`
-   ghost separator and whether `{*}` expands), `dialect_query()` (the
-   surface point that filters per-release rewrite candidates), and
-   `target_range()` (the forward range a rewrite must stay correct across).
-   Callers build the config with `FormatterConfig::for_profile` /
-   `for_dialect`, never by setting the derived facts, so a caller cannot set a
-   strict subset and format an iRule with a modern-Tcl lexer (issue #1465).
-   The default profile is the permissive modern-Tcl one. The only independent
-   knob is `target_range_override`, for a document that must also keep working
-   on a release *older* than its own profile.
+Body and case-list layout consume the shared original script-body descriptors.
+Lambda and parameter-list formatting use their original whole word and native
+list value owners. Opaque native units, unavailable source geometry and malformed
+list values preserve the original spelling. A reporting name or a nominal
+command head cannot supply missing source roles.
+
+These are source presentation capabilities. They do not establish an entered
+frame, handler execution, native compiler admission, cell contents or Normal.
+Expression bracing requires its separate bounded original literal equivalence
+receipt. Native keyword changes require their own operand equivalence receipt;
+source roles alone provide none. Explicit Logical compatibility formatting
+retains its independent whole context and established rewrite policy.
+
+## Whitespace and ranges
+
+Whitespace geometry comes from complete original words under the full selected
+lexer configuration. Trailing whitespace is removed only outside those words;
+quoted and braced data, nested command words and bare Unicode units remain
+protected. Backslash wrapping uses actual gaps between original command words,
+including separately owned bracket scripts. Continuations inside nested data
+words keep their original spelling. Expression wrapping uses the shared
+expression lexer and preserves string and command terms; unavailable grammar,
+malformed terms and comments decline wrapping.
+
+Range indentation follows actual lexical bracket regions and selected source
+body, case and lambda regions. A selection must contain complete words in its
+selected script. A range that cuts through a data word, cooked body or
+unavailable source region produces no edit. The raw document remains the owner
+of replacement coordinates and line endings.
+
+## Bounds and stability
+
+The existing `MAX_FORMAT_DEPTH` of 128 bounds recursive layout. The source lexer
+also reports its structural budget before semantic analysis begins, so a deeply
+nested input can remain unchanged without expanding the stack or analysing an
+unbounded body graph. Malformed input must stabilise, rather than gain a closer
+on each formatting pass. Idempotence and fixed-input tests cover list shapes,
+source data preservation, range boundaries and the unchanged depth-2000 case.
+
+Formatter settings are declared once on `FormatterConfig` and generated into
+editor configuration by `cargo xtask gen-editor-settings`. Existing docstrings
+are retained; generation is an explicit action described in
+[docstring-handling.md](docstring-handling.md).
 
 ## File-path anchors
 
-- `rust/tcl-lsp-core/src/formatting/engine.rs` — `format_tcl` and its machinery.
-- `rust/tcl-lsp-core/src/formatting/config.rs` — `FormatterConfig` and every
-  setting.
-- `rust/tcl-lsp-core/src/formatting/keywords.rs` — the keyword-canonicalisation
-  rewrites (themselves idempotent).
-- `rust/tcl-lsp-core/src/formatting/docstring.rs` — docstring parse/render.
-- `rust/tcl-lsp-core/src/minify.rs` — the minifier, which shares the
-  registry-driven body classification.
-- `rust/tcl-syntax/src/format.rs` — value-level formatting primitives.
+- `rust/tcl-lsp-core/src/formatting/engine.rs`: selected source layout and reconstruction.
+- `rust/tcl-lsp-core/src/formatting/source_layout.rs`: full-word whitespace and range boundaries.
+- `rust/tcl-lsp-core/src/formatting/config.rs`: style settings and complete input propagation.
+- `rust/tcl-lsp-core/src/formatting/mod.rs`: document and range edits with original line coordinates.
+- `rust/tcl-compiler/src/registry_invocation/source_structure.rs`: sealed source schema.
+- `rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs`: shared original script regions.
+- `rust/tcl-lsp-core/src/formatting/keywords.rs`: separately gated keyword rewrites.
+- `rust/tcl-lsp-core/src/formatting/docstring.rs`: docstring parse and rendering.
 
 ## Failure modes
 
-- Non-idempotent rewrites that keep changing on repeated format operations.
-- Body / expr boundary misclassification causing a semantic change.
-- Option-specific regressions from missing config propagation.
-- Unbounded recursion on deeply nested bodies (guarded by the depth cap).
+- Nominal or stale command metadata supplies roles to another source owner.
+- Cooked text acquires invented original body offsets.
+- Whitespace in a literal value is treated as command trivia.
+- A partial range rewrites a containing data word.
+- A source-role capability supplies runtime or general reflection equivalence.
+- Unbounded semantic analysis starts before the structural depth guard.
 
 ## Discoverability
 
 - [Design doc index](../README.md)
 - [LSP feature providers](lsp-feature-providers.md)
-- [parsing contracts](parsing.md)
+- [Parsing contracts](parsing.md)
+- [Original source formatting](../analysis/name-resolution-proofs/editor-original-source-formatting.md)
+- [Original whitespace geometry](../analysis/name-resolution-proofs/original-source-whitespace-geometry.md)

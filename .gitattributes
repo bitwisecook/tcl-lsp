@@ -4,3 +4,4 @@ rust/tcl-sslictcl/tests/fixtures/*.tsv -whitespace
 experiments/name-handling/results/**/stdout.txt -whitespace
 experiments/name-handling/results/**/stderr.txt -whitespace
 experiments/name-handling/results/focused-regressions/*.txt -whitespace
+scripts/dev/bigip-probes/resolution-2286/evidence/** -whitespace

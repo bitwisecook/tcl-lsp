@@ -1,0 +1,975 @@
+[
+  {
+    "id": "naming.variable.original-level-object-conversion-and-selection",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.original-level-object-conversion-and-selection.md",
+    "problem_statement": "The same uplevel level spelling can be an original String, WideInt or Double, and an embedded zero can alter a CString conversion without changing the counted object. Release-specific conversion/cache order determines whether the word selects a caller frame or becomes script text; a source numeric grammar alone cannot determine those object effects.",
+    "question": "At current procedure level 2, what original object-cache change, completion code and result bytes occur for the 16 C and independently specified 21 Jim original level operands?",
+    "conclusion": "The retained 80 C and 21 Jim rows distinguish original String, embedded-zero, native integer and Double selector routes. C8.4 preserves the original cache in these cases; newer C releases and Jim have independently measured cache/validation order. The complete per-provider rows are the answer: they do not certify another activation, arbitrary cached objects, variable read completion or a native frame token.",
+    "scope": "Exact retained probe.c/jim-probe.c object constructors and two procedure activations, C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and Jim0.84-labelled capture. C inputs include 13 counted String spellings plus native WideInt/Double/NaN; Jim has 18 String spellings plus native Int/Double/NaN. Public object argv evaluation, no character-channel translation; BIG-IP not queried.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Original archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original native objects through Tcl_EvalObjv",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.\n\n```jsonl\n{\"case\":0,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":1,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":2,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":3,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":4,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222d3122\"}\n{\"case\":5,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222b3122\"}\n{\"case\":6,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":7,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"657870656374656420696e74656765722062757420676f742022312e3022\"}\n{\"case\":8,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n{\"case\":9,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"626164206c6576656c20223231343734383336343822\"}\n{\"case\":10,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"626164206c6576656c20223432393439363732393522\"}\n{\"case\":11,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"32\"}\n{\"case\":12,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d65202262616422\"}\n{\"case\":13,\"before\":\"wideInt\",\"after\":\"wideInt\",\"code\":0,\"result\":\"31\"}\n{\"case\":14,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"657870656374656420696e74656765722062757420676f742022312e3022\"}\n{\"case\":15,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520226e616e22\"}\n```",
+        "evidence": [
+          "e0",
+          "e2",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Original archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original native objects through Tcl_EvalObjv",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.\n\n```jsonl\n{\"case\":0,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":1,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":2,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":3,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":4,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222d3122\"}\n{\"case\":5,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222b3122\"}\n{\"case\":6,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":7,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"657870656374656420696e74656765722062757420676f742022312e3022\"}\n{\"case\":8,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n{\"case\":9,\"before\":\"string\",\"after\":\"levelReference\",\"code\":1,\"result\":\"626164206c6576656c20223231343734383336343822\"}\n{\"case\":10,\"before\":\"string\",\"after\":\"levelReference\",\"code\":1,\"result\":\"626164206c6576656c20223432393439363732393522\"}\n{\"case\":11,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"32\"}\n{\"case\":12,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d65202262616422\"}\n{\"case\":13,\"before\":\"int\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":14,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"657870656374656420696e74656765722062757420676f742022312e3022\"}\n{\"case\":15,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n```",
+        "evidence": [
+          "e0",
+          "e2",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Original archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original native objects through Tcl_EvalObjv",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.\n\n```jsonl\n{\"case\":0,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":1,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":2,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":3,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":4,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222d3122\"}\n{\"case\":5,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":6,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":7,\"before\":\"string\",\"after\":\"double\",\"code\":1,\"result\":\"626164206c6576656c2022312e3022\"}\n{\"case\":8,\"before\":\"string\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n{\"case\":9,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223231343734383336343822\"}\n{\"case\":10,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223432393439363732393522\"}\n{\"case\":11,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"32\"}\n{\"case\":12,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d65202262616422\"}\n{\"case\":13,\"before\":\"int\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":14,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"626164206c6576656c2022312e3022\"}\n{\"case\":15,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n```",
+        "evidence": [
+          "e0",
+          "e2",
+          "e6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Original archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original native objects through Tcl_EvalObjv",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.\n\n```jsonl\n{\"case\":0,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":1,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":2,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":3,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":4,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20222d3122\"}\n{\"case\":5,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":6,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":7,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d652022312e3022\"}\n{\"case\":8,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n{\"case\":9,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223231343734383336343822\"}\n{\"case\":10,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223432393439363732393522\"}\n{\"case\":11,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"32\"}\n{\"case\":12,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d65202262616422\"}\n{\"case\":13,\"before\":\"int\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":14,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d652022312e3022\"}\n{\"case\":15,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n```",
+        "evidence": [
+          "e0",
+          "e2",
+          "e7"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Original archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original native objects through Tcl_EvalObjv",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.\n\n```jsonl\n{\"case\":0,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":1,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":2,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":3,\"before\":\"string\",\"after\":\"levelReference\",\"code\":0,\"result\":\"31\"}\n{\"case\":4,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20222d3122\"}\n{\"case\":5,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":6,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":7,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d652022312e3022\"}\n{\"case\":8,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n{\"case\":9,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223231343734383336343822\"}\n{\"case\":10,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223432393439363732393522\"}\n{\"case\":11,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"32\"}\n{\"case\":12,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d65202262616422\"}\n{\"case\":13,\"before\":\"int\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":14,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d652022312e3022\"}\n{\"case\":15,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n```",
+        "evidence": [
+          "e0",
+          "e2",
+          "e8"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84 label; exact revision not recorded in this manifest",
+        "build": "Original library SHA 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; probe SHA d5eaecb0fb20b6e26d3e1469e26cb51fafdf47cbee9615e97ddaada9bec03651",
+        "input_channel": "Original native Jim objects through retained public argv/evaluation API",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exactly 21 observations; process exit 0. The Jim roster differs explicitly from the C roster.\n\n```jsonl\n{\"case\":0,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":1,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":2,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":3,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":4,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222d3122\"}\n{\"case\":5,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520222b3122\"}\n{\"case\":6,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":7,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"626164206c6576656c2022312e3022\"}\n{\"case\":8,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n{\"case\":9,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223231343734383336343822\"}\n{\"case\":10,\"before\":\"string\",\"after\":\"int\",\"code\":1,\"result\":\"626164206c6576656c20223432393439363732393522\"}\n{\"case\":11,\"before\":\"string\",\"after\":\"int\",\"code\":0,\"result\":\"32\"}\n{\"case\":12,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d65202262616422\"}\n{\"case\":13,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"626164206c6576656c202223312022\"}\n{\"case\":14,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"626164206c6576656c2022233932323333373230333638353437373538303822\"}\n{\"case\":15,\"before\":\"string\",\"after\":\"string\",\"code\":1,\"result\":\"626164206c6576656c2022232d30783830303030303030303030303030303022\"}\n{\"case\":16,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"30\"}\n{\"case\":17,\"before\":\"string\",\"after\":\"string\",\"code\":0,\"result\":\"31\"}\n{\"case\":18,\"before\":\"int\",\"after\":\"int\",\"code\":0,\"result\":\"31\"}\n{\"case\":19,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"626164206c6576656c2022312e3022\"}\n{\"case\":20,\"before\":\"double\",\"after\":\"double\",\"code\":1,\"result\":\"696e76616c696420636f6d6d616e64206e616d6520224e614e22\"}\n```",
+        "evidence": [
+          "e1",
+          "e3",
+          "e9"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/manifest.json",
+        "role": "provider",
+        "sha256": "16f09e74eae120f9e1f131612052ebf3736ad8aadc0cd5bb6cff062dffd097ef",
+        "description": "Five original C library and complete output hashes; 16 windows per engine."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json",
+        "role": "provider",
+        "sha256": "49fb08a00bd9832ac668506753d4eee30332a1535539ccc0c09c75c88d9e0b42",
+        "description": "Original Jim library/binary/output hashes, 21 windows and process exit."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/probe.c",
+        "role": "input",
+        "sha256": "cadd230a808b1d4932c457633110ae3cbd9cf98b38791d0e5b53002a8954d502",
+        "description": "Exact original C object constructors/argv/procedure activation probe."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c",
+        "role": "input",
+        "sha256": "88735df6f48baeda381918f6cfd32cfa6a4bd0e8a45a336d17ff68ce1de2aa20",
+        "description": "Exact independent Jim object constructors and activation probe."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl",
+        "role": "observation",
+        "sha256": "0549ad40b61857df057f28ce4d7af585e284e7ad1857eaf7af82f40d3c6cba2d",
+        "description": "All 16 original before/after cache, completion and result-hex windows."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl",
+        "role": "observation",
+        "sha256": "88edaf514ebfa5266e4d3aca2f7615fcbc106a5444b32f4fe661b5ed59f9dd0d",
+        "description": "All 16 original before/after cache, completion and result-hex windows."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl",
+        "role": "observation",
+        "sha256": "c5244d86a60462c341631fa4d4f6eafc5455ea984c8432b66251f80c180404ad",
+        "description": "All 16 original before/after cache, completion and result-hex windows."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl",
+        "role": "observation",
+        "sha256": "b9fa336b681e6e8eea48358038eb0917c1ef7391a2c97e03a6cd5109ea39eab5",
+        "description": "All 16 original before/after cache, completion and result-hex windows."
+      },
+      {
+        "id": "e8",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl",
+        "role": "observation",
+        "sha256": "b9fa336b681e6e8eea48358038eb0917c1ef7391a2c97e03a6cd5109ea39eab5",
+        "description": "All 16 original before/after cache, completion and result-hex windows."
+      },
+      {
+        "id": "e9",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl",
+        "role": "observation",
+        "sha256": "a80131c7003b8b881a42f876efef2daff6ed088f49128f7ef86045eaae0c79ba",
+        "description": "All 21 independent original Jim cache/completion/result windows."
+      },
+      {
+        "id": "e10",
+        "path": "rust/tcl-syntax/tests/data/native_frame_levels/README.md",
+        "role": "input",
+        "sha256": "7df70505dd35afcbb5e6618138ff6e1368724ca5e2034ab421ec9490c0e0df82",
+        "description": "Separate C and Jim compile/replay protocols and bounded measurement explanation."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/command.rs",
+        "selector": "command::tests::original_frame_selectors_match_native_cache_and_failure_order",
+        "assertion": "Compares original level-object cache and failure order to the retained release-specific rows.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/command.rs",
+        "symbol": "original_frame_selectors_match_native_cache_and_failure_order",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/to/recorded/generic",
+        "-I/path/to/recorded/unix",
+        "rust/tcl-syntax/tests/data/native_frame_levels/probe.c",
+        "/path/to/recorded/libtcl.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/native-variable-proof"
+      ],
+      "limitations": "Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses public object/evaluation entry points; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred. For Jim separately compile jim-probe.c against the recorded configured Jim library and its actual dependencies, then compare every jim0.84.jsonl row as documented in the retained README."
+    }
+  },
+  {
+    "id": "naming.variable.absolute-level-cache-reselects-current-frame",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.absolute-level-cache-reselects-current-frame.md",
+    "problem_statement": "A levelReference cache can outlive a selected frame, encounter a replacement at the same level, or be reused in a different interpreter. Treating its cached type or original numeric level as a persistent frame identity would follow a retired/foreign activation.",
+    "question": "For one retained #1 object, which frame/result/cache and type-hook fields appear before a frame exists, after push/pop/replacement, in another interpreter and after duplication plus original release?",
+    "conclusion": "All five successful final probes report missing and retired frame selection as -1, and select level 1 after first push, replacement, other-interpreter push and duplication. C8.4 retains no levelReference cache; C8.5+ retains levelReference with resident spelling and no four type hooks in these six windows. This proves re-selection behaviour for this object sequence, not enduring frame identity or variable-slot ownership.",
+    "scope": "Thirty completed final private TclGetFrame/TclObjGetFrame windows, C8.4.20\u20139.1.0, original counted #1 object. The first attempt separately completed C8.4/C8.5 but failed linking C8.6/C9 because of unresolved zlib dependencies; those failed attempts have no runtime observations. Jim and BIG-IP not queried.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; tclInt.h SHA 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; probe SHA bd0fa65d6d8203327a08ac4a7bfcad0f46b61169f118a0d4a46c21b10b5ab257",
+        "input_channel": "Original Tcl_NewStringObj(#1,2), private frame API",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Final compile/run both exit 0 with empty runtime stderr. First attempt also completed with exit 0.\n\n```tsv\nmissing\t-1\t-1\tnone\t1\t1\t0\t0\t0\t0\nfirst-frame\t1\t1\tnone\t1\t1\t0\t0\t0\t0\nretired-frame\t-1\t-1\tnone\t1\t1\t0\t0\t0\t0\nreplacement-frame\t1\t1\tnone\t1\t1\t0\t0\t0\t0\nother-interpreter\t1\t1\tnone\t1\t1\t0\t0\t0\t0\nduplicate-after-original-release\t1\t1\tnone\t1\t1\t0\t0\t0\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; tclInt.h SHA c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; probe SHA 9e61f6642791564d6ce8ac6c9c116b0a67aa96047897c6f2a147a357d3564f87",
+        "input_channel": "Original Tcl_NewStringObj(#1,2), private frame API",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Final compile/run both exit 0 with empty runtime stderr. First attempt also completed with exit 0.\n\n```tsv\nmissing\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nfirst-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nretired-frame\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nreplacement-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nother-interpreter\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nduplicate-after-original-release\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; tclInt.h SHA aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; probe SHA 99da56f6ad2e3c6b12ef18c9f4ef23faa65728f050415154659f99b2b37303b9",
+        "input_channel": "Original Tcl_NewStringObj(#1,2), private frame API",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Final compile/run both exit 0 with empty runtime stderr. First attempt failed linking with unresolved zlib references; no runtime observation from that attempt.\n\n```tsv\nmissing\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nfirst-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nretired-frame\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nreplacement-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nother-interpreter\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nduplicate-after-original-release\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; tclInt.h SHA eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; probe SHA 7a7cb57adc705adba367d662e15622596f519e08a02562b9f04204518e46837b",
+        "input_channel": "Original Tcl_NewStringObj(#1,2), private frame API",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Final compile/run both exit 0 with empty runtime stderr. First attempt failed linking with unresolved zlib references; no runtime observation from that attempt.\n\n```tsv\nmissing\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nfirst-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nretired-frame\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nreplacement-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nother-interpreter\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nduplicate-after-original-release\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e6"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; tclInt.h SHA 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; probe SHA ffc9f8a32d92a4eaf77e5c800b8f2cc6227fe0568e326070907b3945cc790ef2",
+        "input_channel": "Original Tcl_NewStringObj(#1,2), private frame API",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Final compile/run both exit 0 with empty runtime stderr. First attempt failed linking with unresolved zlib references; no runtime observation from that attempt.\n\n```tsv\nmissing\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nfirst-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nretired-frame\t-1\t-1\tlevelReference\t1\t1\t0\t0\t0\t0\nreplacement-frame\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nother-interpreter\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\nduplicate-after-original-release\t1\t1\tlevelReference\t1\t1\t0\t0\t0\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e7"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/manifest.json",
+        "role": "provider",
+        "sha256": "47807f08736e5e0108ed9f1e09278d1d4d264248ae4607b869aeb2c4be0d5edd",
+        "description": "Complete final compile/run argv, headers/archive/binary hashes and stdout/stderr hex."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/attempt1-manifest.json",
+        "role": "provider",
+        "sha256": "6a8b3a4a1beab074e6c3c2fcc0a2c98e12935e75b06d4ca710a2c3eb0e58843b",
+        "description": "First attempt: two completed providers and three actual failed-link stderr records, without runtime rows for failed links."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/probe.c",
+        "role": "input",
+        "sha256": "68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb",
+        "description": "Exact retained object/push/pop/replacement/foreign-interpreter/duplicate sequence."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/8.4.20.tsv",
+        "role": "observation",
+        "sha256": "55dfa04de710719ffd1adfc87b0fc9452a414f852f185c5d83b67d737b31e124",
+        "description": "Six original frame selection, cache residency/refcount and four type-hook presence windows."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/8.5.19.tsv",
+        "role": "observation",
+        "sha256": "0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a",
+        "description": "Six original frame selection, cache residency/refcount and four type-hook presence windows."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/8.6.18.tsv",
+        "role": "observation",
+        "sha256": "0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a",
+        "description": "Six original frame selection, cache residency/refcount and four type-hook presence windows."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/9.0.4.tsv",
+        "role": "observation",
+        "sha256": "0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a",
+        "description": "Six original frame selection, cache residency/refcount and four type-hook presence windows."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-syntax/tests/data/native_frame_reference/9.1.0.tsv",
+        "role": "observation",
+        "sha256": "0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a",
+        "description": "Six original frame selection, cache residency/refcount and four type-hook presence windows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_eval/native_frame_reference_tests.rs",
+        "selector": "cmd_eval::native_frame_reference_tests::level_reference_reselects_current_frames_in_thirty_native_windows",
+        "assertion": "Checks re-selection rather than persistence across the thirty original windows.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/exec/native_uplevel_tests.rs",
+        "selector": "exec::native_uplevel_tests::level_reference_reselects_current_frames_in_thirty_native_windows",
+        "assertion": "Checks the independently scoped VM frame-cache path.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_eval/native_frame_reference_tests.rs",
+        "symbol": "level_reference_reselects_current_frames_in_thirty_native_windows",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      },
+      {
+        "path": "rust/tcl-vm/src/exec/native_uplevel_tests.rs",
+        "symbol": "level_reference_reselects_current_frames_in_thirty_native_windows",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/to/recorded/generic",
+        "-I/path/to/recorded/unix",
+        "rust/tcl-syntax/tests/data/native_frame_reference/probe.c",
+        "/path/to/recorded/libtcl.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/native-variable-proof"
+      ],
+      "limitations": "Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred."
+    }
+  },
+  {
+    "id": "naming.variable.original-upvar-and-exists-completion-and-name-windows",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.original-upvar-and-exists-completion-and-name-windows.md",
+    "problem_statement": "Alias-pair installation, selected caller frames, left-to-right operand evaluation, an info-exists probe and ordinary reads have different completion/observer paths. Original name objects and opcode presence must be measured separately from the logical variable name, especially when a later pair or callback fails.",
+    "question": "For the exact 28 retained upvar/info-exists programs per C release, what original completion/result, emitted opcode and four name-header windows occur?",
+    "conclusion": "The complete five-provider transcripts retain 140 original completion/result/opcode windows plus 20 name-header windows. They distinguish local/global alias pairs, partial evaluation failures, array/scalar alias rejection, info-exists result routes and root destruction. Each header belongs only to its observed original operand; opcode presence does not license executing it in another environment or certify arbitrary read/alias completion.",
+    "scope": "Exact probe.c and cases.rs programs under C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 private compiled body artifacts and original counted native objects. Legacy trace syntax errors remain captured guest outcomes. Jim/BIG-IP not queried. This is distinct from modern quiet-exists trace controls and physical general formal/cache inventories.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe SHA 90b9f81776a024bc0f5c02a65cafb8cf6edb30ea7d3bd6c3e5f625c3f757f135",
+        "input_channel": "Original source bodies through private compiled Tcl procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.\n\n```text\nH|0|0|localVarName|1|3|78\nR|0|0|none|1|3|4c4f43414c|\nH|1|0|parsedVarName|1|3|78\nR|1|0|none|1|2|474c4f42414c|\nH|2|0|parsedVarName|1|3|78\nR|2|0|none|1|2|474c4f42414c|\nR|3|0|none|1|3|4e4557|\nR|4|0|none|1|5|4e4557|\nR|5|0|list|0|1|4c4f43414c204c4f43414c4152524159|\nR|6|0|list|0|1|4c4f43414c204c4f43414c4152524159207b782061286b297d|\nR|7|1|none|1|3|53544f50|\nR|8|1|none|1|1|626164207661726961626c65206e616d6520223a3a616c696173223a20757076617220776f6e277420637265617465206e616d657370616365207661726961626c6520746861742072656665727320746f2070726f636564757265207661726961626c65|\nR|9|0|int|0|1|30|\nR|10|1|none|1|1|6578747261206368617261637465727320616674657220636c6f73652d6272616365|\nR|11|1|string|1|1|77726f6e67202320617267733a2073686f756c6420626520227570766172203f6c6576656c3f206f74686572566172206c6f63616c566172203f6f74686572566172206c6f63616c566172202e2e2e3f22|\nR|12|0|int|0|1|31|\nR|13|0|int|0|1|31|\nR|14|0|int|0|1|31|\nR|15|0|int|0|1|31|\nH|16|0|none|1|3|78\nR|16|0|none|1|1||\nR|17|0|int|0|1|31|\nR|18|0|int|0|1|31|\nR|19|0|int|0|1|31|\nR|20|0|int|0|1|30|\nR|21|0|int|0|1|30|\nR|22|1|none|1|1|6578747261206368617261637465727320616674657220636c6f73652d6272616365|\nR|23|1|none|1|3|53544f50|\nR|24|0|int|0|1|31|\nR|25|0|int|0|1|30|\nR|26|0|int|0|1|30|\nR|27|0|int|0|1|30|\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe SHA 69a0cb47c01a1814167bb21a97a4e1145ea4c479f7d12f81d34a0d41ba6bf8bd",
+        "input_channel": "Original source bodies through private compiled Tcl procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.\n\n```text\nH|0|0|localVarName|1|3|78\nR|0|0|none|1|3|4c4f43414c|upvar:4,\nH|1|0|parsedVarName|1|3|78\nR|1|0|none|1|2|474c4f42414c|upvar:4,\nH|2|0|parsedVarName|1|3|78\nR|2|0|none|1|2|474c4f42414c|\nR|3|0|none|1|3|4e4557|upvar:4,\nR|4|0|none|1|4|4e4557|upvar:4,\nR|5|0|list|0|1|4c4f43414c204c4f43414c4152524159|upvar:4,upvar:5,\nR|6|0|list|0|1|4c4f43414c204c4f43414c4152524159207b782061286b297d|upvar:4,upvar:5,\nR|7|1|none|1|3|53544f50|upvar:4,upvar:5,\nR|8|1|string|1|1|626164207661726961626c65206e616d6520223a3a616c696173223a2063616e277420637265617465206e616d657370616365207661726961626c6520746861742072656665727320746f2070726f636564757265207661726961626c65|\nR|9|1|string|1|1|626164207661726961626c65206e616d652022616c696173286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74|existScalar:4,\nR|10|0|none|1|3|4c4f43414c|upvar:4,\nR|11|1|string|1|1|77726f6e67202320617267733a2073686f756c6420626520227570766172203f6c6576656c3f206f74686572566172206c6f63616c566172203f6f74686572566172206c6f63616c566172202e2e2e3f22|\nR|12|0|int|0|2|31|existScalar:2,\nR|13|0|int|1|2|31|existArray:3,\nR|14|0|int|1|2|31|existStk,\nR|15|0|int|1|2|31|existArrayStk,\nH|16|0|localVarName|1|3|78\nR|16|0|none|1|1||existStk,\nR|17|0|int|1|2|31|existArray:3,\nR|18|0|int|1|2|31|existArrayStk,\nR|19|0|int|1|2|31|existStk,\nR|20|0|int|0|2|30|existStk,\nR|21|0|int|1|2|30|existArray:3,\nR|22|0|int|1|2|31|existScalar:2,\nR|23|1|none|1|3|53544f50|existStk,\nR|24|0|int|1|2|31|upvar:4,existScalar:4,\nR|25|0|int|1|2|30|upvar:4,existScalar:4,\nR|26|0|int|1|2|30|upvar:4,existScalar:4,\nR|27|0|int|1|2|30|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe SHA 89a051c8ad61680652b869a27c81176ea69a39e5afb24efd6f867d0f56f4c113",
+        "input_channel": "Original source bodies through private compiled Tcl procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.\n\n```text\nH|0|0|localVarName|1|3|78\nR|0|0|none|1|3|4c4f43414c|upvar:4,\nH|1|0|parsedVarName|1|3|78\nR|1|0|none|1|2|474c4f42414c|upvar:4,\nH|2|0|parsedVarName|1|3|78\nR|2|0|none|1|2|474c4f42414c|\nR|3|0|none|1|3|4e4557|upvar:4,\nR|4|0|none|1|4|4e4557|upvar:4,\nR|5|0|list|0|1|4c4f43414c204c4f43414c4152524159|upvar:4,upvar:5,\nR|6|0|list|0|1|4c4f43414c204c4f43414c4152524159207b782061286b297d|upvar:4,upvar:5,\nR|7|1|none|1|4|53544f50|upvar:4,upvar:5,\nR|8|1|string|1|1|626164207661726961626c65206e616d6520223a3a616c696173223a2063616e277420637265617465206e616d657370616365207661726961626c6520746861742072656665727320746f2070726f636564757265207661726961626c65|\nR|9|1|string|1|1|626164207661726961626c65206e616d652022616c696173286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74|existScalar:4,\nR|10|0|none|1|3|4c4f43414c|upvar:4,\nR|11|1|string|1|1|626164206c6576656c20226b22|\nR|12|0|int|0|2|31|existScalar:2,\nR|13|0|int|1|2|31|existArray:3,\nR|14|0|int|1|2|31|existStk,\nR|15|0|int|1|2|31|existArrayStk,\nH|16|0|localVarName|1|3|78\nR|16|0|none|1|1||existStk,\nR|17|0|int|1|2|31|existArray:3,\nR|18|0|int|1|2|31|existArrayStk,\nR|19|0|int|1|2|31|existStk,\nR|20|0|int|0|2|30|existStk,\nR|21|0|int|1|2|30|existArray:3,\nR|22|0|int|1|2|31|existScalar:2,\nR|23|1|none|1|4|53544f50|existStk,\nR|24|0|int|1|2|31|upvar:4,existScalar:4,\nR|25|0|int|1|2|30|upvar:4,existScalar:4,\nR|26|0|int|1|2|30|upvar:4,existScalar:4,\nR|27|0|int|1|2|30|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe SHA dfc2ab87b933c71110c970d92dff4ebdc4f05d9e944ed096f56c58e448dc5697",
+        "input_channel": "Original source bodies through private compiled Tcl procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.\n\n```text\nH|0|0|localVarName|1|3|78\nR|0|0|none|1|3|4c4f43414c|upvar:4,\nH|1|0|parsedVarName|1|3|78\nR|1|0|none|1|2|474c4f42414c|upvar:4,\nH|2|0|parsedVarName|1|3|78\nR|2|0|none|1|2|474c4f42414c|\nR|3|0|none|1|3|4e4557|upvar:4,\nR|4|0|none|1|4|4e4557|upvar:4,\nR|5|0|list|0|1|4c4f43414c204c4f43414c4152524159|upvar:4,upvar:5,\nR|6|0|list|0|1|4c4f43414c204c4f43414c4152524159207b782061286b297d|upvar:4,upvar:5,\nR|7|1|none|1|4|53544f50|upvar:4,upvar:5,\nR|8|1|string|1|1|626164207661726961626c65206e616d6520223a3a616c696173223a2063616e277420637265617465206e616d657370616365207661726961626c6520746861742072656665727320746f2070726f636564757265207661726961626c65|\nR|9|1|string|1|1|626164207661726961626c65206e616d652022616c696173286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74|existScalar:4,\nR|10|0|none|1|3|4c4f43414c|upvar:4,\nR|11|1|string|1|1|626164206c6576656c20226b22|\nR|12|0|int|0|2|31|existScalar:2,\nR|13|0|int|1|2|31|existArray:3,\nR|14|0|int|1|2|31|existStk,\nR|15|0|int|1|2|31|existArrayStk,\nH|16|0|localVarName|1|3|78\nR|16|0|none|1|1||existStk,\nR|17|0|int|1|2|31|existArray:3,\nR|18|0|int|1|2|31|existArrayStk,\nR|19|0|int|1|2|31|existStk,\nR|20|0|int|0|2|30|existStk,\nR|21|0|int|1|2|30|existArray:3,\nR|22|0|int|1|2|31|existScalar:2,\nR|23|1|none|1|4|53544f50|existStk,\nR|24|1|string|1|1|626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f7665|upvar:4,existScalar:4,\nR|25|1|string|1|1|626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f7665|upvar:4,existScalar:4,\nR|26|0|int|1|2|30|upvar:4,existScalar:4,\nR|27|0|int|1|2|30|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e6"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe SHA b94842937c64ab94d21ef98243e2f07735f052b75656e87a7e98db96c9e238f4",
+        "input_channel": "Original source bodies through private compiled Tcl procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.\n\n```text\nH|0|0|localVarName|1|3|78\nR|0|0|none|1|3|4c4f43414c|upvar:4,\nH|1|0|parsedVarName|1|3|78\nR|1|0|none|1|2|474c4f42414c|upvar:4,\nH|2|0|parsedVarName|1|3|78\nR|2|0|none|1|2|474c4f42414c|\nR|3|0|none|1|3|4e4557|upvar:4,\nR|4|0|none|1|4|4e4557|upvar:4,\nR|5|0|list|0|1|4c4f43414c204c4f43414c4152524159|upvar:4,upvar:5,\nR|6|0|list|0|1|4c4f43414c204c4f43414c4152524159207b782061286b297d|upvar:4,upvar:5,\nR|7|1|none|1|4|53544f50|upvar:4,upvar:5,\nR|8|1|string|1|1|626164207661726961626c65206e616d6520223a3a616c696173223a2063616e277420637265617465206e616d657370616365207661726961626c6520746861742072656665727320746f2070726f636564757265207661726961626c65|\nR|9|1|string|1|1|626164207661726961626c65206e616d652022616c696173286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74|existScalar:4,\nR|10|0|none|1|3|4c4f43414c|upvar:4,\nR|11|1|string|1|1|626164206c6576656c20226b22|\nR|12|0|int|0|2|31|existScalar:2,\nR|13|0|int|1|2|31|existArray:3,\nR|14|0|int|1|2|31|existStk,\nR|15|0|int|1|2|31|existArrayStk,\nH|16|0|localVarName|1|3|78\nR|16|0|none|1|1||existStk,\nR|17|0|int|1|2|31|existArray:3,\nR|18|0|int|1|2|31|existArrayStk,\nR|19|0|int|1|2|31|existStk,\nR|20|0|int|0|2|30|existStk,\nR|21|0|int|1|2|30|existArray:3,\nR|22|0|int|1|2|31|existScalar:2,\nR|23|1|none|1|4|53544f50|existStk,\nR|24|1|string|1|1|626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f7665|upvar:4,existScalar:4,\nR|25|1|string|1|1|626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f7665|upvar:4,existScalar:4,\nR|26|0|int|1|2|30|upvar:4,existScalar:4,\nR|27|0|int|1|2|30|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e7"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json",
+        "role": "provider",
+        "sha256": "24daacf3a132fac16d19c2a3d786fafa89540b1f6ab94269ca74388a8ccbc15f",
+        "description": "Original compiler argv/library/binary/stdout hashes and window counts for all five C providers."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c",
+        "role": "input",
+        "sha256": "bcc9a46141da632b600910c405f88af61bc5905b3f3331c6b4ebdb9b095290de",
+        "description": "Original case scripts, initial globals/procedure frames and original object/header observation probe."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs",
+        "role": "input",
+        "sha256": "2bd4c21b85362214daad4bb1836ffdb4218a1a90bb7e0bcc0cecfd8d4d295bf2",
+        "description": "Exact shared 28-program roster retained by current comparisons."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt",
+        "role": "observation",
+        "sha256": "f346f6f2647489d68f259ebd6e3cd0bf11d459a267b63050b1c875e81443bda6",
+        "description": "All 28 completion/opcode rows and four header observation rows, including guest failures."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt",
+        "role": "observation",
+        "sha256": "ff2a2f35c7525c61c9951424dd06c53c8d71d4e309fbb15ff29b5c446b8b9118",
+        "description": "All 28 completion/opcode rows and four header observation rows, including guest failures."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt",
+        "role": "observation",
+        "sha256": "f29d0f4a6e8fd58a54d2864d742fdeb5698266e2a6335f5c4ee65ff5c388070b",
+        "description": "All 28 completion/opcode rows and four header observation rows, including guest failures."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt",
+        "role": "observation",
+        "sha256": "93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf",
+        "description": "All 28 completion/opcode rows and four header observation rows, including guest failures."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt",
+        "role": "observation",
+        "sha256": "93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf",
+        "description": "All 28 completion/opcode rows and four header observation rows, including guest failures."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/native_upvar_info_exists_tests.rs",
+        "selector": "interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers",
+        "assertion": "Compares every original completion/name header without deriving an unobserved native donor.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs",
+        "selector": "interp::native_upvar_info_exists_tests::original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers",
+        "assertion": "Compares the exact retained roster through VM original artifacts.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/native_upvar_info_exists_tests.rs",
+        "symbol": "original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs",
+        "symbol": "original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/to/recorded/generic",
+        "-I/path/to/recorded/unix",
+        "rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c",
+        "/path/to/recorded/libtcl.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/native-variable-proof"
+      ],
+      "limitations": "Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred."
+    }
+  },
+  {
+    "id": "naming.variable.exists-read-trace-quiet-result-purpose",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.exists-read-trace-quiet-result-purpose.md",
+    "problem_statement": "A variable read trace can create a value or fail, but info exists deliberately has a quiet existence-result route. Borrowing that Boolean completion to justify an ordinary read or write would lose the trace failure and actual value/container obligations.",
+    "question": "What original completion, result object/cache fields and opcode presence does info exists produce after a creating trace, failing scalar trace and failing local-array-element trace?",
+    "conclusion": "Every measured C provider completes these three original exists probes normally with results 1, 0 and 1 respectively. Modern compiler opcode presence and result cache/refcount fields remain separately recorded. This quiet Boolean result purpose does not certify an ordinary read, suppress all callbacks, prove returned byte values or close a write operation.",
+    "scope": "Fifteen original windows in the retained modern trace-add probe/cases, C8.4.20\u20139.1.0, private compiled procedures plus original native objects. Exact three trace bodies and aliases only. Jim/BIG-IP not queried; no unsupported classification is inferred from their absence.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe SHA 9cc49e018c03d1e55f18f97b37fc81b9c51b8bec39723a39aff6614a5afefa01",
+        "input_channel": "Exact original source via private compiled procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0; all three completions are code 0, result hex 31/30/31 (1/0/1).\n\n```text\nR|0|0|int|0|1|31|\nR|1|0|int|0|1|30|\nR|2|0|int|0|1|31|\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe SHA 609d5699ba087372ea1305aa6243602127f2552bd745b7261713db917392f2d7",
+        "input_channel": "Exact original source via private compiled procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0; all three completions are code 0, result hex 31/30/31 (1/0/1).\n\n```text\nR|0|0|int|0|2|31|upvar:4,existScalar:4,\nR|1|0|int|0|2|30|upvar:4,existScalar:4,\nR|2|0|int|1|2|31|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe SHA 1d030c30ea3e98df6e17ad845707194014af08469a51f5dc19b248e545813146",
+        "input_channel": "Exact original source via private compiled procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0; all three completions are code 0, result hex 31/30/31 (1/0/1).\n\n```text\nR|0|0|int|0|2|31|upvar:4,existScalar:4,\nR|1|0|int|0|2|30|upvar:4,existScalar:4,\nR|2|0|int|1|2|31|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe SHA 02205a1077a30d6cfad12368cc37325a67639e7126cb007052be1f9741d2af59",
+        "input_channel": "Exact original source via private compiled procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0; all three completions are code 0, result hex 31/30/31 (1/0/1).\n\n```text\nR|0|0|int|0|2|31|upvar:4,existScalar:4,\nR|1|0|int|0|2|30|upvar:4,existScalar:4,\nR|2|0|int|1|2|31|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e6"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe SHA e66c69aa8a0f37ea93eea0ba2fe6b528c1397e43240e84849d43cbb24d7716aa",
+        "input_channel": "Exact original source via private compiled procedure artifact",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0; all three completions are code 0, result hex 31/30/31 (1/0/1).\n\n```text\nR|0|0|int|0|2|31|upvar:4,existScalar:4,\nR|1|0|int|0|2|30|upvar:4,existScalar:4,\nR|2|0|int|1|2|31|upvar:4,existScalar:4,\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e7"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/manifest.json",
+        "role": "provider",
+        "sha256": "93980bc7a12661f9ab3d06981b834d5e536324984da3c7a7fe11003d361826ac",
+        "description": "Original five-provider compile/run hashes and three result windows each."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/probe.c",
+        "role": "input",
+        "sha256": "b8bdd9f7036037cec344521d416ae316a323bb7db396ed39f0de24608b53587f",
+        "description": "Exact read-trace bodies, alias/array setup and original existence opcode/result observation."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs",
+        "role": "input",
+        "sha256": "5d746de10fc6e30545054cc4d58b6ecc6ec69796e99039f183f92951c061468a",
+        "description": "The same three original programmes consumed by current comparisons."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt",
+        "role": "observation",
+        "sha256": "6c3522ff50acafbedaba5d68a989ac8acc726bd1b11f3dcc790b3502af303451",
+        "description": "All three existence-result/type/cache/refcount/opcode rows."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt",
+        "role": "observation",
+        "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2",
+        "description": "All three existence-result/type/cache/refcount/opcode rows."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt",
+        "role": "observation",
+        "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2",
+        "description": "All three existence-result/type/cache/refcount/opcode rows."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt",
+        "role": "observation",
+        "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2",
+        "description": "All three existence-result/type/cache/refcount/opcode rows."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt",
+        "role": "observation",
+        "sha256": "92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2",
+        "description": "All three existence-result/type/cache/refcount/opcode rows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/native_upvar_info_exists_tests.rs",
+        "selector": "interp::native_body_artifact::native_upvar_info_exists_tests::original_exists_quiet_trace_semantics_preserve_15_native_result_windows",
+        "assertion": "Checks quiet Boolean existence semantics as an independent operation purpose.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs",
+        "selector": "interp::native_upvar_info_exists_tests::original_exists_quiet_trace_semantics_preserve_15_native_result_windows",
+        "assertion": "Checks every retained VM result window.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/native_upvar_info_exists_tests.rs",
+        "symbol": "original_exists_quiet_trace_semantics_preserve_15_native_result_windows",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_upvar_info_exists_tests.rs",
+        "symbol": "original_exists_quiet_trace_semantics_preserve_15_native_result_windows",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/to/recorded/generic",
+        "-I/path/to/recorded/unix",
+        "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/probe.c",
+        "/path/to/recorded/libtcl.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/native-variable-proof"
+      ],
+      "limitations": "Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred."
+    }
+  },
+  {
+    "id": "naming.variable.global-and-variable-local-alias-tail-purpose",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.global-and-variable-local-alias-tail-purpose.md",
+    "problem_statement": "Global and namespace-variable declarations project a local alias from the same qualified operand using different selected recipes. Rooted and relative names with a three-colon separator differ in Jim, so a generic namespace-tail display is not an interchangeable binding name.",
+    "question": "Which local names does info vars present after global or variable declarations of ::R:::v and R:::v in each of the six captured native engines?",
+    "conclusion": "All five captured C providers present v for all four declarations. Jim presents no local name for rooted global, v for rooted variable, R:::v for relative global and v for relative variable. These four exact ASCII presentation controls support distinct alias-local projection purposes; they prove no physical cell, compiler-local slot, alias lifetime, opaque-byte behaviour or arbitrary namespace existence.",
+    "scope": "Four exact ASCII script cases, native shell evaluation, five C release labels plus current-label Jim and original executable SHA. Exact patches/Jim revision were not queried in this manifest. BIG-IP not queried. No bytezero or character-channel translation claim is made.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4 label; exact patch not recorded",
+        "build": "Executable SHA 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+        "input_channel": "ASCII probe.tcl through native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Process exit 0, empty stderr; exact four caught local-name presentations:\n\n```text\na:0:v\nb:0:v\nc:0:v\nd:0:v\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5 label; exact patch not recorded",
+        "build": "Executable SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+        "input_channel": "ASCII probe.tcl through native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Process exit 0, empty stderr; exact four caught local-name presentations:\n\n```text\na:0:v\nb:0:v\nc:0:v\nd:0:v\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6 label; exact patch not recorded",
+        "build": "Executable SHA 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+        "input_channel": "ASCII probe.tcl through native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Process exit 0, empty stderr; exact four caught local-name presentations:\n\n```text\na:0:v\nb:0:v\nc:0:v\nd:0:v\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0 label; exact patch not recorded",
+        "build": "Executable SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+        "input_channel": "ASCII probe.tcl through native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Process exit 0, empty stderr; exact four caught local-name presentations:\n\n```text\na:0:v\nb:0:v\nc:0:v\nd:0:v\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1 label; exact patch not recorded",
+        "build": "Executable SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+        "input_channel": "ASCII probe.tcl through native shell",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Process exit 0, empty stderr; exact four caught local-name presentations:\n\n```text\na:0:v\nb:0:v\nc:0:v\nd:0:v\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84/current label; exact revision not recorded",
+        "build": "Executable SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+        "input_channel": "ASCII probe.tcl through native shell",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Process exit 0, empty stderr; exact four caught local-name presentations:\n\n```text\na:0:\nb:0:v\nc:0:R:::v\nd:0:v\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-syntax/tests/data/native_alias_names/provenance.json",
+        "role": "provider",
+        "sha256": "24b117cfdef3258d7ff3d7c1ca7fd1beb87ea91f0111c3dc3108444344da25f6",
+        "description": "Original six executable hashes/status/stdout/stderr and declared source hash."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-syntax/tests/data/native_alias_names/probe.tcl",
+        "role": "input",
+        "sha256": "ff62a137fadf12739f470970731c2d17ff0b3195b44cb4fcc628aeae9ad6a841",
+        "description": "Exact namespace setup and four caught declaration/info-vars scripts."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/naming/aliases.rs",
+        "selector": "naming::aliases::tests::local_alias_names_match_original_native_declarations",
+        "assertion": "Compares operation-specific local alias projection to native presentations without granting cell/table identity.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/aliases.rs",
+        "symbol": "local_alias_names_match_original_native_declarations",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [
+        "/path/to/recorded/native/shell",
+        "rust/tcl-syntax/tests/data/native_alias_names/probe.tcl"
+      ],
+      "limitations": "Run the exact retained ASCII script in a fresh recorded provider build; it owns its catch/result presenter. Require all four stdout rows, empty stderr and exit 0. Original executable hashes are retained but exact build recipes/patch queries are missing; a rerun is a new observation. No Rust execution is recorded."
+    }
+  }
+]

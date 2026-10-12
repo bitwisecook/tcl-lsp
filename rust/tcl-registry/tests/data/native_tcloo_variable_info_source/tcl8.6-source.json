@@ -1,0 +1,26 @@
+{
+  "provider": "tcl8.6",
+  "version": "8.6.18",
+  "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+  "source_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+  "windows": [
+    {
+      "function": "InfoObjectVariablesCmd",
+      "lines": [
+        728,
+        753
+      ],
+      "snippet": "InfoObjectVariablesCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const objv[])\n{\n    Object *oPtr;\n    Tcl_Obj *variableObj, *resultObj;\n    int i;\n\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName\");\n\treturn TCL_ERROR;\n    }\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    TclNewObj(resultObj);\n    FOREACH(variableObj, oPtr->variables) {\n\tTcl_ListObjAppendElement(NULL, resultObj, variableObj);\n    }\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "dab27f68c49bdc1f4b47b394a55e9b231a54f8f6e37e16c5c69d811ae285993f"
+    },
+    {
+      "function": "InfoClassVariablesCmd",
+      "lines": [
+        1408,
+        1433
+      ],
+      "snippet": "InfoClassVariablesCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const objv[])\n{\n    Class *clsPtr;\n    Tcl_Obj *variableObj, *resultObj;\n    int i;\n\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = GetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    TclNewObj(resultObj);\n    FOREACH(variableObj, clsPtr->variables) {\n\tTcl_ListObjAppendElement(NULL, resultObj, variableObj);\n    }\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n",
+      "snippet_sha256": "760b068365fd4f7faa0e4524dbaed0f50de5fbf42928d774f83077201bab2e8e"
+    }
+  ]
+}

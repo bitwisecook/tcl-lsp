@@ -1,0 +1,20 @@
+
+running 1 test
+test analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate ... ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[]
+ALIAS_TEMPLATE_SOURCE receipts=0 anchors=8
+
+thread 'analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate' (597328) panicked at rust/tcl-compiler/src/analyser/variable_alias_templates.rs:265:13:
+assertion `left == right` failed: tcl8.4
+  left: []
+ right: [29, 43, 60]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8189 filtered out; finished in 3.64s
+

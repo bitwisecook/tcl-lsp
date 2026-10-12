@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 15.87s
+

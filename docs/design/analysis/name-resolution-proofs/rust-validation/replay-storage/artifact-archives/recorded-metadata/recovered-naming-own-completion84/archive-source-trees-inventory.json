@@ -1,0 +1,143 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/recovered-naming-own-completion84.source-trees.tar.gz",
+  "archive_sha256": "0c12122e9a7b4d5aa48b93e030020069d8d7541e943b19cd4238f2f69c7180dc",
+  "archive_bytes": 120428,
+  "uncompressed_bytes": 577734,
+  "source_manifest_sha256": "c78aa455e97e203007a96a83e2218da043264cbc13db7f8ec328761f451ae22f",
+  "source_patch_sha256": "b84c2ee39b9039e8749641cc5c3ce0467f560901b086d7256cea39039b22c8de",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 14,
+  "members": {
+    "recovered-naming-own-completion84/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9469132,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9469132,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9469132,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9516184,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/base/rust/tcl-lsp-core/src/completion.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9527693,
+      "size": 222066,
+      "sha256": "d2c91e53c007664c85201943a4c6cb63f7f4171a69610f6ab91e83d7bcae483b"
+    },
+    "recovered-naming-own-completion84/base/rust/tcl-lsp-core/src/original_oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.951571,
+      "size": 17839,
+      "sha256": "80db8fa7c9f70f108217341fcc6d21be72979a1e9025afd8149e9cd43a4c118e"
+    },
+    "recovered-naming-own-completion84/base/rust/tcl-lsp-core/src/receiver_identity.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9512463,
+      "size": 44528,
+      "sha256": "21bdbaff9f77c917a4022be8e26c2d6b0214894deb81225fddc1d808a5dffe6a"
+    },
+    "recovered-naming-own-completion84/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9512463,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9512463,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9512463,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9527693,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-naming-own-completion84/files/rust/tcl-lsp-core/src/completion.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505358.6210387,
+      "size": 228024,
+      "sha256": "ece57ca6815239e00bad4bd65d219fb115fe86e96b857ee02df44320708c5612"
+    },
+    "recovered-naming-own-completion84/files/rust/tcl-lsp-core/src/original_oo.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505358.6189826,
+      "size": 20161,
+      "sha256": "bad9d447db474c98dae922606d0bd8a0638d9d677b6f41832f30187f339b873c"
+    },
+    "recovered-naming-own-completion84/files/rust/tcl-lsp-core/src/receiver_identity.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791505340.9548156,
+      "size": 45116,
+      "sha256": "3f67a6589233a4b8d90985ce7f3669e9dde6bd156183241a74800a18b3ef8dde"
+    }
+  },
+  "leaf_tree_mapping": [],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

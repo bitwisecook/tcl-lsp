@@ -1,0 +1,98 @@
+		} else {
+		    flags |= DEFINITE_PROTECTED;
+		}
+	    }
+	    AddMethodToCallChain(mPtr, cbPtr, doneFilters, filterDecl, flags);
+	}
+    }
+
+    switch (classPtr->superclasses.num) {
+    case 1:
+	classPtr = classPtr->superclasses.list[0];
+	goto tailRecurse;
+    default:
+	FOREACH(superPtr, classPtr->superclasses) {
+	    AddSimpleClassChainToCallContext(superPtr, methodNameObj, cbPtr,
+		    doneFilters, flags, filterDecl);
+	}
+	/* FALLTHRU */
+    case 0:
+	return;
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOORenderCallChain --
+ *
+ *	Create a description of a call chain. Used in [info object call],
+ *	[info class call], and [self call].
+ *
+ * ----------------------------------------------------------------------
+ */
+
+Tcl_Obj *
+TclOORenderCallChain(
+    Tcl_Interp *interp,
+    CallChain *callPtr)
+{
+    Tcl_Obj *filterLiteral, *methodLiteral, *objectLiteral;
+    Tcl_Obj *resultObj, *descObjs[4], **objv;
+    Foundation *fPtr = TclOOGetFoundation(interp);
+    int i;
+
+    /*
+     * Allocate the literals (potentially) used in our description.
+     */
+
+    filterLiteral = Tcl_NewStringObj("filter", -1);
+    Tcl_IncrRefCount(filterLiteral);
+    methodLiteral = Tcl_NewStringObj("method", -1);
+    Tcl_IncrRefCount(methodLiteral);
+    objectLiteral = Tcl_NewStringObj("object", -1);
+    Tcl_IncrRefCount(objectLiteral);
+
+    /*
+     * Do the actual construction of the descriptions. They consist of a list
+     * of triples that describe the details of how a method is understood. For
+     * each triple, the first word is the type of invocation ("method" is
+     * normal, "unknown" is special because it adds the method name as an
+     * extra argument when handled by some method types, and "filter" is
+     * special because it's a filter method). The second word is the name of
+     * the method in question (which differs for "unknown" and "filter" types)
+     * and the third word is the full name of the class that declares the
+     * method (or "object" if it is declared on the instance).
+     */
+
+    objv = (Tcl_Obj **)TclStackAlloc(interp, callPtr->numChain * sizeof(Tcl_Obj *));
+    for (i = 0 ; i < callPtr->numChain ; i++) {
+	struct MInvoke *miPtr = &callPtr->chain[i];
+
+	descObjs[0] =
+	    miPtr->isFilter ? filterLiteral :
+	    callPtr->flags & OO_UNKNOWN_METHOD ? fPtr->unknownMethodNameObj :
+		    methodLiteral;
+	descObjs[1] =
+	    callPtr->flags & CONSTRUCTOR ? fPtr->constructorName :
+	    callPtr->flags & DESTRUCTOR ? fPtr->destructorName :
+		    miPtr->mPtr->namePtr;
+	descObjs[2] = miPtr->mPtr->declaringClassPtr
+		? Tcl_GetObjectName(interp,
+			(Tcl_Object) miPtr->mPtr->declaringClassPtr->thisPtr)
+		: objectLiteral;
+	descObjs[3] = Tcl_NewStringObj(miPtr->mPtr->typePtr->name, -1);
+
+	objv[i] = Tcl_NewListObj(4, descObjs);
+    }
+
+    /*
+     * Drop the local references to the literals; if they're actually used,
+     * they'll live on the description itself.
+     */
+
+    Tcl_DecrRefCount(filterLiteral);
+    Tcl_DecrRefCount(methodLiteral);
+    Tcl_DecrRefCount(objectLiteral);
+
+    /*

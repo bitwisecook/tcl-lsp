@@ -1,0 +1,37 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/.proofs/native-list-arity146/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.012194751005154103,
+  "reported_version": "9.0.4",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+  "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+  "source_sha256": "03dd0d973f283518d7a1dc2a9d17332ccfe82f3ad62ce973b5a4dde200ae0cc8",
+  "runner_sha256": "6e739313b414a3ca71c6aa2b27023440e00b7c0a31f77a957796a7e4da301f73",
+  "stdout_sha256": "3b2903d117e6ebd528e6e21dc8eebd42f7930ff0e628a646d26329c5cf19b298",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b"
+  },
+  "rows": [
+    "PATCHLEVEL 9.0.4",
+    "RESULT no_operands 1 {wrong # args: should be \"lassign list ?varName ...?\"}",
+    "RESULT literal_no_target 0 {A B}",
+    "RESULT dynamic_no_target 0 {A B}",
+    "RESULT compiled_no_target 0 {A B}",
+    "RESULT malformed_no_target 1 {unmatched open brace in list}",
+    "RESULT literal_one_target 0 B",
+    "RESULT empty_no_target 0 {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Seven fixed list-assignment invocation controls covering target-free arity, literal/dynamic/compiled source entry, malformed list before arity, one target and empty list. CLI outcomes only; no physical compiler/header/cache or BIG-IP claim."
+}

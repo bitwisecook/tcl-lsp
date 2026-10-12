@@ -1,0 +1,11 @@
+{
+  "base_public_registration_harness": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_command_recreation_original/request/probe.c",
+  "base_harness_sha256": "dd26f86bae7adc7ae0e9f62e00b7dd94b17412b1dc580ae1e9b30cb48b17422d",
+  "base_request": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_command_recreation_original/request/request.json",
+  "base_request_sha256": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+  "base_launch_plan": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_command_recreation_original/request/launch-plan.json",
+  "base_launch_plan_sha256": "bc5f3a8920b93bead01bad4b4c9eb0b69b240636c8f6fea6ff6e5da8401c1dbc",
+  "runtime_source_census": "/tmp/runtime-command-retirement-source-census592.json",
+  "runtime_source_census_sha256": "2ffcb45b482dd2c79f6bc89965fac8418956af7a254abfe22c5dd0cc0203cc26",
+  "limits": "Reference only. Do not overwrite existing idle-recreation request/output/archives or extend its conclusion without a separately owned new observation."
+}

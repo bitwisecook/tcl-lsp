@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::authored_math::tests::resumable_authored_functions_require_their_own_provider_and_restore_host_dispatch ... 
+thread 'interp::authored_math::tests::resumable_authored_functions_require_their_own_provider_and_restore_host_dispatch' (1359518) panicked at rust/tcl-vm/src/interp/authored_math.rs:246:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::authored_math::tests::resumable_authored_functions_require_their_own_provider_and_restore_host_dispatch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 7.00s
+

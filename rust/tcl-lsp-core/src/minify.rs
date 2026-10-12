@@ -18,9 +18,17 @@
 
 //! Tcl code minifier.
 //!
-//! Pure function: source in, minified source out.  The **default
-//! tier** ([`minify_tcl`]) is complete and preserves semantic
-//! equivalence by:
+//! [`minify_with_analysis`] retains the complete current editing input. Native
+//! syntax compaction retains original words and edits only separators in
+//! authenticated original script regions. Expansions, escaping and variable
+//! syntax retain their original bytes. Every selected region checks emitted
+//! lexical correspondence independently; this makes no
+//! runtime reflection or line-number equivalence claim. Native naming,
+//! insertion, semantic and keyword passes require separate contracts and report
+//! typed refusals while those contracts are unavailable.
+//!
+//! The following transformations belong to explicit lexical authoring advice.
+//! Its **default tier** ([`minify_tcl`]) performs:
 //!
 //! 1. Stripping all comments.
 //! 2. Collapsing inter-command whitespace to `;`.
@@ -37,10 +45,8 @@
 //!    `case_list` commands (`switch`, Expect's `expect`) with the
 //!    Tcl **list** grammar — a braced case list is a list, not a
 //!    script, so `#` is an ordinary pattern there, never a comment.
-//! 9. Abbreviating ensemble subcommands for fixed-ensemble
-//!    dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
 //!
-//! The default tier never introduces variables, writes, or any other
+//! Syntax compaction never introduces variables, writes, or any other
 //! observable behaviour — its output is frame-transparent.  That rules
 //! out `[subst $alias]` template deduplication, whose `set alias {…}`
 //! preamble can clobber a live variable, fire traces, and change
@@ -124,9 +130,14 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
+mod lexical_keywords;
+mod lexical_metadata;
+mod original;
+pub use original::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_analysis};
+
 use rustc_hash::FxHashSet;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
+use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
@@ -136,7 +147,6 @@ use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr_for_profile};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, close_quote_offset};
-use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// Depth cap for [`minify_body`]'s recursion over nested control-flow
@@ -487,17 +497,20 @@ fn try_remap_procline(
     ))
 }
 
-/// Full result from aggressive minification.
+/// Result and requested-pass refusals from minification.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MinifyResult {
     /// The minified source.
     pub source: String,
     /// Compaction symbol map.
     pub symbol_map: SymbolMap,
-    /// Number of optimiser rewrites applied.
+    /// Number of retained naming or optimiser rewrites applied.
     pub optimisations_applied: usize,
     /// Length of the original source (bytes).
     pub original_length: usize,
+    /// Requested transformations whose independent contracts are unavailable.
+    /// Syntax compaction can succeed while a naming or insertion pass refuses.
+    pub refusals: Vec<MinifyRefusal>,
 }
 
 impl MinifyResult {
@@ -519,41 +532,23 @@ impl MinifyResult {
     }
 }
 
-/// Minify a Tcl source string for the given dialect (default tier).
+/// Minify under explicit driver profile/store inputs. Native output changes
+/// only lexical separators and comments, keeping whole original words.
+/// Use [`minify_with_profile`] or [`minify_with_analysis`] to retain refusals.
 #[must_use]
 pub fn minify_tcl(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> String {
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    minify_body(
-        source,
-        MinifyEnv {
-            dialect,
-            registry,
-            identities: &identities,
-        },
-        0,
-    )
+    minify_with_profile(source, dialect, registry, MinifyOptions::default()).source
 }
 
-/// Aggressive minification: apply the compiler's optimiser
-/// rewrites, compact names, alias repeated commands / arguments /
-/// string substrings, then minify whitespace.  Returns a
-/// [`MinifyResult`].
-///
-/// **Not frame-transparent**: the aliasing phases
-/// inject `set alias …` preambles, which create real Tcl variables
-/// — observable via `info vars`, variable traces, and any
-/// same-named variable in the hosting interpreter.  The alias
-/// generators avoid every name the compiler can see (compacted
-/// shorts, every analysed / SSA-known variable name, every textual
-/// `$name` reference — [`collect_live_names`]), so a collision with
-/// a name *present in the script* cannot happen, but names that
-/// exist only in the hosting interpreter's frames cannot be proven
-/// absent.  Use the default or compact tier where the script must
-/// not add variables.
+/// Request aggressive minification under explicit driver profile/store inputs.
+/// Native analyses retain whole original words and report unavailable naming,
+/// semantic, keyword and alias-insertion contracts in [`MinifyResult::refusals`].
+/// Only explicit lexical authoring advice uses the compatibility passes, whose
+/// inserted assignments are observable and are not frame-transparent.
 #[must_use]
 pub fn minify_tcl_aggressive(
     source: &str,
@@ -578,6 +573,31 @@ pub fn minify_tcl_aggressive_with(
     registry: &CommandRegistry,
     abbreviations: bool,
 ) -> MinifyResult {
+    minify_with_profile(
+        source,
+        dialect,
+        registry,
+        MinifyOptions {
+            tier: MinifyTier::Aggressive,
+            isolated,
+            abbreviations,
+        },
+    )
+}
+
+/// Aggressive authoring transformations, reached only after the retained
+/// analysis explicitly selects lexical advice and the complete configuration
+/// and availability generation match these compatibility passes. Native
+/// planning never enters this path.
+fn lexical_aggressive(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    isolated: bool,
+    abbreviations: bool,
+) -> Result<MinifyResult, MinifyRefusal> {
+    let dialect = input.unit_profile();
+    let context = input.context_registry();
+    let registry = context.commands().as_ref();
     let original_length = source.len();
 
     // Apply the optimiser's semantic-preserving rewrites.
@@ -602,7 +622,7 @@ pub fn minify_tcl_aggressive_with(
     let (folded, fold_count, static_folds) = fold_static_substrings(&optimised, dialect, registry);
 
     // Compact names.
-    let (renamed, mut symbol_map) = compact_names(&folded, dialect, isolated, registry);
+    let (renamed, mut symbol_map) = compact_names(&folded, input, isolated);
     symbol_map.static_folds = static_folds;
 
     // Alias repeated commands, arguments and strings.  Seed claimed names
@@ -623,40 +643,30 @@ pub fn minify_tcl_aggressive_with(
 
     // Emit unique-prefix keyword abbreviations.
     let (renamed, abbrev_count) = if abbreviations {
-        abbreviate_keywords(&renamed, dialect, registry)
+        abbreviate_keywords(&renamed, input)
     } else {
         (renamed, 0)
     };
 
-    // Minify whitespace.
-    // The identity facts come from the *renamed* text, which is what the
-    // recursion below actually sees.
-    let identities = tcl_compiler::realm::document_realm_bindings(&renamed, dialect, registry);
-    let minified = minify_body(
-        &renamed,
-        MinifyEnv {
-            dialect,
-            registry,
-            identities: &identities,
-        },
-        0,
-    );
+    // Rewritten source retains the same full editing input before any further
+    // script/body selection; no reporting label rebuilds its context.
+    let current = original::analysis_with_input(&renamed, input);
+    let minified = lexical_default(&renamed, &current)?;
 
-    MinifyResult {
+    Ok(MinifyResult {
         source: minified,
         symbol_map,
         optimisations_applied: opt_count + fold_count + abbrev_count,
         original_length,
-    }
+        refusals: Vec::new(),
+    })
 }
 
-/// Minify with local-name compaction: rename proc-local variables,
-/// parameters, and proc names to short identifiers, then run the
-/// default minifier.  Returns the minified source plus a
-/// [`SymbolMap`].
-///
-/// `isolated` also compacts global-scope variables (safe for
-/// self-contained scripts like iRules event handlers).
+/// Request name compaction under explicit driver profile/store inputs.
+/// Native naming passes require separate complete-coverage/observer contracts;
+/// until available this returns syntax compaction and an empty symbol map.
+/// Use [`minify_with_profile`] or [`minify_with_analysis`] to retain the refusal.
+/// Explicit lexical advice preserves the compatibility rename pass.
 #[must_use]
 pub fn minify_tcl_compact(
     source: &str,
@@ -664,32 +674,88 @@ pub fn minify_tcl_compact(
     isolated: bool,
     registry: &CommandRegistry,
 ) -> (String, SymbolMap) {
-    let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
-    // The identity facts come from the *renamed* text, which is what the
-    // recursion below actually sees.
-    let identities = tcl_compiler::realm::document_realm_bindings(&renamed, dialect, registry);
-    let minified = minify_body(
-        &renamed,
+    let result = minify_with_profile(
+        source,
+        dialect,
+        registry,
+        MinifyOptions {
+            tier: MinifyTier::Compact,
+            isolated,
+            ..MinifyOptions::default()
+        },
+    );
+    (result.source, result.symbol_map)
+}
+
+fn lexical_compact(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    isolated: bool,
+) -> Result<(String, SymbolMap), MinifyRefusal> {
+    // Implementation contract: naming.minifier.lexical-authoring-passes
+    // docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
+    let (renamed, symbol_map) = compact_names(source, input, isolated);
+    let current = original::analysis_with_input(&renamed, input);
+    let minified = lexical_default(&renamed, &current)?;
+    Ok((minified, symbol_map))
+}
+
+/// Analyse an explicitly supplied profile and command store once, then use the
+/// retained-analysis planner. Custom editor inputs should call
+/// [`minify_with_analysis`] directly. The display label is not re-resolved.
+#[must_use]
+pub fn minify_with_profile(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+    options: MinifyOptions,
+) -> MinifyResult {
+    let analysis = original::analysis_for_profile(source, dialect, registry);
+    minify_with_analysis(source, &analysis, options)
+}
+
+fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
+    // naming.minifier.retained-lexical-context
+    // docs/design/analysis/name-resolution-proofs/minifier-retained-lexical-context.md
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or(MinifyRefusal::MissingAnalysisContext)?;
+    let context = input.context_registry();
+    let identities = analysis
+        .retained_command_realm()
+        .ok_or(MinifyRefusal::MissingAnalysisContext)?;
+    Ok(minify_body(
+        source,
         MinifyEnv {
-            dialect,
-            registry,
-            identities: &identities,
+            input,
+            dialect: input.unit_profile(),
+            config: input.lexer_config(),
+            registry: context.commands(),
+            context: &context,
+            identities,
         },
         0,
-    );
-    (minified, symbol_map)
+        input.lexer_config(),
+    ))
 }
 
 /// The document-wide context every step of the minify recursion carries
 /// unchanged.
 ///
-/// Bundled rather than passed as three parameters because the recursion is
+/// Bundled rather than passed as separate parameters because the recursion is
 /// deep (`minify_body` → `render_command` → `reconstruct_raw` → `minify_body`)
 /// and one of its steps was already at the argument limit.
 #[derive(Clone, Copy)]
 struct MinifyEnv<'a> {
+    /// Same immutable complete driver input sealed by the retained Realm.
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     /// The document's dialect, for the lexer and the abbreviation tables.
     dialect: &'static tcl_dialect::DialectProfile,
+    /// Complete actual body grammar, already checked for compatibility support.
+    config: LexerConfig,
+    /// Actual full availability generation; no profile-default re-selection.
+    context: &'a tcl_registry::model::ContextRegistry,
     /// The registry the argument roles and clause-list shapes come from.
     registry: &'a CommandRegistry,
     /// The document's statically proven command-identity facts
@@ -711,11 +777,27 @@ impl<'a> MinifyEnv<'a> {
     {
         self.identities.head_words_unpositioned(head).resolved
     }
+
+    /// Same retained Logical source generation, distinct from runtime lookup.
+    fn source_head(self, name: &str) -> Option<String> {
+        // naming.minifier.logical-source-header
+        // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
+        let resolved = self.resolve(name);
+        if !resolved.is_empty() {
+            Some(resolved.to_owned())
+        } else {
+            self.identities.lexical_source_header_unpositioned(
+                self.identities.original_source_image()?,
+                self.input,
+                name,
+            )
+        }
+    }
 }
 
 /// Minify a Tcl script body (top-level or inside braces). `depth` is this
 /// body's nesting level — see [`MAX_MINIFY_DEPTH`].
-fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32, local_config: LexerConfig) -> String {
     let dialect = env.dialect;
     // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment.
     // Past the cap, leave this (deeply nested) body unminified rather than
@@ -725,25 +807,33 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
-    let Ok(tokens) =
-        Lexer::with_config(source, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-    else {
+    let Ok(tokens) = Lexer::with_config(source, local_config).tokenise_all() else {
         return source.to_owned();
     };
 
-    let commands = parse_commands(source, &tokens);
+    let commands = parse_commands(source, &tokens, local_config);
     if commands.is_empty() {
         return String::new();
     }
 
-    // Render each command, abbreviating ensemble subcommands.
+    // naming.minifier.complete-lexical-head
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
+    let original_words = lexical_script_words(source, local_config);
+    // Render only the source roles selected in the retained context.
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
-    for cmd_args in &commands {
-        let mut arg_strs = render_command(&sm, cmd_args, env, depth);
-        if arg_strs.len() >= 2 {
-            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect, env.registry);
-        }
-        rendered.push(arg_strs);
+    for (index, cmd_args) in commands.iter().enumerate() {
+        let head_word = original_words
+            .as_ref()
+            .and_then(|plan| plan.commands.get(index))
+            .and_then(|command| command.words.first());
+        rendered.push(render_command(
+            &sm,
+            cmd_args,
+            head_word,
+            env,
+            depth,
+            local_config,
+        ));
     }
 
     // NB: no template deduplication here.  The former `[subst $alias]`
@@ -908,161 +998,63 @@ impl RenameBarriers {
     }
 }
 
-/// The literal subcommand word following a command head at `inv`, or
-/// `None` when the next word is dynamic (`$var` / `[…]` / quoted) or
-/// absent.  A dynamic subcommand word means the invocation could be
-/// *any* subcommand, so callers must assume the worst-case traits.
-fn static_subcommand_word<'s>(
-    source: &'s str,
-    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-) -> Option<&'s str> {
-    let bytes = source.as_bytes();
-    let mut pos = inv.range.end() as usize;
-    while bytes.get(pos).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-        pos += 1;
-    }
-    let start = pos;
-    while bytes
-        .get(pos)
-        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-' || *b == b':')
-    {
-        pos += 1;
-    }
-    if pos == start {
-        return None;
-    }
-    source.get(start..pos)
-}
-
-/// Compute every rename barrier the script's invocations impose.
-///
-/// All observability knowledge is command-surface data — traits on command
-/// and subcommand specs, and the traits a document's `# tcl-lsp: stub`
-/// flags state for the commands it declares (`-barrier` is
-/// `CREATES_DYNAMIC_BARRIER`, `-scope_alias` is `CREATES_SCOPE_ALIAS`) —
-/// never a spelled command name. A declared name answers from its
-/// declaration (nearest wins; a declaration has no subcommands):
-///
-/// * [`Traits::CREATES_DYNAMIC_BARRIER`] (command level) bars the
-///   containing scope, as before.
-/// * [`Traits::CREATES_SCOPE_ALIAS`] (`global` / `variable` /
-///   `upvar`) additionally bars the global scope — the alias links a
-///   global / namespace cell by name from elsewhere.
-/// * [`Traits::ALIASES_CALLER_FRAME`] (`upvar`) and
-///   [`Traits::EVALUATES_IN_SHIFTED_FRAME`] (`uplevel`) bar **every**
-///   scope: the observed frame is chosen at runtime.
-/// * [`Traits::REFLECTS_COMMAND_NAMES`] (command or subcommand
-///   level) bars proc renaming, as does any computed command name
-///   (`inv.indirect`).
-/// * [`Traits::INTROSPECTS_BY_NAME`] / [`Traits::TARGETS_VARIABLE_BY_NAME`]
-///   subcommands (`info locals` / `info exists` / `trace add
-///   variable`) bar the containing scope and the global scope; a
-///   subcommand that *also* reflects command names (`info args PROC`
-///   — another proc's parameter list) bars every scope.
-/// * A **dynamic** subcommand word on a command that has any flagged
-///   subcommand is assumed to be the worst-case subcommand.
+/// Observability comes from the same selected complete-word metadata.
+/// Missing table/selector coverage is a barrier, rather than an empty trait.
 fn find_rename_barriers(
-    source: &str,
     analysis: &AnalysisResult,
-    registry: &CommandRegistry,
-    identities: &tcl_compiler::realm::CommandBindingRealm,
+    env: MinifyEnv<'_>,
+    commands: &[tcl_lexer::NativeScriptCommandWords],
     include_global: bool,
 ) -> RenameBarriers {
+    // naming.minifier.complete-logical-metadata
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
     let mut out = RenameBarriers::default();
-    let scope_at =
-        |offset: u32| scope_label_at_offset(&analysis.global_scope, offset, "::", include_global);
-    // A carrier, not a consumer: this holds the set `build_declared_surface`
-    // returns only to hand it to `DocumentCommandSurface` below, and never
-    // spells `DeclaredSurface` itself (`rust/xtask/src/retired_api_gate.rs`
-    // relies on that to keep this file off the type's owner list).
-    let declared = tcl_compiler::analyser::types::build_declared_surface(&analysis.stub_commands);
-    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
-    for inv in &analysis.command_invocations {
-        if inv.indirect {
-            // A computed command head can spell any proc name at runtime.
-            out.procs = true;
-            continue;
-        }
-        // The head's *effective command identity*: an observability trait
-        // belongs to the command a head really names.  A proven
-        // `interp alias {} peek {} upvar` still bars every variable scope, and
-        // a `proc upvar …` that takes the name over does not.
-        // The invocation carries its own absolute offset, so this is the
-        // positioned read.
-        let written = inv.name.trim_start_matches(':');
-        let head = identities.head_words(written, inv.range.start()).resolved;
-        let Some(traits) = surface.traits(head) else {
-            continue;
-        };
-        if traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
-            && let Some(label) = scope_at(inv.range.start())
-        {
-            out.scopes.insert(label);
-        }
-        if traits.contains(Traits::CREATES_SCOPE_ALIAS) {
-            out.global_variables = true;
-        }
-        if traits.contains(Traits::ALIASES_CALLER_FRAME)
-            || traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
-        {
+    for command in commands {
+        let traits = lexical_metadata::with_editable_command_schema(env, command, |schema| {
+            let spec = env.context.context().resolve_spec_in_realm(
+                env.registry,
+                schema.canonical_command,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )?;
+            if !spec.subcommands.is_empty() && schema.subcommand.resolved().is_none() {
+                return None;
+            }
+            Some(schema.semantics.traits)
+        })
+        .flatten();
+        let Some(traits) = traits else {
             out.all_variable_scopes = true;
-        }
-        if traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
             out.procs = true;
-        }
-        if surface.declares(head) {
-            continue;
-        }
-        let Some(spec) = registry.get(head) else {
             continue;
         };
-
-        // Subcommand-level observability.
-        let var_subs = Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME;
-        let flagged: Vec<&tcl_registry::SubCommand> = spec
-            .subcommands
-            .iter()
-            .filter(|s| {
-                s.traits.intersects(var_subs) || s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)
-            })
-            .collect();
-        if flagged.is_empty() {
-            continue;
-        }
-        let (reflects_vars, reflects_cmds) = match static_subcommand_word(source, inv) {
-            Some(word) => {
-                let hit = flagged.iter().find(|s| s.name == word);
-                (
-                    hit.is_some_and(|s| s.traits.intersects(var_subs)),
-                    hit.is_some_and(|s| s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)),
-                )
-            }
-            // Dynamic subcommand word — assume the worst flagged one.
-            None => (
-                flagged.iter().any(|s| s.traits.intersects(var_subs)),
-                flagged
-                    .iter()
-                    .any(|s| s.traits.contains(Traits::REFLECTS_COMMAND_NAMES)),
+        apply_rename_traits(
+            &mut out,
+            traits,
+            scope_label_at_offset(
+                &analysis.global_scope,
+                command.span.start(),
+                "::",
+                include_global,
             ),
-        };
-        if reflects_cmds {
-            out.procs = true;
-        }
-        if reflects_vars {
-            if let Some(label) = scope_at(inv.range.start()) {
-                out.scopes.insert(label);
-            }
-            // `info globals` (and a dynamic `info $sub`) can enumerate the
-            // global frame from anywhere.
-            out.global_variables = true;
-            if reflects_cmds {
-                // `info args PROC` / `info default PROC` reflect *another*
-                // proc's parameter names — any scope may be observed.
-                out.all_variable_scopes = true;
-            }
-        }
+        );
     }
     out
+}
+
+fn apply_rename_traits(out: &mut RenameBarriers, traits: Traits, scope: Option<String>) {
+    let reflects_vars =
+        traits.intersects(Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME);
+    let reflects_commands = traits.contains(Traits::REFLECTS_COMMAND_NAMES);
+    if (reflects_vars || traits.contains(Traits::CREATES_DYNAMIC_BARRIER))
+        && let Some(scope) = scope
+    {
+        out.scopes.insert(scope);
+    }
+    out.global_variables |= reflects_vars || traits.contains(Traits::CREATES_SCOPE_ALIAS);
+    out.all_variable_scopes |= traits
+        .intersects(Traits::ALIASES_CALLER_FRAME | Traits::EVALUATES_IN_SHIFTED_FRAME)
+        || (reflects_vars && reflects_commands);
+    out.procs |= reflects_commands;
 }
 
 /// Next short name avoiding existing and claimed names.
@@ -1225,7 +1217,7 @@ fn slice(source: &str, span: Span) -> &str {
 
 /// Call sites of the proc `name` / `qualified_name`.
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
-    let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+    let qn_no_prefix = tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
     let mut out = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for inv in &analysis.command_invocations {
@@ -1254,18 +1246,43 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 /// serialisation, not a private compiler symbol.
 fn compact_names(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     isolated: bool,
-    registry: &CommandRegistry,
 ) -> (String, SymbolMap) {
-    let analysis = Analyser::new().analyse(source, dialect.name).clone();
+    let analysis = original::analysis_with_input(source, input);
+    let context = input.context_registry();
+    let Some(identities) = analysis.retained_command_realm() else {
+        return (source.to_owned(), SymbolMap::default());
+    };
+    let env = MinifyEnv {
+        input,
+        dialect: input.unit_profile(),
+        config: input.lexer_config(),
+        registry: context.commands(),
+        context: &context,
+        identities,
+    };
+    let Some(commands) = lexical_metadata::commands(source, env) else {
+        return (source.to_owned(), SymbolMap::default());
+    };
     let mut symbol_map = SymbolMap::default();
     let mut edits: Vec<Edit> = Vec::new();
 
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let barriers = find_rename_barriers(source, &analysis, registry, &identities, isolated);
-    let rmw_targets = rmw_target_var_names(source, dialect, registry);
-    let builtin_names: FxHashSet<&str> = registry.command_names().collect();
+    let barriers = find_rename_barriers(&analysis, env, &commands, isolated);
+    let rmw_targets = rmw_target_var_names(env, &commands);
+    let builtin_names: FxHashSet<&str> = context
+        .command_names()
+        .filter(|name| {
+            context
+                .context()
+                .resolve_spec_in_realm(
+                    context.commands(),
+                    name,
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .is_some()
+        })
+        .collect();
 
     let scope_ctx = ScopeCtx {
         source,
@@ -1334,8 +1351,86 @@ fn compact_names(
         }
     }
 
+    compact_logical_formals(
+        source,
+        input,
+        &analysis,
+        isolated,
+        &mut symbol_map,
+        &mut edits,
+    );
     let result = apply_edits(source, edits);
     (result, symbol_map)
+}
+
+/// The isolated Logical formal purpose has its own exact binding inventory.
+/// General unknown-mutation keyword and variable barriers remain unchanged.
+fn compact_logical_formals(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    analysis: &AnalysisResult,
+    isolated: bool,
+    symbol_map: &mut SymbolMap,
+    edits: &mut Vec<Edit>,
+) {
+    // naming.minifier.logical-formal-binding-alpha
+    // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
+    if !isolated {
+        return;
+    }
+    let Some(inventory) =
+        tcl_compiler::registry_invocation::logical_formals::original_logical_procedure_bindings(
+            source, analysis,
+        )
+    else {
+        return;
+    };
+    for procedure in inventory {
+        if !procedure.matches_source(source, input) || !procedure.alpha_binding_lookup_closed() {
+            continue;
+        }
+        let label = scope_label_at_offset(
+            &analysis.global_scope,
+            procedure.body().content_span().start(),
+            "::",
+            false,
+        )
+        .unwrap_or_else(|| format!("logical@{}", procedure.body().content_span().start()));
+        if symbol_map.variables.contains_key(&label) {
+            continue;
+        }
+        let existing = procedure
+            .formals()
+            .iter()
+            .map(|formal| formal.name().to_owned())
+            .chain(std::iter::once("args".to_owned()))
+            .collect::<FxHashSet<_>>();
+        let mut names = NameGenerator::new();
+        let mut mapping = BTreeMap::new();
+        let mut claimed = FxHashSet::default();
+        for formal in procedure.formals() {
+            if formal.name().len() <= 1 {
+                continue;
+            }
+            let Some(short) = next_unused_name(&mut names, &existing, &claimed) else {
+                continue;
+            };
+            if short.len() >= formal.name().len() {
+                continue;
+            }
+            claimed.insert(short.clone());
+            for span in std::iter::once(formal.declaration_span())
+                .chain(formal.references().iter().map(tcl_compiler::registry_invocation::logical_formals::OriginalLogicalFormalReference::name_span))
+            {
+                let range = span.as_range();
+                edits.push((range.start, range.len(), short.clone()));
+            }
+            mapping.insert(formal.name().to_owned(), short);
+        }
+        if !mapping.is_empty() {
+            symbol_map.variables.insert(label, mapping);
+        }
+    }
 }
 
 /// Read-only context for the recursive scope rename walk: the document
@@ -1496,33 +1591,42 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
 /// sites while leaving the `incr var` / `unset var` target untouched
 /// (which would corrupt the program).
 fn rmw_target_var_names(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
+    env: MinifyEnv<'_>,
+    commands: &[tcl_lexer::NativeScriptCommandWords],
 ) -> FxHashSet<String> {
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
+    // naming.minifier.complete-logical-metadata
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
     let mut names = FxHashSet::default();
-    let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
-    units.extend(cu.procedures.values());
-    for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                match stmt {
-                    Statement::Incr { name, .. } => {
-                        names.insert(name.clone());
-                    }
-                    Statement::Call { command, defs, .. }
-                        if registry.rmw_first_arg_variable(command)
-                            || registry
-                                .get(command)
-                                .is_some_and(|s| s.traits.contains(Traits::DESTROYS_VARIABLE)) =>
-                    {
-                        names.extend(defs.iter().cloned());
-                    }
-                    _ => {}
+    for command in commands {
+        lexical_metadata::with_command_schema(env, command, |schema| {
+            if !schema
+                .semantics
+                .traits
+                .contains(Traits::FIRST_ARG_VARNAME | Traits::READS_BEFORE_WRITE)
+                && !schema.semantics.traits.contains(Traits::DESTROYS_VARIABLE)
+            {
+                return;
+            }
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !complete {
+                return;
+            }
+            for (index, role) in roles {
+                if role != ArgRole::VarWrite {
+                    continue;
+                }
+                if let Some(name) = schema
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(index))
+                    .and_then(|index| index.checked_add(1))
+                    .and_then(|index| command.words.get(index))
+                    .and_then(lexical_metadata::ascii_value)
+                {
+                    names.insert(name);
                 }
             }
-        }
+        });
     }
     names
 }
@@ -1568,7 +1672,7 @@ fn collect_live_names(
     let mut out: HashSet<String> = HashSet::new();
 
     // Analyser scope tables.
-    let analysis = Analyser::new().analyse(source, dialect.name).clone();
+    let analysis = original::analysis_for_profile(source, dialect, registry);
     let mut stack: Vec<&Scope> = vec![&analysis.global_scope];
     while let Some(scope) = stack.pop() {
         out.extend(scope.variables.keys().cloned());
@@ -1668,7 +1772,7 @@ fn alias_repeated_commands(
     claimed: &mut HashSet<String>,
     registry: &CommandRegistry,
 ) -> (String, BTreeMap<String, String>) {
-    let analysis = Analyser::new().analyse(source, dialect.name).clone();
+    let analysis = original::analysis_for_profile(source, dialect, registry);
     let mut order: Vec<String> = Vec::new();
     let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
     for inv in &analysis.command_invocations {
@@ -1713,268 +1817,24 @@ fn alias_repeated_commands(
 /// the registry does not resolve `Unique`.
 fn abbreviate_keywords(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) -> (String, usize) {
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
-    let mut edits: Vec<Edit> = Vec::new();
-    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
-    let later = later_core_registries(dialect);
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) =
-            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-        else {
-            continue;
-        };
-        for command in command_word_runs(&sm, &tokens) {
-            // Recurse into braced/bracketed words so nested scripts get the
-            // same treatment.
-            for word in &command {
-                if matches!(word.kind, TokenType::Str | TokenType::Cmd) {
-                    let inner = sm.token_text(word.token);
-                    if inner.len() >= 3 {
-                        stack.push((inner.to_owned(), base + word.token.span.start() + 1));
-                    }
-                }
-            }
-            abbreviate_command(
-                &command,
-                registry,
-                &later,
-                AbbrevSite {
-                    base,
-                    identities: &identities,
-                },
-                &mut edits,
-            );
-        }
-    }
-    if edits.is_empty() {
+    let analysis = original::analysis_with_input(source, input);
+    let Some(identities) = analysis.retained_command_realm() else {
         return (source.to_owned(), 0);
-    }
-    let count = edits.len();
-    (apply_edits(source, edits), count)
-}
-
-/// Where an abbreviation candidate sits, and what the document has proven
-/// about the command it belongs to.
-///
-/// Bundled so [`abbreviate_command`] keeps a small signature — the scan
-/// re-enters nested braced words with a shifted `base`, and both fields travel
-/// together.
-#[derive(Clone, Copy)]
-struct AbbrevSite<'a> {
-    /// Byte offset of the scanned slice within the whole document, so a head's
-    /// own span resolves to a document-absolute offset.
-    base: u32,
-    /// The document's proven command-identity facts.
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-}
-
-/// One word of a command, with the token it came from.
-struct CommandWord {
-    token: Token,
-    kind: TokenType,
-    text: String,
-    /// The word is a substitution / expansion — never rewritten.
-    dynamic: bool,
-}
-
-/// Split a token stream into per-command word runs.
-fn command_word_runs(sm: &SourceMap, tokens: &[Token]) -> Vec<Vec<CommandWord>> {
-    let mut out: Vec<Vec<CommandWord>> = Vec::new();
-    let mut current: Vec<CommandWord> = Vec::new();
-    let mut expand_next = false;
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Eof => break,
-            TokenType::Eol => {
-                if !current.is_empty() {
-                    out.push(std::mem::take(&mut current));
-                }
-                expand_next = false;
-            }
-            TokenType::Sep => {}
-            TokenType::Expand => expand_next = true,
-            kind => {
-                let dynamic =
-                    expand_next || matches!(kind, TokenType::Var | TokenType::Cmd | TokenType::Str);
-                current.push(CommandWord {
-                    token: *tok,
-                    kind,
-                    text: sm.token_text(*tok).to_owned(),
-                    dynamic,
-                });
-                expand_next = false;
-            }
-        }
-    }
-    if !current.is_empty() {
-        out.push(current);
-    }
-    out
-}
-
-/// The core-Tcl registries for every release *after* `dialect`, so a prefix
-/// that a later Tcl makes ambiguous is never emitted.
-///
-/// The range and its packs come from
-/// [`tcl_registry::version_range`] — the one helper the formatter and the
-/// analyser share — rather than a release list kept here. The
-/// target's own pack is dropped because the caller already holds it and
-/// [`keyword_tables`] puts it first.
-fn later_core_registries(
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<&'static CommandRegistry> {
-    use tcl_registry::version_range::{forward_range, registries_over_range};
-    let mut packs = registries_over_range(forward_range(dialect.name));
-    if !packs.is_empty() {
-        packs.remove(0);
-    }
-    packs
-}
-
-/// Shorten every abbreviable keyword word of one command.
-fn abbreviate_command(
-    words: &[CommandWord],
-    registry: &CommandRegistry,
-    later: &[&'static CommandRegistry],
-    site: AbbrevSite<'_>,
-    edits: &mut Vec<Edit>,
-) {
-    let AbbrevSite { base, identities } = site;
-    let Some(head) = words.first() else { return };
-    if head.dynamic || head.kind != TokenType::Esc {
-        return;
-    }
-    // Which subcommands and options a head has is registry data about the
-    // command it *is*: abbreviating `myfmt`'s words under `format`'s tables
-    // when `myfmt` is not `format` would rewrite live text.
-    // `base` makes the head's offset document-absolute even inside a
-    // recursively-scanned braced word, so this is the positioned read.
-    let head_name = identities
-        .head_words(&head.text, base + head.token.span.start())
-        .resolved;
-    let Some(spec) = registry.get(head_name) else {
-        return;
     };
-    let args = &words[1..];
-    let mut subcommand: Option<&'static str> = None;
-    let mut start = 0usize;
-    if !spec.subcommands.is_empty() {
-        let Some(word) = args.first() else { return };
-        if word.dynamic || word.kind != TokenType::Esc {
-            return;
-        }
-        let Some(canonical) = spec
-            .resolve_subcommand_word(&word.text, None, None, None)
-            .unique()
-        else {
-            return;
-        };
-        let tables = keyword_tables(head_name, TableScope::Subcommands, registry, later);
-        if let Some(short) = shortest_spelling(&tables, canonical)
-            && short.len() < word.text.len()
-        {
-            push_word_edit(word, base, short, edits);
-        }
-        subcommand = Some(canonical);
-        start = 1;
-    }
-    let scope = subcommand.map_or(TableScope::CommandOptions, TableScope::SubcommandOptions);
-    let option_tables = keyword_tables(head_name, scope, registry, later);
-    if option_tables.iter().all(KeywordTable::is_empty) {
-        return;
-    }
-    for word in &args[start.min(args.len())..] {
-        // registry-axis-ok: irreducible — same reason as
-        // `formatting/keywords.rs`'s `scan_options`: generic across every
-        // command's option table, and only 2 of the 23 commands that
-        // declare a "--" row have `OptionEffectKind::EndsOptions` populated
-        // on it today, so a per-command lookup here would stop recognising
-        // "--" as ending option scanning for the rest; until never
-        if word.text == "--" {
-            break;
-        }
-        if word.dynamic || word.kind != TokenType::Esc || !word.text.starts_with('-') {
-            continue;
-        }
-        let Some(canonical) = option_tables
-            .first()
-            .and_then(|t| t.names().find(|n| *n == word.text))
-        else {
-            continue;
-        };
-        if let Some(short) = shortest_spelling(&option_tables, canonical)
-            && short.len() < word.text.len()
-        {
-            push_word_edit(word, base, short, edits);
-        }
-    }
-}
-
-fn push_word_edit(word: &CommandWord, base: u32, short: &str, edits: &mut Vec<Edit>) {
-    let start = (base + word.token.span.start()) as usize;
-    edits.push((start, word.text.len(), short.to_owned()));
-}
-
-/// The keyword tables for `cmd` in the target registry followed by every
-/// later core-Tcl registry — the subcommand table when `subcommand` is
-/// `None`, otherwise that subcommand's option table.
-///
-/// The target's table is always first; the rest are what the version-range
-/// check consults. A later release that no longer carries the command (or
-/// the subcommand) contributes an empty table, which can never vouch for a
-/// prefix, so the abbreviation is abandoned.
-fn keyword_tables(
-    cmd: &str,
-    scope: TableScope<'_>,
-    registry: &CommandRegistry,
-    later: &[&'static CommandRegistry],
-) -> Vec<KeywordTable<'static>> {
-    let table_for = |reg: &CommandRegistry| -> KeywordTable<'static> {
-        let empty = KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
-        let Some(spec) = reg.get(cmd) else {
-            return empty;
-        };
-        match scope {
-            TableScope::Subcommands => spec.subcommand_table(None, None, None),
-            TableScope::CommandOptions => spec.option_table(None, None, None),
-            TableScope::SubcommandOptions(name) => spec
-                .subcommands
-                .iter()
-                .find(|s| s.name == name)
-                .map_or(empty, |sub| sub.option_table(None, None, None)),
-        }
-    };
-    std::iter::once(table_for(registry))
-        .chain(later.iter().map(|reg| table_for(reg)))
-        .collect()
-}
-
-/// Which keyword table of a command [`keyword_tables`] should build.
-#[derive(Debug, Clone, Copy)]
-enum TableScope<'a> {
-    /// The ensemble's subcommand words.
-    Subcommands,
-    /// The command's own option words (a command with no subcommands).
-    CommandOptions,
-    /// The named subcommand's option words.
-    SubcommandOptions(&'a str),
-}
-
-/// The shortest spelling of `canonical` that resolves to it in **every**
-/// table, or `None` when no abbreviation is safe across the whole range.
-fn shortest_spelling(
-    tables: &[KeywordTable<'static>],
-    canonical: &'static str,
-) -> Option<&'static str> {
-    let short = tables.first()?.minimal_unique_prefix(canonical)?;
-    tables[1..]
-        .iter()
-        .all(|t| t.resolve(short).unique() == Some(canonical))
-        .then_some(short)
+    let context = input.context_registry();
+    lexical_keywords::abbreviate(
+        source,
+        MinifyEnv {
+            input,
+            dialect: input.unit_profile(),
+            config: input.lexer_config(),
+            context: &context,
+            registry: context.commands(),
+            identities,
+        },
+    )
 }
 
 /// Alias repeated literal arguments (`-normalized` → `$a`) — the second
@@ -2713,118 +2573,112 @@ fn build_replacement(folded: &str) -> String {
     format!("\"{escaped}\"")
 }
 
-/// Return the abbreviated subcommand text when safe for `dialect`.
-fn abbreviated_subcommand(
-    command_name: &str,
-    subcommand_name: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
-) -> String {
-    if !tcl_dialect::DialectProfile::name_has_fixed_ensembles(Some(dialect.name)) {
-        return subcommand_name.to_owned();
-    }
-    subcommand_abbreviation(command_name, subcommand_name, registry)
-        .unwrap_or(subcommand_name)
-        .to_owned()
+/// Project shared complete groups into the renderer's argument container.
+/// Group kinds/ranges and expansion ownership come from the same lexer owner.
+fn parse_commands(source: &str, tokens: &[Token], config: LexerConfig) -> Vec<Vec<Arg>> {
+    // naming.minifier.complete-lexical-head
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
+    tcl_lexer::group_commands(tokens, source, config)
+        .into_iter()
+        .map(|command| {
+            command
+                .words
+                .into_iter()
+                .map(|word| {
+                    let mut fragments = command
+                        .expand_markers
+                        .iter()
+                        .copied()
+                        .filter(|index| {
+                            word.expand
+                                && *index < word.tokens.start
+                                && tokens[*index].span.end() <= word.span.start()
+                                && !tokens[*index + 1..word.tokens.start]
+                                    .iter()
+                                    .any(|token| token.kind != TokenType::Expand)
+                        })
+                        .map(|index| tokens[index])
+                        .collect::<Vec<_>>();
+                    fragments.extend_from_slice(&tokens[word.tokens]);
+                    Arg {
+                        tokens: fragments,
+                        is_braced: word.kind == tcl_lexer::WordKind::Braced,
+                        is_quoted: word.kind == tcl_lexer::WordKind::Quoted,
+                    }
+                })
+                .collect()
+        })
+        .collect()
 }
 
-/// Shortest unambiguous abbreviation for `sub` of ensemble `command`, read
-/// off the registry's own subcommand table (the same one
-/// [`keyword_tables`]/[`abbreviate_keywords`] use for the aggressive tier),
-/// rather than a hand-kept copy of a handful of ensembles' subcommands —
-/// every ensemble the registry knows gets the same treatment here.
-/// `KeywordTable::minimal_unique_prefix` already requires `sub` to be an
-/// exact canonical spelling, so (as before) a subcommand not written out in
-/// full is left alone.
-fn subcommand_abbreviation(
-    command: &str,
-    sub: &str,
-    registry: &CommandRegistry,
-) -> Option<&'static str> {
-    let table = registry.get(command)?.subcommand_table(None, None, None);
-    let short = table.minimal_unique_prefix(sub)?;
-    (short.len() < sub.len()).then_some(short)
-}
-
-/// Group a token stream into commands (lists of arguments),
-/// dropping comments and whitespace.
-fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
-    let mut commands: Vec<Vec<Arg>> = Vec::new();
-    let mut current: Vec<Arg> = Vec::new();
-    let mut prev_type = TokenType::Eol;
-
-    for &tok in tokens {
-        match tok.kind {
-            TokenType::Eof => break,
-            TokenType::Comment => continue,
-            TokenType::Sep => {
-                prev_type = TokenType::Sep;
-                continue;
-            }
-            TokenType::Eol => {
-                if !current.is_empty() {
-                    commands.push(std::mem::take(&mut current));
-                }
-                prev_type = TokenType::Eol;
-                continue;
-            }
-            _ => {}
-        }
-
-        // segmentation-drift-ok: the minifier's own `parse_commands` is a
-        // word grouper, distinct from the formatter's segmenter.
-        let is_start = matches!(prev_type, TokenType::Sep | TokenType::Eol);
-        let detected_quoted =
-            is_start && source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
-
-        if is_start || current.is_empty() {
-            current.push(Arg {
-                tokens: vec![tok],
-                is_braced: tok.kind == TokenType::Str,
-                is_quoted: detected_quoted,
-            });
-        } else {
-            current.last_mut().expect("non-empty").tokens.push(tok);
-        }
-        prev_type = tok.kind;
-    }
-    if !current.is_empty() {
-        commands.push(current);
-    }
-    commands
-}
-
-/// Render one command's arguments to their minified string forms.
-fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u32) -> Vec<String> {
-    let registry = env.registry;
+fn render_command(
+    sm: &SourceMap,
+    cmd_args: &[Arg],
+    head_word: Option<&tcl_lexer::NativeWord>,
+    env: MinifyEnv<'_>,
+    depth: u32,
+    local_config: LexerConfig,
+) -> Vec<String> {
+    // naming.minifier.complete-lexical-head
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
     let cmd_name = cmd_args
         .first()
-        .map(|a| token_text(sm, a))
-        .unwrap_or_default();
+        .and_then(|arg| lexical_head_value(sm, arg, head_word?, local_config));
     // The head's *effective command identity*: which registry command the
     // spelling really names once the document's `namespace import` / `interp
     // alias` / `rename` / built-in-shadowing `proc` statements are folded in
     // Without it a rebound command's body / lambda / expression /
     // clause-list arguments are re-minified as the grammar of the command it
     // no longer is.
-    let head = env.resolve(&cmd_name);
+    let source_head = cmd_name.as_deref().and_then(|name| env.source_head(name));
+    let head = source_head.as_deref().unwrap_or_default();
     let post: Vec<String> = cmd_args.iter().skip(1).map(|a| token_text(sm, a)).collect();
     let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
 
-    let body_indices = role_indices(registry, head, &post_refs, ArgRole::Body);
-    let lambda_indices = role_indices(registry, head, &post_refs, ArgRole::LambdaLiteral);
-    let expr_indices = role_indices(registry, head, &post_refs, ArgRole::Expr);
-    // The braced clause-list form of a registry `case_list` command
-    // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
-    // data, never a spelled command name.
-    let case_list_spec = registry.get(head).and_then(|s| s.case_list);
-    let dialect = Some(crate::document_context_for_profile(env.dialect).authoring_query());
-    let case_invocation = registry.case_invocation(head, &post_refs, dialect);
+    let argument_words = lexical_argument_words(cmd_args, &post);
+    let selected = lexical_source_schema(env, head, &argument_words, |schema| {
+        let (roles, complete) = schema.authored_source_argument_roles();
+        let roles = if complete {
+            roles
+                .into_iter()
+                .filter_map(|(index, role)| {
+                    Some((
+                        schema
+                            .semantics
+                            .argument_offset
+                            .checked_add(usize::from(index))?
+                            .checked_add(1)?,
+                        role,
+                    ))
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        (roles, schema.authored_source_case_invocation())
+    });
+    let (roles, case_invocation) = selected.unwrap_or_default();
+    let body_indices = roles
+        .iter()
+        .filter(|(_, role)| *role == ArgRole::Body)
+        .map(|(index, _)| *index)
+        .collect::<Vec<_>>();
+    let lambda_indices = roles
+        .iter()
+        .filter(|(_, role)| *role == ArgRole::LambdaLiteral)
+        .map(|(index, _)| *index)
+        .collect::<Vec<_>>();
+    let expr_indices = roles
+        .iter()
+        .filter(|(_, role)| *role == ArgRole::Expr)
+        .map(|(index, _)| *index)
+        .collect::<Vec<_>>();
+    let case_list_spec = case_invocation.as_ref().map(|(spec, _)| *spec);
     let clause_list_index = case_invocation
         .as_ref()
         .and_then(|(_, invocation)| invocation.clause_list_index)
-        .map(|index| index + 1);
-    let inline_body_indices: Vec<usize> = case_invocation
+        .and_then(|index| index.checked_add(1));
+    let inline_body_indices = case_invocation
         .as_ref()
         .and_then(|(spec, invocation)| {
             invocation
@@ -2834,8 +2688,8 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
         .map(|clauses| {
             clauses
                 .into_iter()
-                .filter_map(|clause| clause.body_index.map(|index| index + 1))
-                .collect()
+                .filter_map(|clause| clause.body_index.and_then(|index| index.checked_add(1)))
+                .collect::<Vec<_>>()
         })
         .unwrap_or_default();
 
@@ -2845,13 +2699,16 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
         if clause_list_index == Some(i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             let minified = case_list_spec.map_or_else(
-                || minify_body(inner, env, depth + 1),
-                |cl| minify_case_list(inner, cl, env, depth + 1),
+                || minify_body(inner, env, depth + 1, env.config.nested()),
+                |cl| minify_case_list(inner, &cl, env, depth + 1),
             );
             out.push(format!("{{{minified}}}"));
         } else if (inline_body_indices.contains(&i) || body_indices.contains(&i)) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!("{{{}}}", minify_body(inner, env, depth + 1)));
+            out.push(format!(
+                "{{{}}}",
+                minify_body(inner, env, depth + 1, env.config.nested())
+            ));
         } else if lambda_indices.contains(&i) && single_braced {
             out.push(minify_lambda_literal(sm, arg.tokens[0], env, depth + 1));
         } else if expr_indices.contains(&i) && single_braced {
@@ -2862,6 +2719,74 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
         }
     }
     out
+}
+
+/// Original whole-command words under the actual complete body configuration.
+fn lexical_script_words(
+    source: &str,
+    config: LexerConfig,
+) -> Option<tcl_lexer::NativeScriptWordsPlan> {
+    // naming.minifier.complete-lexical-head
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
+    let image = tcl_lexer::SourceImage::document(source);
+    let region = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
+    tcl_lexer::native_script_words_in(image, region, config).ok()
+}
+
+/// Static ASCII metadata value of the exact complete original head word.
+fn lexical_head_value(
+    sm: &SourceMap,
+    arg: &Arg,
+    word: &tcl_lexer::NativeWord,
+    config: LexerConfig,
+) -> Option<String> {
+    // naming.minifier.complete-lexical-head
+    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
+    if word.image().channel() != tcl_lexer::SourceChannel::Document
+        || word.image().bytes() != sm.source().as_bytes()
+        || word.config() != config
+        || word.tokens() != arg.tokens.as_slice()
+    {
+        return None;
+    }
+    let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?;
+    String::from_utf8(value).ok()
+}
+
+/// Compatibility word values retain unknown substitutions and cardinality.
+/// A first fragment is never used as the complete compound control value.
+fn lexical_argument_words<'w>(
+    cmd_args: &[Arg],
+    post: &'w [String],
+) -> Vec<tcl_registry::InvocationWord<'w>> {
+    cmd_args
+        .iter()
+        .skip(1)
+        .zip(post)
+        .map(|(arg, text)| {
+            if arg
+                .tokens
+                .iter()
+                .any(|token| token.kind == TokenType::Expand)
+            {
+                tcl_registry::InvocationWord::Expanded
+            } else if !arg.is_braced
+                && arg.tokens.iter().any(|token| {
+                    matches!(
+                        token.kind,
+                        TokenType::Var | TokenType::Cmd | TokenType::ExprSugar
+                    )
+                })
+            {
+                tcl_registry::InvocationWord::Dynamic
+            } else if arg.tokens.len() == 1 {
+                tcl_registry::InvocationWord::Literal(text.as_str())
+            } else {
+                // A first fragment cannot represent a compound control value.
+                tcl_registry::InvocationWord::Opaque
+            }
+        })
+        .collect::<Vec<_>>()
 }
 
 /// Minify an `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body
@@ -2889,7 +2814,7 @@ fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: 
     let Some(body) = elems.body.as_deref() else {
         return fallback();
     };
-    let minified_body = minify_body(body, env, depth);
+    let minified_body = minify_body(body, env, depth, env.config.nested());
     let mut parts = vec![
         tcl_syntax::list::list_element(&elems.params),
         tcl_syntax::list::list_element(&minified_body),
@@ -2900,21 +2825,37 @@ fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: 
     format!("{{{}}}", parts.join(" "))
 }
 
-/// Registry role indices, offset by 1 for the command-name slot.
-fn role_indices(
-    registry: &CommandRegistry,
-    name: &str,
-    post_args: &[&str],
-    role: ArgRole,
-) -> Vec<usize> {
-    if name.is_empty() {
-        return Vec::new();
+/// Readonly source roles and case shape from the actual retained generation.
+fn lexical_source_schema<'r: 'w, 'w, T>(
+    env: MinifyEnv<'r>,
+    name: &'w str,
+    arguments: &'w [tcl_registry::InvocationWord<'w>],
+    project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, 'w>) -> T,
+) -> Option<T> {
+    // naming.minifier.retained-lexical-context
+    // docs/design/analysis/name-resolution-proofs/minifier-retained-lexical-context.md
+    if name.is_empty()
+        || env.context.commands().snapshot().semantic_key()
+            != env.registry.snapshot().semantic_key()
+    {
+        return None;
     }
-    registry
-        .arg_indices_for_role(name, post_args, role)
-        .into_iter()
-        .map(|i| i + 1)
-        .collect()
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(env.dialect);
+    dialect.lexer_grammar = env.config.grammar_over(dialect.lexer_grammar);
+    let words = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(name),
+        arguments,
+    )
+    .with_dialect(dialect);
+    tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+        env.registry,
+        Some(env.context.context()),
+        words,
+        tcl_dialect::model::InvocationRealm::RuleLoader,
+    )
+    .resolved()
+    .as_ref()
+    .map(project)
 }
 
 /// Text of an argument's first token.
@@ -2951,7 +2892,10 @@ fn reconstruct_raw(
         // emit it verbatim, not brace-wrapped as `{$}`.
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), env, depth + 1)),
+        TokenType::Cmd => format!(
+            "[{}]",
+            minify_body(sm.token_text(tok), env, depth + 1, env.config.nested())
+        ),
         TokenType::Var => {
             let name = sm.token_text(tok);
             // A name that is not a bare `$name` word can only ever be written
@@ -3208,7 +3152,7 @@ fn minify_case_list(
         parts.push(case_element_text(inner, pattern).to_owned());
         if body.braced {
             let body_src = &inner[body.value.clone()];
-            let minified = minify_body(body_src, env, depth);
+            let minified = minify_body(body_src, env, depth, env.config.nested());
             parts.push(format!("{{{minified}}}"));
         } else {
             parts.push(case_element_text(inner, body).to_owned());
@@ -3518,7 +3462,7 @@ fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok
             let inner = &text[start + 1..end];
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
-                minify_body(inner, env, nest_depth + 1)
+                minify_body(inner, env, nest_depth + 1, env.config.nested())
             )));
         } else if c == b'$' {
             let start = i;
@@ -3616,6 +3560,45 @@ fn is_word_token(tok: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original source geometry only; this does not grant body execution.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        for source in [
+            "proc p {} {\u{feff}puts    1}",
+            "set x [\u{feff}puts    1]",
+            "apply {{} {\u{feff}puts    1}}",
+            "switch x {x {\u{feff}puts    1}}",
+        ] {
+            let analysis = original::analysis_with_input(source, &input);
+            let result = lexical_default(source, &analysis).unwrap();
+            assert_eq!(
+                result.matches('\u{feff}').count(),
+                1,
+                "{source:?}: {result:?}"
+            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+        }
+        let source = "\u{feff}puts    1";
+        let analysis = original::analysis_with_input(source, &input);
+        assert_eq!(lexical_default(source, &analysis).unwrap(), "puts 1");
+    }
 
     fn min(src: &str) -> String {
         let registry = CommandRegistry::build_default();
@@ -4855,5 +4838,85 @@ mod tests {
             barred(&format!("rename $old peek\n{UPVAR_BODY}")),
             "a dynamic rename must not take `upvar`'s barrier away either"
         );
+    }
+}
+
+#[cfg(test)]
+mod constructed_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn constructed_minifier_call_sites_keep_original_indirect_and_naming_guards() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // naming.minifier.original-naming-permission
+        // docs/design/analysis/name-resolution-proofs/minifier-original-naming-permission.md
+        // Descriptive compatibility rows do not authorise public source rewriting.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
+        let source = ":箱::méthode\n箱::méthode\nother\n:箱::méthode\n$cmd\n";
+        let written = |name: &str, start: usize| {
+            SignatureCommandInvocation::written(
+                name.to_owned(),
+                Span::new(
+                    u32::try_from(start).unwrap(),
+                    u32::try_from(start + name.len()).unwrap(),
+                ),
+                Some(0),
+            )
+        };
+        let selected = written(":箱::méthode", 0);
+        let wrong = written("箱::méthode", source.find("\n箱").unwrap() + 1);
+        let mut resolved = written("other", source.find("other").unwrap());
+        resolved.resolved_qualified_name = Some(":::箱::méthode".to_owned());
+        let mut foreign = written(":箱::méthode", source.rfind(":箱::méthode").unwrap());
+        foreign.resolved_qualified_name = Some("::箱::méthode".to_owned());
+        let mut indirect = written("$cmd", source.find("$cmd").unwrap());
+        indirect.resolved_qualified_name = Some(":::箱::méthode".to_owned());
+        indirect.indirect = true;
+        let expected = vec![selected.range, resolved.range];
+        let other = vec![wrong.range, foreign.range];
+        let indirect_span = indirect.range;
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        analysis.command_invocations = vec![
+            selected.clone(),
+            selected,
+            wrong,
+            resolved,
+            foreign,
+            indirect,
+        ];
+        assert_eq!(
+            find_proc_call_sites("méthode", ":::箱::méthode", &analysis),
+            expected
+        );
+        assert_eq!(
+            find_proc_call_sites("méthode", "::箱::méthode", &analysis),
+            other
+        );
+        assert!(
+            !find_proc_call_sites("méthode", ":::箱::méthode", &analysis).contains(&indirect_span)
+        );
+
+        let source = "proc publicName {} {return VALUE}\npublicName\n";
+        let original = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!original.allows_lexical_declaration_advice());
+        let result = minify_with_analysis(
+            source,
+            &original,
+            MinifyOptions {
+                tier: MinifyTier::Compact,
+                isolated: true,
+                abbreviations: false,
+            },
+        );
+        assert!(
+            result
+                .refusals
+                .contains(&MinifyRefusal::MissingAlphaRenameContract)
+        );
+        assert_eq!(result.symbol_map, SymbolMap::default());
+        assert!(result.source.contains("proc publicName"));
+        assert!(result.source.contains("publicName"));
     }
 }

@@ -1,0 +1,7 @@
+ascii_binary 0
+unicode_precomposed 1
+unicode_decomposed 1
+physical_ascii_lf 0
+physical_ascii_crlf 0
+dynamic_embedded_nul 0
+literal_embedded_nul 1

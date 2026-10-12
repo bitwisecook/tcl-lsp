@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-brace-expression129-v2/capture.py", line 6, in <module>
+    output.mkdir()
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+FileExistsError: [Errno 17] File exists: '/workspace/.proofs/captured-native-brace-expression129'

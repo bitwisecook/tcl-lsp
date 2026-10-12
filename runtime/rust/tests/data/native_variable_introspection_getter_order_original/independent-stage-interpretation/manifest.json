@@ -1,0 +1,51 @@
+{
+  "status": "source-review-only derived intake",
+  "question_id": "naming.invocation.original-variable-and-introspection-getter-order",
+  "request": "/workspace/.proofs/native-variable-introspection-order505b/request.json",
+  "request_sha256": "489071bc1661058953d58b17f456e8c26fc50ca0d0dd7a6d2c397a7b3b355fb1",
+  "closure": "/workspace/.proofs/native-variable-introspection-order505b/closure.json",
+  "closure_sha256": "7e37d6e5c3ab529e6924fb7d56ffb9c9149fd4fce41a0986a39ccadb1dfa0672",
+  "input_streams": [
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.4.20/execute.stdout",
+      "sha256": "a01e3a168150141f397a72552c2b9500753d06a008ec88329d129890c4e8e4b7"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/execute.stdout",
+      "sha256": "409203417ae68d6bba821d6471af8e8251e229060b056f22f6e07f7ea5d97bdf"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.6.18/execute.stdout",
+      "sha256": "943d98e5869187fc521c39b478eaf235da33c06457918e92f3f97d974d2b6cf3"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.0.4/execute.stdout",
+      "sha256": "c3fdf39c0f4296037edebdf12ea2bf7a5bfa684c7c989f8f1cb2e3ec1a3abeb8"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.1.0/execute.stdout",
+      "sha256": "7d4fb484e3fba3c0f728ce7f523e7cf907d958c24e8028c1f846d215b8d76425"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/jim/execute.stdout",
+      "sha256": "d5f012bb3ee9c45c5eab6363b0795bef318e08dd45a3506874cc033e266f64c7"
+    }
+  ],
+  "files": [
+    {
+      "path": "/workspace/.proofs/runtime-native-introspection-interpretation505b/interpretation.md",
+      "sha256": "99ec1efa9a30a5aec7e45d0617df0c21244c92989fb0fdfc4ab179a37353e76f"
+    },
+    {
+      "path": "/workspace/.proofs/runtime-native-introspection-interpretation505b/observations.json",
+      "sha256": "f42b222a7c9e562e329556b6a9fe17afaf5dd009481d084fb8f9c6bc6f69467e"
+    },
+    {
+      "path": "/workspace/.proofs/runtime-native-introspection-interpretation505b/source-joins.json",
+      "sha256": "c1b8b0942da29b305ec0c0aec59817024f80422c00219c6f1a467de55cbb4d9e"
+    }
+  ],
+  "projection_cases": 108,
+  "public_row_count": 432,
+  "rust_assertions": "unexecuted"
+}

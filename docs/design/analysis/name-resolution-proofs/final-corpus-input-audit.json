@@ -1,0 +1,325 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "direct",
+    "version": "8.4.20",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "nul",
+    "version": "8.4.20",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "direct",
+    "version": "8.5.19",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "nul",
+    "version": "8.5.19",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "direct",
+    "version": "8.6.18",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "nul",
+    "version": "8.6.18",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "direct",
+    "version": "9.0.4",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "nul",
+    "version": "9.0.4",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "direct",
+    "version": "9.1.0",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_traces/windows.tsv",
+    "case": "nul",
+    "version": "9.1.0",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "check": "Exact counted original input hash and complete result-presenter stdout equal the capture."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/opaque.tcl",
+    "sha256": "aa84654b2f09a81fe7c934703ea2e331ca3baedcdc2f213db4b57bde5d474bf0",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/driver.c",
+    "sha256": "7f059990a9c043fc972ec765deaa880998024af1a7ca21ba0994da29bf143a11",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/counted_nul.tcl",
+    "sha256": "70d3477e2958679fe3bf1b329e5ee84d70a0a39c197c3a02c75b5d7253d397e3",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/8.4.opaque.stdout",
+    "sha256": "50089aae4dfaec3f946767e13d18414f8eea5105c7fd43a09559c05bb5d1948c",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/8.5.opaque.stdout",
+    "sha256": "50089aae4dfaec3f946767e13d18414f8eea5105c7fd43a09559c05bb5d1948c",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/8.6.opaque.stdout",
+    "sha256": "50089aae4dfaec3f946767e13d18414f8eea5105c7fd43a09559c05bb5d1948c",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/9.0.opaque.stdout",
+    "sha256": "50089aae4dfaec3f946767e13d18414f8eea5105c7fd43a09559c05bb5d1948c",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/9.1.opaque.stdout",
+    "sha256": "50089aae4dfaec3f946767e13d18414f8eea5105c7fd43a09559c05bb5d1948c",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/8.4.counted_nul.stdout",
+    "sha256": "30a245fca1786e87a097912e38b268dca8187f6edc70dd83a146cd9f0921ef83",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/8.5.counted_nul.stdout",
+    "sha256": "30a245fca1786e87a097912e38b268dca8187f6edc70dd83a146cd9f0921ef83",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/8.6.counted_nul.stdout",
+    "sha256": "59255d4044c9ca9d3f2224f04c5f54fd84539f2c112b59a7163e95496975b2e7",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/9.0.counted_nul.stdout",
+    "sha256": "59255d4044c9ca9d3f2224f04c5f54fd84539f2c112b59a7163e95496975b2e7",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_command_trace/9.1.counted_nul.stdout",
+    "sha256": "59255d4044c9ca9d3f2224f04c5f54fd84539f2c112b59a7163e95496975b2e7",
+    "check": "Separate stdout exactly equals the captured complete stdout; process0 and empty stderr retained."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/probe.c",
+    "sha256": "06a85a6b5d820bfc8eb47534482b71747e96436011d428d25bdc0f01906cfe85",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/8.4.20.tsv",
+    "sha256": "2ca72225354870bc9ffd8bf6967e2115cac4b2431b1ffb746bfdf8bba955e2df",
+    "check": "Exact complete20-row stdout table and original process/build receipt match."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/8.5.19.tsv",
+    "sha256": "abc924968b5052da8fff315127ca1cd384f30a31093835afa6a020fc4aebac69",
+    "check": "Exact complete20-row stdout table and original process/build receipt match."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/8.6.18.tsv",
+    "sha256": "04859357a2bc5f8ed1ca3e0590d091b640c60b7cead534052af01bdbf5ec59f7",
+    "check": "Exact complete20-row stdout table and original process/build receipt match."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/9.0.4.tsv",
+    "sha256": "04859357a2bc5f8ed1ca3e0590d091b640c60b7cead534052af01bdbf5ec59f7",
+    "check": "Exact complete20-row stdout table and original process/build receipt match."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_bindings/9.1.0.tsv",
+    "sha256": "04859357a2bc5f8ed1ca3e0590d091b640c60b7cead534052af01bdbf5ec59f7",
+    "check": "Exact complete20-row stdout table and original process/build receipt match."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c",
+    "sha256": "5fdf3a2e8474bfd6f10c4a36e31bdb316d1eb1d2b400be46d3c5f47e87b0faa9",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/8.4.20.tsv",
+    "sha256": "0377d11d558afe35573be06e8dca257640055b3abfdab932f8acc2384ea88206",
+    "check": "Exact complete declined-attempt literal/local table equals original stdout checksum."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/8.5.19.tsv",
+    "sha256": "a903f185ca0200995e175ee25ef878e265f2f1d2fa4b39575c9597b49c704094",
+    "check": "Exact complete declined-attempt literal/local table equals original stdout checksum."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/8.6.18.tsv",
+    "sha256": "e4bc4adf5e4661dc38c2119ec956472b2b8b046d81a4a2e82efde50aeee398c7",
+    "check": "Exact complete declined-attempt literal/local table equals original stdout checksum."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/9.0.4.tsv",
+    "sha256": "e4bc4adf5e4661dc38c2119ec956472b2b8b046d81a4a2e82efde50aeee398c7",
+    "check": "Exact complete declined-attempt literal/local table equals original stdout checksum."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/9.1.0.tsv",
+    "sha256": "e4bc4adf5e4661dc38c2119ec956472b2b8b046d81a4a2e82efde50aeee398c7",
+    "check": "Exact complete declined-attempt literal/local table equals original stdout checksum."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_namespace_final_token/probe.c",
+    "sha256": "a214b64e5b00a25d50b9293f7815cfcaf68c374eefcc1543ed25162f9d18dfa4",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_selected_worker_names/probe.c",
+    "sha256": "0c97c11f3e6f5c0a26ab2eb856b780341cd1e22026b6115d6f6e73a4f35b7ea6",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/cases.json",
+    "sha256": "54d1ea302fd422ea940a6515829534de798a4966bcb849d78cab715f2a2c68dd",
+    "check": "Exact retained source equals the captured source digest."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.4",
+    "case": 0,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.4",
+    "case": 1,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.4",
+    "case": 2,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.5",
+    "case": 0,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.5",
+    "case": 1,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.5",
+    "case": 2,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.6",
+    "case": 0,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.6",
+    "case": 1,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl8.6",
+    "case": 2,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl9.0",
+    "case": 0,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl9.0",
+    "case": 1,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl9.0",
+    "case": 2,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl9.1",
+    "case": 0,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl9.1",
+    "case": 1,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "tcl9.1",
+    "case": 2,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "jim",
+    "case": 0,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "jim",
+    "case": 1,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_procedure_name/rows.txt",
+    "engine": "jim",
+    "case": 2,
+    "check": "Exact original source/capture/presenter stdout independently equals the retained case and projection."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c",
+    "sha256": "ebc8fe1b6c27e5244e30fc89e4aa3cff9354bc15c02a15d376dfa70a47bac014",
+    "check": "Exact retained source equals the captured source digest."
+  }
+]

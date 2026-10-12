@@ -1,0 +1,12 @@
+ *----------------------------------------------------------------
+ * Macro used by the Tcl core to check whether a pattern has any characters
+ * special to [string match]. The ANSI C "prototype" for this macro is:
+ *
+ * MODULE_SCOPE int	TclMatchIsTrivial(const char *pattern);
+ *----------------------------------------------------------------
+ */
+
+#define TclMatchIsTrivial(pattern) \
+    (strpbrk((pattern), "*[?\\") == NULL)
+
+/*

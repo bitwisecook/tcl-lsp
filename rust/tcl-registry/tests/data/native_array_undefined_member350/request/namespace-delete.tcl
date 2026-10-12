@@ -1,0 +1,1 @@
+set log {}; proc member args {lappend ::log MEMBER}; namespace eval ::N {trace add variable a(x) unset member}; set before [list [array exists ::N::a] [info exists ::N::a(x)]]; namespace delete ::N; list $before $log [namespace exists ::N]

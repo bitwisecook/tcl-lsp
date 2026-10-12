@@ -1,0 +1,15 @@
+{
+  "question_id": "naming.procedure.original-root-and-colon-holder-publication",
+  "source_sha256": "b97802e5b2f167443153158cec9c1d752d284121dbde6328444b9403bf009227",
+  "input_channel": "ASCII LF source-file CLI",
+  "scope": "Root literal-colon Procedure publication remains separate from plain source; a nonroot literal-colon namespace holder and its procedure publication/invocation are observed independently; Apply explicit colon-holder versus default root observed independently in safe child",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "limits": "Independent catch observations retain unsupported Tcl8.4 Apply and Jim child surface. No executed Rust/native token/namespace/frame/Normal grant. C source anchors select only producer spelling/reparse recipe, not physical pointer correspondence."
+}

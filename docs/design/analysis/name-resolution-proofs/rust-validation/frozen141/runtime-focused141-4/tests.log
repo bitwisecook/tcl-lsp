@@ -1,0 +1,20 @@
+
+running 1 test
+test interp::tests::literal_element_references_match_the_selected_native_interpreter ... ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb450efb0
+ADMISSION140 control physical=Some(V8_4) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb44d49f0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb49938e0
+ADMISSION140 control physical=Some(V8_5) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb49a8d10
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb4df9ea0
+ADMISSION140 control physical=Some(V8_6) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb4e71ab0
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb526cfe0
+ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb4e8fce0
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb58f51b0
+ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7efdb58a7660
+ADMISSION140 control physical=None in_proc=false list_dispatch=false compiles=false namespace=0 original=0x7efdb5cf8ac0
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ADMISSION140 control physical=None in_proc=false list_dispatch=false compiles=false namespace=0 original=0x7efdb5cf9740
+ADMISSION140 no-stamp physical=None epochs=None source_protocol=Some(Jim084) procedure=true frame_in_proc=false local_table=false namespace=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 6.83s
+

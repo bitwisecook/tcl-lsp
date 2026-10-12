@@ -1,0 +1,96 @@
+TclCompileLappendCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int isScalar, localIndex, numWords, i;
+
+    /* TODO: Consider support for compiling expanded args. */
+    numWords = parsePtr->numWords;
+    if (numWords < 3) {
+	return TCL_ERROR;
+    }
+
+    if (numWords != 3 || envPtr->procPtr == NULL) {
+	goto lappendMultiple;
+    }
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we
+     * need to emit code to compute and push the name at runtime. We use a
+     * frame slot (entry in the array of local vars) if we are compiling a
+     * procedure body and if the name is simple text that does not include
+     * namespace qualifiers.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    PushVarNameWord(interp, varTokenPtr, envPtr, 0,
+	    &localIndex, &isScalar, 1);
+
+    /*
+     * If we are doing an assignment, push the new value. In the no values
+     * case, create an empty object.
+     */
+
+    if (numWords > 2) {
+	valueTokenPtr = TokenAfter(varTokenPtr);
+
+	CompileWord(envPtr, valueTokenPtr, interp, 2);
+    }
+
+    /*
+     * Emit instructions to set/get the variable.
+     */
+
+    /*
+     * The *_STK opcodes should be refactored to make better use of existing
+     * LOAD/STORE instructions.
+     */
+
+    if (isScalar) {
+	if (localIndex < 0) {
+	    TclEmitOpcode(	INST_LAPPEND_STK,		envPtr);
+	} else {
+	    Emit14Inst(		INST_LAPPEND_SCALAR, localIndex, envPtr);
+	}
+    } else {
+	if (localIndex < 0) {
+	    TclEmitOpcode(	INST_LAPPEND_ARRAY_STK,		envPtr);
+	} else {
+	    Emit14Inst(		INST_LAPPEND_ARRAY, localIndex,	envPtr);
+	}
+    }
+
+    return TCL_OK;
+
+  lappendMultiple:
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PushVarNameWord(interp, varTokenPtr, envPtr, 0,
+	    &localIndex, &isScalar, 1);
+    valueTokenPtr = TokenAfter(varTokenPtr);
+    for (i = 2 ; i < numWords ; i++) {
+	CompileWord(envPtr, valueTokenPtr, interp, i);
+	valueTokenPtr = TokenAfter(valueTokenPtr);
+    }
+    TclEmitInstInt4(	    INST_LIST, numWords - 2,		envPtr);
+    if (isScalar) {
+	if (localIndex < 0) {
+	    TclEmitOpcode(  INST_LAPPEND_LIST_STK,		envPtr);
+	} else {
+	    TclEmitInstInt4(INST_LAPPEND_LIST, localIndex,	envPtr);
+	}
+    } else {
+	if (localIndex < 0) {
+	    TclEmitOpcode(  INST_LAPPEND_LIST_ARRAY_STK,	envPtr);
+	} else {
+	    TclEmitInstInt4(INST_LAPPEND_LIST_ARRAY, localIndex,envPtr);
+	}
+    }
+    return TCL_OK;
+}

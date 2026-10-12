@@ -1,0 +1,5 @@
+local:/LOCAL
+link:/NEW
+global:/GLOBAL
+unpublished:0
+published:/NEW

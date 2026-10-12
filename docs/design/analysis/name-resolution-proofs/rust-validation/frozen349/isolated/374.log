@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::expr_numerals_follow_the_release_selected_number_grammar ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 20.66s
+

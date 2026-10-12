@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::tests::the_backing_report_says_what_the_handler_table_holds ... 
+thread 'interp::tests::the_backing_report_says_what_the_handler_table_holds' (1340502) panicked at src/interp.rs:19626:13:
+assertion `left == right` failed
+  left: Builtin
+ right: Absent
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::the_backing_report_says_what_the_handler_table_holds
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.00s
+

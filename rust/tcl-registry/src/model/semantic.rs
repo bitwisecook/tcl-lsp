@@ -16,43 +16,32 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The executable-IR context: one generation-bound handle naming the
-//! environment every semantic invocation resolves under. A handle names
-//! exactly one environment; an absent handle records unavailable context.
+//! Generation-bound metadata contexts for semantic invocation selection.
 //!
-//! # Why a handle rather than a [`ResolvedContext`] value
+//! [`SemanticContext`] is a `Copy` handle to the interned, default-keyed,
+//! un-overlaid [`ContextRegistry`] for one environment generation. The handle
+//! carries that generation's availability view and command store. Its equality
+//! compares the interned generation handle; it is not a runtime interpreter,
+//! command token, original source owner or native compilation receipt.
 //!
-//! `SemanticAnalysisBundle` is a field of `FunctionUnit`, which is a field of
-//! `CompilationUnit`, which salsa memoises on `PartialEq`. A
-//! [`ResolvedContext`] is an `Arc<EnvironmentDefinition>` plus four owned
-//! vectors and is neither `Eq` nor `Copy`: cloning one per function unit on
-//! every keystroke, and structurally comparing one per memo probe, would put
-//! allocation and a deep compare on the per-edit path for a value that is
-//! the same object for every unit of a document.
+//! Function units share this small handle for repeated semantic queries.
+//! [`ResolvedContext`] supports complete structural equality, but cloning and
+//! comparing its environment, floors, packages and authoring scope for every
+//! function unit would repeat work for a shared generation.
 //!
-//! [`SemanticContext`] is therefore the generation-bound handle
-//! [`crate::model::ingress::static_context_for`] already publishes: a
-//! `&'static ContextRegistry` for one environment's un-overlaid,
-//! default-keyed generation. It is `Copy`, its equality is pointer equality
-//! (the promotion interns exactly one view per environment id, so pointer
-//! equality *is* environment identity), and it carries both halves a
-//! resolution needs — the [`ResolvedContext`] availability view and the
-//! generation's command store — without a second lookup. Resolving one costs
-//! a name ingress; the compiler resolves it once per module build and
-//! threads the handle through its function units.
+//! A source analysis with its own keyed versions, overlays or package context
+//! instead retains its actual [`ContextRegistry`]. Such callers use
+//! [`crate::model::assembly::resolve_structured_invocation_in_resolved_context`]
+//! with that owner's command store and borrowed availability view. A default
+//! static handle cannot replace the independently retained analysis context.
 //!
-//! # Binding-aware selection
-//!
-//! [`resolve_structured_invocation_in_context`] is the structured-words face
-//! of the selection primitive
-//! [`crate::model::assembly::resolve_invocation_in_context`] already
-//! implements for the lowering-hook and side-effect paths: a carried context
-//! is a binding-proof obligation ([`ResolvedContext::resolve_spec`]), and the
-//! proved spec is the selected spec because both sides are `get_for_surface`
-//! under the same authoring mask. No context means the caller carries no
-//! environment — a unit harness or a shape-only query — and the
-//! dialect-blind store selection stands, exactly as `None`
-//! behaved.
+//! Both doors use the same structured selection owner. A supplied context must
+//! admit the literal head under the selected availability realm before its
+//! authored descriptor resolves. A computed head remains unresolved; absence
+//! of a supplied context retains the command store's ordinary shape query.
+//! Availability and metadata selection grant no live command presence,
+//! original argument provenance, variable access, Normal result or native
+//! compiler admission.
 
 use tcl_dialect::{DialectProfile, TclVersion};
 
@@ -61,19 +50,16 @@ use crate::model::assembly::ContextRegistry;
 use crate::model::context::ResolvedContext;
 use crate::model::ingress::static_context_for;
 use crate::registry::CommandRegistry;
-use crate::resolved_invocation::{InvocationResolutionUnresolved, StructuredInvocationResolution};
+use crate::resolved_invocation::StructuredInvocationResolution;
 
-/// The context one function unit's executable IR was resolved under — a
-/// generation-bound handle on the environment's un-overlaid registry
-/// generation.
-///
-/// This names exactly one resolved environment. `Option<SemanticContext>`
-/// represents a caller with no environment context.
+/// Default-keyed, un-overlaid metadata context for one environment generation.
+/// Function units share the interned handle. Analyses with independently
+/// retained keyed or overlaid contexts use their actual `ContextRegistry`.
+/// This handle does not identify a runtime interpreter or original source.
 #[derive(Clone, Copy)]
 pub struct SemanticContext {
-    /// The interned un-overlaid generation for one environment id. There is
-    /// one view per id (see [`static_context_for`]), so pointer equality is
-    /// environment identity.
+    /// Interned default metadata generation selected by [`static_context_for`].
+    /// Equality retains this generation handle across environment reloads.
     generation: &'static ContextRegistry,
 }
 
@@ -89,10 +75,8 @@ impl SemanticContext {
         }
     }
 
-    /// [`Self::for_environment`] keyed by an already-resolved profile — the
-    /// interned-profile interop. A profile's canonical name is
-    /// a canonical environment id, so this is an id-keyed lookup and never a
-    /// re-parse of a user string.
+    /// Select the default environment generation named by a resolved profile.
+    /// This does not retain another analysis's keyed or overlaid context.
     #[must_use]
     pub fn for_profile(profile: &DialectProfile) -> Self {
         Self::for_environment(profile.name)
@@ -110,12 +94,8 @@ impl SemanticContext {
         self.generation.context()
     }
 
-    /// The generation's own command store.
-    ///
-    /// Executable-IR callers pass the store they already hold (a unit
-    /// registry, the analyser's generation). The context filters selection
-    /// without replacing that store; this door is for callers that have a
-    /// context and no store of their own.
+    /// Read this default generation's immutable command store.
+    /// Independently owned analysis contexts retain their own command store.
     #[must_use]
     pub fn commands(self) -> &'static CommandRegistry {
         self.generation.commands()
@@ -174,42 +154,53 @@ impl std::fmt::Debug for SemanticContext {
 /// ([`ResolvedContext::resolve_spec`] — availability-filtered, not merely mask
 /// membership). A head nothing provides here is
 /// [`crate::model::BindingKnowledge::Absent`], recorded as the same
-/// [`InvocationResolutionUnresolved::UnknownLiteralHead`] an absent store spec
+/// [`crate::InvocationResolutionUnresolved::UnknownLiteralHead`] an absent store spec
 /// produces, so the executable IR keeps its typed decline rather than gaining
 /// a second "present but unavailable" shape. Subcommand and form selection
 /// then proceed under the same environment's authoring mask, so a
 /// gate-excluded subcommand or form cannot be selected either.
 ///
 /// No context means the caller carries no environment — the obligation is
-/// `NotRequired` and the dialect-blind store selection stands, exactly as the
-/// retired `None` argument behaved.
+/// `NotRequired` and the ordinary command-store shape selection applies.
 #[must_use]
 pub fn resolve_structured_invocation_in_context<'r, 'w>(
     commands: &'r CommandRegistry,
     context: Option<SemanticContext>,
     words: InvocationWords<'w>,
 ) -> StructuredInvocationResolution<'r, 'w> {
-    let Some(context) = context else {
+    if context.is_none() {
         return commands.resolve_structured_invocation(words, None);
-    };
-    let Some(name) = words.head_literal() else {
-        // A computed head selects nothing in either model; report it through
-        // the ordinary path so the decline names the word kind rather than a
-        // missing spec.
-        return commands
-            .resolve_structured_invocation(words, Some(context.context().authoring_query()));
-    };
-    if context.context().resolve_spec(commands, name).is_none() {
-        return StructuredInvocationResolution::from_unresolved(
-            InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
-        );
     }
-    commands.resolve_structured_invocation(words, Some(context.context().authoring_query()))
+    resolve_structured_invocation_in_realm(
+        commands,
+        context,
+        words,
+        tcl_dialect::model::InvocationRealm::RuleLoader,
+    )
+}
+
+/// Resolve an invocation under its explicitly retained availability phase.
+/// The phase changes availability filtering, never runtime command identity
+/// or native compiler admission evidence.
+#[must_use]
+pub fn resolve_structured_invocation_in_realm<'r, 'w>(
+    commands: &'r CommandRegistry,
+    context: Option<SemanticContext>,
+    words: InvocationWords<'w>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> StructuredInvocationResolution<'r, 'w> {
+    crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+        commands,
+        context.map(SemanticContext::context),
+        words,
+        realm,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InvocationResolutionUnresolved;
 
     #[test]
     fn one_generation_per_environment_id_so_equality_is_identity() {
@@ -331,12 +322,24 @@ mod tests {
             ),
             "expected an unknown-literal-head decline, got {resolution:?}"
         );
-        // The same words resolve with no context carried, which is the
-        // dialect-blind store selection the retired empty mask performed.
+        // Omitting the context retains the attached store's selected profile;
+        // it cannot manufacture a Tk provider in the iRules environment.
         assert!(
             resolve_structured_invocation_in_context(
                 commands,
                 None,
+                InvocationWords::literals("tk_popup", &args),
+            )
+            .resolved()
+            .is_none()
+        );
+        // The explicitly ambient Tk provider admits the same availability
+        // query. This is catalogue availability, not an execution body proof.
+        let loaded = SemanticContext::for_environment("tk");
+        assert!(
+            resolve_structured_invocation_in_context(
+                loaded.commands(),
+                Some(loaded),
                 InvocationWords::literals("tk_popup", &args),
             )
             .resolved()

@@ -25,6 +25,9 @@ How the analyser decides what a name denotes and what a value holds.
 - [name-resolution-c-conformance.md](analysis/name-resolution-c-conformance.md)
   — the same four name kinds as extracted from the C sources, with the
   8.4 → 9.1 matrix pinned to C-Tcl permalinks.
+- [name-resolution-proofs/README.md](analysis/name-resolution-proofs/README.md)
+  — per-question native evidence, provider limits, implementation tests, and
+  reproducible naming checks.
 - [import-order-source-graph.md](analysis/import-order-source-graph.md) — the
   load order derived from the `source` and `package require` graphs, what it
   lets the wildcard-import tiers rank, and where it abstains.
@@ -101,6 +104,10 @@ passes, and ownership matrices.
 
 ## contracts/
 
+- [runtime-trace-outcomes.md](contracts/runtime-trace-outcomes.md) — original callback Guest outcomes, full typed Host refusal and shared caller transport.
+
+- [runtime-error-code-owners.md](contracts/runtime-error-code-owners.md) — original C error-code headers, selected global/private storage and checked publication.
+
 One contract per file: who owns a surface, what its rules are, and how it
 fails.
 
@@ -139,6 +146,8 @@ fails.
   owner of every pinned version, and the build entry points.
 - [dialect-detection.md](contracts/dialect-detection.md) — the dialect
   detection priority chain.
+- [diagnostic-subjects.md](contracts/diagnostic-subjects.md) — typed naming
+  subjects and their shared LSP, CLI, and MCP reporting transport.
 - [environment-selection.md](contracts/environment-selection.md) — the one
   vocabulary every dialect picker, setting, flag and directive enumerates,
   the `Language` / `Packages` kind, and the server-owned notice.
@@ -161,6 +170,7 @@ fails.
   the LSP diagnostics publication and suppression model.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) — the
   non-diagnostics LSP provider contracts and their failure modes.
+- [naming-consumer-matrix.md](contracts/naming-consumer-matrix.md) — shared naming interfaces, consumer purposes and bounded appliance evidence.
 - [lsp-source-store.md](contracts/lsp-source-store.md) — the `SourceStore`
   seam every closed file reaches the server through, why `NativeStore` stays
   a literal `std::fs` delegation, the virtual `.tclspec` mount a browser host
@@ -169,6 +179,20 @@ fails.
   handler-admission, and stdout liveness boundaries for the LSP transport.
 - [namespace-model.md](contracts/namespace-model.md) — the unified namespace
   model across dialects.
+- [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
+  primitive getter purposes, queried C target widths, host numeric effects,
+  single-probe failure rendering, and raw Boolean output.
+- [original-secondary-body-analysis.md](contracts/original-secondary-body-analysis.md) —
+  actual source ownership, full parser policy and shared class roster for
+  conditional original child CFG/lattice facts.
+- [logical-call-targets.md](contracts/logical-call-targets.md) — exact current
+  declaration targets, procedure/member kind and independent member-side
+  source advice across local and workspace call hierarchy consumers.
+- [retained-explorer-source-views.md](contracts/retained-explorer-source-views.md) —
+  actual Module source/configuration/store owners and unavailable Explorer view rendering.
+- [retained-positioned-command-realm.md](contracts/retained-positioned-command-realm.md) —
+  reuse of the original Module source inventory, terminal ownership refusal,
+  copy-on-write and independent new-source ingress.
 - [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
   — the small-int → wide → bignum → double tower, and `expr` as a separate
   language with overridable `mathfunc` dispatch.
@@ -184,6 +208,14 @@ fails.
   inference.
 - [project-layout.md](contracts/project-layout.md) — repository layout and
   dependency direction.
+- [name-resolution-implementer-guide.md](compiler/name-resolution-implementer-guide.md)
+  — central query contracts, consumer requirements and native regression
+  test recipes.
+- [evaluated-tcl-semantics.md](compiler/evaluated-tcl-semantics.md)
+  — current command, variable, execution, dialect and host-domain semantics.
+- [resolved-semantic-queries.md](contracts/resolved-semantic-queries.md) — shared
+  command/cell/execution owners, API usage recipes, uncertainty and dialect
+  obligations, consumer inventory, and independent interpreter regression gates.
 - [registry-contract-tests.md](contracts/registry-contract-tests.md) — the
   language-agnostic registry shape contract, its golden fixtures, and the
   front-end-driven tests that validate them.
@@ -333,6 +365,9 @@ exports, and the ladder toward C tcltest parity.
 - [proc-call-and-stack-traces.md](runtime/proc-call-and-stack-traces.md) —
   the proc call protocol: argument binding, exception propagation, and
   `-errorinfo` / `-errorcode` stack-trace assembly across the call stack.
+- [procedure-body-activation.md](runtime/procedure-body-activation.md) —
+  original procedure source, deferred body preparation, native activation
+  ordering, and compiled-cache versus Script execution ownership.
 - [refcount-contract.md](runtime/refcount-contract.md) — ownership categories
   for every WASM-exported runtime function (callee-takes / caller-keeps /
   borrow), the linter that enforces them, and the decision rules for new

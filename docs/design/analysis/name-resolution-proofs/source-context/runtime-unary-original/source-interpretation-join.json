@@ -1,0 +1,23 @@
+{
+  "purpose": "Read-only current source interpretation, not an original unary process or additional launch input.",
+  "original_source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+  "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "selected_lines": [
+    8528,
+    8624
+  ],
+  "excerpt_path": "docs/design/analysis/name-resolution-proofs/source-context/runtime-unary-original/JimExprOpNumUnary-8528-8624.c",
+  "excerpt_sha256": "300dacf77c69545b6add79ecef1e235667c0e248c51404c0cff599164c58cf19",
+  "source_window_record_sha256": "1b23992a8b5858a652c5f53081eb0d5aa02505a0f8cfe7aa1001b33a5cac0e14",
+  "retained_version_bytes": "0.84-9-g5bac7c9 0.84\n",
+  "native465_request": {
+    "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/request.json",
+    "sha256": "b554cf39546d1978dfe3311329f3f7e58e3275e4121abf52aab5dc4ceccabee9"
+  },
+  "native465_jim_receipt": {
+    "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/jim/receipt.json",
+    "sha256": "f4c29e0aafaed8a4eb174e4050928b93e2e282f055822d317d350a9a92f1416f"
+  },
+  "join": "The existing unchanged original465 request and before/after input receipt already pin this whole jim.c SHA. The newly selected excerpt is independently read and matched to that exact whole file, not added retroactively to its launch request.",
+  "scope": "JimExprOpNumUnary tries original numeric getters and then the public Boolean primitive; accepted Boolean unary +/- has a nonnumeric-operand diagnostic. The two Runtime controls check only neutral diagnostic classification and complete Host refusal transport/prior result. No new unary execution, original cache/header/pointer, opcode, expression-truth or provider outcome is measured."
+}

@@ -1,0 +1,28 @@
+{
+  "source": "https://github.com/bitwisecook/tcl-lsp/issues/2286",
+  "reported_variables": [
+    "optimizer",
+    "pdata",
+    "par0",
+    "par1",
+    "pars"
+  ],
+  "files": [
+    {
+      "file": "1.tcl",
+      "sha256": "472ff6b8d3633f160ce36b7aeced13a575a3bee243f8caa796f2180470a0177c"
+    },
+    {
+      "file": "2.tcl",
+      "sha256": "99cc225eb5b7a904e9517cb71d0a26be8271c17c772507b20b3734d568d3b0ff"
+    },
+    {
+      "file": "3.tcl",
+      "sha256": "0a9db2b7942deffde437a45afeb4aa5d950457598558b056ad5d0d728e9195d2"
+    },
+    {
+      "file": "4.tcl",
+      "sha256": "4cef09c603be959e3e932a07800c55cdf3ba4b3006c6739538f25af7d8a1c183"
+    }
+  ]
+}

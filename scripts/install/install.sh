@@ -1599,8 +1599,8 @@ looks_like_legacy_zipapp() {
 
     # Avoid command substitution here: scanning a native executable whose
     # basename starts with tcl/f5 can otherwise feed NUL bytes into the shell.
-    head -c 256 "$f" 2>/dev/null | grep -aq '^#!.*python' || return 1
-    head -c 2048 "$f" 2>/dev/null | grep -aq 'PK' || return 1
+    head -c 256 "$f" 2>/dev/null | grep -a '^#!.*python' >/dev/null || return 1
+    head -c 2048 "$f" 2>/dev/null | grep -a 'PK' >/dev/null || return 1
     LC_ALL=C grep -aqE \
         'shared/_build_info\.py|lsp/_build_info\.py|static/index\.html|ai/mcp/tcl_mcp_server\.py|tooling/(tcl|f5|wasm)/|explorer/(tcl|f5|wasm)_cli\.py' \
         "$f"

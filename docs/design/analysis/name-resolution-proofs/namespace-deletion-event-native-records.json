@@ -1,0 +1,315 @@
+[
+  {
+    "id": "naming.namespace-native.delete-recreated-callback-event-order",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/namespace-native-delete-recreated-callback-event-order.md",
+    "problem_statement": "An outer namespace delete validates B before a command DeleteProc triggered by retiring A deletes that B and creates a new B with its own namespace DeleteProc. Final absence and two callback counts cannot establish which incarnation was visible at each event. A Rust command-retirement surrogate also does not measure a native namespace DeleteProc.",
+    "question": "Which ordered namespace presence/incarnation and command-versus-namespace DeleteProc events occur when the original command retirement callback deletes and recreates B during namespace delete A B?",
+    "conclusion": "All five configured C captures complete with code0, empty result and A/child/B absent, hook1, oldBdeleted1, newBdeleted1. Ordered events show the original B present at command DeleteProc entry, old namespace DeleteProc with B absent, a nonnull creation with only the new nsId present, then new namespace DeleteProc with B absent before outer evaluation returns. The instrumentation distinguishes actual callback kinds and selected native nsId equality; it proves no Rust callback-ownership or event-order parity.",
+    "scope": "One exact original scenario-3 setup per selected configured C build, including its unmeasured warm-up command deletion. The four original Tcl_EvalObjv flags0 operands and final JSON fields are preserved. Added stderr event observations perform Tcl_FindNamespace and compare saved private nsId values as booleans; no IDs or addresses are printed. These reentrant observer reads are part of this separate instrumented program, not an assumption of non-interference with arbitrary namespace deletion. Interpreter cleanup after the final result is excluded. Jim/BIG-IP are not tested. Release labels identify selected build associations, not a queried runtime patchlevel.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "status": "observed",
+        "version": "8.4.20 (selected configured build; runtime patchlevel unqueried)",
+        "build": "Original static library SHA256 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; public header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; configured Makefile SHA256 0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1; observer executable SHA256 c417911e76501f0841c615c7a70c43d2930410e9856e2c6c20d6d57174834b29; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.",
+        "input_channel": "Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.",
+        "dialect": "C Tcl",
+        "answer": "Final original JSON result fields:\n\n```json\n{\"case\":\"callback-recreates-later\",\"code\":0,\"result\":\"\",\"A\":0,\"child\":0,\"B\":0,\"hook\":1,\"oldBdeleted\":1,\"newBdeleted\":1}\n```\n\nOrdered original event fields:\n\n```text\nordinal stage callbackKind B oldIncarnation newIncarnation createReturnedNonNull hook oldBdeleted newBdeleted\n1 before-eval none 1 1 0 -1 0 0 0\n2 retire-entry command-DeleteProc 1 1 0 -1 1 0 0\n3 retire-before-delete-B command-DeleteProc 1 1 0 -1 1 0 0\n4 old-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 0\n5 retire-after-delete-B command-DeleteProc 0 0 0 -1 1 1 0\n6 retire-before-create-B command-DeleteProc 0 0 0 -1 1 1 0\n7 retire-after-create-B command-DeleteProc 1 0 1 1 1 1 0\n8 new-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 1\n9 after-eval none 0 0 0 -1 1 1 1\n10 after-result-publication none 0 0 0 -1 1 1 1\n```\nThe callbackKind field identifies retire as a command DeleteProc and old_b/new_b as namespace DeleteProc callbacks.",
+        "evidence": [
+          "input",
+          "receipt-tcl8.4",
+          "stdout-tcl8.4",
+          "events-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "status": "observed",
+        "version": "8.5.19 (selected configured build; runtime patchlevel unqueried)",
+        "build": "Original static library SHA256 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; public header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; configured Makefile SHA256 26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5; observer executable SHA256 b3ebfc4c43b3f7bd5a97bee9f2bdf233216f6e27a435d23275b419a85064b0d9; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.",
+        "input_channel": "Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.",
+        "dialect": "C Tcl",
+        "answer": "Final original JSON result fields:\n\n```json\n{\"case\":\"callback-recreates-later\",\"code\":0,\"result\":\"\",\"A\":0,\"child\":0,\"B\":0,\"hook\":1,\"oldBdeleted\":1,\"newBdeleted\":1}\n```\n\nOrdered original event fields:\n\n```text\nordinal stage callbackKind B oldIncarnation newIncarnation createReturnedNonNull hook oldBdeleted newBdeleted\n1 before-eval none 1 1 0 -1 0 0 0\n2 retire-entry command-DeleteProc 1 1 0 -1 1 0 0\n3 retire-before-delete-B command-DeleteProc 1 1 0 -1 1 0 0\n4 old-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 0\n5 retire-after-delete-B command-DeleteProc 0 0 0 -1 1 1 0\n6 retire-before-create-B command-DeleteProc 0 0 0 -1 1 1 0\n7 retire-after-create-B command-DeleteProc 1 0 1 1 1 1 0\n8 new-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 1\n9 after-eval none 0 0 0 -1 1 1 1\n10 after-result-publication none 0 0 0 -1 1 1 1\n```\nThe callbackKind field identifies retire as a command DeleteProc and old_b/new_b as namespace DeleteProc callbacks.",
+        "evidence": [
+          "input",
+          "receipt-tcl8.5",
+          "stdout-tcl8.5",
+          "events-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "status": "observed",
+        "version": "8.6.18 (selected configured build; runtime patchlevel unqueried)",
+        "build": "Original static library SHA256 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; public header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; configured Makefile SHA256 8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e; observer executable SHA256 75e6b0c089653bda587fc14b6d14e4ba51dc5eca2213d03ffe91350743f28862; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.",
+        "input_channel": "Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.",
+        "dialect": "C Tcl",
+        "answer": "Final original JSON result fields:\n\n```json\n{\"case\":\"callback-recreates-later\",\"code\":0,\"result\":\"\",\"A\":0,\"child\":0,\"B\":0,\"hook\":1,\"oldBdeleted\":1,\"newBdeleted\":1}\n```\n\nOrdered original event fields:\n\n```text\nordinal stage callbackKind B oldIncarnation newIncarnation createReturnedNonNull hook oldBdeleted newBdeleted\n1 before-eval none 1 1 0 -1 0 0 0\n2 retire-entry command-DeleteProc 1 1 0 -1 1 0 0\n3 retire-before-delete-B command-DeleteProc 1 1 0 -1 1 0 0\n4 old-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 0\n5 retire-after-delete-B command-DeleteProc 0 0 0 -1 1 1 0\n6 retire-before-create-B command-DeleteProc 0 0 0 -1 1 1 0\n7 retire-after-create-B command-DeleteProc 1 0 1 1 1 1 0\n8 new-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 1\n9 after-eval none 0 0 0 -1 1 1 1\n10 after-result-publication none 0 0 0 -1 1 1 1\n```\nThe callbackKind field identifies retire as a command DeleteProc and old_b/new_b as namespace DeleteProc callbacks.",
+        "evidence": [
+          "input",
+          "receipt-tcl8.6",
+          "stdout-tcl8.6",
+          "events-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "status": "observed",
+        "version": "9.0.4 (selected configured build; runtime patchlevel unqueried)",
+        "build": "Original static library SHA256 dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; public header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; configured Makefile SHA256 69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5; observer executable SHA256 5b27e2f224fbebb18601e8ce6915892d0c61b7e6e19887abbfe61c9f68c8e5ce; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.",
+        "input_channel": "Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.",
+        "dialect": "C Tcl",
+        "answer": "Final original JSON result fields:\n\n```json\n{\"case\":\"callback-recreates-later\",\"code\":0,\"result\":\"\",\"A\":0,\"child\":0,\"B\":0,\"hook\":1,\"oldBdeleted\":1,\"newBdeleted\":1}\n```\n\nOrdered original event fields:\n\n```text\nordinal stage callbackKind B oldIncarnation newIncarnation createReturnedNonNull hook oldBdeleted newBdeleted\n1 before-eval none 1 1 0 -1 0 0 0\n2 retire-entry command-DeleteProc 1 1 0 -1 1 0 0\n3 retire-before-delete-B command-DeleteProc 1 1 0 -1 1 0 0\n4 old-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 0\n5 retire-after-delete-B command-DeleteProc 0 0 0 -1 1 1 0\n6 retire-before-create-B command-DeleteProc 0 0 0 -1 1 1 0\n7 retire-after-create-B command-DeleteProc 1 0 1 1 1 1 0\n8 new-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 1\n9 after-eval none 0 0 0 -1 1 1 1\n10 after-result-publication none 0 0 0 -1 1 1 1\n```\nThe callbackKind field identifies retire as a command DeleteProc and old_b/new_b as namespace DeleteProc callbacks.",
+        "evidence": [
+          "input",
+          "receipt-tcl9.0",
+          "stdout-tcl9.0",
+          "events-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "status": "observed",
+        "version": "9.1.0 (selected configured build; runtime patchlevel unqueried)",
+        "build": "Original static library SHA256 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; public header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; configured Makefile SHA256 c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1; observer executable SHA256 f4952b203f2a9d17c756c81f8905298403d24ec19b00bc12864198adff53b7ac; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.",
+        "input_channel": "Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.",
+        "dialect": "C Tcl",
+        "answer": "Final original JSON result fields:\n\n```json\n{\"case\":\"callback-recreates-later\",\"code\":0,\"result\":\"\",\"A\":0,\"child\":0,\"B\":0,\"hook\":1,\"oldBdeleted\":1,\"newBdeleted\":1}\n```\n\nOrdered original event fields:\n\n```text\nordinal stage callbackKind B oldIncarnation newIncarnation createReturnedNonNull hook oldBdeleted newBdeleted\n1 before-eval none 1 1 0 -1 0 0 0\n2 retire-entry command-DeleteProc 1 1 0 -1 1 0 0\n3 retire-before-delete-B command-DeleteProc 1 1 0 -1 1 0 0\n4 old-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 0\n5 retire-after-delete-B command-DeleteProc 0 0 0 -1 1 1 0\n6 retire-before-create-B command-DeleteProc 0 0 0 -1 1 1 0\n7 retire-after-create-B command-DeleteProc 1 0 1 1 1 1 0\n8 new-b-delete-proc namespace-DeleteProc 0 0 0 -1 1 1 1\n9 after-eval none 0 0 0 -1 1 1 1\n10 after-result-publication none 0 0 0 -1 1 1 1\n```\nThe callbackKind field identifies retire as a command DeleteProc and old_b/new_b as namespace DeleteProc callbacks.",
+        "evidence": [
+          "input",
+          "receipt-tcl9.1",
+          "stdout-tcl9.1",
+          "events-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "answer": "No execution of this exact instrumented C namespace callback program for this provider is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "status": "not-tested",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "answer": "No execution of this exact instrumented C namespace callback program for this provider is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "input",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/probe.c",
+        "sha256": "f0ed74051da352cc6aff27eb126da8505c5b92c2a1ef4447c82bae3cf2ba8b64",
+        "description": "Exact original setup/argv plus independent ordered callback and nsId observer."
+      },
+      {
+        "id": "replayer",
+        "role": "input",
+        "path": "scripts/dev/replay-namespace-delete-callback-events.py",
+        "sha256": "d5233c9c2fe4940af2dcbe76dfd6962b6972b83dcc2c617964c09b84a39dc12f",
+        "description": "Maintained explicit-provider replay requiring the exact public/private-header, Makefile and archive hashes."
+      },
+      {
+        "id": "receipt-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20/receipt.json",
+        "sha256": "9577d1f689e26be0afc7d47423d7cfa6ba4f8166f85f7dda734a94decfa36082",
+        "description": "Exact configured flags/public-private-header/Makefile/archive/observer/source/stream/compile-process association."
+      },
+      {
+        "id": "stdout-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20/stdout.tsv",
+        "sha256": "3b4ce2a19b41b5f1d4da0e0e009519980afb5cddbb34a9c66c6e0095b10c3fbf",
+        "description": "Exact original result-shaped final fields."
+      },
+      {
+        "id": "events-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20/stderr",
+        "sha256": "a08e58d18e3485270c99ea0239d5cfed7b2828cc1d4287e94ed394e3ca384c4e",
+        "description": "Complete original ten ordered instrumentation events, including callback kinds and nsId equality booleans."
+      },
+      {
+        "id": "compile-stdout-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20/compile.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stdout."
+      },
+      {
+        "id": "compile-stderr-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20/compile.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stderr."
+      },
+      {
+        "id": "receipt-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19/receipt.json",
+        "sha256": "ebb748fe9d6d505a5131f7ca9f1e5ce8b17941a6ea03c1779e83c3ef995e78f1",
+        "description": "Exact configured flags/public-private-header/Makefile/archive/observer/source/stream/compile-process association."
+      },
+      {
+        "id": "stdout-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19/stdout.tsv",
+        "sha256": "3b4ce2a19b41b5f1d4da0e0e009519980afb5cddbb34a9c66c6e0095b10c3fbf",
+        "description": "Exact original result-shaped final fields."
+      },
+      {
+        "id": "events-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19/stderr",
+        "sha256": "a08e58d18e3485270c99ea0239d5cfed7b2828cc1d4287e94ed394e3ca384c4e",
+        "description": "Complete original ten ordered instrumentation events, including callback kinds and nsId equality booleans."
+      },
+      {
+        "id": "compile-stdout-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19/compile.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stdout."
+      },
+      {
+        "id": "compile-stderr-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19/compile.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stderr."
+      },
+      {
+        "id": "receipt-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18/receipt.json",
+        "sha256": "fecefdb1205593d99629336a847439f347de212944e25942671c2598a4b5ca03",
+        "description": "Exact configured flags/public-private-header/Makefile/archive/observer/source/stream/compile-process association."
+      },
+      {
+        "id": "stdout-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18/stdout.tsv",
+        "sha256": "3b4ce2a19b41b5f1d4da0e0e009519980afb5cddbb34a9c66c6e0095b10c3fbf",
+        "description": "Exact original result-shaped final fields."
+      },
+      {
+        "id": "events-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18/stderr",
+        "sha256": "a08e58d18e3485270c99ea0239d5cfed7b2828cc1d4287e94ed394e3ca384c4e",
+        "description": "Complete original ten ordered instrumentation events, including callback kinds and nsId equality booleans."
+      },
+      {
+        "id": "compile-stdout-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18/compile.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stdout."
+      },
+      {
+        "id": "compile-stderr-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18/compile.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stderr."
+      },
+      {
+        "id": "receipt-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4/receipt.json",
+        "sha256": "cb2934bd216a698d2e2347d3f0ce972872f500e39b35a353480507f444a4d563",
+        "description": "Exact configured flags/public-private-header/Makefile/archive/observer/source/stream/compile-process association."
+      },
+      {
+        "id": "stdout-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4/stdout.tsv",
+        "sha256": "3b4ce2a19b41b5f1d4da0e0e009519980afb5cddbb34a9c66c6e0095b10c3fbf",
+        "description": "Exact original result-shaped final fields."
+      },
+      {
+        "id": "events-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4/stderr",
+        "sha256": "a08e58d18e3485270c99ea0239d5cfed7b2828cc1d4287e94ed394e3ca384c4e",
+        "description": "Complete original ten ordered instrumentation events, including callback kinds and nsId equality booleans."
+      },
+      {
+        "id": "compile-stdout-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4/compile.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stdout."
+      },
+      {
+        "id": "compile-stderr-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4/compile.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stderr."
+      },
+      {
+        "id": "receipt-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0/receipt.json",
+        "sha256": "54ae0a28c19f850b80aa6ea0028d273c88de85538cf62571be1a2153c9147256",
+        "description": "Exact configured flags/public-private-header/Makefile/archive/observer/source/stream/compile-process association."
+      },
+      {
+        "id": "stdout-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0/stdout.tsv",
+        "sha256": "3b4ce2a19b41b5f1d4da0e0e009519980afb5cddbb34a9c66c6e0095b10c3fbf",
+        "description": "Exact original result-shaped final fields."
+      },
+      {
+        "id": "events-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0/stderr",
+        "sha256": "a08e58d18e3485270c99ea0239d5cfed7b2828cc1d4287e94ed394e3ca384c4e",
+        "description": "Complete original ten ordered instrumentation events, including callback kinds and nsId equality booleans."
+      },
+      {
+        "id": "compile-stdout-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0/compile.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stdout."
+      },
+      {
+        "id": "compile-stderr-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0/compile.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact original compile stderr."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [
+        "python3",
+        "scripts/dev/replay-namespace-delete-callback-events.py",
+        "--provider",
+        "8.6.18",
+        "--tcl-root",
+        "<selected-configured-tcl-source-build-root>",
+        "--output",
+        "<new-output-directory>"
+      ],
+      "limitations": "Replay requires an explicitly selected build whose tcl.h, configured Makefile, private headers and static library match the recorded whole-file digests. The source/flags and complete stdout/stderr/process comparison are preserved. Compiler version/full linked runtime patchlevel were not queried by the original capture; no build identity is borrowed from another receipt with different library bytes. --verify-only checks retained source/stream/event associations and launches no native process. A new replay retains its own compile/launch/stream receipts."
+    }
+  }
+]

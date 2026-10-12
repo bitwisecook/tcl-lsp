@@ -1,0 +1,8 @@
+
+running 1 test
+test refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk ... ANALYSER_PHASE bytes=1926 stage=initial ms=0
+ANALYSER_PHASE bytes=1926 stage=realm-start ms=89
+SOURCE_PHASE bytes=1926 stage=initial ms=68 points=0 layouts=0
+
+thread 'refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk' (374697) has overflowed its stack
+fatal runtime error: stack overflow, aborting

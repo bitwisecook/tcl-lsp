@@ -1,0 +1,24 @@
+{
+  "provider": "jim",
+  "input_channel": "ASCII file bytes passed to shell stdin",
+  "source_sha256": "1dd339248836dfcdd3365901230b31f6b0a97e9a5557ec92be4886255ec4e143",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "source_owner_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh"
+  ],
+  "TCL_LIBRARY": null,
+  "process_exit": 0,
+  "stdout_sha256": "648b87097509d5203b934d6ac282616b94d13a733349f3db89abe74a6f183126",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "0.84-9-g5bac7c9",
+  "rows": [
+    "VERSION|0.84-9-g5bac7c9",
+    "LINKED|0|424f4f4d20424f4f4d",
+    "PLAIN|0|424f4f4d",
+    "SEPARATE_RESULT|0|4f4c4420424f4f4d204f4c44"
+  ]
+}

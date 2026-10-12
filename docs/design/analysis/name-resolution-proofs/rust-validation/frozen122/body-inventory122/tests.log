@@ -1,0 +1,19 @@
+    Finished `test` profile [unoptimized] target(s) in 0.10s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 2 tests
+test analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque ... 
+thread 'analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque' (502079) panicked at rust/tcl-compiler/src/analyser/commands.rs:7649:9:
+assertion failed: baseline_child.body_origin().is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::commands::original_script_body_inventory_tests::original_script_inventory_uses_whole_authored_body_and_case_regions ... ok
+
+failures:
+
+failures:
+    analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8117 filtered out; finished in 1.62s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

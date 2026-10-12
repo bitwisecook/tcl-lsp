@@ -1,0 +1,73 @@
+CompileComparisonOpCmd(
+    Tcl_Interp *interp,
+    Tcl_Parse *parsePtr,
+    int instruction,
+    CompileEnv *envPtr)
+{
+    Tcl_Token *tokenPtr;
+    DefineLineInformation;	/* TIP #280 */
+
+    if (parsePtr->numWords < 3) {
+	PushLiteral(envPtr, "1", 1);
+    } else if (parsePtr->numWords == 3) {
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, 1);
+	tokenPtr = TokenAfter(tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, 2);
+	TclEmitOpcode(instruction, envPtr);
+    } else if (envPtr->procPtr == NULL) {
+	/*
+	 * No local variable space!
+	 */
+
+	return TCL_ERROR;
+    } else {
+	int tmpIndex = TclFindCompiledLocal(NULL, 0, 1, envPtr->procPtr);
+	int words;
+
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, 1);
+	tokenPtr = TokenAfter(tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, 2);
+	if (tmpIndex <= 255) {
+	    TclEmitInstInt1(INST_STORE_SCALAR1, tmpIndex, envPtr);
+	} else {
+	    TclEmitInstInt4(INST_STORE_SCALAR4, tmpIndex, envPtr);
+	}
+	TclEmitOpcode(instruction, envPtr);
+	for (words=3 ; words<parsePtr->numWords ;) {
+	    if (tmpIndex <= 255) {
+		TclEmitInstInt1(INST_LOAD_SCALAR1, tmpIndex, envPtr);
+	    } else {
+		TclEmitInstInt4(INST_LOAD_SCALAR4, tmpIndex, envPtr);
+	    }
+	    tokenPtr = TokenAfter(tokenPtr);
+	    CompileWord(envPtr, tokenPtr, interp, words);
+	    if (++words < parsePtr->numWords) {
+		if (tmpIndex <= 255) {
+		    TclEmitInstInt1(INST_STORE_SCALAR1, tmpIndex, envPtr);
+		} else {
+		    TclEmitInstInt4(INST_STORE_SCALAR4, tmpIndex, envPtr);
+		}
+	    }
+	    TclEmitOpcode(instruction, envPtr);
+	}
+	for (; words>3 ; words--) {
+	    TclEmitOpcode(INST_BITAND, envPtr);
+	}
+
+	/*
+	 * Drop the value from the temp variable; retaining that reference
+	 * might be expensive elsewhere.
+	 */
+
+	PushLiteral(envPtr, "", 0);
+	if (tmpIndex <= 255) {
+	    TclEmitInstInt1(INST_STORE_SCALAR1, tmpIndex, envPtr);
+	} else {
+	    TclEmitInstInt4(INST_STORE_SCALAR4, tmpIndex, envPtr);
+	}
+	TclEmitOpcode(INST_POP, envPtr);
+    }
+    return TCL_OK;
+}

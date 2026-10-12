@@ -1,0 +1,52 @@
+{
+  "source_sha256": "350c62d1aed44d573d608a8ea2d675104eeddc9520684f8839f067fadac11a79",
+  "engines": [
+    {
+      "version": "8.4.20",
+      "compile_exit": 0,
+      "stderr": "",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "exit": 0,
+      "completed_windows": 10,
+      "binary_sha256": "8d5a2110abf5da3bbaeea834c993341385a46662c7f6ea3b02aa8a93327ff2f9"
+    },
+    {
+      "version": "8.5.19",
+      "compile_exit": 0,
+      "stderr": "",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "exit": 0,
+      "completed_windows": 10,
+      "binary_sha256": "d63b2199df6d4615ac1b198712dd0f24b373617929d2be9b5eba65384a271622"
+    },
+    {
+      "version": "8.6.18",
+      "compile_exit": 0,
+      "stderr": "",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "exit": 0,
+      "completed_windows": 10,
+      "binary_sha256": "235be1ce7185b2efc7e7f2599308f5d92848f64fdca49446cb80dff695a1405b"
+    },
+    {
+      "version": "9.0.4",
+      "compile_exit": 0,
+      "stderr": "",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "exit": 0,
+      "completed_windows": 10,
+      "binary_sha256": "ccc95a45a92b819a586b3f7842f31e309d1548b9126fe985a0958b9d5cb698b4"
+    },
+    {
+      "version": "9.1.0",
+      "compile_exit": 0,
+      "stderr": "",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "exit": 0,
+      "completed_windows": 10,
+      "binary_sha256": "a502e3683ccba220b1393d19d870baba0bd5a0e98e64e93b1ba4a43d214a9085"
+    }
+  ],
+  "rust_comparisons": 0,
+  "window": "Original source type/refcount/residency captured immediately after actual Tcl_EvalObjEx before result/string/options observers."
+}

@@ -1,0 +1,63 @@
+ordinary-initial	epoch=1	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=1	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+ordinary-initial/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+ordinary-local	epoch=2	frame=39	level=1	type=command	refs=1	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+ordinary-local/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+ordinary-aftercall	epoch=2	frame=39	level=1	type=command	refs=1	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+ordinary-aftercall/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+ordinary-initial/result	code=0	epoch=2	result=4c4f43414c
+after-frame-cleanup	epoch=2	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=2	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+after-frame-cleanup/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+nested-initial	epoch=1	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=1	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+nested-initial/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+nested-one	epoch=2	frame=39	level=1	type=command	refs=1	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+nested-one/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+nested-two	epoch=3	frame=39	level=1	type=command	refs=1	selected=3	cacheepoch=3	cached=3	inuse=1	prev=2	upcall=0	previnuse=1	namespace=	cleanup=2
+nested-two/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+nested-two/cleanup-1	name=70	type=command	refs=2	cacheepoch=3
+two-active	epoch=3	frame=40	level=2	type=command	refs=1	selected=3	cacheepoch=3	cached=3	inuse=2	prev=2	upcall=0	previnuse=1	namespace=	cleanup=0
+one-active	epoch=3	frame=41	level=3	type=command	refs=1	selected=2	cacheepoch=3	cached=3	inuse=3	prev=2	upcall=1	previnuse=2	namespace=	cleanup=0
+base-active	epoch=3	frame=42	level=4	type=command	refs=1	selected=1	cacheepoch=3	cached=3	inuse=3	prev=2	upcall=1	previnuse=3	namespace=	cleanup=0
+two-afterupcall	epoch=3	frame=40	level=2	type=command	refs=1	selected=3	cacheepoch=3	cached=3	inuse=2	prev=2	upcall=0	previnuse=1	namespace=	cleanup=0
+nested-aftercall	epoch=3	frame=39	level=1	type=command	refs=1	selected=3	cacheepoch=3	cached=3	inuse=1	prev=2	upcall=0	previnuse=1	namespace=	cleanup=2
+nested-aftercall/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+nested-aftercall/cleanup-1	name=70	type=command	refs=2	cacheepoch=3
+nested-initial/result	code=0	epoch=3	result=42415345
+after-frame-cleanup	epoch=3	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=3	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+after-frame-cleanup/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+rename-initial	epoch=1	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=1	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+rename-initial/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+rename-before	epoch=2	frame=39	level=1	type=command	refs=1	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+rename-before/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+rename-local	code=1	before=2	after=2	result=63616e27742072656e616d65206c6f63616c20636f6d6d616e6420227022
+rename-after	epoch=2	frame=39	level=1	type=command	refs=2	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+rename-after/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+rename-initial/result	code=0	epoch=2	result=444f4e45
+after-frame-cleanup	epoch=2	frame=1	level=0	type=command	refs=2	selected=1	cacheepoch=2	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+after-frame-cleanup/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+fresh-initial	epoch=1	frame=1	level=0	type=none	refs=1	selected=0	namespace=	cleanup=1
+fresh-initial/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+fresh-local	epoch=1	frame=39	level=1	type=command	refs=1	selected=1	cacheepoch=1	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+fresh-local/cleanup-0	name=70	type=command	refs=3	cacheepoch=1
+fresh-initial/result	code=0	epoch=1	result=4652455348
+after-frame-cleanup	epoch=1	frame=1	level=0	type=command	refs=1	selected=0	cacheepoch=1	cached=1	inuse=0	namespace=	cleanup=1
+after-frame-cleanup/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+native-initial	epoch=1	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=1	cached=1	inuse=1	prev=0	upcall=-1	namespace=	cleanup=1
+native-initial/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+native-wrapper	epoch=2	frame=39	level=1	type=command	refs=1	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+native-wrapper/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+native-base-active	epoch=2	frame=40	level=2	type=command	refs=1	selected=1	cacheepoch=2	cached=2	inuse=3	prev=1	upcall=1	previnuse=2	namespace=	cleanup=0
+native-initial/result	code=0	epoch=2	result=4e4154495645
+after-frame-cleanup	epoch=2	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=2	cached=1	inuse=1	prev=0	upcall=-1	namespace=	cleanup=1
+after-frame-cleanup/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+delete-initial	epoch=1	frame=1	level=0	type=command	refs=1	selected=1	cacheepoch=1	cached=1	inuse=1	prev=0	upcall=0	namespace=	cleanup=1
+delete-initial/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1
+delete-wrapper	epoch=2	frame=39	level=1	type=command	refs=1	selected=2	cacheepoch=2	cached=2	inuse=1	prev=1	upcall=0	previnuse=1	namespace=	cleanup=1
+delete-wrapper/cleanup-0	name=70	type=command	refs=2	cacheepoch=2
+base-during-delete	epoch=2	frame=41	level=3	type=command	refs=1	selected=1	cacheepoch=2	cached=2	inuse=3	prev=1	upcall=1	previnuse=2	namespace=	cleanup=0
+delete-local-active	code=0
+delete-local-active-original	epoch=2	frame=41	level=3	type=command	refs=1	selected=1	cacheepoch=2	cached=2	inuse=2	prev=1	upcall=1	previnuse=2	namespace=	cleanup=0
+delete-local-active-fresh	epoch=2	frame=41	level=3	type=none	refs=1	selected=0	namespace=	cleanup=0
+base-after-delete	epoch=2	frame=41	level=3	type=command	refs=1	selected=1	cacheepoch=2	cached=2	inuse=2	prev=1	upcall=1	previnuse=2	namespace=	cleanup=0
+delete-initial/result	code=0	epoch=2	result=42415345
+after-frame-cleanup	epoch=2	frame=1	level=0	type=command	refs=1	selected=0	cacheepoch=2	cached=2	inuse=0	namespace=	cleanup=1
+after-frame-cleanup/cleanup-0	name=706964	type=command	refs=1	cacheepoch=1

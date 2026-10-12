@@ -1,0 +1,32 @@
+TclCompileDictLappendCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *keyTokenPtr, *valueTokenPtr;
+    int dictVarIndex;
+    DefineLineInformation;	/* TIP #280 */
+
+    /*
+     * There must be three arguments after the command.
+     */
+
+    if (parsePtr->numWords != 4) {
+	return TCL_ERROR;
+    }
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    keyTokenPtr = TokenAfter(varTokenPtr);
+    valueTokenPtr = TokenAfter(keyTokenPtr);
+    dictVarIndex = LocalScalarFromToken(varTokenPtr, envPtr);
+    if (dictVarIndex < 0) {
+	return TCL_ERROR;
+    }
+    CompileWord(envPtr, keyTokenPtr, interp, 2);
+    CompileWord(envPtr, valueTokenPtr, interp, 3);
+    TclEmitInstInt4( INST_DICT_LAPPEND, dictVarIndex, envPtr);
+    return TCL_OK;
+}

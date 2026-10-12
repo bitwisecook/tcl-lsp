@@ -112,8 +112,9 @@ The obj-lifecycle and result slice of `tcl.h`, exported for extensions
 
 ### `codegen_abi.rs` — the compiled-module host bridge
 
-The import table an emitted WASM module links against. It evaluates against a
-**current interp** installed by the bootstrap, not an interp argument.
+The import table an emitted WASM module links against. Explicit entry selects
+the interpreter installed by the bootstrap. Paired work retains that actual
+interpreter until its matching cleanup, independent of later pointer changes.
 
 The table below covers the eval / value / variable core. The slot family
 (`tcl_codegen_slot_*`), the guard and activation families
@@ -129,7 +130,7 @@ a convention at the call site.
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
-| `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears it. Every other export here no-ops or reports failure when it is null. |
+| `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears the bootstrap pointer. Outstanding paired work retains its actual interpreter; otherwise interpreter-dependent exports use their documented absent-interpreter behaviour. Installing a pointer outside paired work clears the completed cleanup observation, while preserving each interpreter's actual first Host cause. |
 | `tcl_runtime_init_library()` | (n/a) | i32 (0 ok) | (n/a) | C's `Tcl_Init` equivalent: sources `$TCL_LIBRARY/init.tcl` (the embedded-stdlib VFS on the `wasm_stdlib` build). Returns 1 with no current interp. |
 | `tcl_runtime_identity(out, capacity)` | writable bytes, not retained | i32 (the encoding's byte length; 0 with no current interp) | (n/a) | What the runtime states of itself — the current interp's pinned context and this build's ABI, intrinsic table and embedded library — as an `ArtefactIdentityManifest`'s bytes, written only when `capacity` holds them, so a host asks once with a null buffer for the size and compares a module's own manifest before linking. No object is created or retained. |
 | `tcl_obj_new_string(ptr, len)` | copied bytes | `owned` (`rc 0`) | none | **Not retained.** Its consumer (`tcl_eval` / `tcl_eval_code` / `tcl_expr_bool`) *adopts* and frees it. |
@@ -144,17 +145,85 @@ a convention at the call site.
 | `tcl_codegen_local_get(slot)` | (n/a) | `null_or_owned` | (n/a) | Fires read traces first; null on an unbound slot, a failed trace, or a read miss (with the interp error set). |
 | `tcl_codegen_var_set(name_ptr, name_len, value)` | `value` `consumed` | i32 (0 ok) | stores into the named cell | The by-name form; same release discipline. |
 | `tcl_codegen_var_get(name_ptr, name_len)` | name bytes | `null_or_owned` | (n/a) | |
-| `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including the error and null-argument paths, and returns a fresh `+1`. Without the `have_tommath` backend it consumes the operands and reports `arithmetic support is not available`. |
-| `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`, then releases the operand-stack reference. |
-| `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. The body object is fresh and dropped after `define_proc` takes its own copy. |
-| `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `owned` (`+1` on the interp result) | (n/a) | Completion codes are discarded — use `tcl_eval_code` when they matter. With no current interp it returns an owned empty string rather than null, so the misuse path stays leak-safe. |
-| `tcl_eval_code(script)` | `script` `adopted` | i32 completion code | (n/a) | Returns 0/1/2/3/4 or a `return -code N` value; the result stays the interp's own (borrowed), so the emitter has nothing to release. Reports 0 with no current interp. |
-| `tcl_expr_bool(expr)` | `expr` `adopted` | i32 | (n/a) | The condition primitive for emitted control flow. Yields `0` on an expression error, with no current interp, or in a build without the numeric tower. |
-| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed`; `out` writable `TclCompletionAbi` | i32 ABI status; on a write, `out.result` and `out.options` are each `owned` | normal interpreter result/error state only | Retains each argv word for the dispatch only, then releases those temporaries. Dispatches the prebuilt argv through the same `Interp::dispatch` as interpreted Tcl — namespaces, `unknown`, aliases, ensembles, TclOO — with no parsing or substitution. A Tcl error is `out.code == 1`; a negative return is a malformed ABI call. |
+| `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including missing interpreter, pending Host and partial-null inputs. Uses the original interpreter's selected operand conversions and shared arithmetic kernel, releases inputs before final currency checks, and returns an owned `+1` only on success. Without `have_tommath`, it consumes the operands and reports `arithmetic support is not available` only when actual entry remains current. |
+| `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`. Adopts the transferred operand at entry and releases it on every path, before final currency settlement. |
+| `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. Parameters and body are held through the actual original procedure installer; success requires its installed generation. Host refusal preserves the first cause and prevents a false successful empty result. |
+| `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `null_or_owned` (`+1` on the original interp result) | (n/a) | Guest completion codes are discarded. Host refusal returns null and retains its typed cause. No-interpreter compatibility returns an owned empty string. Input ownership is settled on every path. |
+| `tcl_eval_code(script)` | `script` `adopted` | i32 completion code or Host status | (n/a) | Genuine Guest codes retain the original interpreter result. Host refusal returns `-6` without Guest publication. Input ownership is settled on every path. Explicit no-interpreter compatibility reports 0. |
+| `tcl_expr_bool(expr)` | `expr` `adopted` | i32 | (n/a) | Compatibility truth projection: genuine Guest error yields false; Host refusal returns `-6` in the independent typed channel. Callers check that channel before consuming truth. Full compiler conditions use `tcl_codegen_expr_bool` and its whole completion. No interpreter or reduced numeric build yields 0. |
+| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed`; `out` writable `TclCompletionAbi` | i32 ABI status; on a write, `out.result` and `out.options` are each `owned` | normal interpreter result/error state only | Retains each argv word for the dispatch only, then releases those temporaries. Dispatches the prebuilt argv through the same `Interp::dispatch` as interpreted Tcl — namespaces, `unknown`, aliases, ensembles, TclOO — with no parsing or substitution. A Tcl error is `out.code == 1`; Host refusal returns `-6` with output untouched. Capture and activation cleanup use the retained original interpreter. |
+| `tcl_intrinsic_invoke_argv(intrinsic, argv, argc, out)` | every argv word `borrowed` | i32 status; written result/options each `owned` | actual intrinsic result/error state | Form decline writes no completion. The checked original getter's Host refusal stops before fallback and leaves output untouched. Temporary argv references are balanced through capture and activation cleanup. |
+| `tcl_codegen_word_concat(parts, count)` | every part `borrowed` | `null_or_owned` | counted result bytes | Retains borrowed parts before checked original String access, preserving exact counted bytes. Getter/refusal stops before result publication; caller references are never adopted. |
 | `tcl_completion_release(out)` | `out.result` + `out.options` `consumed` | `void` | clears the output storage | Releases both handles exactly once and zeroes the fields. Idempotent on already-reset storage; mixing it with individual `tcl_obj_release` calls is not sound. |
 | `tcl_codegen_call_frame_alloc(bytes, align)` | validated positive layout | owned transient frame pointer | shared linear memory | Records the exact layout, increments the diagnostic outstanding-frame count. Frames are distinct and survive re-entrant command callbacks. |
 | `tcl_codegen_call_frame_free(frame)` | `frame` consumed once | i32 status | shared linear memory | Looks up the authoritative layout; unknown, forged, or repeated pointers fail without dereference or deallocation. Must run after the argv objects and completion output are released. |
 | `tcl_codegen_call_frame_outstanding()` | (n/a) | i32 | (n/a) | Diagnostic counter; no refcount interaction. |
+
+The compiler bridge's `CodegenOperation` retains the original interpreter and
+shared `NativeOperationScope` before getters or callbacks. Its variable, slot, scalar, procedure, argv and source operations inherit that
+receipt, preserve reached effects and retain the
+first typed Host refusal. Consumed setters and `puts` adopt their transferred
+`+1` at entry, including absent-interpreter, invalid-slot and pending-refusal
+paths. They release it before final currency checks; borrowed append, increment
+and argv operands remain the caller's references. A trace-admission query
+returns the conservative traced answer when the operation is unavailable.
+Neutral numeric fast-path probes keep Guest rejection distinct from original
+access refusal and publish their output only after the current receipt check.
+Registry form decline remains distinct from failed
+object access. Checked completion capture runs while the activation still owns
+its Guest error state; mandatory activation cleanup then runs before final
+publication. A refusal during capture or cleanup releases retained result and
+options and leaves caller output untouched. Mutable ambient interpreter state
+cannot retarget this settlement. Arithmetic and unary numeric operators use
+the same entered operand preparation as comparison. Only accepted magnitudes
+reach temporary typed kernel inputs; a selected numeric rejection never
+reparses its original spelling under another ambient release. Unary logical
+NOT retains its separate Boolean operand purpose. Original operand cleanup
+runs before final result publication. Expression list membership retains the
+actual List backing incarnation and allocation-only member leases across original
+getters. These leases add no native child references and grant no conversion
+purpose. A retired backing or member refuses before the next getter or result;
+checked String access and selected List conversion retain the same entered
+currency. Authored F5 predicates use that checked String ingress after their
+independently installed expression policy admits the operator. Their counted
+bytes remain separate from the checked Unicode inputs of the pure predicate;
+consumed operands retire before final result publication.
+
+Math function handlers and fixed-function calls enter through the actual
+interpreter expression context. Their selected
+numeric operands reach the pure function kernel as accepted magnitudes, so a
+rejected original spelling cannot be reparsed there. The shared function table
+selects primitive Boolean operand acceptance separately from expression truth.
+Integer-forward functions retain the original header and resident spelling
+only after selected integer classification; window conversion uses the accepted
+integer magnitude. Random-generator mutation follows successful seed access
+and classification on the same actual interpreter.
+
+Constant expression preparation retains the actual interpreter and entry
+through literal cleanup and evaluation. An admitted numeric-result instruction
+reaches its shared physical producer; a following Boolean peephole and a public
+expression API copy are separate obligations. Caller tags and source profiles
+cannot attest that conversion has occurred.
+
+Separate compiler frame and activation calls retain their actual interpreter
+and entered currency in a LIFO ledger. Ordinary facade calls, completion
+exports and Host-status reads use that owner while it is outstanding; explicit
+entry selects the bootstrap's installed interpreter. Every void frame-push
+attempt requires one pop, including a refused attempt, so a failed nested push
+cannot remove an outer frame. Activation callers owe a leave only after a
+successful status. Cleanup stays on the original owner during reentrant object
+retirement and always runs under refusal. A wrong entry kind or repeated
+reentrant exit retains an operational refusal without removing another entry.
+If cleanup leaves a callback-entered entry open, its completed record remains
+below that entry. The matching nested exit retires completed scopes in order,
+without repeating frame or activation cleanup. No ledger borrow crosses a
+callback or scope destructor. A cleanup refusal retains its weak actual owner
+and exact first cause until
+an explicit independent entry or bootstrap outside paired work; it is never
+copied into an outer interpreter. Installing a pointer during held work clears
+none of its original currency or refusal. The native
+ledger is per thread; the single-threaded Wasm module uses a lazy module-global
+ledger without requiring TLS initialisation.
 
 ### `regex_capi.rs` — the ARE engine's C shim
 
@@ -206,3 +275,35 @@ remains.
   [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 - Compile-side proof and ownership contract:
   [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md).
+
+`OriginalArguments` retains the actual interpreter operation and allocation-only
+leases for a command's original argv. Entry checks live allocations without
+materialising their Strings or changing native reference counts. `original(index)`
+checks a borrowed header; `bytes(index)` reaches the existing selected original
+String getter at that command stage, retaining its result and checking the
+original currency before returning counted bytes. Neither accessor grants a
+name, frame, cache or getter purpose. Native worker consumers select those
+through their existing sealed protocols.
+
+Command drivers retain this context through their read/effect sequence. They
+check before table effects and after a callback or worker, preserve reached
+effects on failure, and finish through the original first Host cause. They read
+each subsequent operand only when the selected command reaches it. The common
+dispatch boundary enters the same operation before rewrite retirement, result
+retirement, traces, lookup and invocation, and checks after tailcall settlement.
+An independent engine entry retains its separate reset contract; nested dispatch
+never resets the original operation's first cause.
+
+Entered operation and retained scalar issuer currency use one non-wrapping
+execution-context epoch. Host installation, a changed pinned context or dialect,
+and logical evaluation/source/expression/naming ingress retire those receipts
+before changing the actual context. Restoring equal context does not revive an
+older receipt; counter exhaustion permanently refuses issuance. An unchanged
+pin keeps its existing context currency.
+
+Speculative command guards have a separate interpreter-policy epoch. Legal
+Guest changes to commands, children, visibility, safety, limits and background
+handlers invalidate their relevant guards and preserve entered operation and
+scalar context currency. Currency does not attest command generations,
+namespace/frame lifecycle, native getter recipes or value headers; their
+existing owners check them independently.

@@ -1,0 +1,26 @@
+{
+  "provider_key": "jim",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/abstract-manufacturer-native336/manufacturer-visibility.tcl"
+  ],
+  "input_sha256": "64e38f62b21ea36750bbbdb0ee3bc59df59ace76699a2ad31656a611d35d556c",
+  "invoked_file_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "exit": 1,
+  "seconds": 0.005644632008625194,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "7d325b3073b28d5d44fd33f9d13024c22d5f8bea9f457e79241050a0ebd37f04",
+  "version_command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/abstract-manufacturer-native336/version.tcl"
+  ],
+  "version_input_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+  "version_exit": 0,
+  "version_stdout_sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+  "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "version": "patchlevel 0.84-9-g5bac7c9\nexecutable /workspace/.proofs/native-providers/jimtcl/jimsh\n",
+  "stdout": "",
+  "intended_worker_reached": false,
+  "retained_actual_provider_binding": "../property-report-native335/provider-retention.json",
+  "retained_actual_provider_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc"
+}

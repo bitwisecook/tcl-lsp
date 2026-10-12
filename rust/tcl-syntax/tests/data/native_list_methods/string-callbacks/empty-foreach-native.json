@@ -1,0 +1,32 @@
+[
+  {
+    "version": "8.4",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=MUTATED\nroute=generic kind=scalar code=0 result=MUTATED\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.5",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=MUTATED\nroute=generic kind=scalar code=0 result=MUTATED\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=MUTATED\nroute=generic kind=scalar code=0 result=MUTATED\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=MUTATED\nroute=generic kind=scalar code=0 result=MUTATED\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1",
+    "code": 0,
+    "stdout": "route=compiled kind=scalar code=0 result=MUTATED\nroute=generic kind=scalar code=0 result=MUTATED\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,111 @@
+ */
+
+int
+Tcl_GetCommandInfo(
+    Tcl_Interp *interp,		/* Interpreter in which to look for
+				 * command. */
+    const char *cmdName,	/* Name of desired command. */
+    Tcl_CmdInfo *infoPtr)	/* Where to store information about
+				 * command. */
+{
+    Tcl_Command cmd;
+
+    cmd = Tcl_FindCommand(interp, cmdName, NULL, /*flags*/ 0);
+    return Tcl_GetCommandInfoFromToken(cmd, infoPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetCommandInfoFromToken --
+ *
+ *	Returns various information about a Tcl command.
+ *
+ * Results:
+ *	Copies information from the command identified by 'cmd' into a
+ *	caller-supplied structure and returns 1. If the 'cmd' is NULL, leaves
+ *	the structure untouched and returns 0.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_GetCommandInfoFromToken(
+    Tcl_Command cmd,
+    Tcl_CmdInfo *infoPtr)
+{
+    Command *cmdPtr;		/* Internal representation of the command */
+
+    if (cmd == NULL) {
+	return 0;
+    }
+
+    /*
+     * Set isNativeObjectProc 1 if objProc was registered by a call to
+     * Tcl_CreateObjCommand. Set isNativeObjectProc 2 if objProc was
+     * registered by a call to Tcl_CreateObjCommand2. Otherwise set it to 0.
+     */
+
+    cmdPtr = (Command *) cmd;
+    infoPtr->isNativeObjectProc =
+	    (cmdPtr->objProc2 != InvokeStringCommand) ? 2 : 0;
+    infoPtr->objProc2 = cmdPtr->objProc2;
+    infoPtr->objClientData2 = cmdPtr->objClientData2;
+    infoPtr->proc = cmdPtr->proc;
+    infoPtr->clientData = cmdPtr->clientData;
+#ifndef TCL_NO_DEPRECATED
+    if (cmdPtr->deleteProc == CmdWrapperDeleteProc) {
+	CmdWrapperInfo *info = (CmdWrapperInfo *)cmdPtr->deleteData;
+	infoPtr->deleteProc = info->deleteProc;
+	infoPtr->deleteData = info->deleteData;
+	infoPtr->objProc = info->proc;
+	infoPtr->objClientData = info->clientData;
+	if (cmdPtr->objProc2 == CmdWrapperProc) {
+	    infoPtr->isNativeObjectProc = 1;
+	}
+    } else
+#endif
+    {
+	infoPtr->deleteProc = cmdPtr->deleteProc;
+	infoPtr->deleteData = cmdPtr->deleteData;
+#ifndef TCL_NO_DEPRECATED
+	infoPtr->objProc = CmdWrapper2Proc;
+	infoPtr->objClientData = cmdPtr;
+#endif
+    }
+    infoPtr->namespacePtr = (Tcl_Namespace *) cmdPtr->nsPtr;
+    return 1;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetCommandName --
+ *
+ *	Given a token returned by Tcl_CreateObjCommand, this function returns the
+ *	current name of the command (which may have changed due to renaming).
+ *
+ * Results:
+ *	The return value is the name of the given command.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+const char *
+Tcl_GetCommandName(
+    TCL_UNUSED(Tcl_Interp *),
+    Tcl_Command command)	/* Token for command returned by a previous
+				 * call to Tcl_CreateObjCommand. The command must
+				 * not have been deleted. */
+{
+    Command *cmdPtr = (Command *) command;
+
+    if ((cmdPtr == NULL) || (cmdPtr->hPtr == NULL)) {
+	/*
+	 * This should only happen if command was "created" after the

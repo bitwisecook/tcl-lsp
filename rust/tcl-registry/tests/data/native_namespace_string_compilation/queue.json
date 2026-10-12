@@ -1,0 +1,22 @@
+{
+  "kind": "native-probe-queue",
+  "probe": "counted namespace tail direct versus genuine procedure compiler",
+  "input": "/workspace/.proofs/current-native-namespace-tail121/probe.c",
+  "input_sha256": "8ee7ea8c3253fdae47b6af1756c88ef97e1a41fd137d1def3bd453b0a14f59e5",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "counted Tcl_NewStringObj or Jim_NewStringObj followed by native object vector; procedure body is fixed ASCII source",
+  "expectation": "Capture exact codes, original/result types before byte getters, result identity and counted bytes. Raw00 is supplied directly, not binary format. C84/85 no-hook and Jim no-C-compiler remain separate controls. C86/90/91 disassembly is retained as counted bytes; no predetermined result claims.",
+  "rows": 10,
+  "forms": [
+    "direct public worker",
+    "fixed original procedure body"
+  ],
+  "version_channel": "native object-vector info patchlevel queried before result rows; stdout V records exact bytes/code"
+}

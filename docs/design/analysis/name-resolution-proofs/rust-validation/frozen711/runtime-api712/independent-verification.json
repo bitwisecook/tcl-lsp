@@ -1,0 +1,61 @@
+{
+  "status": "Independent exact original711 API712 receipt/source/body/list/raw-result/image join",
+  "frozen_head": "915e74fe4268224e4c8b905806ddab6557f6e3c7",
+  "frozen_snapshot_sha256": "6579a2b9cc8bc8908222006b54a3733c35347b8b44d43d403d4c418d6aeae872",
+  "tracked_frozen_source_paths": 48458,
+  "two_logical_source_maps_verified": true,
+  "unique_physical_file_hashes": 48458,
+  "total_tracked_bytes": 4447206099,
+  "own_cargo_artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///tmp/naming-current-validation711/rust/tcl-runtime-api#0.1.0",
+    "manifest_path": "/tmp/naming-current-validation711/rust/tcl-runtime-api/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_runtime_api",
+      "src_path": "/tmp/naming-current-validation711/rust/tcl-runtime-api/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "1",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/workspace/.cache/naming-owned-target711/debug/deps/tcl_runtime_api-e6cfe48382b79c63"
+    ],
+    "executable": "/workspace/.cache/naming-owned-target711/debug/deps/tcl_runtime_api-e6cfe48382b79c63",
+    "fresh": false
+  },
+  "own_ELF_sha256": "79720483b85b9d40450798f3ced1780b4d5cbd0483f25d1b857355b71c419301",
+  "ELF_bytes": 1491848,
+  "actual_all_count": 88,
+  "actual_all_pass": 88,
+  "bounded_association": {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md",
+    "path": "rust/tcl-runtime-api/src/backing.rs",
+    "selector": "backing::tests::exact_unrooted_backing_keys_keep_literal_leading_colons",
+    "source_sha256": "6e3efe91879f96f1bcabaf1c7c467fbcb0fe5f14b01e4b092f037f9629fb433e",
+    "body_sha256": "6020926bcf3f78c27fc4578f399741c7844be5f74a9f33fed725327fe70c1555",
+    "definition_line": 199,
+    "raw_start_byte": 92,
+    "raw_end_byte": 176,
+    "raw_excerpt_sha256": "c570d45c7b3400efb1cc77ca194187831f5de92d393f3d3f7a600ea27b25ecde",
+    "current_same_body": true,
+    "status": "passed only on original711/API712 own image"
+  },
+  "receipt_assertions": "Original Root build/run receipts report unchanged full source map and image before/after. Independent current retained frozen producer/immutable maps and owned image bytes verify; inherited environment, original wrapper byte pins, runtime loading/dependency closure and execution-time inode facts are not invented.",
+  "scope": "Only exact API pure-map report selector linked to its own original source711/image/result. Runtime placed-slot, Compiler, VM, Native provider/frozen observations stay independent."
+}

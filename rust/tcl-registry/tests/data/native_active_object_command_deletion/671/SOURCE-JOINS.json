@@ -1,0 +1,128 @@
+[
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+    "whole_source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclBasic.c",
+    "first_physical_LF": 2550,
+    "last_physical_LF": 2696,
+    "byte_range": [
+      78942,
+      84048
+    ],
+    "snippet_sha256": "476e1f08a2b8f5dce752e771dd84bf25463be35b7c797f5c5fc48c15628ca9b0",
+    "terminal_LF": true,
+    "complete_symbol": "Tcl_DeleteCommandFromToken"
+  },
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+    "whole_source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclBasic.c",
+    "first_physical_LF": 2774,
+    "last_physical_LF": 2939,
+    "byte_range": [
+      84225,
+      89835
+    ],
+    "snippet_sha256": "90cae98331d5db4913ab7b71bdd42bbcba8cef11c576bdd305f405955de3a368",
+    "terminal_LF": true,
+    "complete_symbol": "Tcl_DeleteCommandFromToken"
+  },
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+    "whole_source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/8.6.18/tclBasic.c",
+    "first_physical_LF": 3147,
+    "last_physical_LF": 3320,
+    "byte_range": [
+      98088,
+      103755
+    ],
+    "snippet_sha256": "b639cfb45d73ae19e8369a59b15e52062b016b531bbbb98a93afe34258a32e06",
+    "terminal_LF": true,
+    "complete_symbol": "Tcl_DeleteCommandFromToken"
+  },
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+    "whole_source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.0.4/tclBasic.c",
+    "first_physical_LF": 3727,
+    "last_physical_LF": 3902,
+    "byte_range": [
+      115770,
+      121494
+    ],
+    "snippet_sha256": "41a0ff277f6b4a974f3799fd974eea75fe9184520fbca9378f82ca289541b382",
+    "terminal_LF": true,
+    "complete_symbol": "Tcl_DeleteCommandFromToken"
+  },
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+    "whole_source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.1.0/tclBasic.c",
+    "first_physical_LF": 3697,
+    "last_physical_LF": 3872,
+    "byte_range": [
+      116033,
+      121758
+    ],
+    "snippet_sha256": "e1c5f7b00f1d8399aca5eca6bd84fa489448d10320f4827e1c58bd330b97da1a",
+    "terminal_LF": true,
+    "complete_symbol": "Tcl_DeleteCommandFromToken"
+  },
+  {
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "first_physical_LF": 3881,
+    "last_physical_LF": 3884,
+    "byte_range": [
+      115019,
+      115092
+    ],
+    "snippet_sha256": "84004aa829ae81eb24e6c27f33f7122d423135f7cf9df520840daf904a28f331",
+    "terminal_LF": true,
+    "complete_symbol": "JimIncrCmdRefCount"
+  },
+  {
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "first_physical_LF": 3887,
+    "last_physical_LF": 3922,
+    "byte_range": [
+      115176,
+      116564
+    ],
+    "snippet_sha256": "b4469d6dbcfcb67df151f4cd74b18204e183f9d58f8c7de0dcc708fd1320bbd0",
+    "terminal_LF": true,
+    "complete_symbol": "JimDecrCmdRefCount"
+  },
+  {
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "first_physical_LF": 4447,
+    "last_physical_LF": 4460,
+    "byte_range": [
+      133824,
+      134210
+    ],
+    "snippet_sha256": "2e1cb096fe5693cc82d34496f1626c2211372fe716777bf88c71c3127ce973e8",
+    "terminal_LF": true,
+    "complete_symbol": "Jim_DeleteCommand"
+  },
+  {
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "published_whole_source": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "first_physical_LF": 11101,
+    "last_physical_LF": 11215,
+    "byte_range": [
+      350892,
+      354599
+    ],
+    "snippet_sha256": "4700e8a5500db11ee1288c0000dca1240c5ecd8da248a1f1a186b7dad28702fe",
+    "terminal_LF": true,
+    "complete_symbol": "JimInvokeCommand"
+  }
+]

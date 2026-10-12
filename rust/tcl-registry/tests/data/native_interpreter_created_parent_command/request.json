@@ -1,0 +1,14 @@
+{
+  "question_id": "naming.interpreter.original-created-parent-command",
+  "source_sha256": "b4c398938320243da4d60bff017baa511eeaa7bd5728e1f3ae7db060e7626741",
+  "input_channel": "ASCII LF source-file CLI",
+  "scope": "Sequential create, command inventory, handle/path return/value completion and deletion",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ]
+}

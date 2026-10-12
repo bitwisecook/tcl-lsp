@@ -1,0 +1,35 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "f59f2a04bda83e1858c3f03ba0fdb87838b2c72bded233b5ca61944df71edff0",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "80b0f8d934f78a54078f5fbc981fa83d44723fc254af72d07f0ee898761f7f87",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "bd379193def276b470f533760bc5ddf8105436e0a144f80c050ae0e36e73142c",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "2b35fe35ab81f518092dd0bc827c6e653384474b0994ecc29212f5e3a08d93d5",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "a86207f441c32925928afa1f3637767d4873389323a6a2c9bdac70189f6b6d27",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "Jim",
+      "receipt_sha256": "d082cbf9e4dfae0e32709f1308d194ca182bcfc5c7028483951c2cd925e6c6cd",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original stride processes."
+}

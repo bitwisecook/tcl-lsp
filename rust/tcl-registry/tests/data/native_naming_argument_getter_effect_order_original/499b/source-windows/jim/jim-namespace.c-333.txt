@@ -1,0 +1,5 @@
+    Jim_PackageProvideCheck(interp, "namespace");
+    Jim_RegisterSimpleCmd(interp, "namespace", "subcommand ?arg ...?", 1, -1, JimNamespaceCmd);
+    Jim_RegisterSimpleCmd(interp, "variable", "name ?value?", 1, 2, JimVariableCmd);
+    return JIM_OK;
+}

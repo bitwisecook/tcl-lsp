@@ -1,0 +1,38 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/current-native-interpreter-create-handle174/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.006608347001019865,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "b4c398938320243da4d60bff017baa511eeaa7bd5728e1f3ae7db060e7626741",
+  "runner_sha256": "0145a2d08bc910597cad3d885ff97deb8fafa05ea61235b250534239f2b4a2f9",
+  "stdout_sha256": "a66f9bbbfec790e4410f6cd5163112fe3856a12a9839fb1fa1f17c27bd34e042",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "version 9.1.0",
+    "observation create status 0 result s errorCode {}",
+    "observation parent-command status 0 result s errorCode {}",
+    "observation handle-return status 0 result ok errorCode {}",
+    "observation path-return status 0 result ok errorCode {}",
+    "observation handle-value status 0 result ok errorCode {}",
+    "observation path-value status 0 result ok errorCode {}",
+    "observation delete status 0 result {} errorCode {}",
+    "observation parent-command-after-delete status 0 result {} errorCode {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent interpreter creation and parent-handle observations",
+  "boundary": "Question: does creating a child install a callable parent command, how do handle/path eval propagate return and value completion, and does deletion remove the command? Sequential catch observations retain actual unsupported outcomes. No arbitrary constructor Normal, entered frame, runtime handle token or compiler admission is inferred."
+}

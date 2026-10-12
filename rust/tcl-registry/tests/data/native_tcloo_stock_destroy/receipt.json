@@ -1,0 +1,43 @@
+{
+  "problem": "Does stock destroy belong to a real inherited object-root method allocation, and does deleting that method withdraw both reflection and dispatch?",
+  "probe_sha256": "2fce418c8bceb36c81645bebddff5dc9704c1ba797edde2f9d0d7105add422f5",
+  "providers": [
+    {
+      "version": "8.6.18",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+      ],
+      "exit": 0,
+      "binary_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "stdout_sha256": "a62ff3518ecddcb2f157c9eb829f0582b2dee3507b773d7cf93d35e885f02157",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_anchor_sha256": "5efd4d362efeb65bd8dbae0116302f86d12d8a3bab878464b4b7a767f05157c5"
+    },
+    {
+      "version": "9.0.4",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+      ],
+      "exit": 0,
+      "binary_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "stdout_sha256": "a62ff3518ecddcb2f157c9eb829f0582b2dee3507b773d7cf93d35e885f02157",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_anchor_sha256": "c124cc528b3ecb4d7c6bba6fe8cf414157059cd05681c2495ccb997fe29ac9b6"
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+      ],
+      "exit": 0,
+      "binary_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "stdout_sha256": "a62ff3518ecddcb2f157c9eb829f0582b2dee3507b773d7cf93d35e885f02157",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_anchor_sha256": "9b801282a9c88f784a94740a4974c63e432543e3f8ec3ffe5496384597a24805"
+    }
+  ],
+  "limits": "TclOO providers only; existing SDK executables, separate fresh interpreter per provider. Not a name-operand or package-availability proof."
+}

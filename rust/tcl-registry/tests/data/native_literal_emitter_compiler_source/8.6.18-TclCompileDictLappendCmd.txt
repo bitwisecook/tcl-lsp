@@ -1,0 +1,43 @@
+TclCompileDictLappendCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *keyTokenPtr, *valueTokenPtr;
+    int dictVarIndex;
+
+    /*
+     * There must be three arguments after the command.
+     */
+
+    /* TODO: Consider support for compiling expanded args. */
+    /* Probably not.  Why is INST_DICT_LAPPEND limited to one value? */
+    if (parsePtr->numWords != 4) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Parse the arguments.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    keyTokenPtr = TokenAfter(varTokenPtr);
+    valueTokenPtr = TokenAfter(keyTokenPtr);
+    dictVarIndex = LocalScalarFromToken(varTokenPtr, envPtr);
+    if (dictVarIndex < 0) {
+	return TclCompileBasic3ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+    }
+
+    /*
+     * Issue the implementation.
+     */
+
+    CompileWord(envPtr, keyTokenPtr, interp, 2);
+    CompileWord(envPtr, valueTokenPtr, interp, 3);
+    TclEmitInstInt4(	INST_DICT_LAPPEND, dictVarIndex,	envPtr);
+    return TCL_OK;
+}

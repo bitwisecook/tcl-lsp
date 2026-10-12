@@ -1,0 +1,35 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "608d5a953410d8eea25f87d0e229f9899ab65cb16b4acebb8a8d17ec7fef74d5",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "9bb46ab46df34d98fb0627d01f98e6f1017090aa20e33f75bfabdb0422fb99f1",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "c5d885481beca67b265fab250d5df48062e483ca01ea251d6bdb579b5be3256b",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "3bd5d016dbf36529d40e394d64e3778b2566d432b655c8e555c23ecc47240fd5",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "532263333aaa91817a8ae6c19744d9906a6b3b590cc094a465923f7cdb4f4612",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "Jim",
+      "receipt_sha256": "ba0f7b68a6e45a047488a9e4878c48606d7fdaf0a7ddffae5ec975e24b28dfa0",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original index/range processes."
+}

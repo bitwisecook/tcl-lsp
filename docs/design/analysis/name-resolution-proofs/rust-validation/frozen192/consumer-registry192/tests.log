@@ -1,0 +1,49 @@
+
+running 32 tests
+test commands::tcl::info_jim::tests::original_jim_existence_query_shares_operation_without_c_compiler_admission ... ok
+test commands::tcl::lset::tests::logical_list_set_operation_does_not_supply_native_compiler_authority ... ok
+test definer::tests::original_property_role_layout_consumes_option_values_once ... ok
+test definer::tests::original_property_role_layout_keeps_unknown_bodies_separate_from_selectors ... ok
+test definer::tests::source_member_keyword_uses_actual_availability_and_exact_bytes ... ok
+test definer::tests::source_member_script_layout_keeps_values_unknown_and_wrapper_vocabulary_typed ... ok
+test definer::tests::source_member_script_layout_uses_actual_release_and_optional_word_facts ... ok
+test f5::storage::tests::hosted_domain_uses_exact_resolved_components ... ok
+test f5::storage::tests::root_globals_retain_cmp_classification_without_a_worker_sharing_grant ... ok
+test f5::storage::tests::storage_overlay_requires_the_tmm_context_and_root_static_namespace ... ok
+test invocation_words::tests::known_native_bytes_keep_argv_shape_without_a_logical_value ... ok
+test invocation_words::tests::logical_numeric_simulation_requires_explicit_consistent_f5_contract ... ok
+test invocation_words::tests::logical_parser_recipe_does_not_select_a_native_vendor_engine ... ok
+test invocation_words::tests::source_word_materialisation_selects_actual_or_explicit_logical_recipes ... ok
+test native_eval_object::tests::installed_logical_dispatcher_keeps_actual_invocations_independent ... ok
+test native_eval_object::tests::jim_and_logical_eval_keep_independent_original_object_recipes ... ok
+test native_expression_program::tests::logical_recipe_requires_selected_c_syntax_and_preserves_numeric_literals ... ok
+test native_expression_program::tests::original_boolean_probes_refuse_changed_source_missing_policy_and_logical_number_mismatch ... ok
+test native_namespace_code::tests::logical_f5_simulation_is_explicit_and_never_native_engine_evidence ... ok
+test native_stock_list::tests::object_length_dispatch_requires_actual_storage_and_distinct_logical_origin ... ok
+test native_usage::tests::logical_provider_does_not_grant_native_authority ... ok
+test native_wrong_arguments::tests::logical_wrong_arguments_never_claim_native_authority ... ok
+test pack_hooks::tests::native_byte_hook_kind_cannot_reuse_a_logical_literal_cache_entry ... ok
+test resolved_invocation::logical_binding_result_tests::selected_logical_result_binding_axis_keeps_native_effects_unknown ... ok
+test resolved_invocation::logical_binding_result_tests::structured_conditional_and_output_roles_keep_unknown_payloads ... ok
+test resolved_invocation::logical_frame_source_role_tests::logical_frame_source_roles_keep_dynamic_divergent_and_expanded_layouts_unknown ... ok
+test resolved_invocation::logical_frame_source_role_tests::logical_frame_source_roles_use_consensus_without_native_frame_facts ... FAILED
+test resolved_invocation::tests::authored_source_shape_advice_keeps_unknown_payloads_and_selected_dialect ... ok
+test resolved_invocation::tests::source_enum_values_and_definition_bodies_use_the_selected_invocation ... ok
+test selected_script_timing::tests::authored_ascii_list_result_retains_element_boundaries_and_unknown_values ... ok
+test selected_script_timing::tests::authored_timing_keeps_unknown_payloads_and_refuses_unknown_layouts ... ok
+test source_navigation::tests::original_package_reference_distinguishes_provision_query_and_selected_options ... ok
+
+failures:
+
+---- resolved_invocation::logical_frame_source_role_tests::logical_frame_source_roles_use_consensus_without_native_frame_facts stdout ----
+
+thread 'resolved_invocation::logical_frame_source_role_tests::logical_frame_source_roles_use_consensus_without_native_frame_facts' (698174) panicked at rust/tcl-registry/src/resolved_invocation.rs:7571:13:
+assertion failed: schema.facts().effects.requires_world_barrier()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    resolved_invocation::logical_frame_source_role_tests::logical_frame_source_roles_use_consensus_without_native_frame_facts
+
+test result: FAILED. 31 passed; 1 failed; 0 ignored; 0 measured; 1456 filtered out; finished in 0.48s
+

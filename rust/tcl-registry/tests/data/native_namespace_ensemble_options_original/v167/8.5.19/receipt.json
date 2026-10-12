@@ -1,0 +1,41 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/current-native-nested-options167/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0061197330069262534,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "f41e76658925f52c171d4bfb6d8cc5a8b731513e8ea04568e3c6c5f4797dc952",
+  "runner_sha256": "24eb25134477837183b8177f0b7ce0b51d98592618015786e47e424eccae366c",
+  "stdout_sha256": "a47542a7fd0b1bfb69e3316c608ba51507d5575633f1c9737034c545bfe36eec",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "version 8.5.19",
+    "observation capability status 0 result 0 errorCode {}",
+    "observation create-immediate-option status 0 result {x ::list} errorCode {}",
+    "observation create-dash-command-map status 0 result {x ::list} errorCode {}",
+    "observation configure-command-name-map-data status 0 result {x ::list} errorCode {}",
+    "observation configure-unqualified-map-data status 0 result {x ::list} errorCode {}",
+    "observation configure-command-name-namespace-data status 0 result {x ::list} errorCode {}",
+    "observation configure-option-after-command status 0 result 0 errorCode {}",
+    "observation configure-invalid-option-after-command status 1 result {bad option \"-command\": must be -map, -namespace, -prefixes, -subcommands, or -unknown} errorCode {TCL LOOKUP INDEX option -command}",
+    "observation exists-dash-map-is-command-name status 0 result 1 errorCode {}",
+    "observation exists-dash-namespace-is-command-name status 0 result 1 errorCode {}",
+    "observation exists-does-not-scan-options status 1 result {wrong # args: should be \"namespace ensemble exists cmdname\"} errorCode NONE",
+    "observation create-rejects-configure-only-option status 1 result {bad option \"-namespace\": must be -command, -map, -prefixes, -subcommands, or -unknown} errorCode {TCL LOOKUP INDEX option -namespace}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; namespace ensemble nested option positions",
+  "boundary": "Question: where do namespace ensemble create/configure/exists options begin, and are dash-named required command arguments data? Twelve independently labelled catch outcomes when supported, explicit capability refusal otherwise. No native object/cache identity or compiler admission is inferred."
+}

@@ -1,0 +1,244 @@
+{
+  "question_id": "naming.tcloo.original-operand-string-and-prefix-stages",
+  "status": "prepared-uncompiled-unexecuted",
+  "question": "When are Strings, native references and retained original member identities reached at TclOO forward definition/info/invocation, definition-frame reporting, and selected method option/parameter/body stages through the original public object-vector APIs?",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "compile": {
+    "language": "C99",
+    "C_route": "Actual legacy public Tcl_CreateObjCommand callback and Tcl_EvalObjv; actual C9 count/header access types selected by its original header",
+    "Jim_route": "Actual initialized public Jim interpreter, version and command availability; no C TclOO type/operation recipe transplanted"
+  },
+  "probe_file": "/tmp/receiver-oo-operand-stages-request499/probe.c",
+  "probe_sha256": "7560e1ae3b09446e2a45cf2503ef980e1462a58616c53415a772c881cdebb899",
+  "execution": {
+    "argv": [
+      "probe.elf",
+      "<retained-original-request-directory>"
+    ],
+    "provider_processes": 6,
+    "fresh_interpreter_each_case": true,
+    "supported_case_count": 9,
+    "timeout_seconds": 60,
+    "input_roles": "Native caller holds each custom original at +1 before operation and through interpreter teardown; actual TclOO/List owns any reached additional references",
+    "read_observations": "ROW reads only public header/cache/refcount and recorded callback counters; does not call input String getter",
+    "native_effects": "EVENT records reached original update/free/duplicate roles and order; RESULT/PRESENTATION alone explicitly reads actual result String after the matching pre-observation ROW",
+    "unsupported": "Genuine initialized availability channel for all six; no auto-load of TclOO, no expected pass fabricated from provider name"
+  },
+  "case_map": {
+    "0": "Forward declaration, info class forward raw List access, explicit result rendering, then actual object invocation",
+    "1": "Independent fresh forward declaration and invocation with no prior info/presentation read",
+    "2": "Definition command holds custom operand, native observer returns without requesting frame report",
+    "3": "Independent definition command asks info level 0 and raw result List member identity, then outer result presentation separately",
+    "4": "Independent definition command asks info level 0 and explicitly presents the returned frame List while still entered",
+    "5": "Original method name, valid empty formal-list and body custom objects; option-free declaration",
+    "6": "Original method name, malformed formal-list and body custom objects; preserve actual stopping order",
+    "7": "Five-operand C9 method original name/valid export option/valid formal-list/body; older original API arity remains its actual outcome",
+    "8": "Five-operand C9 method original name/invalid export option/valid formal-list/body; no assumed later getter"
+  },
+  "role_map": {
+    "forward/frame": {
+      "0": "original prefix or original unused frame operand"
+    },
+    "method": {
+      "0": "name",
+      "1": "formal-list",
+      "2": "body",
+      "3": "optional export flag"
+    }
+  },
+  "source_files": [
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/availability.tcl",
+      "sha256": "8c94240d3e4b9650b5e2071cc68eb05d5f444357d6bc3f33b5a8523ba884d8da",
+      "bytes": 119
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/c-version.tcl",
+      "sha256": "94435c94329c585b6c1aeab67588b472dfce542e43c68cfc63a214ccdc6e72ea",
+      "bytes": 48
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/invoke-forward.tcl",
+      "sha256": "a8245c4452e661c97c4917d423f3895adb72af9c51a2e9a26c2810b98377ec6a",
+      "bytes": 4
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/jim-version-probe.tcl",
+      "sha256": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "bytes": 38
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/jim-version.tcl",
+      "sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21",
+      "bytes": 45
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/setup.tcl",
+      "sha256": "9c53fd81fa3ae9e0b6e2a8436139b1f6e8a8b87f694faebabd5d1d96ce0f12bb",
+      "bytes": 33
+    },
+    {
+      "path": "/tmp/receiver-oo-operand-stages-request499/version-probe.tcl",
+      "sha256": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "bytes": 41
+    }
+  ],
+  "source_anchors": [
+    {
+      "provider": "8.6.18",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOODefineCmds.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "purpose": "Original frame argv, forward retained List, method option/name/parameter/body stages and definition context"
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOOBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c",
+      "sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "purpose": "Original OO create/copy name and namespace operand stages"
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOOMethod.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "purpose": "Original procedure-method parameter-list stage and forward prefix retention/invocation"
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclOO.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "purpose": "Original TclOO foundation/command availability and object dispatch"
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.6.18/tclCmdIL.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "purpose": "Original info level returns original frame argv as a List"
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOODefineCmds.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "purpose": "Original frame argv, forward retained List, method option/name/parameter/body stages and definition context"
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOOBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+      "sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "purpose": "Original OO create/copy name and namespace operand stages"
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOOMethod.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "purpose": "Original procedure-method parameter-list stage and forward prefix retention/invocation"
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclOO.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "purpose": "Original TclOO foundation/command availability and object dispatch"
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.0.4/tclCmdIL.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "purpose": "Original info level returns original frame argv as a List"
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOODefineCmds.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "purpose": "Original frame argv, forward retained List, method option/name/parameter/body stages and definition context"
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOOBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "purpose": "Original OO create/copy name and namespace operand stages"
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOOMethod.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "purpose": "Original procedure-method parameter-list stage and forward prefix retention/invocation"
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclOO.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "purpose": "Original TclOO foundation/command availability and object dispatch"
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/9.1.0/tclCmdIL.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "purpose": "Original info level returns original frame argv as a List"
+    },
+    {
+      "provider": "8.4.20",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.4.20/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "purpose": "Original initialized command surface; genuine measured availability remains the authority, no fabricated OO support"
+    },
+    {
+      "provider": "8.5.19",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/8.5.19/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "purpose": "Original initialized command surface; genuine measured availability remains the authority, no fabricated OO support"
+    },
+    {
+      "provider": "jim",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/jim/jim.c",
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "purpose": "Actual pinned Jim command surface/public header; C TclOO API is unavailable independently of any scripted class package"
+    },
+    {
+      "provider": "jim",
+      "path": "/tmp/receiver-oo-operand-stages-request499/source-inspection/jim/jim.h",
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "purpose": "Actual pinned Jim command surface/public header; C TclOO API is unavailable independently of any scripted class package"
+    }
+  ],
+  "required_receipts": [
+    "Exact compiler --version/compile/dependency argv, stdout, stderr, status and times",
+    "Actual public/private headers/config/library/CLI/source/compile linker files/probe/launch hashes before and after",
+    "Full VERSION/BUILD/ABI/AVAILABILITY/CASE/ROW/EVENT/CALL/REPORT/PREFIX/RESULT/RELEASE raw records",
+    "CLI version emits with puts and independently pins actual executable and exact version source",
+    "Initial unsupported providers retain their genuine absence instead of synthesized callback rows"
+  ],
+  "purpose_limits": [
+    "No outcomes before Root closes original processes",
+    "No application getter/Host/issuer/frame capability from measurements",
+    "Allocation/header/member identity observations are not command generation, namespace incarnation or active retirement proof",
+    "No private TclOO structure access or parameter-source serialization",
+    "Held-reference and public Obj fields are only original object lifetime/cache observations",
+    "C TclOO source/current provider unavailable does not license Jim or external BIG-IP emulation",
+    "Software Host/context refusal controls remain independent of native observer recipes"
+  ]
+}

@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}

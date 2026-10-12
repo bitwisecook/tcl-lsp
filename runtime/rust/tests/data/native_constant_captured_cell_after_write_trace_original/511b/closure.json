@@ -1,0 +1,454 @@
+{
+  "request_sha256": "54fbf8b631f1dd107b0504c2954edf604617f3b019461eadc6c4292ec6caef2e",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/compiler-version.receipt.json",
+      "sha256": "3eab8f5aae75eb55ae71f4453b465c7eb74ebd0cfda74bfbc931d1cc10cb0d16",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/compile.receipt.json",
+      "sha256": "4ad386793c294905ce0c8524d71449b9462555ec66057f0089435e7a0e5c4fe8",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "ab6c1fb21b03495d4ff523a0bb7f93f9e891f7818c9f436ebb0b4a688fd64db8",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/0/execute.receipt.json",
+      "sha256": "14bde9dde9ce834790967ff512040839ce11f74d66358fd378b537afb165f5b1",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/1/execute.receipt.json",
+      "sha256": "38859b3e93211bac36fd8f3ee1cf15c7dcafc7407d1cbb75232bcbabcdf99d7c",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/2/execute.receipt.json",
+      "sha256": "d9dc6f52751efb576d02fbdc2383f4840b1183022280ae35180eb4693632724d",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/3/execute.receipt.json",
+      "sha256": "c09758eef827a4cbf1e9ced5d49b3596cfb463f9b3c818decb5c0801675f0710",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/4/execute.receipt.json",
+      "sha256": "6e185615260a5f10dbcfc947b0583f054db607ad56d5eba724d048c8b8443d09",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/5/execute.receipt.json",
+      "sha256": "c1275ebc680174a90737fa08ff649c0238271ca075ba11d52083ac36100680bc",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/6/execute.receipt.json",
+      "sha256": "19402b77f19a825e1925bb31f988e413267a5fbf21e6ed7f0a6a9b867c1d749e",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.4.20/cases/7/execute.receipt.json",
+      "sha256": "306a85296c05da45671774452e43700e20a34e828f701d0ab9354f9ca84d567a",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/compile.receipt.json",
+      "sha256": "29e80a60b9053e5dd4d399380fd530f37ab87505d8a79230b6a70cd4da11c7b4",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "aedf898a0c092599810de4cdeab1e12abb446b104a25ec008ce5a4c2a92dbc63",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/0/execute.receipt.json",
+      "sha256": "925ff607e4fa6fa9cdbec0be4d426357975b16e100545e0b240d14457c15600a",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/1/execute.receipt.json",
+      "sha256": "e422eda0c4ad37d9d39a246dc6b7face585f888b5d65f581f428e6849f3a892a",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/2/execute.receipt.json",
+      "sha256": "458088f6a4150d3a67e886c8fd29bb9241b2e099e00f09d17baf963c2bf33362",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/3/execute.receipt.json",
+      "sha256": "6404f354eac1b6448412e83ea488224323170aef3634ff71f4aa65559a911602",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/4/execute.receipt.json",
+      "sha256": "af85600b88926a330e455f2af86e0badb2134f2f631d7a4f7f6f6fb3c372c4e8",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/5/execute.receipt.json",
+      "sha256": "21abece7f1dc0abafe7b62555f66b21d843ae35dda36177205905e7f28f2de2b",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/6/execute.receipt.json",
+      "sha256": "54547d159aa13b234d728c98f9a594d2e22378e9088b8f6254b37169a28d3f51",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.5.19/cases/7/execute.receipt.json",
+      "sha256": "1177c67ac96b3a9ee16ddd1bbbf76f786ff379985c75602bc85da718d7745485",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/compile.receipt.json",
+      "sha256": "baf4c1f035a4cb2697fb4d826f2304e8100190191aac754759b0249603040a7e",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "8f44b99faa15bc671b46dea10a2bc1f1549a6cb07e541da39f0b63f7c7698b6b",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/0/execute.receipt.json",
+      "sha256": "b7814a559754a4526613b9bae7b9a0d13cdfbddc90282cdff8cb46429a2813a7",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/1/execute.receipt.json",
+      "sha256": "2f25bca66c39dfbe97111bc5c0d82266add5b56232a3b5f020fb5bae1da0d242",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/2/execute.receipt.json",
+      "sha256": "7d7d2a92857588f8edf27129d1ff304ba1f58c3e913bfabe13eaeb64777696d7",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/3/execute.receipt.json",
+      "sha256": "44766cbe204e315c74e92e8714c2f4d58563e0fb5844510f5a1ff1296c060146",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/4/execute.receipt.json",
+      "sha256": "080a8a11c42803eb17df23df07f063c9e3f9dd7f552a5bce7525c90cf7123d8f",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/5/execute.receipt.json",
+      "sha256": "49479bae2d63b5d0cf958821fd0d3a8c31e69e4359a81a84718c1c4973fd4999",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/6/execute.receipt.json",
+      "sha256": "448019b4c8497f0cf47e6e656d2d9c698cc101633ebf7599718fa5ffd5278c55",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/8.6.18/cases/7/execute.receipt.json",
+      "sha256": "65f4fc280443df6390fc03b706bff665646b074bf62615da0963d537d81dc1b9",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/compile.receipt.json",
+      "sha256": "7484eefae3151b1936a982f8255445d6fc5ef8b0c67f224acbe96823d15f75c7",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "700a5f10e49adeae51112d54f9cb5037abfff9a60852354ae5d33f30998bbf92",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/0/execute.receipt.json",
+      "sha256": "ac75ae822a1cbb0b1b104974fc591edea09e5d7744a7e069cda4d531b737385f",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/1/execute.receipt.json",
+      "sha256": "28ab1b5560d5578d075e4a3179b42a0d859f522e2707d6df8b48c59b37fe5791",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/2/execute.receipt.json",
+      "sha256": "9f3c6c317a35fa10f3a0fcfd9953999deba62c0eb68a05b31a8f23c83e1382f3",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/3/execute.receipt.json",
+      "sha256": "478a418d6c4cf234be6700ab67ba7fabacd678471ee848324546428a17db1274",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/4/execute.receipt.json",
+      "sha256": "1e1224f9120aca7b7289fb5cf112edc50e32240c2c8a30fd64487b50e9f4c9ab",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/5/execute.receipt.json",
+      "sha256": "9e64a8901ef7cf21a1f3a4298d0f13a02e098440ae2dc1ddf14f0d3593644454",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/6/execute.receipt.json",
+      "sha256": "e2ade6639ee4880221e1e0910c0139d127b1ab9dd620bc77781fbaefd0b425da",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.0.4/cases/7/execute.receipt.json",
+      "sha256": "8072ac4e2657922bd19e1b070630b6b2911a90c4cc711127f098da0680e5e5c4",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/compile.receipt.json",
+      "sha256": "d2992373de483c26cc7be153ca8f1ee6e434800e73f7d064bdad84a2e03f89a5",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "5f8714530c73f2d69ab2b58fd74bca5eae9abd7253e61e97e6639f22913eb786",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/0/execute.receipt.json",
+      "sha256": "2204f66c719276e01390341e7a7c62dfc5805049903a182d675bc7de4ee06e37",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/1/execute.receipt.json",
+      "sha256": "d83a6e78489c60869ec16682a2d51f92478b26f79e5930a92458d10be0e1da52",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/2/execute.receipt.json",
+      "sha256": "ca18220963b45653e4c84307cc6b0f0e054738b96300513d9a9a7e5b5a69c825",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/3/execute.receipt.json",
+      "sha256": "d71cbe8ccdac961e52e244203d0089fe8a9955bfeb50a4237c47a4f36db9166c",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/4/execute.receipt.json",
+      "sha256": "dc6517cdb47407d3414f09a9e61579ed31708159040c67721f9d811b403472d5",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/5/execute.receipt.json",
+      "sha256": "046d10dc5a3823f4ac27dfbfe07ce59bdb181680920174dd71bca181676f57fb",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/6/execute.receipt.json",
+      "sha256": "026529203dcf2d15705d5afbb0648e25929e298b35c3c7b16fef025f561e3024",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/9.1.0/cases/7/execute.receipt.json",
+      "sha256": "447083b6a03b2a83738dae7bf1bc40dbf9e274b05dc339cc4f7e8afd5c0010b3",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/compile.receipt.json",
+      "sha256": "5704916516284250dd32908c990bce0bb2c24e40c8a6210b746f9c7eaedb6dfd",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/dependencies.receipt.json",
+      "sha256": "550b7dd44d299e110f970b72c2fd21e715432f07b324fd2e4ce1fd845a73daee",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/0/execute.receipt.json",
+      "sha256": "bdb474f7c8bcf90b067de24485d73f95a2a5bd25f43942aecfdfdcb509d87653",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/1/execute.receipt.json",
+      "sha256": "0c695da1553407d71f81e7496ae641ecfe510ccaa1b3e74ba91de50a68f1b9b3",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/2/execute.receipt.json",
+      "sha256": "13b8ebd10d371dbc2f11667260313b1c5fe82a875c83a280e2baa0987830546c",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/3/execute.receipt.json",
+      "sha256": "60a8069351bbb8a5f67ff116e672e4d2b5a1b32de8a5ba452fece66e3a2ac3db",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/4/execute.receipt.json",
+      "sha256": "02fa217803965d1e5549ede4c834ca7b353e632bdd92bb4b016ddb5f032db797",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/5/execute.receipt.json",
+      "sha256": "a37df17dd35c8e2a5ac7676621ce38e0cc348e88347a47b7a34daee2f9e1877e",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/6/execute.receipt.json",
+      "sha256": "0e4cc72662cab3b3214b5dd5630686d5036181dc4f80381a36b6aafe7d07dc01",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511b/providers/jim/cases/7/execute.receipt.json",
+      "sha256": "78a9b868080f76fd66e2587530178f5f7ed077e497c158ef907cf2c5a159a3d1",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-constant-captured-cell-order511b/providers",
+  "required_case_process_count": 48,
+  "actual_case_process_count": 48,
+  "case_process_capture_complete": true,
+  "all_capture_processes_closed": false,
+  "all_case_processes_exit_successfully_with_markers": false,
+  "native_fatal_case_processes": [
+    {
+      "provider": "9.0.4",
+      "original_case": 4,
+      "returncode": -11,
+      "termination_signal": 11
+    },
+    {
+      "provider": "9.1.0",
+      "original_case": 4,
+      "returncode": -11,
+      "termination_signal": 11
+    }
+  ],
+  "scope": "Each original case has a separate fresh process. Full unbuffered streams and actual fatal/success/timeout statuses remain independent; no defined language semantics or missing public state is inferred beyond an abnormal termination."
+}

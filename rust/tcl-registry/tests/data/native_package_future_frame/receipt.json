@@ -1,0 +1,109 @@
+[
+  {
+    "configured_provider": "84",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+    ],
+    "executable_path": "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+    "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+    "exit": 0,
+    "stdout_sha256": "a003d751ceb5118487a6a0bb1b6c3688c1dce699af8cd9052770db002cfd04ec",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      "VERSION|8.4.20",
+      "RESULT 0 1.0 {{:: 0 0}}"
+    ],
+    "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+  },
+  {
+    "configured_provider": "85",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+    ],
+    "executable_path": "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+    "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+    "exit": 0,
+    "stdout_sha256": "34d5468066244fc7e35fd6585842a3cf1c205b7d94ca1ccd2042515b0cbddad5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      "VERSION|8.5.19",
+      "RESULT 0 1.0 {{:: 0 0}}"
+    ],
+    "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+  },
+  {
+    "configured_provider": "86",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+    ],
+    "executable_path": "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+    "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+    "exit": 0,
+    "stdout_sha256": "896274555ac35af3b12595ec9c4d52e7f20282d2763af7605518c44b410681ec",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      "VERSION|8.6.18",
+      "RESULT 0 1.0 {{:: 0 0}}"
+    ],
+    "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+  },
+  {
+    "configured_provider": "90",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+    ],
+    "executable_path": "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+    "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+    "exit": 0,
+    "stdout_sha256": "48df8de9a13170df3271690ae2ae15a9b6e384ad88ce652129280b88bff99fe6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      "VERSION|9.0.4",
+      "RESULT 0 1.0 {{:: 0 0}}"
+    ],
+    "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+  },
+  {
+    "configured_provider": "91",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+    ],
+    "executable_path": "/workspace/.proofs/oracle-bin/tclsh9.1",
+    "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+    "exit": 0,
+    "stdout_sha256": "1c3b5e15f82eb398c60be479228d5f8ee3cac7a79dfed4ab3e863c0e50f96ec1",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      "VERSION|9.1.0",
+      "RESULT 0 1.0 {{:: 0 0}}"
+    ],
+    "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+  },
+  {
+    "configured_provider": "jim",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
+    ],
+    "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "source_sha256": "c1cfac561e3048f78ae444d4ed03b0b8d19cc9c158ab104386b601bbbc56593a",
+    "exit": 1,
+    "stdout_sha256": "feb37b34eea5e2705844d5448aff71be77c0bb72bb3ad3432d50563c634f3103",
+    "stderr_sha256": "80134d9830429065438659c29793f5151848250dda8b1e03f6b4a791c25c0324",
+    "rows": [
+      "VERSION|0.84-9-g5bac7c9"
+    ],
+    "claim_boundary": "Fresh native script-file channel with fixed ASCII source; observed callback namespace/frame/variable visibility, not counted object-vector or compilation admission."
+  }
+]

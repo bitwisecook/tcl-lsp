@@ -1,0 +1,95 @@
+int
+Tcl_ProcObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    Proc *procPtr;
+    const char *procName;
+    const char *simpleName, *procArgs, *procBody;
+    Namespace *nsPtr, *altNsPtr, *cxtNsPtr;
+    Tcl_Command cmd;
+
+    if (objc != 4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name args body");
+	return TCL_ERROR;
+    }
+
+    /*
+     * Determine the namespace where the procedure should reside. Unless the
+     * command name includes namespace qualifiers, this will be the current
+     * namespace.
+     */
+
+    procName = TclGetString(objv[1]);
+    TclGetNamespaceForQualName(interp, procName, NULL, 0,
+	    &nsPtr, &altNsPtr, &cxtNsPtr, &simpleName);
+
+    if (nsPtr == NULL) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"can't create procedure \"%s\": unknown namespace",
+		procName));
+	Tcl_SetErrorCode(interp, "TCL", "VALUE", "COMMAND", (char *)NULL);
+	return TCL_ERROR;
+    }
+    if (simpleName == NULL) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"can't create procedure \"%s\": bad procedure name",
+		procName));
+	Tcl_SetErrorCode(interp, "TCL", "VALUE", "COMMAND", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Create the data structure to represent the procedure.
+     */
+
+    if (TclCreateProc(interp, nsPtr, simpleName, objv[2],
+	    objv[3], &procPtr) != TCL_OK) {
+	Tcl_AddErrorInfo(interp, "\n    (creating proc \"");
+	Tcl_AddErrorInfo(interp, simpleName);
+	Tcl_AddErrorInfo(interp, "\")");
+	return TCL_ERROR;
+    }
+
+    cmd = TclNRCreateCommandInNs(interp, simpleName, (Tcl_Namespace *) nsPtr,
+	TclObjInterpProc, TclNRInterpProc, procPtr, TclProcDeleteProc);
+
+    /*
+     * Now initialize the new procedure's cmdPtr field. This will be used
+     * later when the procedure is called to determine what namespace the
+     * procedure will run in. This will be different than the current
+     * namespace if the proc was renamed into a different namespace.
+     */
+
+    procPtr->cmdPtr = (Command *) cmd;
+
+    /*
+     * TIP #280: Remember the line the procedure body is starting on. In a
+     * bytecode context we ask the engine to provide us with the necessary
+     * information. This is for the initialization of the byte code compiler
+     * when the body is used for the first time.
+     *
+     * This code is nearly identical to the #280 code in SetLambdaFromAny, see
+     * this file. The differences are the different index of the body in the
+     * line array of the context, and the lambda code requires some special
+     * processing. Find a way to factor the common elements into a single
+     * function.
+     */
+
+    if (iPtr->cmdFramePtr) {
+	CmdFrame *contextPtr = (CmdFrame *)TclStackAlloc(interp, sizeof(CmdFrame));
+
+	*contextPtr = *iPtr->cmdFramePtr;
+	if (contextPtr->type == TCL_LOCATION_BC) {
+	    /*
+	     * Retrieve source information from the bytecode, if possible. If
+	     * the information is retrieved successfully, context.type will be
+	     * TCL_LOCATION_SOURCE and the reference held by
+	     * context.data.eval.path will be counted.
+	     */
+
+	    TclGetSrcInfoForPc(contextPtr);
+	} else if (contextPtr->type == TCL_LOCATION_SOURCE) {

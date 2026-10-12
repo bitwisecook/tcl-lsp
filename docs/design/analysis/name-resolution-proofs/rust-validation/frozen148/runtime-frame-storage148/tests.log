@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_proc::native_static_original_tests::original_jim_static_links_match_native_frame_storage_reuse_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1225 filtered out; finished in 8.15s
+

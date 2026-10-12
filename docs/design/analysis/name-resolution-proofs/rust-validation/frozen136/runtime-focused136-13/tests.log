@@ -1,0 +1,23 @@
+
+running 1 test
+test cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries ... BODY135 published physical=V9_0 namespace=11 scripts=1 source=[118, 97, 114, 105, 97, 98, 108, 101, 32, 118, 101, 114, 115, 105, 111, 110, 32, 49, 46, 51, 46, 49, 59, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 112, 97, 116, 99, 104, 108, 101, 118, 101, 108, 32, 49, 46, 51, 46, 49]
+BODY135 published physical=V9_0 namespace=21 scripts=1 source=[]
+BODY135 published physical=V9_0 namespace=22 scripts=1 source=[]
+BODY135 published physical=V9_0 namespace=24 scripts=1 source=[]
+BODY135 published physical=V9_0 namespace=36 scripts=1 source=[]
+BODY135 published physical=V9_0 namespace=37 scripts=1 source=[]
+
+thread 'cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries' (545410) panicked at src/cmd_array.rs:775:17:
+assertion `left == right` failed: 9.0.4	literal_narrow	6361746368207b61727261792064656661756c742067657420612045585452417d20723b7365742072	77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a61727261793a3a64656661756c74206765742061727261794e616d6522
+  left: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 97, 114, 114, 97, 121, 32, 100, 101, 102, 97, 117, 108, 116, 32, 103, 101, 116, 32, 97, 114, 114, 97, 121, 78, 97, 109, 101, 34]
+ right: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 58, 58, 116, 99, 108, 58, 58, 97, 114, 114, 97, 121, 58, 58, 100, 101, 102, 97, 117, 108, 116, 32, 103, 101, 116, 32, 97, 114, 114, 97, 121, 78, 97, 109, 101, 34]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1208 filtered out; finished in 3.27s
+

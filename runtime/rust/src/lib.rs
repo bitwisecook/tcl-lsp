@@ -84,6 +84,15 @@ pub mod cmd_format;
 pub mod cmd_fs;
 pub mod cmd_info;
 pub mod cmd_list;
+mod jim_try;
+mod native_arithseries;
+mod native_regexp;
+mod native_script;
+mod native_source;
+mod native_substitution;
+mod return_options;
+#[cfg(test)]
+mod test_storage;
 // `lseq` arithmetic-series generator; needs the numeric tower (doubles / expr).
 #[cfg(have_tommath)]
 pub mod cmd_lseq;
@@ -125,6 +134,7 @@ pub mod ensemble;
 mod environment;
 #[cfg(have_tommath)]
 pub mod expr;
+pub mod expr_error;
 pub mod frame;
 // The in-memory filesystem the WASM hosts mount. Compiled on the WASM-stdlib
 // build and under `cfg(test)` (its own unit tests run natively).
@@ -154,7 +164,9 @@ pub mod value_ops;
 pub mod vars;
 mod version;
 
-pub use tcl_runtime_api::{Code as CompletionCode, ScriptCompletion};
+pub use tcl_runtime_api::{
+    Code as CompletionCode, NativeExecutionError, NativeHostCommandRefusal, ScriptCompletion,
+};
 
 #[cfg(test)]
 mod tests {
@@ -269,3 +281,5 @@ mod tests {
         });
     }
 }
+
+mod native_return_merge;

@@ -1,0 +1,47 @@
+[
+  {
+    "path": "rust/tcl-vm/tests/data/native_borrowed_frame_slots/manifest.json",
+    "sha256": "4fcf429d9108979de99e43f95dd3088e58233a0fd149395c5214df2255d1bab6",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.borrowed-slot-duplicate-original-formals",
+      "naming.procedure.borrowed-slot-counted-zero-length",
+      "naming.procedure.borrowed-slot-modified-zero-and-opaque-bytes",
+      "naming.procedure.borrowed-slot-qualified-formal-boundary",
+      "naming.procedure.borrowed-slot-array-shaped-formal-boundary"
+    ],
+    "reason": "Exact probe source SHA, body literal and all ten original name pairs inspected and matched. All six projected TSV sets have the exact40 case/formal-axis/operation coordinates and native result bytes. Missing original full JSONL remains explicit; its hash alone is not a recovered stream. Compiler borrowed-source result semantics are separate from sibling physical local enumeration."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json",
+    "sha256": "198367bcff3aab8515a41ce005318e439e433ca616cea540f5f1e6cafd62b1ff",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.original-string-body-capture",
+      "naming.procedure.original-list-bytearray-body-capture"
+    ],
+    "reason": "Exact source SHA and all58 full retained TSV output hashes/rows/compile0/process0/empty stderr matched. Only definition body capture was observed; no malformed/counting body invocation is inferred, and missing Jim Bytearray is compile-time skip."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_procedure_activation/manifest.json",
+    "sha256": "b1407bdb66ea1cd80b0df97ebd965e99dc542a7849c8e2d3477788488f14003b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.original-malformed-body-arity-order",
+      "naming.procedure.original-wrong-arity-body-withdrawal"
+    ],
+    "reason": "Exact source SHA and six full retained seven-line streams equal original inline output; all process0/empty stderr preserved alongside caught guest Errors. Only coarse release/path-artifact metadata is available; unknown shell argv cannot be invented from filename."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json",
+    "sha256": "6c152d459dcba4af5cea730d88ceba3a3a0a19f1cc22d2253a5d1839036c3b31",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.procedure.recompile-sole-declaration",
+      "naming.procedure.recompile-retained-procbody",
+      "naming.procedure.recompile-active-recursive-frame",
+      "naming.procedure.recompile-original-local-name-owner"
+    ],
+    "reason": "Exact original probe SHA and all20 full stream SHA/process0/no-timeout/empty stderr checked. Counted100 S snapshots and40 R completions verified; each mode maps its own exact original procedure/frame/key owner purpose. Native source hash metadata without snippets is not promoted to source inspection."
+  }
+]

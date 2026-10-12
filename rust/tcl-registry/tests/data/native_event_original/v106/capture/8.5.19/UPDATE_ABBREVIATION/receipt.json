@@ -1,0 +1,19 @@
+{
+  "id": "UPDATE_ABBREVIATION",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.5.19/probe",
+    "17"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "6fd8c6f503098c7ba5642b65e13be434b44afd9e8ff649db5ecde0a5055f099b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "UPDATE_ABBREVIATION_INPUT|0|7570646174652069",
+    "UPDATE_ABBREVIATION|0|",
+    "UPDATE_ABBREVIATION_OPTIONS|0|2d636f64652030202d6c6576656c2030"
+  ],
+  "reported_version": "8.5.19"
+}

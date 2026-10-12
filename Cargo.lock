@@ -4262,10 +4262,13 @@ dependencies = [
  "md-5",
  "sha1",
  "sha2 0.11.0",
+ "tcl-core-types",
  "tcl-dialect",
+ "tcl-host-c-abi",
  "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -4279,6 +4282,7 @@ dependencies = [
  "rayon",
  "regex",
  "rustc-hash",
+ "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
@@ -4289,6 +4293,7 @@ dependencies = [
  "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
+ "tcl-vm",
  "temp-env",
  "thiserror 2.0.21",
  "unicode-general-category",
@@ -4303,13 +4308,16 @@ name = "tcl-cshim"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "num-bigint 0.5.1",
  "tcl-cmd-core",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
  "tcl-spec-hooks",
  "tcl-syntax",
+ "tcl-vm",
 ]
 
 [[package]]
@@ -4332,6 +4340,7 @@ dependencies = [
  "serde_json",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -4342,19 +4351,26 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
+ "tcl-core-types",
 ]
 
 [[package]]
 name = "tcl-engine-api"
 version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-runtime-api",
+]
 
 [[package]]
 name = "tcl-engine-tclvm"
 version = "0.1.0"
 dependencies = [
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-engine-api",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-syntax",
  "tcl-vm",
 ]
@@ -4413,9 +4429,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-host-c-abi"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "libc",
+ "sha2 0.11.0",
+ "tcl-platform",
+]
+
+[[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
+ "tcl-host-c-abi",
  "tcl-platform",
 ]
 
@@ -4431,6 +4458,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-vm",
@@ -4454,6 +4482,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "tcl-core-types",
  "tcl-dialect",
  "thiserror 2.0.21",
@@ -4487,11 +4516,13 @@ dependencies = [
  "rayon",
  "salsa",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
  "tcl-spectcl",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4517,6 +4548,7 @@ dependencies = [
  "tcl-lsp-db",
  "tcl-registry",
  "tcl-spectcl",
+ "tcl-syntax",
  "tcl-version",
  "temp-env",
  "tokio",
@@ -4593,6 +4625,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4619,10 +4652,12 @@ name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-host-c-abi",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",
@@ -4638,6 +4673,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4658,6 +4695,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-registry",
  "tcl-runtime",
+ "tcl-syntax",
  "tcl-vm",
 ]
 
@@ -4729,6 +4767,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-test-support",
@@ -4738,7 +4777,10 @@ dependencies = [
 name = "tcl-test-support"
 version = "0.1.0"
 dependencies = [
+ "sha2 0.11.0",
  "tcl-dialect",
+ "tcl-host-c-abi",
+ "tcl-platform",
 ]
 
 [[package]]
@@ -4757,6 +4799,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",

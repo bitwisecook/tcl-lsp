@@ -1,0 +1,4 @@
+free=0 route=direct kind=scalar code=0 result=MUTATED
+free=0 route=alias kind=scalar code=0 result=MUTATED
+free=1 route=direct kind=scalar code=0 result=FREED
+free=1 route=alias kind=scalar code=0 result=FREED

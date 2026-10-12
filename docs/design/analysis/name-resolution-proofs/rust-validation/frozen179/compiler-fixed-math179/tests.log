@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_math_function::tests::original_fixed_function_absence_retains_source_snapshot_without_command_name ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8298 filtered out; finished in 0.59s
+

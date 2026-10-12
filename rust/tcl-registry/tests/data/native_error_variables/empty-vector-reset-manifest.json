@@ -1,0 +1,152 @@
+[
+  {
+    "version": "8.4.20",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-8.4.20"
+    ],
+    "source_sha256": "bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58",
+    "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "f99d195a1ab1200038127b01dc2bf1332c40f56f97b711211beb35c7f8519ba1",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-8.4.20"
+    ],
+    "returncode": 0,
+    "stdout_hex": "300930093109310931096e6f6e65093109300a310930093009310931096e6f6e65093109300a657069736f646509310930093109320a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "8.5.19",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-8.5.19"
+    ],
+    "source_sha256": "bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58",
+    "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "60add52bf2f1f806bb4fb6818ad5d598954677b613cbe3cb039a394226c8128e",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-8.5.19"
+    ],
+    "returncode": 0,
+    "stdout_hex": "300930093109310931096e6f6e65093109300a310930093009310931096e6f6e65093109300a657069736f646509310930093109320a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "8.6.18",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-8.6.18"
+    ],
+    "source_sha256": "bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58",
+    "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "875a7a34157da4ba7959ccfde3969e34b026d9fdf9f08d4606adb6cdc71ccd4c",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-8.6.18"
+    ],
+    "returncode": 0,
+    "stdout_hex": "300930093109310931096e6f6e65093109300a310930093009310931096e6f6e65093109300a657069736f646509310930093109320a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "9.0.4",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-9.0.4"
+    ],
+    "source_sha256": "bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58",
+    "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "87c6ae013aa3461cadd525a84390d7b571591761c0ab39c4e4157f055aabc6a3",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-9.0.4"
+    ],
+    "returncode": 0,
+    "stdout_hex": "300930093109310931096e6f6e65093109300a310930093009310931096e6f6e65093109300a657069736f646509310930093109320a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "9.1.0",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-9.1.0"
+    ],
+    "source_sha256": "bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58",
+    "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "cf8d2cfb7fb792ddcf83aa9668b8a01b29e31876121de2555621146045f51db1",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-empty-vector-reset/probe-9.1.0"
+    ],
+    "returncode": 0,
+    "stdout_hex": "300930093109310931096e6f6e65093109300a310930093009310931096e6f6e65093109300a657069736f646509310930093109320a",
+    "stderr_hex": ""
+  }
+]

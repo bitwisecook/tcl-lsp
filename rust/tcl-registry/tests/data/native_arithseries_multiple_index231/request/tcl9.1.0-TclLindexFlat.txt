@@ -1,0 +1,105 @@
+TclLindexFlat(
+    Tcl_Interp *interp,		/* Tcl interpreter. */
+    Tcl_Obj *listObj,		/* Tcl object representing the list. */
+    Tcl_Size indexCount,	/* Count of indices. */
+    Tcl_Obj *const indexArray[])/* Array of pointers to Tcl objects that
+				 * represent the indices in the list. */
+{
+    int status;
+    Tcl_Size i;
+
+    /* Handle AbstractList as special case */
+    if (indexCount == 1 && TclObjTypeHasProc(listObj,indexProc)) {
+	Tcl_Size listLen = TclObjTypeLength(listObj);
+	Tcl_Size index;
+	Tcl_Obj *elemObj = listObj; /* for lindex without indices return list */
+	for (i=0 ; i<indexCount && listObj ; i++) {
+	    if (TclGetIntForIndexM(interp, indexArray[i], /*endValue*/ listLen-1,
+		    &index) != TCL_OK) {
+		return NULL;
+	    }
+	    if (i==0) {
+		if (TclObjTypeIndex(interp, listObj, index, &elemObj) != TCL_OK) {
+		    return NULL;
+		}
+	    } else if (index > 0) {
+		// TODO: support nested lists
+		Tcl_Obj *e2Obj = TclLindexFlat(interp, elemObj, 1, &indexArray[i]);
+		Tcl_DecrRefCount(elemObj);
+		elemObj = e2Obj;
+	    }
+	}
+	if (elemObj == NULL) {
+	    /*
+	     * TclObjTypeIndex returns TCL_OK with NULL in elemObj if
+	     * index was out of bounds.
+	     */
+	    TclNewObj(elemObj);
+	}
+	Tcl_IncrRefCount(elemObj);
+	return elemObj;
+    }
+
+    Tcl_IncrRefCount(listObj);
+
+    for (i=0 ; i<indexCount && listObj ; i++) {
+	Tcl_Size index, listLen = 0;
+	Tcl_Obj **elemPtrs = NULL;
+
+	status = Tcl_ListObjLength(interp, listObj, &listLen);
+	if (status != TCL_OK) {
+	    Tcl_DecrRefCount(listObj);
+	    return NULL;
+	}
+
+	if (TclGetIntForIndexM(interp, indexArray[i], /*endValue*/ listLen-1,
+		&index) == TCL_OK) {
+	    if (index < 0 || index >= listLen) {
+		/*
+		 * Index is out of range. Break out of loop with empty result.
+		 * First check remaining indices for validity
+		 */
+
+		while (++i < indexCount) {
+		    if (TclGetIntForIndexM(interp, indexArray[i],
+			    TCL_SIZE_MAX - 1, &index) != TCL_OK) {
+			Tcl_DecrRefCount(listObj);
+			return NULL;
+		    }
+		}
+		Tcl_DecrRefCount(listObj);
+		TclNewObj(listObj);
+		Tcl_IncrRefCount(listObj);
+	    } else {
+		Tcl_Obj *itemObj;
+		/* TODO - this will cause shimmering of inner abstract lists! */
+		/*
+		 * Must set the internal rep again because it may have been
+		 * changed by TclGetIntForIndexM. See test lindex-8.4.
+		 */
+		if (!TclHasInternalRep(listObj, &tclListType)) {
+		    status = SetListFromAny(interp, listObj);
+		    if (status != TCL_OK) {
+			/* The list is not a list at all => error. */
+			Tcl_DecrRefCount(listObj);
+			return NULL;
+		    }
+		}
+
+		ListObjGetElements(listObj, listLen, elemPtrs);
+		/* increment this reference count first before decrementing
+		 * just in case they are the same Tcl_Obj
+		 */
+		itemObj = elemPtrs[index];
+		Tcl_IncrRefCount(itemObj);
+		Tcl_DecrRefCount(listObj);
+		/* Extract the pointer to the appropriate element. */
+		listObj = itemObj;
+	    }
+	} else {
+	    Tcl_DecrRefCount(listObj);
+	    listObj = NULL;
+	}
+    }
+    return listObj;
+}

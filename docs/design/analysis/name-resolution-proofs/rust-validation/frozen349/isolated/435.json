@@ -1,0 +1,19 @@
+{
+  "ordinal": 435,
+  "selector": "interp::tests::unknown_command_is_an_error",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::unknown_command_is_an_error",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.391111501987325,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.37s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/435.log",
+  "log_sha256": "7f88ef20894c30c282594767f58029b9cb2031807ece0afc61121c27c2daeee7"
+}

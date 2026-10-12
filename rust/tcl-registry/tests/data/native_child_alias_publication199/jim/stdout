@@ -1,0 +1,5 @@
+version 0.84-9-g5bac7c9
+child_alias ::A::a 0 {} 0 VALUE
+child_alias A::relative 0 {} 0 VALUE
+child_alias plain 0 {} 0 VALUE
+child_alias ::::extra 0 {} 0 VALUE

@@ -27,7 +27,7 @@
 //!   resolution, so it is intentionally not included here.
 //! - the walker (`extract_irules_object_references`) that
 //!   segments an iRule body, asks the table for each command's reference args,
-//!   and resolves them — including names that flow through `set <var> <literal>`.
+//!   as readonly literal source candidates, without runtime set-value propagation.
 //!
 //! Shared by the BIG-IP reference graph (`tcl-bigip`) and the LSP semantic-token
 //! layer (`tcl-lsp-core`).
@@ -41,10 +41,19 @@ mod walker;
 pub use walker::{
     IrulesObjectReference, IrulesObjectReferenceCategory, extract_irules_event_object_references,
     extract_irules_object_references, extract_irules_object_references_in_closure,
-    object_ref_spans,
+    extract_original_irules_source_object_references, object_ref_spans,
 };
 mod event_handlers;
 pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
+
+mod source_context;
+pub use source_context::{
+    IrulesSourceObligation, OriginalIrulesSourceCommand, OriginalIrulesSourceContext,
+};
+mod source_object;
+pub use source_object::{
+    IrulesSourceAttachmentKind, IrulesSourceObjectOperand, original_source_object_operands,
+};
 
 mod executable;
 pub use executable::{

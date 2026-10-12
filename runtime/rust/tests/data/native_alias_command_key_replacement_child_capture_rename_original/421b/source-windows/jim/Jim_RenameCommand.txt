@@ -1,0 +1,165 @@
+4457:     Jim_DecrRefCount(interp, nameObj);
+4458: 
+4459:     return ret;
+4460: }
+4461: 
+4462: int Jim_RenameCommand(Jim_Interp *interp, Jim_Obj *oldNameObj, Jim_Obj *newNameObj)
+4463: {
+4464:     int ret = JIM_ERR;
+4465:     Jim_HashEntry *he;
+4466:     Jim_Cmd *cmdPtr;
+4467: 
+4468:     if (Jim_Length(newNameObj) == 0) {
+4469:         return Jim_DeleteCommand(interp, oldNameObj);
+4470:     }
+4471: 
+4472:     /* each name may need to have the current namespace added to it */
+4473: 
+4474:     oldNameObj = JimQualifyName(interp, oldNameObj);
+4475:     newNameObj = JimQualifyName(interp, newNameObj);
+4476: 
+4477:     /* Does it exist? */
+4478:     he = Jim_FindHashEntry(&interp->commands, oldNameObj);
+4479:     if (he == NULL) {
+4480:         Jim_SetResultFormatted(interp, "can't rename \"%#s\": command doesn't exist", oldNameObj);
+4481:     }
+4482:     else if (Jim_FindHashEntry(&interp->commands, newNameObj)) {
+4483:         Jim_SetResultFormatted(interp, "can't rename to \"%#s\": command already exists", newNameObj);
+4484:     }
+4485:     else {
+4486:         cmdPtr = Jim_GetHashEntryVal(he);
+4487:         if (cmdPtr->prevCmd) {
+4488:             /* If the command replaced another command with 'local', renaming it
+4489:              * would break the usage of upcall, so don't allow it.
+4490:              */
+4491:             Jim_SetResultFormatted(interp, "can't rename local command \"%#s\"", oldNameObj);
+4492:         }
+4493:         else {
+4494:             /* Add the new name first */
+4495:             JimIncrCmdRefCount(cmdPtr);
+4496:             JimUpdateProcNamespace(interp, cmdPtr, newNameObj);
+4497:             Jim_AddHashEntry(&interp->commands, newNameObj, cmdPtr);
+4498: 
+4499:             /* Now remove the old name */
+4500:             Jim_DeleteHashEntry(&interp->commands, oldNameObj);
+4501: 
+4502:             /* Increment the epoch */
+4503:             Jim_InterpIncrProcEpoch(interp);
+4504: 
+4505:             ret = JIM_OK;
+4506:         }
+4507:     }
+4508: 
+4509:     Jim_DecrRefCount(interp, oldNameObj);
+4510:     Jim_DecrRefCount(interp, newNameObj);
+4511: 
+4512:     return ret;
+4513: }
+4514: 
+4515: /* -----------------------------------------------------------------------------
+4516:  * Command object
+4517:  * ---------------------------------------------------------------------------*/
+4518: 
+4519: static void FreeCommandInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)
+4520: {
+4521:     Jim_DecrRefCount(interp, objPtr->internalRep.cmdValue.nsObj);
+4522: }
+4523: 
+4524: /* Duplicate the cached namespace information for a resolved command object. */
+4525: static void DupCommandInternalRep(Jim_Interp *interp, Jim_Obj *srcPtr, Jim_Obj *dupPtr)
+4526: {
+4527:     dupPtr->internalRep.cmdValue = srcPtr->internalRep.cmdValue;
+4528:     dupPtr->typePtr = srcPtr->typePtr;
+4529:     Jim_IncrRefCount(dupPtr->internalRep.cmdValue.nsObj);
+4530: }
+4531: 
+4532: static const Jim_ObjType commandObjType = {
+4533:     "command",
+4534:     FreeCommandInternalRep,
+4535:     DupCommandInternalRep,
+4536:     NULL,
+4537:     JIM_TYPE_REFERENCES,
+4538: };
+4539: 
+4540: /* This function returns the command structure for the command name
+4541:  * stored in objPtr. It specializes the objPtr to contain
+4542:  * cached info instead of performing the lookup into the hash table
+4543:  * every time. The information cached may not be up-to-date, in this
+4544:  * case the lookup is performed and the cache updated.
+4545:  *
+4546:  * Respects the 'upcall' setting.
+4547:  */
+4548: Jim_Cmd *Jim_GetCommand(Jim_Interp *interp, Jim_Obj *objPtr, int flags)
+4549: {
+4550:     Jim_Cmd *cmd;
+4551: 
+4552:     /* In order to be valid, the proc epoch must match and
+4553:      * the lookup must have occurred in the same namespace
+4554:      */
+4555:     if (objPtr->typePtr == &commandObjType
+4556:         && objPtr->internalRep.cmdValue.procEpoch == interp->procEpoch
+4557: #ifdef jim_ext_namespace
+4558:         && Jim_StringEqObj(objPtr->internalRep.cmdValue.nsObj, interp->framePtr->nsObj)
+4559: #endif
+4560:         && objPtr->internalRep.cmdValue.cmdPtr->inUse) {
+4561:         /* Cached value is valid */
+4562:         cmd = objPtr->internalRep.cmdValue.cmdPtr;
+4563:     }
+4564:     else {
+4565:         Jim_Obj *qualifiedNameObj = JimQualifyName(interp, objPtr);
+4566:         Jim_HashEntry *he = Jim_FindHashEntry(&interp->commands, qualifiedNameObj);
+4567: #ifdef jim_ext_namespace
+4568:         if (he == NULL && Jim_Length(interp->framePtr->nsObj)) {
+4569:             he = Jim_FindHashEntry(&interp->commands, objPtr);
+4570:         }
+4571: #endif
+4572:         if (he == NULL) {
+4573:             if (flags & JIM_ERRMSG) {
+4574:                 Jim_SetResultFormatted(interp, "invalid command name \"%#s\"", objPtr);
+4575:             }
+4576:             Jim_DecrRefCount(interp, qualifiedNameObj);
+4577:             return NULL;
+4578:         }
+4579:         cmd = Jim_GetHashEntryVal(he);
+4580: 
+4581:         /* Stash the resolved command name. Note that we don't incr the ref count here
+4582:          * since we don't want to increase the ref count. The lifetime is the same as the key
+4583:          * in the commands hash table
+4584:          */
+4585:         cmd->cmdNameObj = Jim_GetHashEntryKey(he);
+4586: 
+4587:         /* Free the old internal rep and set the new one. */
+4588:         Jim_FreeIntRep(interp, objPtr);
+4589:         objPtr->typePtr = &commandObjType;
+4590:         objPtr->internalRep.cmdValue.procEpoch = interp->procEpoch;
+4591:         objPtr->internalRep.cmdValue.cmdPtr = cmd;
+4592:         objPtr->internalRep.cmdValue.nsObj = interp->framePtr->nsObj;
+4593:         Jim_IncrRefCount(interp->framePtr->nsObj);
+4594:         Jim_DecrRefCount(interp, qualifiedNameObj);
+4595:     }
+4596:     while ((cmd->flags & JIM_CMD_ISPROC) && cmd->u.proc.upcall) {
+4597:         cmd = cmd->prevCmd;
+4598:     }
+4599:     return cmd;
+4600: }
+4601: 
+4602: /* -----------------------------------------------------------------------------
+4603:  * Variables
+4604:  * ---------------------------------------------------------------------------*/
+4605: 
+4606: /* -----------------------------------------------------------------------------
+4607:  * Variable object
+4608:  * ---------------------------------------------------------------------------*/
+4609: 
+4610: static const Jim_ObjType variableObjType = {
+4611:     "variable",
+4612:     NULL,
+4613:     NULL,
+4614:     NULL,
+4615:     JIM_TYPE_REFERENCES,
+4616: };
+4617: 
+4618: /* This method should be called only by the variable API.
+4619:  * It returns JIM_OK on success (variable already exists),
+4620:  * JIM_ERR if it does not exist, JIM_DICT_SUGAR if it's not
+4621:  * a variable name, but syntax glue for [dict] i.e. the last

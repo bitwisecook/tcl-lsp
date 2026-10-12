@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them ... 
+thread 'interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them' (1360940) panicked at src/interp.rs:19649:21:
+string has nothing to attest
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 3.97s
+

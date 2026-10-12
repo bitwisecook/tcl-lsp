@@ -1,0 +1,68 @@
+[
+  {
+    "provider": "8.4.20",
+    "version": "8.4.20",
+    "rows": [
+      "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+      "SOURCE_ADJACENT_SURROGATES|0|1",
+      "SOURCE_REPLACEMENT_SELF|1",
+      "SOURCE_VALID_UNICODE|0|4",
+      "SOURCE_BRACED_ESCAPE|0|6"
+    ]
+  },
+  {
+    "provider": "8.5.19",
+    "version": "8.5.19",
+    "rows": [
+      "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+      "SOURCE_ADJACENT_SURROGATES|0|1",
+      "SOURCE_REPLACEMENT_SELF|1",
+      "SOURCE_VALID_UNICODE|0|4",
+      "SOURCE_BRACED_ESCAPE|0|6"
+    ]
+  },
+  {
+    "provider": "8.6.18",
+    "version": "8.6.18",
+    "rows": [
+      "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+      "SOURCE_ADJACENT_SURROGATES|0|1",
+      "SOURCE_REPLACEMENT_SELF|1",
+      "SOURCE_VALID_UNICODE|0|4",
+      "SOURCE_BRACED_ESCAPE|0|6"
+    ]
+  },
+  {
+    "provider": "9.0.4",
+    "version": "9.0.4",
+    "rows": [
+      "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+      "SOURCE_ADJACENT_SURROGATES|0|1",
+      "SOURCE_REPLACEMENT_SELF|1",
+      "SOURCE_VALID_UNICODE|0|4",
+      "SOURCE_BRACED_ESCAPE|0|6"
+    ]
+  },
+  {
+    "provider": "9.1.0",
+    "version": "9.1.0",
+    "rows": [
+      "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+      "SOURCE_ADJACENT_SURROGATES|0|1",
+      "SOURCE_REPLACEMENT_SELF|1",
+      "SOURCE_VALID_UNICODE|0|4",
+      "SOURCE_BRACED_ESCAPE|0|6"
+    ]
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "rows": [
+      "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+      "SOURCE_ADJACENT_SURROGATES|0|1",
+      "SOURCE_REPLACEMENT_SELF|1",
+      "SOURCE_VALID_UNICODE|0|4",
+      "SOURCE_BRACED_ESCAPE|0|6"
+    ]
+  }
+]

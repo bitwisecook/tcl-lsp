@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::native_properties::original_slot_boundary_tests::original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch ... 
+thread 'cmd_oo::native_properties::original_slot_boundary_tests::original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch' (1254370) panicked at src/cmd_oo/native_properties.rs:1849:13:
+assertion `left == right` failed
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_properties::original_slot_boundary_tests::original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.08s
+

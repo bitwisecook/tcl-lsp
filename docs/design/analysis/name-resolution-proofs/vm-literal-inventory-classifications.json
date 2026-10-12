@@ -1,0 +1,55 @@
+[
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/manifest.json",
+    "sha256": "1f11c8c83bc5b9abaaf42c82332bed847f87bb9454ff0df5c874944d3ecc7545",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.literal.numeric-registration-sharing",
+      "naming.literal.static-and-dynamic-list-identity",
+      "naming.literal.counted-opaque-source-object",
+      "naming.literal.initial-number-primary"
+    ],
+    "reason": "Exact retained probe SHA and all five full 21-row output SHA/compile0/run0 matched; numeric registration, constant/dynamic List identity, counted opaque literal and initial numeric allocation are four independent questions. No fresh run or unmeasured source implementation explanation."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json",
+    "sha256": "0dad3f8b7aa1e5d82d14766412ffaef6f1e5f7578ee395f1194978585f37e2ed",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.literal.command-action.ordered-primary",
+      "naming.literal.command-action.replacement-primary"
+    ],
+    "reason": "Exact original source SHA, all five full output digests and declared row counts matched; separate source-order/namespace/role/cache windows are retained with unqueried build/compile fields explicit."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/manifest.json",
+    "sha256": "ce389c324a0c5330130baec3b0f4c848dd13c2f6694339dad69b42d5de2df5d1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.literal.command-registration.namespace-and-role-sharing"
+    ],
+    "reason": "Exact original source SHA, all five full output digests and declared row counts matched; separate source-order/namespace/role/cache windows are retained with unqueried build/compile fields explicit."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json",
+    "sha256": "e7cebed2c614dd2dfd4871f3562918a605551b5ad262ee8237eee73b981615fb",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.import.compiler-hook-copy",
+      "naming.import.compiler-hook-mutation-epoch"
+    ],
+    "reason": "Probe source SHA matched; all five retained TSV lines exactly equal their own original manifest observations including header, successful compile/run and empty stderr. C8.4 conditional procedure controls are separate from C8.5+ ensemble operations. Private field and function-pointer observations do not supply object/token identity."
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json",
+    "sha256": "3ff34e4d289e2715d25735f638421b16a22b1052f8c3de4aae6cbcf18b6ace83",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.compiled-local-inventory.duplicate-and-counted-zero",
+      "naming.compiled-local-inventory.qualification-validation",
+      "naming.compiled-local-inventory.array-shaped-formal-validation",
+      "naming.compiled-local-inventory.opaque-byte-enumeration"
+    ],
+    "reason": "Exact probe source SHA and all six full 40-row JSONL digests/compile0/run0 matched. Actual enumeration body, each original one/two-formal definition/invocation/error outcome and zero VM comparisons inspected; generic manifest text cannot expand the captured purpose. Original raw-zero/qualification/array/opaque questions are separate from sibling compiled-local-names substitution corpus."
+  }
+]

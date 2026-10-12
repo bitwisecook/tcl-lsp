@@ -405,7 +405,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "definition_body",
             &crate::definer::SPECTCL_DEFINITION_BODY_GRAMMAR,
             "Declare (or name) the member grammar of this command's definition body.",
-            "`definition_body NAME` names a shipped grammar (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`); the block spells one out from `DefinitionBodyGrammar`'s own fields. `-roles {N ROLE …}` *is* the `MemberSpec::arg_roles` field, which is why it replaced the sketched one-flag-per-role spelling.",
+            "`definition_body NAME` names a shipped grammar (`tcloo`, `tcloo-abstract`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`); the block spells one out from `DefinitionBodyGrammar`'s own fields. `-roles {N ROLE …}` *is* the `MemberSpec::arg_roles` field, which is why it replaced the sketched one-flag-per-role spelling.",
         ),
         block(
             "body_scope",

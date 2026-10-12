@@ -1333,3 +1333,37 @@ fn proc_arity_is_at_least_required_count_for_variadic_decl() {
         vec!["a".to_string(), "b".to_string(), "args".to_string()]
     );
 }
+
+#[test]
+fn protective_proc_index_unions_every_colliding_parameter_and_default_read() {
+    // naming.analysis.procedure-summary-candidate-keys
+    // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
+    // Actual software summary/CFG producer; MAY protection selects no callee.
+    let positional = call_by_name_reads(
+        "namespace eval a {proc choose {left value} {upvar 1 $left local; set local $value}}\n\
+         namespace eval b {proc choose {value right} {upvar 1 $right local; set local $value}}\n\
+         proc caller {} {choose first second}",
+        "::caller",
+    );
+    assert!(positional.contains("first") && positional.contains("second"));
+    let defaults = call_by_name_reads(
+        "namespace eval a {proc defaulted {{name first}} {upvar 1 $name local; incr local}}\n\
+         namespace eval b {proc defaulted {{name second}} {upvar 1 $name local; incr local}}\n\
+         proc caller {} {defaulted}",
+        "::caller",
+    );
+    assert!(defaults.contains("first") && defaults.contains("second"));
+}
+
+#[test]
+fn protective_proc_index_missing_key_retains_literal_possible_name_arguments() {
+    // naming.analysis.procedure-summary-candidate-keys
+    // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
+    // The opaque effects owner remains separate; no absence proof from a label.
+    let reads = call_by_name_reads(
+        "proc known {value} {return $value}\nproc caller {} {external target $computed}",
+        "::caller",
+    );
+    assert!(reads.contains("target"));
+    assert!(!reads.contains("computed"));
+}

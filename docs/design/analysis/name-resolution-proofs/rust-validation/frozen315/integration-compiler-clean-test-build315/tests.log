@@ -1,0 +1,4 @@
+error: failed to create directory `/workspace/.targets/naming-upstream-clean`
+
+Caused by:
+  Not a directory (os error 20)

@@ -1,0 +1,28 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 2m 10s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 1 test
+test command_binding::original_namespace_ensure::tests::original_namespace_ensure_shares_actual_allocations_without_widening_empty_cells ... ORIGINAL_ENSURE_CAPTURE site=0 roles=true facts=Some(1) opaque=false cells=true dynamic=false traces=false
+ORIGINAL_ENSURE_OPERAND site=0 ordinal=Some(1) retained=true
+ORIGINAL_ENSURE_TRANSFER site=0 opaque=false source=true
+ORIGINAL_ENSURE_IDENTITY site=0 retained=true allocated=true
+ORIGINAL_ENSURE_VARIABLE site=0 subject=true identity=true inputs=true input_equal=true cells=true dynamic=false traces=false
+
+thread 'command_binding::original_namespace_ensure::tests::original_namespace_ensure_shares_actual_allocations_without_widening_empty_cells' (517248) panicked at rust/tcl-compiler/src/command_binding/original_namespace_ensure.rs:236:13:
+V8_4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::original_namespace_ensure::tests::original_namespace_ensure_shares_actual_allocations_without_widening_empty_cells
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8131 filtered out; finished in 0.28s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

@@ -1,0 +1,825 @@
+Tcl_LsortObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Argument values. */
+{
+    int indices, nocase = 0;
+    int sortMode = SORTMODE_ASCII;
+    int group, allocatedIndexVector = 0;
+    Tcl_Size j, idx, groupOffset, length, indexc;
+    Tcl_WideInt wide, groupSize;
+    Tcl_Obj *resultPtr, *cmdPtr, **listObjPtrs, *listObj, *indexPtr;
+    Tcl_Size i, elmArrSize;
+    SortElement *elementArray = NULL, *elementPtr;
+    SortInfo sortInfo;		/* Information about this sort that needs to
+				 * be passed to the comparison function. */
+#   define MAXCALLOC 1024000
+#   define NUM_LISTS 30
+    SortElement *subList[NUM_LISTS+1];
+				/* This array holds pointers to temporary
+				 * lists built during the merge sort. Element
+				 * i of the array holds a list of length
+				 * 2**i. */
+    static const char *const switches[] = {
+	"-ascii", "-command", "-decreasing", "-dictionary", "-increasing",
+	"-index", "-indices", "-integer", "-nocase", "-real", "-stride",
+	"-unique", NULL
+    };
+    enum Lsort_Switches {
+	LSORT_ASCII, LSORT_COMMAND, LSORT_DECREASING, LSORT_DICTIONARY,
+	LSORT_INCREASING, LSORT_INDEX, LSORT_INDICES, LSORT_INTEGER,
+	LSORT_NOCASE, LSORT_REAL, LSORT_STRIDE, LSORT_UNIQUE
+    } index;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "?-option value ...? list");
+	return TCL_ERROR;
+    }
+
+    /*
+     * Parse arguments to set up the mode for the sort.
+     */
+
+    sortInfo.isIncreasing = 1;
+    sortInfo.sortMode = SORTMODE_ASCII;
+    sortInfo.indexv = NULL;
+    sortInfo.indexc = 0;
+    sortInfo.unique = 0;
+    sortInfo.interp = interp;
+    sortInfo.resultCode = TCL_OK;
+    cmdPtr = NULL;
+    indices = 0;
+    group = 0;
+    groupSize = 1;
+    groupOffset = 0;
+    indexPtr = NULL;
+    for (i = 1; i < objc-1; i++) {
+	if (Tcl_GetIndexFromObj(interp, objv[i], switches, "option", 0,
+		&index) != TCL_OK) {
+	    sortInfo.resultCode = TCL_ERROR;
+	    goto done;
+	}
+	switch (index) {
+	case LSORT_ASCII:
+	    sortInfo.sortMode = SORTMODE_ASCII;
+	    break;
+	case LSORT_COMMAND:
+	    if (i == objc-2) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"\"-command\" option must be followed "
+			"by comparison command", -1));
+		Tcl_SetErrorCode(interp, "TCL", "ARGUMENT", "MISSING", (char *)NULL);
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    sortInfo.sortMode = SORTMODE_COMMAND;
+	    cmdPtr = objv[i+1];
+	    i++;
+	    break;
+	case LSORT_DECREASING:
+	    sortInfo.isIncreasing = 0;
+	    break;
+	case LSORT_DICTIONARY:
+	    sortInfo.sortMode = SORTMODE_DICTIONARY;
+	    break;
+	case LSORT_INCREASING:
+	    sortInfo.isIncreasing = 1;
+	    break;
+	case LSORT_INDEX: {
+	    Tcl_Size sortindex;
+	    Tcl_Obj **indexv;
+
+	    if (i == objc-2) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"\"-index\" option must be followed by list index",
+			-1));
+		Tcl_SetErrorCode(interp, "TCL", "ARGUMENT", "MISSING", (char *)NULL);
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    if (TclListObjGetElements(interp, objv[i+1], &sortindex,
+		    &indexv) != TCL_OK) {
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+
+	    /*
+	     * Check each of the indices for syntactic correctness. Note that
+	     * we do not store the converted values here because we do not
+	     * know if this is the only -index option yet and so we can't
+	     * allocate any space; that happens after the scan through all the
+	     * options is done.
+	     */
+
+	    for (j=0 ; j<sortindex ; j++) {
+		int encoded = 0;
+		int result = TclIndexEncode(interp, indexv[j],
+			TCL_INDEX_NONE, TCL_INDEX_NONE, &encoded);
+
+		if ((result == TCL_OK) && (encoded == (int)TCL_INDEX_NONE)) {
+		    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			    "index \"%s\" out of range",
+			    TclGetString(indexv[j])));
+		    Tcl_SetErrorCode(interp, "TCL", "VALUE", "INDEX", "OUTOFRANGE", (char *)NULL);
+		    result = TCL_ERROR;
+		}
+		if (result == TCL_ERROR) {
+		    Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+			    "\n    (-index option item number %" TCL_Z_MODIFIER "u)", j));
+		    sortInfo.resultCode = TCL_ERROR;
+		    goto done;
+		}
+	    }
+	    indexPtr = objv[i+1];
+	    i++;
+	    break;
+	}
+	case LSORT_INTEGER:
+	    sortInfo.sortMode = SORTMODE_INTEGER;
+	    break;
+	case LSORT_NOCASE:
+	    nocase = 1;
+	    break;
+	case LSORT_REAL:
+	    sortInfo.sortMode = SORTMODE_REAL;
+	    break;
+	case LSORT_UNIQUE:
+	    sortInfo.unique = 1;
+	    break;
+	case LSORT_INDICES:
+	    indices = 1;
+	    break;
+	case LSORT_STRIDE:
+	    if (i == objc-2) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"\"-stride\" option must be "
+			"followed by stride length", -1));
+		Tcl_SetErrorCode(interp, "TCL", "ARGUMENT", "MISSING", (char *)NULL);
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    if (TclGetWideIntFromObj(interp, objv[i+1], &wide) != TCL_OK) {
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    if (wide < 2) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"stride length must be at least 2", -1));
+		Tcl_SetErrorCode(interp, "TCL", "OPERATION", "LSORT",
+			"BADSTRIDE", (char *)NULL);
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    groupSize = wide;
+	    group = 1;
+	    i++;
+	    break;
+	default:
+	    TCL_UNREACHABLE();
+	}
+    }
+    if (nocase && (sortInfo.sortMode == SORTMODE_ASCII)) {
+	sortInfo.sortMode = SORTMODE_ASCII_NC;
+    }
+
+    /*
+     * Now extract the -index list for real, if present. No failures are
+     * expected here; the values are all of the right type or convertible to
+     * it.
+     */
+
+    if (indexPtr) {
+	Tcl_Obj **indexv;
+
+	TclListObjGetElements(interp, indexPtr, &sortInfo.indexc, &indexv);
+	switch (sortInfo.indexc) {
+	case 0:
+	    sortInfo.indexv = NULL;
+	    break;
+	case 1:
+	    sortInfo.indexv = &sortInfo.singleIndex;
+	    break;
+	default:
+	    sortInfo.indexv = (int *)
+		    TclStackAlloc(interp, sizeof(int) * sortInfo.indexc);
+	    allocatedIndexVector = 1;	/* Cannot use indexc field, as it
+					 * might be decreased by 1 later. */
+	}
+	for (j=0 ; j<sortInfo.indexc ; j++) {
+	    /* Prescreened values, no errors or out of range possible */
+	    TclIndexEncode(NULL, indexv[j], TCL_INDEX_NONE,
+		    TCL_INDEX_NONE, &sortInfo.indexv[j]);
+	}
+    }
+
+    listObj = objv[objc-1];
+
+    if (sortInfo.sortMode == SORTMODE_COMMAND) {
+	Tcl_Obj *newCommandPtr, *newObjPtr;
+
+	/*
+	 * When sorting using a command, we are reentrant and therefore might
+	 * have the representation of the list being sorted shimmered out from
+	 * underneath our feet. Take a copy (cheap) to prevent this. [Bug
+	 * 1675116]
+	 */
+
+	listObj = TclListObjCopy(interp, listObj);
+	if (listObj == NULL) {
+	    sortInfo.resultCode = TCL_ERROR;
+	    goto done;
+	}
+
+	/*
+	 * The existing command is a list. We want to flatten it, append two
+	 * dummy arguments on the end, and replace these arguments later.
+	 */
+
+	newCommandPtr = Tcl_DuplicateObj(cmdPtr);
+	TclNewObj(newObjPtr);
+	Tcl_IncrRefCount(newCommandPtr);
+	if (Tcl_ListObjAppendElement(interp, newCommandPtr, newObjPtr)
+		!= TCL_OK) {
+	    TclDecrRefCount(newCommandPtr);
+	    TclDecrRefCount(newObjPtr);
+	    sortInfo.resultCode = TCL_ERROR;
+	    goto done;
+	}
+	Tcl_ListObjAppendElement(interp, newCommandPtr, Tcl_NewObj());
+	sortInfo.compareCmdPtr = newCommandPtr;
+    }
+
+    if (TclObjTypeHasProc(objv[1], getElementsProc)) {
+	sortInfo.resultCode = TclObjTypeGetElements(interp, listObj,
+		&length, &listObjPtrs);
+    } else {
+	sortInfo.resultCode = TclListObjGetElements(interp, listObj,
+		&length, &listObjPtrs);
+    }
+    if (sortInfo.resultCode != TCL_OK || length <= 0) {
+	goto done;
+    }
+
+    /*
+     * Check for sanity when grouping elements of the overall list together
+     * because of the -stride option. [TIP #326]
+     */
+
+    if (group) {
+	if (length % groupSize) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "list size must be a multiple of the stride length",
+		    -1));
+	    Tcl_SetErrorCode(interp, "TCL", "OPERATION", "LSORT", "BADSTRIDE",
+		    (char *)NULL);
+	    sortInfo.resultCode = TCL_ERROR;
+	    goto done;
+	}
+	length = length / groupSize;
+	if (sortInfo.indexc > 0) {
+	    /*
+	     * Use the first value in the list supplied to -index as the
+	     * offset of the element within each group by which to sort.
+	     */
+
+	    groupOffset = TclIndexDecode(sortInfo.indexv[0], groupSize - 1);
+	    if (groupOffset < 0 || groupOffset >= groupSize) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"when used with \"-stride\", the leading \"-index\""
+			" value must be within the group", -1));
+		Tcl_SetErrorCode(interp, "TCL", "OPERATION", "LSORT",
+			"BADINDEX", (char *)NULL);
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    if (sortInfo.indexc == 1) {
+		sortInfo.indexc = 0;
+		sortInfo.indexv = NULL;
+	    } else {
+		sortInfo.indexc--;
+
+		/*
+		 * Do not shrink the actual memory block used; that doesn't
+		 * work with TclStackAlloc-allocated memory. [Bug 2918962]
+		 *
+		 * TODO: Consider a pointer increment to replace this
+		 * array shift.
+		 */
+
+		for (i = 0; i < sortInfo.indexc; i++) {
+		    sortInfo.indexv[i] = sortInfo.indexv[i+1];
+		}
+	    }
+	}
+    }
+
+    sortInfo.numElements = length;
+
+    indexc = sortInfo.indexc;
+    sortMode = sortInfo.sortMode;
+    if ((sortMode == SORTMODE_ASCII_NC)
+	    || (sortMode == SORTMODE_DICTIONARY)) {
+	/*
+	 * For this function's purpose all string-based modes are equivalent
+	 */
+
+	sortMode = SORTMODE_ASCII;
+    }
+
+    /*
+     * Initialize the sublists. After the following loop, subList[i] will
+     * contain a sorted sublist of length 2**i. Use one extra subList at the
+     * end, always at NULL, to indicate the end of the lists.
+     */
+
+    for (j=0 ; j<=NUM_LISTS ; j++) {
+	subList[j] = NULL;
+    }
+
+    /*
+     * The following loop creates a SortElement for each list element and
+     * begins sorting it into the sublists as it appears.
+     */
+
+    elmArrSize = length * sizeof(SortElement);
+    if (elmArrSize <= MAXCALLOC) {
+	elementArray = (SortElement *)Tcl_Alloc(elmArrSize);
+    } else {
+	elementArray = (SortElement *)malloc(elmArrSize);
+    }
+    if (!elementArray) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"no enough memory to proccess sort of %" TCL_Z_MODIFIER "u items", length));
+	Tcl_SetErrorCode(interp, "TCL", "MEMORY", (char *)NULL);
+	sortInfo.resultCode = TCL_ERROR;
+	goto done;
+    }
+
+    for (i=0; i < length; i++) {
+	idx = groupSize * i + groupOffset;
+	if (indexc) {
+	    /*
+	     * If this is an indexed sort, retrieve the corresponding element
+	     */
+	    indexPtr = SelectObjFromSublist(listObjPtrs[idx], &sortInfo);
+	    if (sortInfo.resultCode != TCL_OK) {
+		goto done;
+	    }
+	} else {
+	    indexPtr = listObjPtrs[idx];
+	}
+
+	/*
+	 * Determine the "value" of this object for sorting purposes
+	 */
+
+	if (sortMode == SORTMODE_ASCII) {
+	    elementArray[i].collationKey.strValuePtr = TclGetString(indexPtr);
+	} else if (sortMode == SORTMODE_INTEGER) {
+	    Tcl_WideInt a;
+
+	    if (TclGetWideIntFromObj(sortInfo.interp, indexPtr, &a) != TCL_OK) {
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    elementArray[i].collationKey.wideValue = a;
+	} else if (sortMode == SORTMODE_REAL) {
+	    double a;
+
+	    if (Tcl_GetDoubleFromObj(sortInfo.interp, indexPtr, &a) != TCL_OK) {
+		sortInfo.resultCode = TCL_ERROR;
+		goto done;
+	    }
+	    elementArray[i].collationKey.doubleValue = a;
+	} else {
+	    elementArray[i].collationKey.objValuePtr = indexPtr;
+	}
+
+	/*
+	 * Determine the representation of this element in the result: either
+	 * the objPtr itself, or its index in the original list.
+	 */
+
+	if (indices || group) {
+	    elementArray[i].payload.index = idx;
+	} else {
+	    elementArray[i].payload.objPtr = listObjPtrs[idx];
+	}
+
+	/*
+	 * Merge this element in the preexisting sublists (and merge together
+	 * sublists when we have two of the same size).
+	 */
+
+	elementArray[i].nextPtr = NULL;
+	elementPtr = &elementArray[i];
+	for (j=0 ; subList[j] ; j++) {
+	    elementPtr = MergeLists(subList[j], elementPtr, &sortInfo);
+	    subList[j] = NULL;
+	}
+	if (j >= NUM_LISTS) {
+	    j = NUM_LISTS-1;
+	}
+	subList[j] = elementPtr;
+    }
+
+    /*
+     * Merge all sublists
+     */
+
+    elementPtr = subList[0];
+    for (j=1 ; j<NUM_LISTS ; j++) {
+	elementPtr = MergeLists(subList[j], elementPtr, &sortInfo);
+    }
+
+    /*
+     * Now store the sorted elements in the result list.
+     */
+
+    if (sortInfo.resultCode == TCL_OK) {
+	ListRep listRep;
+	Tcl_Obj **newArray, *objPtr;
+
+	resultPtr = Tcl_NewListObj(sortInfo.numElements * groupSize, NULL);
+	ListObjGetRep(resultPtr, &listRep);
+	newArray = ListRepElementsBase(&listRep);
+	if (group) {
+	    for (i=0; elementPtr!=NULL ; elementPtr=elementPtr->nextPtr) {
+		idx = elementPtr->payload.index;
+		for (j = 0; j < groupSize; j++) {
+		    if (indices) {
+			TclNewIndexObj(objPtr, idx + j - groupOffset);
+			newArray[i++] = objPtr;
+			Tcl_IncrRefCount(objPtr);
+		    } else {
+			objPtr = listObjPtrs[idx + j - groupOffset];
+			newArray[i++] = objPtr;
+			Tcl_IncrRefCount(objPtr);
+		    }
+		}
+	    }
+	} else if (indices) {
+	    for (i=0; elementPtr != NULL ; elementPtr = elementPtr->nextPtr) {
+		TclNewIndexObj(objPtr, elementPtr->payload.index);
+		newArray[i++] = objPtr;
+		Tcl_IncrRefCount(objPtr);
+	    }
+	} else {
+	    for (i=0; elementPtr != NULL ; elementPtr = elementPtr->nextPtr) {
+		objPtr = elementPtr->payload.objPtr;
+		newArray[i++] = objPtr;
+		Tcl_IncrRefCount(objPtr);
+	    }
+	}
+	listRep.storePtr->numUsed = i;
+	if (listRep.spanPtr) {
+	    listRep.spanPtr->spanStart = listRep.storePtr->firstUsed;
+	    listRep.spanPtr->spanLength = listRep.storePtr->numUsed;
+	}
+	Tcl_SetObjResult(interp, resultPtr);
+    }
+
+  done:
+    if (sortMode == SORTMODE_COMMAND) {
+	TclDecrRefCount(sortInfo.compareCmdPtr);
+	TclDecrRefCount(listObj);
+	sortInfo.compareCmdPtr = NULL;
+    }
+    if (allocatedIndexVector) {
+	TclStackFree(interp, sortInfo.indexv);
+    }
+    if (elementArray) {
+	if (elmArrSize <= MAXCALLOC) {
+	    Tcl_Free(elementArray);
+	} else {
+	    free((char *)elementArray);
+	}
+    }
+    return sortInfo.resultCode;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_LeditObjCmd --
+ *
+ *	This procedure is invoked to process the "ledit" Tcl command. See the
+ *	user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_LeditObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Argument values. */
+{
+    Tcl_Obj *listPtr;		/* Pointer to the list being altered. */
+    Tcl_Obj *finalValuePtr;	/* Value finally assigned to the variable. */
+    Tcl_Size first;
+    Tcl_Size last;
+    Tcl_Size listLen;
+    Tcl_Size numToDelete;
+    int result;
+    bool createdNewObj;
+
+    if (objc < 4) {
+	Tcl_WrongNumArgs(interp, 1, objv,
+		"listVar first last ?element ...?");
+	return TCL_ERROR;
+    }
+
+    listPtr = Tcl_ObjGetVar2(interp, objv[1], NULL, TCL_LEAVE_ERR_MSG);
+    if (listPtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * TODO - refactor the index extraction into a common function shared
+     * by Tcl_{Lrange,Lreplace,Ledit}ObjCmd
+     */
+
+    result = TclListObjLength(interp, listPtr, &listLen);
+    if (result != TCL_OK) {
+	return result;
+    }
+
+    result = TclGetIntForIndexM(interp, objv[2], /*end*/ listLen-1, &first);
+    if (result != TCL_OK) {
+	return result;
+    }
+
+    result = TclGetIntForIndexM(interp, objv[3], /*end*/ listLen-1, &last);
+    if (result != TCL_OK) {
+	return result;
+    }
+
+    if (first < 0) {
+	first = 0;
+    } else if (first > listLen) {
+	first = listLen;
+    }
+
+    if (last >= listLen) {
+	last = listLen - 1;
+    }
+    if (first <= last) {
+	numToDelete = (size_t)last - (size_t)first + 1; /* See [3d3124d01d] */
+    } else {
+	numToDelete = 0;
+    }
+
+    if (Tcl_IsShared(listPtr)) {
+	listPtr = TclListObjCopy(NULL, listPtr);
+	createdNewObj = true;
+    } else {
+	createdNewObj = false;
+    }
+
+    result =
+	Tcl_ListObjReplace(interp, listPtr, first, numToDelete, objc - 4, objv + 4);
+    if (result != TCL_OK) {
+	if (createdNewObj) {
+	    Tcl_DecrRefCount(listPtr);
+	}
+	return result;
+    }
+
+    /*
+     * Tcl_ObjSetVar2 may return a value different from listPtr in the
+     * presence of traces etc.
+     */
+    finalValuePtr =
+	Tcl_ObjSetVar2(interp, objv[1], NULL, listPtr, TCL_LEAVE_ERR_MSG);
+    if (finalValuePtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    Tcl_SetObjResult(interp, finalValuePtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * MergeLists -
+ *
+ *	This procedure combines two sorted lists of SortElement structures
+ *	into a single sorted list.
+ *
+ * Results:
+ *	The unified list of SortElement structures.
+ *
+ * Side effects:
+ *	If infoPtr->unique is set then infoPtr->numElements may be updated.
+ *	Possibly others, if a user-defined comparison command does something
+ *	weird.
+ *
+ * Note:
+ *	If infoPtr->unique is set, the merge assumes that there are no
+ *	"repeated" elements in each of the left and right lists. In that case,
+ *	if any element of the left list is equivalent to one in the right list
+ *	it is omitted from the merged list.
+ *
+ *	This simplified mechanism works because of the special way our
+ *	MergeSort creates the sublists to be merged and will fail to eliminate
+ *	all repeats in the general case where they are already present in
+ *	either the left or right list. A general code would need to skip
+ *	adjacent initial repeats in the left and right lists before comparing
+ *	their initial elements, at each step.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static SortElement *
+MergeLists(
+    SortElement *leftPtr,	/* First list to be merged; may be NULL. */
+    SortElement *rightPtr,	/* Second list to be merged; may be NULL. */
+    SortInfo *infoPtr)		/* Information needed by the comparison
+				 * operator. */
+{
+    SortElement *headPtr, *tailPtr;
+    int cmp;
+
+    if (leftPtr == NULL) {
+	return rightPtr;
+    }
+    if (rightPtr == NULL) {
+	return leftPtr;
+    }
+    cmp = SortCompare(leftPtr, rightPtr, infoPtr);
+    if (cmp > 0 || (cmp == 0 && infoPtr->unique)) {
+	if (cmp == 0) {
+	    infoPtr->numElements--;
+	    leftPtr = leftPtr->nextPtr;
+	}
+	tailPtr = rightPtr;
+	rightPtr = rightPtr->nextPtr;
+    } else {
+	tailPtr = leftPtr;
+	leftPtr = leftPtr->nextPtr;
+    }
+    headPtr = tailPtr;
+    if (!infoPtr->unique) {
+	while ((leftPtr != NULL) && (rightPtr != NULL)) {
+	    cmp = SortCompare(leftPtr, rightPtr, infoPtr);
+	    if (cmp > 0) {
+		tailPtr->nextPtr = rightPtr;
+		tailPtr = rightPtr;
+		rightPtr = rightPtr->nextPtr;
+	    } else {
+		tailPtr->nextPtr = leftPtr;
+		tailPtr = leftPtr;
+		leftPtr = leftPtr->nextPtr;
+	    }
+	}
+    } else {
+	while ((leftPtr != NULL) && (rightPtr != NULL)) {
+	    cmp = SortCompare(leftPtr, rightPtr, infoPtr);
+	    if (cmp >= 0) {
+		if (cmp == 0) {
+		    infoPtr->numElements--;
+		    leftPtr = leftPtr->nextPtr;
+		}
+		tailPtr->nextPtr = rightPtr;
+		tailPtr = rightPtr;
+		rightPtr = rightPtr->nextPtr;
+	    } else {
+		tailPtr->nextPtr = leftPtr;
+		tailPtr = leftPtr;
+		leftPtr = leftPtr->nextPtr;
+	    }
+	}
+    }
+    if (leftPtr != NULL) {
+	tailPtr->nextPtr = leftPtr;
+    } else {
+	tailPtr->nextPtr = rightPtr;
+    }
+    return headPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * SortCompare --
+ *
+ *	This procedure is invoked by MergeLists to determine the proper
+ *	ordering between two elements.
+ *
+ * Results:
+ *	A negative results means the first element comes before the
+ *	second, and a positive results means that the second element should
+ *	come first. A result of zero means the two elements are equal and it
+ *	doesn't matter which comes first.
+ *
+ * Side effects:
+ *	None, unless a user-defined comparison command does something weird.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+SortCompare(
+    SortElement *elemPtr1, SortElement *elemPtr2,
+				/* Values to be compared. */
+    SortInfo *infoPtr)		/* Information passed from the top-level
+				 * "lsort" command. */
+{
+    int order = 0;
+
+    if (infoPtr->sortMode == SORTMODE_ASCII) {
+	order = TclUtfCmp(elemPtr1->collationKey.strValuePtr,
+		elemPtr2->collationKey.strValuePtr);
+    } else if (infoPtr->sortMode == SORTMODE_ASCII_NC) {
+	order = TclUtfCasecmp(elemPtr1->collationKey.strValuePtr,
+		elemPtr2->collationKey.strValuePtr);
+    } else if (infoPtr->sortMode == SORTMODE_DICTIONARY) {
+	order = DictionaryCompare(elemPtr1->collationKey.strValuePtr,
+		elemPtr2->collationKey.strValuePtr);
+    } else if (infoPtr->sortMode == SORTMODE_INTEGER) {
+	Tcl_WideInt a, b;
+
+	a = elemPtr1->collationKey.wideValue;
+	b = elemPtr2->collationKey.wideValue;
+	order = ((a >= b) - (a <= b));
+    } else if (infoPtr->sortMode == SORTMODE_REAL) {
+	double a, b;
+
+	a = elemPtr1->collationKey.doubleValue;
+	b = elemPtr2->collationKey.doubleValue;
+	order = ((a >= b) - (a <= b));
+    } else {
+	Tcl_Obj **objv, *paramObjv[2];
+	Tcl_Size objc;
+	Tcl_Obj *objPtr1, *objPtr2;
+
+	if (infoPtr->resultCode != TCL_OK) {
+	    /*
+	     * Once an error has occurred, skip any future comparisons so as
+	     * to preserve the error message in sortInterp->result.
+	     */
+
+	    return 0;
+	}
+
+	objPtr1 = elemPtr1->collationKey.objValuePtr;
+	objPtr2 = elemPtr2->collationKey.objValuePtr;
+
+	paramObjv[0] = objPtr1;
+	paramObjv[1] = objPtr2;
+
+	/*
+	 * We made space in the command list for the two things to compare.
+	 * Replace them and evaluate the result.
+	 */
+
+	TclListObjLength(infoPtr->interp, infoPtr->compareCmdPtr, &objc);
+	Tcl_ListObjReplace(infoPtr->interp, infoPtr->compareCmdPtr, objc - 2,
+		2, 2, paramObjv);
+	TclListObjGetElements(infoPtr->interp, infoPtr->compareCmdPtr,
+		&objc, &objv);
+
+	infoPtr->resultCode = Tcl_EvalObjv(infoPtr->interp, objc, objv, 0);
+
+	if (infoPtr->resultCode != TCL_OK) {
+	    Tcl_AddErrorInfo(infoPtr->interp, "\n    (-compare command)");
+	    return 0;
+	}
+
+	/*
+	 * Parse the result of the command.
+	 */
+
+	if (TclGetIntFromObj(infoPtr->interp,
+		Tcl_GetObjResult(infoPtr->interp), &order) != TCL_OK) {
+	    Tcl_SetObjResult(infoPtr->interp, Tcl_NewStringObj(
+		    "-compare command returned non-integer result", -1));
+	    Tcl_SetErrorCode(infoPtr->interp, "TCL", "OPERATION", "LSORT",
+		    "COMPARISONFAILED", (char *)NULL);
+	    infoPtr->resultCode = TCL_ERROR;
+	    return 0;
+	}
+    }
+    if (!infoPtr->isIncreasing) {
+	order = -order;
+    }
+    return order;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * DictionaryCompare
+ *
+ *	This function compares two strings as if they were being used in an
+ *	index or card catalog. The case of alphabetic characters is ignored,

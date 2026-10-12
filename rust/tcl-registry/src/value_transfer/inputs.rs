@@ -469,6 +469,31 @@ pub trait AnalysisInputs {
     fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason>;
     /// A nested `[…]` script evaluated under the ordered evaluation state.
     fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer;
+    /// Full lexical configuration retained by the actual producer. `None`
+    /// denotes an explicitly unpositioned compatibility input; it grants no
+    /// original source or Native execution authority.
+    fn source_lexer_config(&self) -> Option<tcl_lexer::LexerConfig> {
+        None
+    }
+    /// Prepare a derived original-expression receipt for this exact tree.
+    /// The default retains no receipt. Implementers must validate the actual
+    /// parent, selected whole operand and complete tree before retaining one.
+    fn prepare_expression_source(&self, expression: &tcl_syntax::expr::ExprNode) {
+        let _ = expression;
+    }
+    /// A nested expression command at its original expression byte extent.
+    /// The default is explicitly unpositioned compatibility; actual source
+    /// implementations must refuse missing parent or expression receipts.
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        start: u32,
+        end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        let _ = (start, end);
+        self.nested(script, state)
+    }
     /// The ordered state the invocation's own substituting words ran under,
     /// once they have been evaluated: what their commands wrote, and the
     /// bindings those commands rest on. `None` for inputs whose words

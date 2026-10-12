@@ -1,0 +1,42 @@
+
+running 673 tests
+test cmd_array::tests::whole_array_unset_preserves_constant_error_identity ... ok
+test cmd_binary::native_ensemble_tests::binary_bootstrap_retains_real_nested_tokens_and_configuration ... ok
+test cmd_binary::native_ensemble_tests::binary_private_tokens_follow_the_actual_bootstrap_release ... ok
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_120_original_native_completions ... ok
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows ... FAILED
+test cmd_control::native_each_loop_tests::original_procedure_bytecode_reconciles_script_and_procedure_contexts ... ok
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_coro::original_operand_tests::coroutine_original_name_lookup_keeps_missing_and_unavailable_distinct ... ok
+test cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_arguments ... ok
+test cmd_coro::retirement_tests::yieldto_retains_deleted_entered_namespace_when_its_spelling_is_recreated ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_matches_329_complete_native_processes ... FAILED
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... FAILED
+test cmd_dict::scripted_tests::native_jim_scripted_dictionary_completion_and_forwarding_observations ... FAILED
+test cmd_dict::scripted_tests::original_jim_dictionary_library_bodies_and_formals_are_real_procedures ... FAILED
+test cmd_dict::scripted_tests::repinning_keeps_replacement_and_deletion_of_actual_library_generations ... ok
+test cmd_dict::tests::deeply_nested_dict_set_and_unset_survive ... ok
+test cmd_dict::tests::host_dictionary_surface_is_independent_of_embedded_source_grammar ... ok
+test cmd_dict::tests::moderately_nested_dict_set_and_unset_unaffected ... ok
+test cmd_event::native_original_tests::original_event_scripts_global_waits_and_timer_turns_match_native_controls ... ok
+test cmd_event::native_original_tests::original_list_event_scripts_retain_counted_name_objects ... ok
+test cmd_event::native_original_tests::original_vwait_extended_forms_decline_before_global_observers_or_callbacks ... ok
+test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... ok
+test cmd_info::native_jim::tests::current_lsort_failure_is_reported_by_the_selected_jim_parser ... ok
+test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+test cmd_info::native_oo::tests::original_tcloo_info_bootstrap_preserves_private_ensemble_targets ... ok
+test cmd_info::native_oo::tests::specialized_object_info_executes_original_operand_before_native_getter ... ok
+test cmd_info::native_oo::tests::specialized_object_info_keeps_original_cache_and_result_owners ... ok
+test cmd_info::native_oo::tests::string_nested_operand_geometry_preserves_quoted_options_and_repeated_calls ... ok
+test cmd_info::tests::actual_jim_version_report_does_not_read_tcl_bootstrap_globals ... ok
+test cmd_info::tests::errorstack_surface_follows_the_selected_runtime_release ... ok
+test cmd_info::tests::math_enumeration_follows_the_registry_selected_surface ... ok
+test cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers ... ok
+test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... ok
+test cmd_info::tests::release_info_reads_the_selected_runtime_globals ... ok
+test cmd_info::tests::shared_library_extension_comes_from_the_platform_owner ... ok
+test cmd_list::tests::concat_uses_the_selected_engine_and_live_list_representation ... ok
+test cmd_list::tests::deeply_nested_lpop_survives_and_is_correct ... 
+thread 'cmd_list::tests::deeply_nested_lpop_survives_and_is_correct' (701032) has overflowed its stack
+fatal runtime error: stack overflow, aborting

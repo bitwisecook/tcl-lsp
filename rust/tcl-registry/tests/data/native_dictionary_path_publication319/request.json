@@ -1,0 +1,24 @@
+{
+  "question_id": "naming.dictionary.original-path-missing-variable-publication",
+  "problem_statement": "Does an original dict path mutator publish an empty missing variable before a later path failure, including a dictionary-valued member and an upvar link? Distinguish C command lookup/write semantics from actual Jim_SetDictKeysVector rather than granting a C lookup frontier to the Jim worker.",
+  "document": "docs/design/analysis/name-resolution-proofs/dictionary-original-path-missing-variable-publication.md",
+  "cases": [
+    {
+      "id": "missing-root-failed-path-unset",
+      "source_file": "/workspace/.proofs/native-dictionary-path-publication319/missing-root-failed-path-unset.tcl",
+      "source_sha256": "77a73a31593de156c2d8f31e1ea742735ead2b9e066c16e00575f6a90d824a08"
+    },
+    {
+      "id": "missing-member-failed-path-unset",
+      "source_file": "/workspace/.proofs/native-dictionary-path-publication319/missing-member-failed-path-unset.tcl",
+      "source_sha256": "e2aedbd1650512adbdf08ba2c7d0e83b39ffa4e6aa50d041f37094b198437d0c"
+    },
+    {
+      "id": "linked-root-path-set",
+      "source_file": "/workspace/.proofs/native-dictionary-path-publication319/linked-root-path-set.tcl",
+      "source_sha256": "b184a9e1b878a5f457bf797be130aeeb01181640a87c809f026f80acbf6d4f8e"
+    }
+  ],
+  "driver_sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+  "channel": "Exact original ASCII counted source, fresh fullInit six providers, original288 driver unchanged. Complete public code/result only. Existing binary/source/provider pins verified; no private object/storage or lifetime observation."
+}

@@ -21,11 +21,9 @@
 //!
 //! Two receiver shapes:
 //!
-//! - **Variable receiver** (`$obj`) — when the analyser has inferred the
-//!   variable's class (`AnalysisResult::instance_classes`, or the
-//!   object-type lattice's scope-keyed singleton via
-//!   [`crate::definition::receiver_instance_class_at`]),
-//!   jump to that `ClassDef`'s name span.
+//! - **Variable receiver** (`$obj`) — an actual retained object read identifies
+//!   its original class allocation. Nominal type candidates cannot supply a
+//!   local declaration; foreign source requires its own navigation target.
 //! - **Method receiver** — when the cursor sits inside a class body on a
 //!   word that names one of that class's methods, jump to the enclosing
 //!   class's definition (the method's owning *type*).
@@ -36,7 +34,7 @@ use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_lexer::LineIndex;
 
 use crate::definition::{LspRange, byte_offset_at, span_to_range};
-use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::hover::find_word_span_at_position;
 
 /// Compute "go-to-type-definition" locations for the symbol at the
 /// cursor.
@@ -47,21 +45,47 @@ pub fn type_definition(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
-    let line_index = LineIndex::new(source);
-
-    // 1. Variable receiver: `$obj` with a known instance class —
-    //    `instance_classes` first, then the object-type lattice's
-    //    scope-keyed singleton at the cursor, the same accessor precedence
-    //    every dispatch consumer uses.
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let cursor = byte_offset_at(&line_index, source, line, character);
-        if let Some(class_q) =
-            crate::definition::receiver_instance_class_at(analysis, &var_name, true, cursor)
-            && let Some(cd) = find_class(analysis, class_q)
-        {
-            return vec![span_to_range(source, &line_index, cd.name_span)];
-        }
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
         return Vec::new();
+    };
+    let line_index = LineIndex::new(source);
+    let cursor = byte_offset_at(&line_index, source, line, character);
+    if !analysis.allows_lexical_declaration_advice() {
+        let config = current.config();
+        let image = tcl_lexer::SourceImage::document(source);
+        if analysis
+            .original_variable_root_in_source(&image, config, cursor)
+            .is_some()
+        {
+            return crate::receiver_identity::class_at_read(analysis, source, cursor)
+                .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
+                .unwrap_or_default();
+        }
+        return match crate::method_symbol::local_candidate(source, analysis, line, character) {
+            std::ops::ControlFlow::Break(Some(method)) => method
+                .declaring_class_in(source, analysis)
+                .map(|class| {
+                    vec![span_to_range(
+                        source,
+                        &line_index,
+                        class.name_input().span(),
+                    )]
+                })
+                .unwrap_or_default(),
+            std::ops::ControlFlow::Break(None) | std::ops::ControlFlow::Continue(()) => Vec::new(),
+        };
+    }
+
+    // The actual object read retains its original class allocation. A
+    // singleton candidate type cannot supply a type-navigation declaration.
+    if crate::definition::substituting_var_at_position(source, analysis, line, character, cursor)
+        .is_some()
+    {
+        let cursor = byte_offset_at(&line_index, source, line, character);
+        return crate::receiver_identity::class_at_read(analysis, source, cursor)
+            .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
+            .unwrap_or_default();
     }
 
     // 2. Method receiver: a bare word inside a class body that names a
@@ -76,26 +100,6 @@ pub fn type_definition(
         return vec![span_to_range(source, &line_index, cd.name_span)];
     }
     Vec::new()
-}
-
-/// Resolve an already-qualified class `name` (an `instance_classes` value,
-/// which the analyser stored namespace-aware) to its `ClassDef`.
-fn find_class<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ClassDef> {
-    // `instance_classes` stores the qualified name, which is the `all_classes`
-    // key, so the exact lookup is the resolving path; the `::`-prefixed spelling
-    // covers a caller that passes the unprefixed qualified form.  A
-    // namespace-blind simple-name scan is intentionally *not* used — it could
-    // jump to a same-named class in an unrelated namespace, the exact wrong
-    // target that `instance_classes`' namespace-aware inference already avoids.
-    if let Some(cd) = analysis.all_classes.get(name) {
-        return Some(cd);
-    }
-    let prefixed = if name.starts_with("::") {
-        name.to_owned()
-    } else {
-        format!("::{name}")
-    };
-    analysis.all_classes.get(&prefixed)
 }
 
 /// The innermost class whose body (including any separate `oo::define`
@@ -155,7 +159,7 @@ mod tests {
     fn method_word_in_class_body_jumps_to_class() {
         let src = "oo::class create Greeter {\n\
                    method greet {} { return hi }\n\
-                   method again {} { greet }\n\
+                   method again {} { my greet }\n\
                    }\n";
         let analysis = analyse(src);
         // Cursor on the `greet` call inside `again`'s body (2nd occ).
@@ -210,5 +214,31 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `::A::Widget`'s declaration is on line 1, not `::B::Widget`'s line 6.
         assert_eq!(locs[0].start_line, 1, "{locs:?}");
+    }
+}
+
+#[cfg(test)]
+mod original_type_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    #[test]
+    fn original_method_type_navigation_uses_opaque_declaring_class_without_reporting_maps() {
+        // Implementation contract: naming.consumer.original-type-and-implementation-navigation
+        // docs/design/analysis/name-resolution-proofs/original-type-and-implementation-navigation.md
+        let source = "oo::class create C\\uD800 {method m\\uD800 {} {}; method m\\uD801 {} {}}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        for name in ["m\\uD800", "m\\uD801"] {
+            let cursor = u32::try_from(source.find(name).unwrap()).unwrap();
+            let ranges = type_definition(source, 0, cursor, &analysis);
+            assert_eq!(ranges.len(), 1);
+            let class = analysis.original_class_declarations().next().unwrap();
+            assert_eq!(
+                ranges[0],
+                span_to_range(source, &LineIndex::new(source), class.name_input().span())
+            );
+        }
+        assert!(type_definition(&format!("# changed\n{source}"), 1, 35, &analysis).is_empty());
     }
 }

@@ -1,0 +1,106 @@
+Tcl_Obj *
+Tcl_ObjSetVar2(
+    Tcl_Interp *interp,		/* Command interpreter in which variable is to
+				 * be found. */
+    Tcl_Obj *part1Ptr,		/* Points to an object holding the name of an
+				 * array (if part2 is non-NULL) or the name of
+				 * a variable. */
+    Tcl_Obj *part2Ptr,		/* If non-NULL, points to an object holding
+				 * the name of an element in the array
+				 * part1Ptr. */
+    Tcl_Obj *newValuePtr,	/* New value for variable. */
+    int flags)			/* Various flags that tell how to set value:
+				 * any of TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_APPEND_VALUE, TCL_LIST_ELEMENT, or
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    Var *varPtr, *arrayPtr;
+
+    /*
+     * Filter to pass through only the flags this interface supports.
+     */
+
+    flags &= (TCL_GLOBAL_ONLY|TCL_NAMESPACE_ONLY|TCL_LEAVE_ERR_MSG
+	    |TCL_APPEND_VALUE|TCL_LIST_ELEMENT);
+    varPtr = TclObjLookupVarEx(interp, part1Ptr, part2Ptr, flags, "set",
+	    /*createPart1*/ 1, /*createPart2*/ 1, &arrayPtr);
+    if (varPtr == NULL) {
+	if (newValuePtr->refCount == 0) {
+	    Tcl_DecrRefCount(newValuePtr);
+	}
+	return NULL;
+    }
+
+    return TclPtrSetVarIdx(interp, varPtr, arrayPtr, part1Ptr, part2Ptr,
+	    newValuePtr, flags, -1);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclPtrSetVar --
+ *
+ *	This function is the same as Tcl_SetVar2Ex above, except that it
+ *	requires pointers to the variable's Var structs in addition to the
+ *	variable names.
+ *
+ * Results:
+ *	Returns a pointer to the Tcl_Obj holding the new value of the
+ *	variable. If the write operation was disallowed because an array was
+ *	expected but not found (or vice versa), then NULL is returned; if the
+ *	TCL_LEAVE_ERR_MSG flag is set, then an explanatory message will be
+ *	left in the interpreter's result. Note that the returned object may
+ *	not be the same one referenced by newValuePtr; this is because
+ *	variable traces may modify the variable's value.
+ *
+ * Side effects:
+ *	The value of the given variable is set. If either the array or the
+ *	entry didn't exist then a new variable is created.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Obj *
+TclPtrSetVar(
+    Tcl_Interp *interp,		/* Command interpreter in which variable is to
+				 * be looked up. */
+    Tcl_Var varPtr,		/* Reference to the variable to set. */
+    Tcl_Var arrayPtr,		/* Reference to the array containing the
+				 * variable, or NULL if the variable is a
+				 * scalar. */
+    Tcl_Obj *part1Ptr,		/* Name of an array (if part2 is non-NULL) or
+				 * the name of a variable. */
+    Tcl_Obj *part2Ptr,		/* If non-NULL, gives the name of an element
+				 * in the array part1. */
+    Tcl_Obj *newValuePtr,	/* New value for variable. */
+    int flags)			/* OR-ed combination of TCL_GLOBAL_ONLY, and
+				 * TCL_LEAVE_ERR_MSG bits. */
+{
+    if (varPtr == NULL) {
+	Tcl_Panic("varPtr must not be NULL");
+    }
+    if (part1Ptr == NULL) {
+	Tcl_Panic("part1Ptr must not be NULL");
+    }
+    if (newValuePtr == NULL) {
+	Tcl_Panic("newValuePtr must not be NULL");
+    }
+    return TclPtrSetVarIdx(interp, (Var *) varPtr, (Var *) arrayPtr,
+	    part1Ptr, part2Ptr, newValuePtr, flags, -1);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * ListAppendInVar, StringAppendInVar --
+ *
+ *	Support functions for TclPtrSetVarIdx that implement various types of
+ *	appending operations.
+ *
+ * Results:
+ *	ListAppendInVar returns a Tcl result code (from the core list append
+ *	operation). StringAppendInVar has no return value.
+ *
+ * Side effects:
+ *	The variable or element of the array is updated. This may make the
+ *	variable/element exist. Reference counts of values may be updated.

@@ -1,0 +1,4 @@
+#include <stdio.h>
+#include <string.h>
+#include "tcl.h"
+int main(int argc,char**argv){Tcl_FindExecutable(argv[0]);Tcl_Interp*i=Tcl_CreateInterp();Tcl_Obj*d=Tcl_NewDictObj(),*k=Tcl_NewStringObj("k",1),*v=Tcl_NewStringObj("V",1);Tcl_IncrRefCount(d);Tcl_IncrRefCount(k);Tcl_IncrRefCount(v);Tcl_DictObjPut(i,d,k,v);Tcl_DictSearch s;Tcl_Obj*sk,*sv;int done;Tcl_DictObjFirst(i,d,&s,&sk,&sv,&done);printf("before\t%d\t%d\t%d\t%d\n",d->refCount,k->refCount,v->refCount,sk==k&&sv==v);fflush(stdout);Tcl_DictObjPut(i,d,argc>1&&strcmp(argv[1],"add")==0?Tcl_NewStringObj("other",-1):k,Tcl_NewStringObj("NEW",-1));printf("after\t%d\t%d\t%d\n",d->refCount,k->refCount,v->refCount);fflush(stdout);if(argc>2)Tcl_DictObjNext(&s,&sk,&sv,&done);else Tcl_DictObjDone(&s);puts("closed");Tcl_DecrRefCount(d);Tcl_DecrRefCount(k);Tcl_DecrRefCount(v);Tcl_DeleteInterp(i);Tcl_Finalize();return 0;}

@@ -110,6 +110,8 @@ impl NativeLoweringDecline {
 /// Why a whole function stayed on the legacy structured emission path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionDecline {
+    /// The original chunk must be admitted by its genuine native compiler first.
+    NativeCompilationAdmissionRequired,
     /// The `NativeLowering` pass is not enabled.
     PassDisabled,
     /// The compilation unit retained no executable function for the body.
@@ -127,6 +129,7 @@ impl FunctionDecline {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::NativeCompilationAdmissionRequired => "native-compilation-admission-required",
             Self::PassDisabled => "pass-disabled",
             Self::NoExecutableFunction => "no-executable-function",
             Self::InvalidExecutableIr => "invalid-executable-ir",

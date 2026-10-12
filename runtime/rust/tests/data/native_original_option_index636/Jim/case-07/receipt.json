@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-option-index636/Jim/probe.elf",
+    "7"
+  ],
+  "cwd": "/workspace/.proofs/root-native-option-index636/Jim/case-07",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.0035573170171119273,
+  "stdout": "/workspace/.proofs/root-native-option-index636/Jim/case-07/execute.stdout",
+  "stdout_sha256": "9eef2fed40d45b220bf1c32e63178920df3057411e959f1c7aaa3d2945650bf6",
+  "stderr": "/workspace/.proofs/root-native-option-index636/Jim/case-07/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 7,
+  "executable_sha256_before": "8161915211d0869dea710b2b53fd9931fcafcda3058ccb920a670e4cff74f690",
+  "executable_sha256_after": "8161915211d0869dea710b2b53fd9931fcafcda3058ccb920a670e4cff74f690"
+}

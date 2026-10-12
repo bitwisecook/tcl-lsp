@@ -1,0 +1,106 @@
+ *
+ * ----------------------------------------------------------------------
+ */
+static inline void
+SetPropertyList(
+    PropertyList *propList,	/* The property list to write. Replaces the
+				 * property list's contents. */
+    Tcl_Size objc,		/* Number of property names. */
+    Tcl_Obj *const *objv)	/* Property names. */
+{
+    Tcl_Size i, n;
+    Tcl_Obj *propObj;
+    int isNew;
+    Tcl_HashTable uniqueTable;
+
+    for (i=0 ; i<objc ; i++) {
+	Tcl_IncrRefCount(objv[i]);
+    }
+    FOREACH(propObj, *propList) {
+	Tcl_DecrRefCount(propObj);
+    }
+    if (i != objc) {
+	if (objc == 0) {
+	    Tcl_Free(propList->list);
+	} else if (i) {
+	    propList->list = (Tcl_Obj **)
+		    Tcl_Realloc(propList->list, sizeof(Tcl_Obj *) * ((size_t)objc));
+	} else {
+	    propList->list = (Tcl_Obj **)
+		    Tcl_Alloc(sizeof(Tcl_Obj *) * ((size_t)objc));
+	}
+    }
+    propList->num = 0;
+    if (objc > 0) {
+	Tcl_InitObjHashTable(&uniqueTable);
+	for (i=n=0 ; i<objc ; i++) {
+	    Tcl_CreateHashEntry(&uniqueTable, objv[i], &isNew);
+	    if (isNew) {
+		propList->list[n++] = objv[i];
+	    } else {
+		Tcl_DecrRefCount(objv[i]);
+	    }
+	}
+	propList->num = n;
+
+	/*
+	 * Shouldn't be necessary, but maintain num/list invariant.
+	 */
+
+	if (n != objc) {
+	    propList->list = (Tcl_Obj **)
+		    Tcl_Realloc(propList->list, sizeof(Tcl_Obj *) * ((size_t)n));
+	}
+	Tcl_DeleteHashTable(&uniqueTable);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOInstallReadableProperties --
+ *
+ *	Helper for writing the readable property list (which is actually a set)
+ *	that includes flushing the name cache.
+ *
+ * ----------------------------------------------------------------------
+ */
+void
+TclOOInstallReadableProperties(
+    PropertyStorage *props,	/* Which property list to install into. */
+    Tcl_Size objc,		/* Number of property names. */
+    Tcl_Obj *const *objv)	/* Property names. */
+{
+    if (props->allReadableCache) {
+	Tcl_DecrRefCount(props->allReadableCache);
+	props->allReadableCache = NULL;
+    }
+
+    SetPropertyList(&props->readable, objc, objv);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOInstallWritableProperties --
+ *
+ *	Helper for writing the writable property list (which is actually a set)
+ *	that includes flushing the name cache.
+ *
+ * ----------------------------------------------------------------------
+ */
+void
+TclOOInstallWritableProperties(
+    PropertyStorage *props,	/* Which property list to install into. */
+    Tcl_Size objc,		/* Number of property names. */
+    Tcl_Obj *const *objv)	/* Property names. */
+{
+    if (props->allWritableCache) {
+	Tcl_DecrRefCount(props->allWritableCache);
+	props->allWritableCache = NULL;
+    }
+
+    SetPropertyList(&props->writable, objc, objv);
+}
+
+/*

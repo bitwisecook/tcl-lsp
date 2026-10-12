@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::family_b_tests::string_length_base_guard_declines_and_generic_dispatch_remains_available ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.98s
+

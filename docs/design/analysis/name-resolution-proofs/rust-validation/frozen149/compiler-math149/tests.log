@@ -1,0 +1,19 @@
+
+running 5 tests
+test command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate ... 
+thread 'command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate' (588910) panicked at rust/tcl-compiler/src/command_binding/original_math_function.rs:800:18:
+sealed function-name value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::original_math_function::tests::original_math_function_purposes_separate_fixed_tables_and_command_slots ... ok
+test command_binding::original_math_function::tests::original_math_navigation_retains_installed_allocation_and_operand_barriers ... ok
+test command_binding::original_math_function::tests::original_math_policy_requires_the_selected_execution_name_recipe ... ok
+test command_binding::original_math_function::tests::original_math_topology_is_exact_without_fabricating_head_words ... ok
+
+failures:
+
+failures:
+    command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 8169 filtered out; finished in 3.19s
+

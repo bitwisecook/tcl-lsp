@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::tests::hidden_class_and_private_dispatchers_retire_by_owner_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.91s
+

@@ -1,0 +1,4874 @@
+[
+  {
+    "provider": "8.4.20",
+    "original_case": 0,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "a7e5eb101e00dd73f9e5608de140c9b87167911c864c8a8dfd2cfeb3cd33fbfb",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 0,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 0,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 0,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 0,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 0,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 0,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 0,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 0,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 0,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 0,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 1,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "7a313ef085e7c3f4b2d80dfa207833e6068edb0a1de15d37bf2af72c5420cf30",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 1,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 1,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 1,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 1,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 1,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 1,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 1,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 1,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 1,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 1,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 2,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "15ecdbc6091e2c2206c5d6384cfb65b655c1cdd0424837de60795c02866ea6e7",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 2,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 2,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 2,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 2,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 2,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 2,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 2,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 2,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 2,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 2,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 3,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "0014dc8ad0f608aa176edade722b050b9f5fe362e2801e697071dda79478e088",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 3,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 3,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 3,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 3,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 3,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 3,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 3,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 3,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 3,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 3,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 4,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "943fcb766b2eb1e080eddea4e4014bb92a24b33d7a94e9846605d886bd3f0c38",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 4,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 4,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 4,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 4,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 4,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 4,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 4,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 4,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 4,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 4,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 5,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "f2bf2cca963557ffa79cec5a0c1752141b8175b8a7bb48caff2b4608c0118cef",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 5,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 5,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 5,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 5,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 5,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 5,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a686f6c6465723a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 5,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 5,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 5,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 5,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 6,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "4987a5c86e14033417a888e6a326d05a369f917c085a532e32b07311f749025f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 6,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 6,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 6,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 6,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 6,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 6,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 6,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 6,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 6,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 6,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.4.20",
+    "original_case": 7,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "cd2e47c7fe26d9eadc20439d70ab5a09659e2d6763722ceac7e65ab7feabecae",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 7,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e342e3230",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 7,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 7,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 7,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 7,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 7,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 7,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 7,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 7,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 7,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "626164206f7074696f6e2022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 0,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "19dc286b6e569732fd472a8213d1504c3f757a8eabbfa02a97f094693e381c77",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 0,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 0,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 0,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 0,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 0,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 0,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 0,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 0,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 0,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 0,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 1,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "124ca665162526c3c0db6c8d2c39166edbf8e210460b4e39e9196aeb8ad81604",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 1,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 1,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 1,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 1,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 1,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 1,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 1,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 1,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 1,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 1,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 2,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "0714a8b5b886313d451364b0894e937009ddddb5f8c6e9bb47149fdd19735c35",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 2,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 2,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 2,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 2,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 2,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 2,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 2,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 2,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 2,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 2,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 3,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "c4269ee7093a93bde8467b116d5604f6082f9f76e8f231798cef103a679be4c1",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 3,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 3,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 3,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 3,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 3,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 3,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 3,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 3,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 3,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 3,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 4,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "0b539365a86c1ebb8b5413fc0b5777ee229cd28b3ca1260e774448e5599c4554",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 4,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 4,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 4,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 4,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 4,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 4,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 4,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 4,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 4,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 4,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 5,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "ea489ad805c783c4c33453b3b56bd61f127cbe2df0d4981198e45c1eb5241fb8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 5,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 5,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 5,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 5,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 5,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 5,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a686f6c6465723a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 5,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 5,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 5,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 5,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 6,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "205721edf0e8cab8965bb8262568d5c3c64553eb88f9447d261dee9722cbd255",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 6,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 6,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 6,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 6,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 6,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 6,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 6,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 6,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 6,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 6,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.5.19",
+    "original_case": 7,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "bd800a1565f1705ea715c8cd0da003cbd099c828586db1f3757e3bacc445c632",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 7,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e352e3139",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 7,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 7,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 7,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 7,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 7,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 7,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 7,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 7,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 7,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 0,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "3ac9af788d9e2f37a5b52738e8f5eae639a1ca4e6383bd4acb0578c1946c4901",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 0,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 0,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 0,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 0,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 0,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 0,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 0,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 0,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 0,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 0,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 1,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "7299b57daaa4dfe1982ee0123ff56eeedd8eac12cc462105d5200123b0321951",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 1,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 1,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 1,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 1,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 1,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 1,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 1,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 1,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 1,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 1,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 2,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "fe93875fd7a71ef91ec1fd5c49c338c5a28f00d64ebfa861bc26ee1ead673d21",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 2,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 2,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 2,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 2,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 2,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 2,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 2,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 2,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 2,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 2,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 3,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "32570c1987bae4dadabfeb9b75f5f905bb51fb27eb869ebc62ac17150392c0f1",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 3,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 3,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 3,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 3,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 3,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 3,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 3,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 3,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 3,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 3,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 4,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "b05b2a85966f64520e5ac130a9e922355b58f1b48798119712971c30424139d2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 4,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 4,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 4,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 4,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 4,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 4,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 4,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 4,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 4,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 4,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 5,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "1ca2bb1dcb7a2621fddfffd60438f11e9215bb836c7cdc7dd3902e6f38a1bbb4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 5,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 5,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 5,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 5,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 5,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 5,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a686f6c6465723a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 5,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 5,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 5,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 5,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 6,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "cde5c54ede49a8c8e91f70bf9aa28a295d9049f97e7a9f6326309f9f030c5a57",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 6,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 6,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 6,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 6,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 6,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 6,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 6,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 6,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 6,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 6,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "8.6.18",
+    "original_case": 7,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "9cdf15c6e8117d7b3a95b0262132b4b775bf5b8a3a6cbec973e24656a7167c4f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 7,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "382e362e3138",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 7,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 7,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 21,
+        "original_case": 7,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 2
+      },
+      {
+        "line": 25,
+        "original_case": 7,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 7,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 7,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 7,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 7,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 2
+      },
+      {
+        "line": 40,
+        "original_case": 7,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f6e7374616e74223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 16,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 0,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "6a3bc45349681165b2bcab216bafe5c6554fdbb1449d44229a6e5a2f4afb8496",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 0,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 0,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 0,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 24,
+        "original_case": 0,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 28,
+        "original_case": 0,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 0,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "56414c5545",
+        "events": 2
+      },
+      {
+        "line": 35,
+        "original_case": 0,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 38,
+        "original_case": 0,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 2
+      },
+      {
+        "line": 41,
+        "original_case": 0,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 2
+      },
+      {
+        "line": 44,
+        "original_case": 0,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 31,
+        "label": "B",
+        "phase": "public-result-getter"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 1,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "f82f1ff0ee12d94fddae44dce327119b83b4161c2c490fb82a4f8ba646d9e1ff",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 1,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 1,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 1,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 24,
+        "original_case": 1,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a206f726967696e616c20636f6e7374616e742074726163652072656a6563746564",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 1,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 1,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "56414c5545",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 1,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 1,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "30",
+        "events": 2
+      },
+      {
+        "line": 43,
+        "original_case": 1,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a206f726967696e616c20636f6e7374616e742074726163652072656a6563746564",
+        "events": 2
+      },
+      {
+        "line": 46,
+        "original_case": 1,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "30",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 19,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 2,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "f4df3af5434283a24a919dc1d0dd7eea6540b680acce917962be25abbcc6d4a4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 2,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 2,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 2,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 2,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 2,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 2,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 2,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 2,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 2,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 2,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 3,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "2627e9d2816261cb51a78921864fd049e3b4ce3321647b77254db6d2ecb6bdd8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 3,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 3,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 3,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 3,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 3,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 3,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "524543524541544544",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 3,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 3,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 3,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 3,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 4,
+    "returncode": -11,
+    "termination_signal": 11,
+    "closed_case": false,
+    "closed_marker": false,
+    "stdout_sha256": "05a9553c66d8d32671636374e3864e1350cc509adf51e7e1cb0178d2c9f09707",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 5,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 4,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 4,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 4,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 4,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 4,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": [
+      "HEADERS|4|after-eval-before-public-result|events=1|trace_calls=1|a=0x559e6fe16b80|a_string=1|a_refs=1|b=0x559e6fe16be0|b_string=0|b_refs=1",
+      "ROW|4|post-exists-and-array|0|312030|events=1",
+      "EVAL_RETURN|4|post-scalar-read|0|events=1",
+      "HEADERS|4|after-eval-before-public-result|events=1|trace_calls=1|a=0x559e6fe16b80|a_string=1|a_refs=1|b=0x559e6fe16be0|b_string=0|b_refs=1",
+      ""
+    ]
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 5,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "9cf23bba5aab3b5b1f2910e69553eab1265e7222a9e2c31e070d7e83dda563eb",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 5,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 5,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 5,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 5,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 5,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 5,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "524543524541544544",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 5,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 5,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 5,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 5,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 6,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "ae03ba9c2f43c7daf5688d75a37e8eaa2f6e7927868de71527c6080baf5e5433",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 6,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 6,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 6,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 24,
+        "original_case": 6,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 28,
+        "original_case": 6,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 31,
+        "original_case": 6,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "54524143455f56414c5545",
+        "events": 1
+      },
+      {
+        "line": 34,
+        "original_case": 6,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 37,
+        "original_case": 6,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      },
+      {
+        "line": 40,
+        "original_case": 6,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 1
+      },
+      {
+        "line": 43,
+        "original_case": 6,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.0.4",
+    "original_case": 7,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "2250312d2a48a24d80c1c5c7564e32d7a95371c63b841b524e99144a4a9f4909",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 7,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e302e34",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 7,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 7,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 7,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 7,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 7,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "494e4e4552",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 7,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 7,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 7,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 7,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 0,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "036edd84196850c472a0ec55e19edfef742190409cd03fcdb63f71d219ee85f9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 0,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 0,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 0,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 24,
+        "original_case": 0,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 28,
+        "original_case": 0,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 0,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "56414c5545",
+        "events": 2
+      },
+      {
+        "line": 35,
+        "original_case": 0,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 38,
+        "original_case": 0,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 2
+      },
+      {
+        "line": 41,
+        "original_case": 0,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 2
+      },
+      {
+        "line": 44,
+        "original_case": 0,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 31,
+        "label": "B",
+        "phase": "public-result-getter"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 1,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "2dd6ef8fee9832cadd3f80174d4e8ee68d2758f0f0eff833ef6d65eac0728300",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 1,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 1,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 1,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 24,
+        "original_case": 1,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a206f726967696e616c20636f6e7374616e742074726163652072656a6563746564",
+        "events": 2
+      },
+      {
+        "line": 28,
+        "original_case": 1,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 2
+      },
+      {
+        "line": 31,
+        "original_case": 1,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "56414c5545",
+        "events": 2
+      },
+      {
+        "line": 34,
+        "original_case": 1,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 2
+      },
+      {
+        "line": 37,
+        "original_case": 1,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "30",
+        "events": 2
+      },
+      {
+        "line": 43,
+        "original_case": 1,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a206f726967696e616c20636f6e7374616e742074726163652072656a6563746564",
+        "events": 2
+      },
+      {
+        "line": 46,
+        "original_case": 1,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "30",
+        "events": 2
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      },
+      {
+        "line": 19,
+        "label": "B",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 2,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "e63b02345b9798b0174b0da7476982cbcf442df65db1b491e730902809c7c8ad",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 2,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 2,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 2,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 2,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 2,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 2,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 2,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 2,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 2,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 2,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 3,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "84165ff2d6f6ac2b94702c572239398195356e5898a6f2b13001a86eb2b93f1e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 3,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 3,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 3,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 3,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 3,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 3,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "524543524541544544",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 3,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 3,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 3,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 3,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 4,
+    "returncode": -11,
+    "termination_signal": 11,
+    "closed_case": false,
+    "closed_marker": false,
+    "stdout_sha256": "8d58fcc87e1a1a234f44812258c0928bd198a0387e65da9193ede957d82ce72b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 5,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 4,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 4,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 4,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 4,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 4,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": [
+      "HEADERS|4|after-eval-before-public-result|events=1|trace_calls=1|a=0x564ec4ec83b0|a_string=1|a_refs=1|b=0x564ec4ec8440|b_string=0|b_refs=1",
+      "ROW|4|post-exists-and-array|0|312030|events=1",
+      "EVAL_RETURN|4|post-scalar-read|0|events=1",
+      "HEADERS|4|after-eval-before-public-result|events=1|trace_calls=1|a=0x564ec4ec83b0|a_string=1|a_refs=1|b=0x564ec4ec8440|b_string=0|b_refs=1",
+      ""
+    ]
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 5,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "21e8e79095274e619d0864ee1dcd1d3e244cf94cfa55f7b90ed5b72b1ed3380e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 5,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 5,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 5,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 5,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 5,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 5,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "524543524541544544",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 5,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 5,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 5,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 5,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "30",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 6,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "25e3bc4e537f061a2dea667bb5382766afddf385188bdf7a82d59ecf71a676c6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 6,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 6,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 6,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 24,
+        "original_case": 6,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 28,
+        "original_case": 6,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 31,
+        "original_case": 6,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "54524143455f56414c5545",
+        "events": 1
+      },
+      {
+        "line": 34,
+        "original_case": 6,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 37,
+        "original_case": 6,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      },
+      {
+        "line": 40,
+        "original_case": 6,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 1
+      },
+      {
+        "line": 43,
+        "original_case": 6,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "9.1.0",
+    "original_case": 7,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "42b7902e9f5d524c303041daf12de052a2cf0f02369802b0d71a956eec4c938a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 7,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "392e312e30",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 7,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "636f6e7374",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 7,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 25,
+        "original_case": 7,
+        "phase": "worker",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 29,
+        "original_case": 7,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "312030",
+        "events": 1
+      },
+      {
+        "line": 32,
+        "original_case": 7,
+        "phase": "post-scalar-read",
+        "code": 0,
+        "result_hex": "494e4e4552",
+        "events": 1
+      },
+      {
+        "line": 35,
+        "original_case": 7,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 1
+      },
+      {
+        "line": 38,
+        "original_case": 7,
+        "phase": "post-constant-query",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      },
+      {
+        "line": 41,
+        "original_case": 7,
+        "phase": "post-mutable-set",
+        "code": 1,
+        "result_hex": "63616e27742073657420223a3a746172676574223a207661726961626c65206973206120636f6e7374616e74",
+        "events": 1
+      },
+      {
+        "line": 44,
+        "original_case": 7,
+        "phase": "post-constant-after-set",
+        "code": 0,
+        "result_hex": "31",
+        "events": 1
+      }
+    ],
+    "events": [
+      {
+        "line": 15,
+        "label": "A",
+        "phase": "worker"
+      }
+    ],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 0,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "23bde004f0a86e12a8eb218ef69bdd0a1b39ae08ebcd8231529aeb76f9216e55",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 0,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 0,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 0,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 0,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 0,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 0,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 0,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 0,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 0,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 0,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 1,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "12c79839f200dc2f5ceca95025f80b36e338798d6e108b2d15623ee16f154c92",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 1,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 1,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 1,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 1,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 1,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 1,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 1,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 1,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 1,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 1,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 2,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "23b5d10494eac1a8146096ab591666f47c091566b60c958a851e68bf823bf6cf",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 2,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 2,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 2,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 2,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 2,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 2,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 2,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 2,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 2,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 2,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 3,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "d6a1faddc231ce94f1c2c25f291c85890135a6455326e7f24f5c0d31f4273873",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 3,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 3,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 3,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 3,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 3,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 3,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 3,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 3,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 3,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 3,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 4,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "16445d4d5fcfbf8fc571be2c8264c1a1e2d04cb5c7dc3fc3f6a78cc7d4f07e6d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 4,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 4,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 4,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 4,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 4,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 4,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 4,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 4,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 4,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 4,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 5,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "91f458fa1f5c7b99983a15c265335ea85dbf9f703632a8ccc649ec4f53d193b1",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 5,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 5,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 5,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 5,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 5,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 5,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a686f6c6465723a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 5,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 5,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 5,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 5,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 6,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "2c25888a7b294b573fb05b600ec22623378b7db459e6953f17c6c877fd6b9c7f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 6,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 6,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 6,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 6,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 6,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 6,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 6,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 6,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 6,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 6,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  },
+  {
+    "provider": "jim",
+    "original_case": 7,
+    "returncode": 0,
+    "termination_signal": null,
+    "closed_case": true,
+    "closed_marker": true,
+    "stdout_sha256": "b6b278cf6182816638acd4ec85ac767ccdc659948cdcca1759b3901e6ad02cd5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "row_count": 10,
+    "rows": [
+      {
+        "line": 4,
+        "original_case": 7,
+        "phase": "version",
+        "code": 0,
+        "result_hex": "302e38342d392d6735626163376339",
+        "events": 0
+      },
+      {
+        "line": 6,
+        "original_case": 7,
+        "phase": "availability",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 10,
+        "original_case": 7,
+        "phase": "setup",
+        "code": 0,
+        "result_hex": "5245414459",
+        "events": 0
+      },
+      {
+        "line": 19,
+        "original_case": 7,
+        "phase": "worker",
+        "code": 1,
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+        "events": 0
+      },
+      {
+        "line": 23,
+        "original_case": 7,
+        "phase": "post-exists-and-array",
+        "code": 0,
+        "result_hex": "302030",
+        "events": 0
+      },
+      {
+        "line": 26,
+        "original_case": 7,
+        "phase": "post-scalar-read",
+        "code": 1,
+        "result_hex": "63616e2774207265616420223a3a746172676574223a206e6f2073756368207661726961626c65",
+        "events": 0
+      },
+      {
+        "line": 29,
+        "original_case": 7,
+        "phase": "post-array-read",
+        "code": 0,
+        "result_hex": "",
+        "events": 0
+      },
+      {
+        "line": 32,
+        "original_case": 7,
+        "phase": "post-constant-query",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      },
+      {
+        "line": 35,
+        "original_case": 7,
+        "phase": "post-mutable-set",
+        "code": 0,
+        "result_hex": "4d55544142494c4954595f415454454d5054",
+        "events": 0
+      },
+      {
+        "line": 38,
+        "original_case": 7,
+        "phase": "post-constant-after-set",
+        "code": 1,
+        "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+        "events": 0
+      }
+    ],
+    "events": [],
+    "last_complete_lines": []
+  }
+]

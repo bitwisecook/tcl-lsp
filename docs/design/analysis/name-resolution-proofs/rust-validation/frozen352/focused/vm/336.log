@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources ... 
+thread 'interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources' (1361354) panicked at rust/tcl-vm/src/interp/native_precision_tests.rs:65:53:
+called `Result::unwrap()` on an `Err` value: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("selected original namespace evaluation holder"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 30.21s
+

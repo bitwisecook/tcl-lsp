@@ -477,7 +477,12 @@ fn catch_body_empty_pushes_empty() {
         vec![Op::PUSH1],
         "empty catch body → single push of empty"
     );
-    assert!(ctx.literals.entries().iter().any(String::is_empty));
+    assert!(
+        ctx.literals
+            .entries()
+            .iter()
+            .any(tcl_bytecode::NativeStringLiteral::is_empty)
+    );
 }
 
 #[test]
@@ -708,7 +713,7 @@ fn try_on_error_inline_direct() {
     let lvt = ctx.lvt.entries();
     assert!(lvt.iter().any(|v| v == "msg"), "handler var slot: {lvt:?}");
     assert!(
-        lvt.iter().any(|v| v.starts_with("#temp")),
+        lvt.iter().any(|v| v.starts_with(b"#temp")),
         "temp opts/result slots: {lvt:?}"
     );
 }
@@ -738,7 +743,7 @@ fn try_on_error_handler_var_is_first_slot() {
         .expect("errVar in LVT");
     let temp_idx = lvt
         .iter()
-        .position(|v| v.starts_with("#temp"))
+        .position(|v| v.starts_with(b"#temp"))
         .expect("temp in LVT");
     assert!(err_idx < temp_idx, "handler var precedes temps: {lvt:?}");
 }
@@ -1194,6 +1199,8 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     let blk = cfg.blocks.get_mut(&entry).unwrap();
     blk.statements = statements;
     blk.terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,

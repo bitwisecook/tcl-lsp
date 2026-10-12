@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::native_string::tests::original_match_artifact_preserves_renamed_registration_and_withdraws_replaced_target ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 10.27s
+

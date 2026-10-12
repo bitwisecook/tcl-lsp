@@ -1,0 +1,3 @@
+/workspace/.proofs/abstract-manufacturer-native336/manufacturer-visibility.tcl:1: Error: invalid command name "oo::abstract"
+Traceback (most recent call last):
+  File "/workspace/.proofs/abstract-manufacturer-native336/manufacturer-visibility.tcl", line 1

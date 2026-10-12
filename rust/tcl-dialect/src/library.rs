@@ -96,7 +96,7 @@ impl VersionKey {
 
 /// How a profile pins one shipped library's version (§7 "Libraries"
 /// column).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LibraryVersion {
     /// The library version follows the profile's embedded Tcl runtime —
     /// tcllib/Tk on the plain Tcl profiles (`wish` 8.6 ships Tk 8.6).
@@ -129,7 +129,7 @@ pub enum LibraryVersion {
 ///
 /// Either way an explicit versioned `package require` can only *raise*
 /// the floor, never lower it below the pin.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LibraryPin {
     /// The package name as spec data spells it.
     pub package: &'static str,

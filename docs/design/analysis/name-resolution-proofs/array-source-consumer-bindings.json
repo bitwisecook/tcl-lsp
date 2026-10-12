@@ -1,0 +1,1234 @@
+[
+  {
+    "id": "naming.array-source.combined-read-enumeration",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/array-source-combined-read-enumeration.md",
+    "problem_statement": "A scalar element VALUE is installed before array get/names consumes a(b). Treating that indexed receiver as an ordinary whole-array name can suppress a selected dictionary conversion error.",
+    "question": "What do array get and array names return for a(b) after the element holds the scalar VALUE?",
+    "conclusion": "All five C captures return normal empty for array get a(b) and array names a(b). Jim returns missing value to go with key for both: its indexed receiver attempts the scalar VALUE as a dictionary/list representation. This finite odd-list conversion result supplies neither a general dictionary success nor a normal read certificate.",
+    "scope": "Selected cases array-get-parens,array-names-parens from25 actual source programs per provider,150 total captured completions. Every case uses a new interpreter. Public Tcl_Eval or Jim_Eval consumes NUL-terminated ASCII source; binary-format/source-escape values are produced at runtime and are not raw zero source or independently held original native String objects. Result bytes are sampled after the guest completion through the actual public string getter. Source/header/library/executable and separate stdout/stderr hashes, compile/process0 and actual original command arrays are retained. C release associations and Jim git-describe tag are recorded, but this probe does not query a linked runtime patchlevel or object primary/refcount. BIG-IP is not tested; no Rust execution is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; librarySHA=532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; executableSHA=5a206bc4a8be86ebc4f16fe7ab2d1ede603903ead3ebf4ad584789895d75f414. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-get-parens\t0\t0\t\narray-names-parens\t0\t0\t\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.4",
+          "build-tcl8.4",
+          "stderr-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; librarySHA=94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; executableSHA=65045fd8185fb249adc3328e05b77e59053228c5eb16dcaf4390d0658a85fbf4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-get-parens\t0\t0\t\narray-names-parens\t0\t0\t\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.5",
+          "build-tcl8.5",
+          "stderr-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; librarySHA=980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; executableSHA=c6e5158450735a2b8a8b350d436df1a55239ee9daf1ba38ee6f2640adc07ceaa. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-get-parens\t0\t0\t\narray-names-parens\t0\t0\t\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.6",
+          "build-tcl8.6",
+          "stderr-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; librarySHA=dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; executableSHA=21baee6e61de27574b6a60baa1da95b8ab635efa49f7c985c0a8ba61e2816f01. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-get-parens\t0\t0\t\narray-names-parens\t0\t0\t\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.0",
+          "build-tcl9.0",
+          "stderr-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; librarySHA=513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; executableSHA=ba7203882ca9d0d9af06fc1cbb8aed2a458405680046ca64720fd3b08018bda4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-get-parens\t0\t0\t\narray-names-parens\t0\t0\t\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.1",
+          "build-tcl9.1",
+          "stderr-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84-9-g5bac7c9 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; librarySHA=a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da; executableSHA=616daed2a6071a8adc76ac1dc77b505cff843f2e4fed9a5dd0daf8e40a8959b8. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-get-parens\t1\t28\t6d697373696e672076616c756520746f20676f2077697468206b6579\narray-names-parens\t1\t28\t6d697373696e672076616c756520746f20676f2077697468206b6579\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-jim",
+          "build-jim",
+          "stderr-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No BIG-IP load/event or appliance-Tcl result for these exact programs is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/probe.c",
+        "sha256": "67c72e6f705c81c3758f6ff0e455bc6afa1996a7ea704ca47f8aa96b30840c87",
+        "description": "Exact public API/source producers and independently reset interpreter/guest result observer."
+      },
+      {
+        "id": "cases",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json",
+        "sha256": "b51abb476ac87f9a1957ab81d092896f6a64b460b2aee7d178b2cff669a760d0",
+        "description": "All25 named ASCII source strings match the exact C literal vector."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json",
+        "sha256": "dc1651ef2421ed9870620095c74e5232942948426b0b1d797a2c821f492bf8b9",
+        "description": "Six complete original source/header/library/executable/compile/process/raw stream associations."
+      },
+      {
+        "id": "replay",
+        "role": "implementation",
+        "path": "scripts/dev/replay-array-oo-source-controls.py",
+        "sha256": "d099fa238a83daa1159f0655af4f4c893d3a377204d378aa817f286049eb1888",
+        "description": "Maintained exact-input replayer requires captured build correspondence and separate new output; no execution of this script is inferred."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels array-get-parens,array-names-parens."
+      },
+      {
+        "id": "build-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json",
+        "sha256": "d7a6e52a209c1b943b4a84fc9e91bc9f9c7a8384d1e9fb12532fd805e9f3a812",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels array-get-parens,array-names-parens."
+      },
+      {
+        "id": "build-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json",
+        "sha256": "e377a2831dd7b6fdf2ac5383df71ddc7c4dfd075e20bf3da8bd358eaa7ce188d",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stdout.tsv",
+        "sha256": "6be20356479597fd026d09b276bbbadb58023c86b4e2440c2d61843998539a0f",
+        "description": "Exact25 completion/result-unit rows; selected labels array-get-parens,array-names-parens."
+      },
+      {
+        "id": "build-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json",
+        "sha256": "306279e54d4ba01cbf6fd790977a70707dcc82eabb75b5cbd36ff8311f369e65",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels array-get-parens,array-names-parens."
+      },
+      {
+        "id": "build-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json",
+        "sha256": "8a8cbca290a90c9df76b8241c7e9e87c14dfd3900fc06857ff8b485514c64eab",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels array-get-parens,array-names-parens."
+      },
+      {
+        "id": "build-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json",
+        "sha256": "29114d00f323c483dc653643f87d5f6315b046baa9d09e2c58d35f27c2b5d258",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stdout.tsv",
+        "sha256": "d944673515bc35d65cc92f3b55dfb6d992f22dcbd707557654b104a89c138d53",
+        "description": "Exact25 completion/result-unit rows; selected labels array-get-parens,array-names-parens."
+      },
+      {
+        "id": "build-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json",
+        "sha256": "52868889195e2450bbcf139dd0e187a54ad084d478174d88ee6b9a5a03280455",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate",
+        "assertion": "Selected C8.6 receiver metadata preserves the Combined original argv for scalar set and array set/get/names/unset a(b), while role-only and alias arguments cannot supply receiver form. It asserts no guest success, Normal transfer, physical root-only API or runtime cell identity.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_variable_table.rs",
+        "symbol": "NativeVariableTableProtocol::dictionary_arrays",
+        "purpose": "Selects array versus dictionary container model; actual indexed receiver/read/write/observer currency remains an independent compiler/runtime obligation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "python3",
+        "scripts/dev/replay-array-oo-source-controls.py",
+        "--tcl-root",
+        "${TCL_SOURCE_ROOT}",
+        "--jim-root",
+        "${JIM_SOURCE_ROOT}",
+        "--output",
+        "${NEW_OUTPUT}"
+      ],
+      "limitations": "The replayer first validates the retained whole input/stream bytes, then requires explicitly selected header/library hashes equal to this exact captured build. It compiles the unchanged probe in a new output directory, retaining compiler/process status and separate streams, and requires exact original output/status agreement. A different provider build needs an independently scoped new record. No maintained native launch or Rust passing result is claimed by attaching the runner. The original captures preserve observed unsupported/error doors; outer process0 is not guest success."
+    }
+  },
+  {
+    "id": "naming.array-source.combined-set-receiver",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/array-source-combined-set-receiver.md",
+    "problem_statement": "array set a(b) can be mistaken for a whole array literally named a(b), an ordinary element of a, or a dictionary-valued element. The combined receiver grammar and selected container model must be chosen before claiming a successful store.",
+    "question": "Does array set a(b), including the rooted ::N::a(b) form, create a whole array, reject an element receiver, or install an indexed dictionary value?",
+    "conclusion": "All five C captures reject both array-set forms with variable is not array. Jim completes both and reports1 1 1 for array exists root, array exists indexed receiver and info exists indexed receiver. The successful Jim dictionary-valued indexed receiver is distinct from a C whole-array receiver. This source result does not issue an original Normal-write receipt, native cell identity, observer closure or arbitrary dictionary membership.",
+    "scope": "Selected cases array-set-parens,array-set-qualified-parens from25 actual source programs per provider,150 total captured completions. Every case uses a new interpreter. Public Tcl_Eval or Jim_Eval consumes NUL-terminated ASCII source; binary-format/source-escape values are produced at runtime and are not raw zero source or independently held original native String objects. Result bytes are sampled after the guest completion through the actual public string getter. Source/header/library/executable and separate stdout/stderr hashes, compile/process0 and actual original command arrays are retained. C release associations and Jim git-describe tag are recorded, but this probe does not query a linked runtime patchlevel or object primary/refcount. BIG-IP is not tested; no Rust execution is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; librarySHA=532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; executableSHA=5a206bc4a8be86ebc4f16fe7ab2d1ede603903ead3ebf4ad584789895d75f414. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-set-parens\t1\t38\t63616e277420736574202261286229223a207661726961626c652069736e2774206172726179\narray-set-qualified-parens\t1\t43\t63616e27742073657420223a3a4e3a3a61286229223a207661726961626c652069736e2774206172726179\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.4",
+          "build-tcl8.4",
+          "stderr-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; librarySHA=94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; executableSHA=65045fd8185fb249adc3328e05b77e59053228c5eb16dcaf4390d0658a85fbf4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-set-parens\t1\t38\t63616e277420736574202261286229223a207661726961626c652069736e2774206172726179\narray-set-qualified-parens\t1\t43\t63616e27742073657420223a3a4e3a3a61286229223a207661726961626c652069736e2774206172726179\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.5",
+          "build-tcl8.5",
+          "stderr-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; librarySHA=980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; executableSHA=c6e5158450735a2b8a8b350d436df1a55239ee9daf1ba38ee6f2640adc07ceaa. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-set-parens\t1\t38\t63616e277420736574202261286229223a207661726961626c652069736e2774206172726179\narray-set-qualified-parens\t1\t43\t63616e27742073657420223a3a4e3a3a61286229223a207661726961626c652069736e2774206172726179\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.6",
+          "build-tcl8.6",
+          "stderr-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; librarySHA=dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; executableSHA=21baee6e61de27574b6a60baa1da95b8ab635efa49f7c985c0a8ba61e2816f01. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-set-parens\t1\t38\t63616e277420736574202261286229223a207661726961626c652069736e2774206172726179\narray-set-qualified-parens\t1\t43\t63616e27742073657420223a3a4e3a3a61286229223a207661726961626c652069736e2774206172726179\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.0",
+          "build-tcl9.0",
+          "stderr-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; librarySHA=513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; executableSHA=ba7203882ca9d0d9af06fc1cbb8aed2a458405680046ca64720fd3b08018bda4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-set-parens\t1\t38\t63616e277420736574202261286229223a207661726961626c652069736e2774206172726179\narray-set-qualified-parens\t1\t43\t63616e27742073657420223a3a4e3a3a61286229223a207661726961626c652069736e2774206172726179\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.1",
+          "build-tcl9.1",
+          "stderr-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84-9-g5bac7c9 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; librarySHA=a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da; executableSHA=616daed2a6071a8adc76ac1dc77b505cff843f2e4fed9a5dd0daf8e40a8959b8. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-set-parens\t0\t5\t3120312031\narray-set-qualified-parens\t0\t5\t3120312031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-jim",
+          "build-jim",
+          "stderr-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No BIG-IP load/event or appliance-Tcl result for these exact programs is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/probe.c",
+        "sha256": "67c72e6f705c81c3758f6ff0e455bc6afa1996a7ea704ca47f8aa96b30840c87",
+        "description": "Exact public API/source producers and independently reset interpreter/guest result observer."
+      },
+      {
+        "id": "cases",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json",
+        "sha256": "b51abb476ac87f9a1957ab81d092896f6a64b460b2aee7d178b2cff669a760d0",
+        "description": "All25 named ASCII source strings match the exact C literal vector."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json",
+        "sha256": "dc1651ef2421ed9870620095c74e5232942948426b0b1d797a2c821f492bf8b9",
+        "description": "Six complete original source/header/library/executable/compile/process/raw stream associations."
+      },
+      {
+        "id": "replay",
+        "role": "implementation",
+        "path": "scripts/dev/replay-array-oo-source-controls.py",
+        "sha256": "d099fa238a83daa1159f0655af4f4c893d3a377204d378aa817f286049eb1888",
+        "description": "Maintained exact-input replayer requires captured build correspondence and separate new output; no execution of this script is inferred."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels array-set-parens,array-set-qualified-parens."
+      },
+      {
+        "id": "build-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json",
+        "sha256": "d7a6e52a209c1b943b4a84fc9e91bc9f9c7a8384d1e9fb12532fd805e9f3a812",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels array-set-parens,array-set-qualified-parens."
+      },
+      {
+        "id": "build-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json",
+        "sha256": "e377a2831dd7b6fdf2ac5383df71ddc7c4dfd075e20bf3da8bd358eaa7ce188d",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stdout.tsv",
+        "sha256": "6be20356479597fd026d09b276bbbadb58023c86b4e2440c2d61843998539a0f",
+        "description": "Exact25 completion/result-unit rows; selected labels array-set-parens,array-set-qualified-parens."
+      },
+      {
+        "id": "build-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json",
+        "sha256": "306279e54d4ba01cbf6fd790977a70707dcc82eabb75b5cbd36ff8311f369e65",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels array-set-parens,array-set-qualified-parens."
+      },
+      {
+        "id": "build-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json",
+        "sha256": "8a8cbca290a90c9df76b8241c7e9e87c14dfd3900fc06857ff8b485514c64eab",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels array-set-parens,array-set-qualified-parens."
+      },
+      {
+        "id": "build-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json",
+        "sha256": "29114d00f323c483dc653643f87d5f6315b046baa9d09e2c58d35f27c2b5d258",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stdout.tsv",
+        "sha256": "d944673515bc35d65cc92f3b55dfb6d992f22dcbd707557654b104a89c138d53",
+        "description": "Exact25 completion/result-unit rows; selected labels array-set-parens,array-set-qualified-parens."
+      },
+      {
+        "id": "build-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json",
+        "sha256": "52868889195e2450bbcf139dd0e187a54ad084d478174d88ee6b9a5a03280455",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate",
+        "assertion": "Selected C8.6 receiver metadata preserves the Combined original argv for scalar set and array set/get/names/unset a(b), while role-only and alias arguments cannot supply receiver form. It asserts no guest success, Normal transfer, physical root-only API or runtime cell identity.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_variable_table.rs",
+        "symbol": "NativeVariableTableProtocol::dictionary_arrays",
+        "purpose": "Selects array versus dictionary container model; actual indexed receiver/read/write/observer currency remains an independent compiler/runtime obligation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "python3",
+        "scripts/dev/replay-array-oo-source-controls.py",
+        "--tcl-root",
+        "${TCL_SOURCE_ROOT}",
+        "--jim-root",
+        "${JIM_SOURCE_ROOT}",
+        "--output",
+        "${NEW_OUTPUT}"
+      ],
+      "limitations": "The replayer first validates the retained whole input/stream bytes, then requires explicitly selected header/library hashes equal to this exact captured build. It compiles the unchanged probe in a new output directory, retaining compiler/process status and separate streams, and requires exact original output/status agreement. A different provider build needs an independently scoped new record. No maintained native launch or Rust passing result is claimed by attaching the runner. The original captures preserve observed unsupported/error doors; outer process0 is not guest success."
+    }
+  },
+  {
+    "id": "naming.array-source.combined-unset",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/array-source-combined-unset.md",
+    "problem_statement": "array unset a(b) can be a quiet whole-array refusal or delete the actual indexed receiver. A mutation consumer must not transfer C no-op behaviour to the Jim dictionary-element path.",
+    "question": "Does array unset a(b) remove the element after set a(b) VALUE, and does the root container remain?",
+    "conclusion": "C8.4\u20139.1 report1 1: the element and root container remain. Jim reports0 1: the indexed element is removed and the root dictionary remains. This observes only the selected source mutation and subsequent existence queries; no arbitrary destructor, trace or lifetime closure is claimed.",
+    "scope": "Selected cases array-unset-parens from25 actual source programs per provider,150 total captured completions. Every case uses a new interpreter. Public Tcl_Eval or Jim_Eval consumes NUL-terminated ASCII source; binary-format/source-escape values are produced at runtime and are not raw zero source or independently held original native String objects. Result bytes are sampled after the guest completion through the actual public string getter. Source/header/library/executable and separate stdout/stderr hashes, compile/process0 and actual original command arrays are retained. C release associations and Jim git-describe tag are recorded, but this probe does not query a linked runtime patchlevel or object primary/refcount. BIG-IP is not tested; no Rust execution is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; librarySHA=532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; executableSHA=5a206bc4a8be86ebc4f16fe7ab2d1ede603903ead3ebf4ad584789895d75f414. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-unset-parens\t0\t3\t312031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.4",
+          "build-tcl8.4",
+          "stderr-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; librarySHA=94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; executableSHA=65045fd8185fb249adc3328e05b77e59053228c5eb16dcaf4390d0658a85fbf4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-unset-parens\t0\t3\t312031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.5",
+          "build-tcl8.5",
+          "stderr-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; librarySHA=980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; executableSHA=c6e5158450735a2b8a8b350d436df1a55239ee9daf1ba38ee6f2640adc07ceaa. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-unset-parens\t0\t3\t312031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.6",
+          "build-tcl8.6",
+          "stderr-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; librarySHA=dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; executableSHA=21baee6e61de27574b6a60baa1da95b8ab635efa49f7c985c0a8ba61e2816f01. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-unset-parens\t0\t3\t312031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.0",
+          "build-tcl9.0",
+          "stderr-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; librarySHA=513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; executableSHA=ba7203882ca9d0d9af06fc1cbb8aed2a458405680046ca64720fd3b08018bda4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-unset-parens\t0\t3\t312031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.1",
+          "build-tcl9.1",
+          "stderr-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84-9-g5bac7c9 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; librarySHA=a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da; executableSHA=616daed2a6071a8adc76ac1dc77b505cff843f2e4fed9a5dd0daf8e40a8959b8. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\narray-unset-parens\t0\t3\t302031\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-jim",
+          "build-jim",
+          "stderr-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No BIG-IP load/event or appliance-Tcl result for these exact programs is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/probe.c",
+        "sha256": "67c72e6f705c81c3758f6ff0e455bc6afa1996a7ea704ca47f8aa96b30840c87",
+        "description": "Exact public API/source producers and independently reset interpreter/guest result observer."
+      },
+      {
+        "id": "cases",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json",
+        "sha256": "b51abb476ac87f9a1957ab81d092896f6a64b460b2aee7d178b2cff669a760d0",
+        "description": "All25 named ASCII source strings match the exact C literal vector."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json",
+        "sha256": "dc1651ef2421ed9870620095c74e5232942948426b0b1d797a2c821f492bf8b9",
+        "description": "Six complete original source/header/library/executable/compile/process/raw stream associations."
+      },
+      {
+        "id": "replay",
+        "role": "implementation",
+        "path": "scripts/dev/replay-array-oo-source-controls.py",
+        "sha256": "d099fa238a83daa1159f0655af4f4c893d3a377204d378aa817f286049eb1888",
+        "description": "Maintained exact-input replayer requires captured build correspondence and separate new output; no execution of this script is inferred."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels array-unset-parens."
+      },
+      {
+        "id": "build-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json",
+        "sha256": "d7a6e52a209c1b943b4a84fc9e91bc9f9c7a8384d1e9fb12532fd805e9f3a812",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels array-unset-parens."
+      },
+      {
+        "id": "build-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json",
+        "sha256": "e377a2831dd7b6fdf2ac5383df71ddc7c4dfd075e20bf3da8bd358eaa7ce188d",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stdout.tsv",
+        "sha256": "6be20356479597fd026d09b276bbbadb58023c86b4e2440c2d61843998539a0f",
+        "description": "Exact25 completion/result-unit rows; selected labels array-unset-parens."
+      },
+      {
+        "id": "build-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json",
+        "sha256": "306279e54d4ba01cbf6fd790977a70707dcc82eabb75b5cbd36ff8311f369e65",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels array-unset-parens."
+      },
+      {
+        "id": "build-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json",
+        "sha256": "8a8cbca290a90c9df76b8241c7e9e87c14dfd3900fc06857ff8b485514c64eab",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels array-unset-parens."
+      },
+      {
+        "id": "build-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json",
+        "sha256": "29114d00f323c483dc653643f87d5f6315b046baa9d09e2c58d35f27c2b5d258",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stdout.tsv",
+        "sha256": "d944673515bc35d65cc92f3b55dfb6d992f22dcbd707557654b104a89c138d53",
+        "description": "Exact25 completion/result-unit rows; selected labels array-unset-parens."
+      },
+      {
+        "id": "build-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json",
+        "sha256": "52868889195e2450bbcf139dd0e187a54ad084d478174d88ee6b9a5a03280455",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate",
+        "assertion": "Selected C8.6 receiver metadata preserves the Combined original argv for scalar set and array set/get/names/unset a(b), while role-only and alias arguments cannot supply receiver form. It asserts no guest success, Normal transfer, physical root-only API or runtime cell identity.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_variable_table.rs",
+        "symbol": "NativeVariableTableProtocol::dictionary_arrays",
+        "purpose": "Selects array versus dictionary container model; actual indexed receiver/read/write/observer currency remains an independent compiler/runtime obligation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "python3",
+        "scripts/dev/replay-array-oo-source-controls.py",
+        "--tcl-root",
+        "${TCL_SOURCE_ROOT}",
+        "--jim-root",
+        "${JIM_SOURCE_ROOT}",
+        "--output",
+        "${NEW_OUTPUT}"
+      ],
+      "limitations": "The replayer first validates the retained whole input/stream bytes, then requires explicitly selected header/library hashes equal to this exact captured build. It compiles the unchanged probe in a new output directory, retaining compiler/process status and separate streams, and requires exact original output/status agreement. A different provider build needs an independently scoped new record. No maintained native launch or Rust passing result is claimed by attaching the runner. The original captures preserve observed unsupported/error doors; outer process0 is not guest success."
+    }
+  },
+  {
+    "id": "naming.array-source.scalar-element-storage",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/array-source-scalar-element-storage.md",
+    "problem_statement": "An ordinary set a(b) and a nested a(b)(k) spelling must retain their actual root/index split. A whole-array API result cannot be substituted for ordinary scalar-element store/read semantics.",
+    "question": "What array-root/indexed-receiver and returned-value results follow set a(b) and set {a(b)(k)}?",
+    "conclusion": "All six captures report1 0 VALUE for both ordinary set controls: the queried root a is an array/dictionary container, the queried indexed receiver a(b) is not, and the written value reads back as VALUE. The nested spelling control does not measure private root/index headers or a separate whole array named a(b).",
+    "scope": "Selected cases scalar-set-parens,separate-root-array from25 actual source programs per provider,150 total captured completions. Every case uses a new interpreter. Public Tcl_Eval or Jim_Eval consumes NUL-terminated ASCII source; binary-format/source-escape values are produced at runtime and are not raw zero source or independently held original native String objects. Result bytes are sampled after the guest completion through the actual public string getter. Source/header/library/executable and separate stdout/stderr hashes, compile/process0 and actual original command arrays are retained. C release associations and Jim git-describe tag are recorded, but this probe does not query a linked runtime patchlevel or object primary/refcount. BIG-IP is not tested; no Rust execution is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; librarySHA=532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; executableSHA=5a206bc4a8be86ebc4f16fe7ab2d1ede603903ead3ebf4ad584789895d75f414. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\nscalar-set-parens\t0\t9\t3120302056414c5545\nseparate-root-array\t0\t9\t3120302056414c5545\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.4",
+          "build-tcl8.4",
+          "stderr-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; librarySHA=94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; executableSHA=65045fd8185fb249adc3328e05b77e59053228c5eb16dcaf4390d0658a85fbf4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\nscalar-set-parens\t0\t9\t3120302056414c5545\nseparate-root-array\t0\t9\t3120302056414c5545\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.5",
+          "build-tcl8.5",
+          "stderr-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; librarySHA=980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; executableSHA=c6e5158450735a2b8a8b350d436df1a55239ee9daf1ba38ee6f2640adc07ceaa. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\nscalar-set-parens\t0\t9\t3120302056414c5545\nseparate-root-array\t0\t9\t3120302056414c5545\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl8.6",
+          "build-tcl8.6",
+          "stderr-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; librarySHA=dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; executableSHA=21baee6e61de27574b6a60baa1da95b8ab635efa49f7c985c0a8ba61e2816f01. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\nscalar-set-parens\t0\t9\t3120302056414c5545\nseparate-root-array\t0\t9\t3120302056414c5545\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.0",
+          "build-tcl9.0",
+          "stderr-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; librarySHA=513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; executableSHA=ba7203882ca9d0d9af06fc1cbb8aed2a458405680046ca64720fd3b08018bda4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\nscalar-set-parens\t0\t9\t3120302056414c5545\nseparate-root-array\t0\t9\t3120302056414c5545\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-tcl9.1",
+          "build-tcl9.1",
+          "stderr-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "0.84-9-g5bac7c9 (recorded build association; linked runtime version not queried by this probe)",
+        "build": "headerSHA=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; librarySHA=a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da; executableSHA=616daed2a6071a8adc76ac1dc77b505cff843f2e4fed9a5dd0daf8e40a8959b8. Full original compile argument vector retained in the provider receipt; compiler-version query absent.",
+        "input_channel": "Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact selected rows in case/guest-code/result-byte-count/result-hex order:\n\n```text\nscalar-set-parens\t0\t9\t3120302056414c5545\nseparate-root-array\t0\t9\t3120302056414c5545\n```\n\nCompile status0 and whole process0 are separate from the printed guest completions.",
+        "evidence": [
+          "probe",
+          "cases",
+          "receipt",
+          "rows-jim",
+          "build-jim",
+          "stderr-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No BIG-IP load/event or appliance-Tcl result for these exact programs is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/probe.c",
+        "sha256": "67c72e6f705c81c3758f6ff0e455bc6afa1996a7ea704ca47f8aa96b30840c87",
+        "description": "Exact public API/source producers and independently reset interpreter/guest result observer."
+      },
+      {
+        "id": "cases",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json",
+        "sha256": "b51abb476ac87f9a1957ab81d092896f6a64b460b2aee7d178b2cff669a760d0",
+        "description": "All25 named ASCII source strings match the exact C literal vector."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json",
+        "sha256": "dc1651ef2421ed9870620095c74e5232942948426b0b1d797a2c821f492bf8b9",
+        "description": "Six complete original source/header/library/executable/compile/process/raw stream associations."
+      },
+      {
+        "id": "replay",
+        "role": "implementation",
+        "path": "scripts/dev/replay-array-oo-source-controls.py",
+        "sha256": "d099fa238a83daa1159f0655af4f4c893d3a377204d378aa817f286049eb1888",
+        "description": "Maintained exact-input replayer requires captured build correspondence and separate new output; no execution of this script is inferred."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels scalar-set-parens,separate-root-array."
+      },
+      {
+        "id": "build-tcl8.4",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json",
+        "sha256": "d7a6e52a209c1b943b4a84fc9e91bc9f9c7a8384d1e9fb12532fd805e9f3a812",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stdout.tsv",
+        "sha256": "7cbd7699c14f48e75e1127da37c651556be9fc0aaacea14228834c5271b865fa",
+        "description": "Exact25 completion/result-unit rows; selected labels scalar-set-parens,separate-root-array."
+      },
+      {
+        "id": "build-tcl8.5",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json",
+        "sha256": "e377a2831dd7b6fdf2ac5383df71ddc7c4dfd075e20bf3da8bd358eaa7ce188d",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stdout.tsv",
+        "sha256": "6be20356479597fd026d09b276bbbadb58023c86b4e2440c2d61843998539a0f",
+        "description": "Exact25 completion/result-unit rows; selected labels scalar-set-parens,separate-root-array."
+      },
+      {
+        "id": "build-tcl8.6",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json",
+        "sha256": "306279e54d4ba01cbf6fd790977a70707dcc82eabb75b5cbd36ff8311f369e65",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels scalar-set-parens,separate-root-array."
+      },
+      {
+        "id": "build-tcl9.0",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json",
+        "sha256": "8a8cbca290a90c9df76b8241c7e9e87c14dfd3900fc06857ff8b485514c64eab",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stdout.tsv",
+        "sha256": "59c80ed5e7b0831bc38604def7e871af4473669524794044a3b39f95f1d17d1c",
+        "description": "Exact25 completion/result-unit rows; selected labels scalar-set-parens,separate-root-array."
+      },
+      {
+        "id": "build-tcl9.1",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json",
+        "sha256": "29114d00f323c483dc653643f87d5f6315b046baa9d09e2c58d35f27c2b5d258",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stdout.tsv",
+        "sha256": "d944673515bc35d65cc92f3b55dfb6d992f22dcbd707557654b104a89c138d53",
+        "description": "Exact25 completion/result-unit rows; selected labels scalar-set-parens,separate-root-array."
+      },
+      {
+        "id": "build-jim",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json",
+        "sha256": "52868889195e2450bbcf139dd0e187a54ad084d478174d88ee6b9a5a03280455",
+        "description": "Independent exact original provider association, compile/process status and whole streams."
+      },
+      {
+        "id": "stderr-jim",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact empty original process stderr."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate",
+        "assertion": "Selected C8.6 receiver metadata preserves the Combined original argv for scalar set and array set/get/names/unset a(b), while role-only and alias arguments cannot supply receiver form. It asserts no guest success, Normal transfer, physical root-only API or runtime cell identity.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_variable_table.rs",
+        "symbol": "NativeVariableTableProtocol::dictionary_arrays",
+        "purpose": "Selects array versus dictionary container model; actual indexed receiver/read/write/observer currency remains an independent compiler/runtime obligation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "python3",
+        "scripts/dev/replay-array-oo-source-controls.py",
+        "--tcl-root",
+        "${TCL_SOURCE_ROOT}",
+        "--jim-root",
+        "${JIM_SOURCE_ROOT}",
+        "--output",
+        "${NEW_OUTPUT}"
+      ],
+      "limitations": "The replayer first validates the retained whole input/stream bytes, then requires explicitly selected header/library hashes equal to this exact captured build. It compiles the unchanged probe in a new output directory, retaining compiler/process status and separate streams, and requires exact original output/status agreement. A different provider build needs an independently scoped new record. No maintained native launch or Rust passing result is claimed by attaching the runner. The original captures preserve observed unsupported/error doors; outer process0 is not guest success."
+    }
+  }
+]

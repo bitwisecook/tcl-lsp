@@ -1,0 +1,107 @@
+TclCompileLappendCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int simpleVarName, isScalar, localIndex, numWords;
+    int code = TCL_OK;
+
+    DefineLineInformation;
+
+    /*
+     * If we're not in a procedure, don't compile.
+     */
+    if (envPtr->procPtr == NULL) {
+	return TCL_OUT_LINE_COMPILE;
+    }
+
+    numWords = parsePtr->numWords;
+    if (numWords == 1) {
+	Tcl_ResetResult(interp);
+	Tcl_AppendToObj(Tcl_GetObjResult(interp),
+		"wrong # args: should be \"lappend varName ?value value ...?\"", -1);
+	return TCL_ERROR;
+    }
+    if (numWords != 3) {
+	/*
+	 * LAPPEND instructions currently only handle one value appends
+	 */
+        return TCL_OUT_LINE_COMPILE;
+    }
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we
+     * need to emit code to compute and push the name at runtime. We use a
+     * frame slot (entry in the array of local vars) if we are compiling a
+     * procedure body and if the name is simple text that does not include
+     * namespace qualifiers. 
+     */
+
+    varTokenPtr = parsePtr->tokenPtr
+	    + (parsePtr->tokenPtr->numComponents + 1);
+
+    code = TclPushVarNameWord(interp, varTokenPtr, envPtr, TCL_CREATE_VAR,
+	    &localIndex, &simpleVarName, &isScalar, 1);
+    if (code != TCL_OK) {
+	goto done;
+    }
+
+    /*
+     * If we are doing an assignment, push the new value.
+     * In the no values case, create an empty object.
+     */
+
+    if (numWords > 2) {
+	valueTokenPtr = varTokenPtr + (varTokenPtr->numComponents + 1);
+	if (valueTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    TclEmitPush(TclRegisterNewLiteral(envPtr, 
+		    valueTokenPtr[1].start, valueTokenPtr[1].size), envPtr);
+	} else {
+	    SetLineInformation (2);
+	    code = TclCompileTokens(interp, valueTokenPtr+1,
+	            valueTokenPtr->numComponents, envPtr);
+	    if (code != TCL_OK) {
+		goto done;
+	    }
+	}
+    }
+
+    /*
+     * Emit instructions to set/get the variable.
+     */
+
+    /*
+     * The *_STK opcodes should be refactored to make better use of existing
+     * LOAD/STORE instructions.
+     */
+    if (simpleVarName) {
+	if (isScalar) {
+	    if (localIndex >= 0) {
+		if (localIndex <= 255) {
+		    TclEmitInstInt1(INST_LAPPEND_SCALAR1, localIndex, envPtr);
+		} else {
+		    TclEmitInstInt4(INST_LAPPEND_SCALAR4, localIndex, envPtr);
+		}
+	    } else {
+		TclEmitOpcode(INST_LAPPEND_STK, envPtr);
+	    }
+	} else {
+	    if (localIndex >= 0) {
+		if (localIndex <= 255) {
+		    TclEmitInstInt1(INST_LAPPEND_ARRAY1, localIndex, envPtr);
+		} else {
+		    TclEmitInstInt4(INST_LAPPEND_ARRAY4, localIndex, envPtr);
+		}
+	    } else {
+		TclEmitOpcode(INST_LAPPEND_ARRAY_STK, envPtr);
+	    }
+	}
+    } else {
+	TclEmitOpcode(INST_LAPPEND_STK, envPtr);
+    }
+
+    done:
+    return code;
+}

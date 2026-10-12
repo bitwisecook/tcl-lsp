@@ -39,7 +39,9 @@ use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
-use tcl_compiler::interval_bounds::{find_divide_by_zero_with, find_interval_bounds_with};
+use tcl_compiler::interval_bounds::{
+    BoundsSemantics, find_divide_by_zero_with_entered_operands, find_interval_bounds_resolved,
+};
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
@@ -51,7 +53,9 @@ use tcl_compiler::memory_ssa::{MemoryLocationKind, MemoryOpKind, MemorySsaFuncti
 use tcl_compiler::mixed_region_plan::{
     GuardedCandidateDecision, GuardedCandidateDecline, RegionPlan,
 };
-use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
+use tcl_compiler::optimiser::{
+    apply_optimisations, find_dead_stores, optimise_by_pass, optimise_unit,
+};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::semantic_analysis::{
     ExecutableAnalysisAvailability, MixedRegionPlanAvailability,
@@ -78,6 +82,85 @@ use crate::formatters::{
     stmt_color_class, stmt_kind, stmt_summary, type_kind_name,
 };
 use crate::views::{Severity, VIEW_META};
+
+/// Checked readonly source inputs from the actual compilation producer.
+/// Display labels cannot select a command store, profile or source owner.
+pub(crate) struct RetainedExplorerSource<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: LexerConfig,
+    realm: tcl_compiler::realm::CommandBindingRealm,
+}
+
+impl<'a> RetainedExplorerSource<'a> {
+    pub(crate) const fn registry(&self) -> &'a tcl_registry::CommandRegistry {
+        self.registry
+    }
+}
+
+pub(crate) fn retained_explorer_source<'a>(
+    result: &'a ExplorerResult,
+    source: &str,
+) -> Option<RetainedExplorerSource<'a>> {
+    // naming.source.retained-explorer-consumers
+    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+    let module = &result.unit.ir_module;
+    if source != result.source
+        || source != result.unit.source
+        || module.source != tcl_lexer::SourceImage::document(source)
+    {
+        return None;
+    }
+    let registry = module.registry_snapshot.as_ref()?.registry();
+    let realm = tcl_compiler::realm::document_realm_bindings_for_module(module, registry)?;
+    let input = module.source_metadata_input.as_ref()?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    if input.lexer_config() != module.lexer_config || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    Some(RetainedExplorerSource {
+        registry,
+        input,
+        dialect: module.dialect_profile,
+        config: module.lexer_config,
+        realm,
+    })
+}
+
+/// A rewritten image is a separate source ingress. It retains the actual
+/// metadata/store/grammar, but receives no execution receipt from the old image.
+fn rewritten_explorer_result(
+    source: &str,
+    dialect_label: &str,
+    retained: &RetainedExplorerSource<'_>,
+) -> ExplorerResult {
+    let profile = retained.input.unit_profile();
+    let declared =
+        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
+    let unit = tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: retained.registry,
+            defer_top_level: false,
+            config: retained.config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: Some(&declared),
+        },
+        None,
+        retained.input,
+    )
+    .with_interprocedural(retained.registry, Some(profile))
+    .with_retained_memory_ssa(retained.registry)
+    .with_retained_deep_semantic_analysis(retained.registry);
+    ExplorerResult {
+        source: source.to_owned(),
+        dialect: dialect_label.to_owned(),
+        unit,
+    }
+}
 
 /// Serialise the `meta` view: dialect list, view-tab table, and the
 /// severity vocabulary.
@@ -315,8 +398,10 @@ fn serialise_wasm_with_options(
 ) -> Value {
     use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmSemanticDecline, compile_wasm};
 
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     let mut wasm = compile_wasm(&result.unit, registry, options);
     let wat = wasm.to_wat();
 
@@ -374,7 +459,9 @@ fn serialise_wasm_with_options(
                         "availability": decline.as_str(),
                         "detailKind": decline.detail_kind(),
                     }),
-                    WasmSemanticDecline::SemanticPlansDisabled
+                    WasmSemanticDecline::NativeCompilationAdmissionRequired
+                    | WasmSemanticDecline::NativeCompilationSourceUnavailable
+                    | WasmSemanticDecline::SemanticPlansDisabled
                     | WasmSemanticDecline::BackendSelection(_)
                     | WasmSemanticDecline::PlanLayout(_)
                     | WasmSemanticDecline::SelectorRegistration => json!({
@@ -712,11 +799,56 @@ fn terminator_dict(
             "falseTarget": func.block_name(*false_target),
             "range": range_or_null(*span, li, source),
         }),
+        Some(Terminator::Complete { route, span }) => json!({
+            "type": "complete",
+            "completion": completion_route_dict(*route),
+            "range": range_or_null(*span, li, source),
+        }),
         Some(Terminator::Return { value, span, .. }) => json!({
             "type": "return",
             "value": value.as_ref().map(|v| preview(v, 60)),
             "range": range_or_null(*span, li, source),
         }),
+    }
+}
+
+fn completion_route_dict(
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+) -> Value {
+    use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+    let detail = match route {
+        Route::Tcl(code) => json!({"kind": "tcl", "code": code.as_int()}),
+        Route::TclAlternatives(codes) => {
+            json!({"kind": "tcl-alternatives", "codes": codes.iter().map(|code| code.as_int()).collect::<Vec<_>>()})
+        }
+        Route::Return(pending) => {
+            json!({"kind": "return", "eventualCode": pending.eventual_code.as_int(), "remainingLevel": pending.remaining_level})
+        }
+        Route::Tailcall { code } => json!({"kind": "tailcall", "code": code.as_int()}),
+        Route::TailcallOrError { code } => {
+            json!({"kind": "tailcall-or-error", "code": code.as_int()})
+        }
+        Route::ProcessExit => json!({"kind": "process-exit"}),
+        Route::ReturnOrError => json!({"kind": "return-or-error"}),
+        Route::ExitOrError => json!({"kind": "exit-or-error"}),
+        Route::CatchableExitOrError => json!({"kind": "catchable-exit-or-error"}),
+        Route::Unknown => json!({"kind": "unknown"}),
+        Route::UnknownAbrupt => json!({"kind": "unknown-abrupt"}),
+    };
+    json!({"route": detail, "normalPossible": route.normal_possible(), "abruptPossible": route.abrupt_possible()})
+}
+
+fn unproved_implementation_lookup(reason: &OwnedInvocationResolutionUnresolved) -> Value {
+    match reason {
+        OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup { lookup } => {
+            json!({
+                "ensemble": lookup.ensemble, "member": lookup.member, "slot": lookup.slot,
+                "command": lookup.command, "prepended": lookup.prepended,
+            })
+        }
+        OwnedInvocationResolutionUnresolved::ComputedHead { .. }
+        | OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. }
+        | OwnedInvocationResolutionUnresolved::UnprovedBinding { .. } => Value::Null,
     }
 }
 
@@ -850,8 +982,10 @@ fn shimmer_severity(code: &str) -> &'static str {
 /// differential harness.
 #[must_use]
 pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     let mut out: Vec<Value> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
@@ -915,13 +1049,15 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
 /// plus the optimised source string (whose ranges the optimised views
 /// index into).
 fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, String)> {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let optimised = apply_optimisations(&result.source, &optimise(&result.source, registry));
+    let retained = retained_explorer_source(result, &result.source)?;
+    let optimised = apply_optimisations(
+        &result.source,
+        &optimise_unit(&result.unit, retained.registry, retained.dialect),
+    );
     if optimised == result.source {
         return None;
     }
-    let unit = crate::run_pipeline(&optimised, &result.dialect);
+    let unit = rewritten_explorer_result(&optimised, &result.dialect, &retained);
     Some((unit, optimised))
 }
 
@@ -940,6 +1076,8 @@ fn world_domain_name(kind: WorldRegionKind) -> &'static str {
         WorldRegionKind::PackageState => "package-state",
         WorldRegionKind::HostCapabilities => "host-capabilities",
         WorldRegionKind::VariableStore => "variable-store",
+        WorldRegionKind::InterpreterResult => "interpreter-result",
+        WorldRegionKind::CompletionState => "completion-state",
         WorldRegionKind::ExternalResource(_) => "external-resource",
     }
 }
@@ -1088,6 +1226,7 @@ fn transition_kind_name(transition: &tcl_registry::StateTransition) -> &'static 
         tcl_registry::StateTransition::Namespace(_) => "namespace",
         tcl_registry::StateTransition::Trace(_) => "trace",
         tcl_registry::StateTransition::ObjectDispatch(_) => "object-dispatch",
+        tcl_registry::StateTransition::Package(_) => "package",
         tcl_registry::StateTransition::Widen(_) => "widen",
     }
 }
@@ -1106,6 +1245,8 @@ fn registry_world_domain_name(domain: tcl_registry::WorldStateDomain) -> String 
         tcl_registry::WorldStateDomain::PackageState => "package-state".to_owned(),
         tcl_registry::WorldStateDomain::HostCapabilities => "host-capabilities".to_owned(),
         tcl_registry::WorldStateDomain::VariableStore => "variable-store".to_owned(),
+        tcl_registry::WorldStateDomain::InterpreterResult => "interpreter-result".to_owned(),
+        tcl_registry::WorldStateDomain::CompletionState => "completion-state".to_owned(),
         tcl_registry::WorldStateDomain::LegacyExternal(target) => {
             format!("external-resource:{}", target.as_str())
         }
@@ -1198,12 +1339,14 @@ fn serialise_world_invocations(availability: &ExecutableAnalysisAvailability) ->
                     let abstention = match reason {
                         tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::ComputedHead { .. } => "computed-head",
                         tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. } => "unknown-literal-head",
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnprovedBinding { .. } => "unproved-binding",
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup { .. } => "unproved-native-implementation-lookup",
                     };
                     json!({
                         "resolution": "unresolved",
                         "node": invoke.node.path(),
                         "completion": invoke.completion.index(),
-                        "proof": { "abstention": abstention },
+                        "proof": { "abstention": abstention, "implementationLookup": unproved_implementation_lookup(reason) },
                     })
                 }
             })
@@ -1292,9 +1435,11 @@ fn serialise_world_ssa(result: &ExplorerResult) -> Value {
 /// derived, pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
     all.extend(find_partial_redundancies_for_cu(
         &result.unit,
@@ -1343,9 +1488,11 @@ fn taint_severity(code: &str) -> &'static str {
 /// taint passes via `find_taint_warnings_for_cu`.
 #[must_use]
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
         .iter()
         .map(|w| {
@@ -1364,13 +1511,14 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
 
 /// Serialise the `optimisations` view: the optimiser rewrites found for
 /// the source. — `{code, message,
-/// range, replacement}` per rewrite. Runs the `optimise` pass over
-/// the cached per-dialect registry.
+/// range, replacement}` per rewrite. Uses the actual retained compilation
+/// unit and command store; unavailable source ownership returns null.
 #[must_use]
 pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let opts: Vec<Value> = optimise(source, registry)
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let opts: Vec<Value> = optimise_unit(&result.unit, retained.registry, retained.dialect)
         .iter()
         .map(|o| {
             json!({
@@ -1398,35 +1546,32 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
 /// execution order.
 #[must_use]
 pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let passes: Vec<Value> = optimise_by_pass(
-        &result.unit,
-        registry,
-        crate::environment::known_profile_for_dialect(&result.dialect),
-    )
-    .iter()
-    .map(|(pass, opts)| {
-        let optimisations: Vec<Value> = opts
-            .iter()
-            .map(|o| {
-                json!({
-                    "code": o.code.as_str(),
-                    "message": o.message,
-                    "range": range_dict(o.span, li, source),
-                    "replacement": o.replacement,
-                    "hintOnly": o.hint_only,
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let passes: Vec<Value> = optimise_by_pass(&result.unit, retained.registry, retained.dialect)
+        .iter()
+        .map(|(pass, opts)| {
+            let optimisations: Vec<Value> = opts
+                .iter()
+                .map(|o| {
+                    json!({
+                        "code": o.code.as_str(),
+                        "message": o.message,
+                        "range": range_dict(o.span, li, source),
+                        "replacement": o.replacement,
+                        "hintOnly": o.hint_only,
+                    })
                 })
+                .collect();
+            json!({
+                "id": pass.as_str(),
+                "label": pass.label(),
+                "count": optimisations.len(),
+                "optimisations": optimisations,
             })
-            .collect();
-        json!({
-            "id": pass.as_str(),
-            "label": pass.label(),
-            "count": optimisations.len(),
-            "optimisations": optimisations,
         })
-    })
-    .collect();
+        .collect();
     Value::Array(passes)
 }
 
@@ -1529,8 +1674,10 @@ fn ssa_value_detail(
 /// SCCP + the type lattice.
 #[must_use]
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     let funcs: Vec<Value> = result
         .all_snapshots()
         .iter()
@@ -1954,20 +2101,22 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
 /// authoritative dead-store result.
 #[must_use]
 pub fn serialise_liveness(result: &ExplorerResult) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     Value::Array(
         result
             .all_snapshots()
             .iter()
             .map(|snap| {
                 let mut chains: Vec<_> = snap.unit.def_use.chains.values().collect();
-                chains.sort_by(|a, b| a.key.cmp(&b.key));
+                chains.sort_by_key(|chain| (chain.key.0.compatibility_name(), chain.key.1));
                 let chains: Vec<Value> = chains
                     .iter()
                     .map(|chain| {
                         json!({
-                            "variable": chain.key.0,
+                            "variable": chain.key.0.compatibility_name(),
                             "version": chain.key.1,
                             "definition": {
                                 "block": chain.definition.block,
@@ -2040,6 +2189,7 @@ fn executable_instruction_kind(instruction: &ExecutableInstruction) -> &'static 
         ExecutableInstruction::JoinCompletion { .. } => "join-completion",
         ExecutableInstruction::WriteCompletionCell { .. } => "write-completion-cell",
         ExecutableInstruction::CompleteStructuredRegion(_) => "complete-structured-region",
+        ExecutableInstruction::CompleteEvaluatedRegion(_) => "complete-evaluated-region",
     }
 }
 
@@ -2047,6 +2197,7 @@ fn executable_terminator_kind(terminator: Option<&ExecutableTerminator>) -> &'st
     match terminator {
         Some(ExecutableTerminator::Goto(_)) => "goto",
         Some(ExecutableTerminator::Branch { .. }) => "branch",
+        Some(ExecutableTerminator::RegionChoice { .. }) => "region-choice",
         Some(ExecutableTerminator::CompletionSwitch { .. }) => "completion-switch",
         Some(ExecutableTerminator::ReturnCompletion(_)) => "return-completion",
         None => "missing",
@@ -2079,6 +2230,12 @@ fn invocation_resolution_label(
         tcl_compiler::executable_ir::InvocationResolution::Unresolved(
             OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. },
         ) => "unresolved-unknown-literal-head",
+        tcl_compiler::executable_ir::InvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::UnprovedBinding { .. },
+        ) => "unresolved-unproved-binding",
+        tcl_compiler::executable_ir::InvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup { .. },
+        ) => "unresolved-unproved-native-implementation-lookup",
     }
 }
 
@@ -2183,6 +2340,10 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                         json!({
                             "node": invoke.node.path(),
                             "resolution": invocation_resolution_label(&invoke.resolution),
+                            "implementationLookup": match &invoke.resolution {
+                                InvocationResolution::Resolved(_) => Value::Null,
+                                InvocationResolution::Unresolved(reason) => unproved_implementation_lookup(reason),
+                            },
                             "range": range_dict(invoke.source.span, li, source),
                         })
                     })
@@ -2217,12 +2378,23 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                     "status": semantic_status(availability),
                     "decline": semantic_decline_value(availability),
                     "complexityGuarded": snap.unit.complexity_guarded,
+                    "semanticValues": snap.unit.semantic_values().map(|facts| json!({
+                        "purpose": "known-contents-with-retained-producer-obligations",
+                        "contentsCount": facts.contents_iter().count(),
+                        "expressionCount": facts.expression_iter().count(),
+                        "licensesErasure": false,
+                    })),
                     "tier": snap.unit.tier.as_str(),
                     "dynamicNames": {
                         "writes": snap.unit.dynamic_names.writes,
                         "destroys": snap.unit.dynamic_names.destroys,
                         "reads": snap.unit.dynamic_names.reads,
                     },
+                    "conditionalEvent": snap.unit.irules_event_body.as_ref().map(|event| json!({
+                        "event": event.event(),
+                        "purpose": "conditional-source-frame",
+                        "licensesEnteredEvent": false,
+                    })),
                     "methodFacts": snap.unit.method_facts.as_ref().map(|facts| json!({
                         "params": facts.params,
                         "instanceVars": facts.instance_vars.iter().cloned().collect::<Vec<_>>(),
@@ -2351,6 +2523,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .map(|n| {
                     json!({
                         "name": n.name,
+                        "cell": n.cell,
                         "version": n.version,
                         "block": n.block,
                         "defKind": n.def_kind,
@@ -2368,11 +2541,13 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .map(|e| {
                     json!({
                         "fromName": e.from_name,
+                        "fromCell": e.from_cell,
                         "fromVersion": e.from_version,
                         "toBlock": e.to_block,
                         "toStatementIndex": e.to_statement_index,
                         "edgeKind": e.edge_kind.as_str(),
                         "toName": e.to_name,
+                        "toCell": e.to_cell,
                         "toVersion": e.to_version,
                     })
                 })
@@ -2493,9 +2668,32 @@ fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
 /// finders. Empty for non-iRules dialects (an empty list on the tcl corpus).
 #[must_use]
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let warnings = irules_flow_warnings(result, &retained);
+
+    let out: Vec<Value> = warnings
+        .iter()
+        .map(|w| {
+            json!({
+                "code": w.code.as_str(),
+                "message": w.message,
+                "range": range_dict(w.span, li, source),
+                "severity": "warning",
+            })
+        })
+        .collect();
+    Value::Array(out)
+}
+
+/// One actual-unit warning aggregation shared by the view and its count.
+fn irules_flow_warnings(
+    result: &ExplorerResult,
+    retained: &RetainedExplorerSource<'_>,
+) -> Vec<tcl_compiler::irules_checks::IrulesCheckWarning> {
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let cu = &result.unit;
     let mut warnings = find_unnormalised_getter_warnings(
         cu,
@@ -2520,18 +2718,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
         dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
 
-    let out: Vec<Value> = warnings
-        .iter()
-        .map(|w| {
-            json!({
-                "code": w.code.as_str(),
-                "message": w.message,
-                "range": range_dict(w.span, li, source),
-                "severity": "warning",
-            })
-        })
-        .collect();
-    Value::Array(out)
+    warnings
 }
 
 /// Serialise the retained cross-event connection scope, including each event
@@ -2620,27 +2807,33 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 /// `find_divide_by_zero_with` (W233 provably-`[0,0]` divisor).
 #[must_use]
 pub fn serialise_bounds(result: &ExplorerResult) -> Value {
-    // The document's own grammar and numerals: the bounds view re-lexes
-    // list and index text and must read it as the unit did.
-    let profile = crate::environment::profile_for_dialect(&result.dialect);
-    let numbers = tcl_dialect::NumberSyntax::of_profile(Some(profile));
-    let grammar = profile.grammar;
-    let funcs: Vec<Value> = result
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let funcs: Option<Vec<Value>> = result
         .all_snapshots()
         .iter()
         .map(|snap| {
-            let findings: Vec<Value> = find_interval_bounds_with(
+            let metadata = snap.unit.invocation_metadata_context_for_module(
+                retained.registry,
+                &result.unit.ir_module,
+            )?;
+            let input = snap.unit.source_metadata_input()?;
+            let profile = input.unit_profile();
+            let numbers = tcl_dialect::NumberSyntax::of_profile(Some(profile));
+            let semantics = BoundsSemantics {
+                registry: retained.registry,
+                context: Some(metadata),
+                grammar: snap.unit.source_lexer_config().grammar_over(profile.grammar),
+            };
+            let findings: Vec<Value> = find_interval_bounds_resolved(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                (&snap.unit.sccp, &snap.unit.types),
+                (&snap.unit.sccp.values, (&snap.unit.sccp, &snap.unit.types)),
                 &snap.unit.sccp.executable_blocks,
-                snap.unit
-                    .semantic_facts
-                    .context()
-                    .map(tcl_registry::model::semantic::SemanticContext::environment_id)
-                    .and_then(crate::environment::catalogue_profile_for_dialect)
-                    .and_then(tcl_dialect::DialectProfile::character_model),
-             numbers, grammar,
+                profile.character_model(),
+                numbers,
+                semantics,
             )
             .iter()
             .map(|f| {
@@ -2655,20 +2848,21 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 })
             })
             .collect();
-            let divzero: Vec<Value> = find_divide_by_zero_with(
+            let divzero: Vec<Value> = find_divide_by_zero_with_entered_operands(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                (&snap.unit.sccp, &snap.unit.types),
+                (&snap.unit.sccp.values, (&snap.unit.sccp, &snap.unit.types)),
                 &snap.unit.sccp.executable_blocks,
-             numbers,
+                numbers,
+                semantics,
             )
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
             .collect();
-            json!({ "name": snap.name, "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero })
+            Some(json!({ "name": snap.name, "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero }))
         })
         .collect();
-    Value::Array(funcs)
+    funcs.map_or(Value::Null, Value::Array)
 }
 
 /// Serialise the `unitScope` view: who else can call this file's procedures.
@@ -2897,6 +3091,43 @@ pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
 /// Tcl corpus; the `when`-handler behaviour is pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str) -> Value {
+    let command_registry = registry_for_dialect(dialect);
+    let identities = tcl_compiler::realm::document_realm_bindings(
+        source,
+        crate::environment::analyser_profile_for_dialect(dialect),
+        &command_registry,
+    );
+    let handlers = tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        &command_registry,
+        &identities,
+    );
+    serialise_event_handlers(source, line_index, handlers)
+}
+
+/// Event-order advice from the actual retained Module inputs. Missing or
+/// mismatched source ownership returns null, independently of an empty inventory.
+#[must_use]
+pub fn serialise_event_order_for_result(result: &ExplorerResult, line_index: &LineIndex) -> Value {
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let handlers =
+        tcl_registry::events::top_level_when_handlers_with_source_config_and_head_resolver(
+            &result.source,
+            retained.registry,
+            retained.config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            &retained.realm,
+        );
+    serialise_event_handlers(&result.source, line_index, handlers)
+}
+
+fn serialise_event_handlers(
+    source: &str,
+    line_index: &LineIndex,
+    handlers: Vec<tcl_syntax::event_handler::EventHandler>,
+) -> Value {
     use std::collections::HashMap;
 
     use tcl_registry::events::EventRegistry;
@@ -2911,21 +3142,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
     }
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
-    let command_registry = registry_for_dialect(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(
-        source,
-        crate::environment::analyser_profile_for_dialect(dialect),
-        &command_registry,
-    );
-    for (matched, handler) in
-        tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
-            source,
-            &command_registry,
-            &identities,
-        )
-        .into_iter()
-        .enumerate()
-    {
+    for (matched, handler) in handlers.into_iter().enumerate() {
         let event = handler.event;
         let span = handler.event_span;
         let priority = i64::from(handler.effective_priority);
@@ -2981,8 +3198,13 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
 /// the dialect-resolved answer — which is what the `segments` and `cst`
 /// views beside it show.
 #[must_use]
-pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
-    use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_is_complete};
+pub fn serialise_structural_index(
+    source: &str,
+    li: &LineIndex,
+    original: &tcl_lexer::SourceImage,
+    config: LexerConfig,
+) -> Value {
+    use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_image_is_complete};
 
     fn pos(li: &LineIndex, off: u32) -> Value {
         let p = li.position_at(off);
@@ -3014,7 +3236,8 @@ pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
         .collect();
 
     json!({
-        "scriptComplete": script_is_complete(source),
+        "scriptComplete": (original.bytes() == source.as_bytes())
+            .then(|| script_image_is_complete(original, config).ok()).flatten(),
         "commandBoundaries": boundaries,
         "brackets": {
             "unterminated": brackets.unterminated_count(),
@@ -3086,9 +3309,11 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
 /// analyses. `dataflow*` counts are omitted — `dataflow` is not implemented,
 /// and such counts only apply when a dataflow graph is present.
 fn serialise_stats(result: &ExplorerResult) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
 
     let unreachable: usize = result
         .all_snapshots()
@@ -3114,7 +3339,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
     ));
     gvn.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
     let taint = find_taint_warnings_for_cu(&result.unit, registry, dialect).len();
-    let rewrites = optimise(&result.source, registry).len();
+    let rewrites = optimise_unit(&result.unit, registry, dialect).len();
     // Dead stores are O109 optimiser findings (no standalone liveness pass).
     let dead_stores = find_dead_stores(&result.unit, registry, dialect).len();
 
@@ -3128,7 +3353,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
         "shimmerWarnings": shimmer,
         "gvnWarnings": gvn.len(),
         "taintWarnings": taint,
-        "irulesFlowWarnings": 0,
+        "irulesFlowWarnings": irules_flow_warnings(result, &retained).len(),
     })
 }
 
@@ -3199,9 +3424,11 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 // splitting the per-source arms would scatter one contract across helpers.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return (Value::Null, Value::Null);
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let mut anns: Vec<Ann> = Vec::new();
 
     // Barriers (IR walk).
@@ -3293,7 +3520,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     }
 
     // Optimiser rewrites.
-    for o in optimise(source, registry) {
+    for o in optimise_unit(&result.unit, registry, dialect) {
         anns.push(Ann {
             span: o.span,
             label: format!(
@@ -3472,11 +3699,9 @@ pub fn serialise_result_with_optimisations(
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
     // `{*}` / iRules braces the same way the rest of the pipeline does. The
-    // grammar comes off the same ingress-resolved profile `run_pipeline`
-    // built the unit against, never a second by-name resolution.
-    let lexer_config = LexerConfig::for_file_grammar(
-        crate::environment::profile_for_dialect(&result.dialect).grammar,
-    );
+    // complete configuration comes from the actual lowered Module, retaining
+    // independently supplied axes rather than resolving its display label.
+    let lexer_config = result.unit.ir_module.lexer_config;
     out.insert(
         "cst".to_owned(),
         crate::cst::serialise_cst(&result.source, lexer_config),
@@ -3488,7 +3713,12 @@ pub fn serialise_result_with_optimisations(
     // Rust-native: the lexer structural pre-scan.
     out.insert(
         "structuralIndex".to_owned(),
-        serialise_structural_index(&result.source, &li),
+        serialise_structural_index(
+            &result.source,
+            &li,
+            &result.unit.ir_module.source,
+            lexer_config,
+        ),
     );
     // Rust-native: the LineIndex span model.
     let mut source_map = serialise_source_map(&result.source, &li);
@@ -3537,7 +3767,7 @@ pub fn serialise_result_with_optimisations(
     );
     out.insert(
         "eventOrder".to_owned(),
-        serialise_event_order(&result.source, &li, &result.dialect),
+        serialise_event_order_for_result(result, &li),
     );
     out.insert(
         "asm".to_owned(),
@@ -3605,6 +3835,104 @@ pub fn serialise_result_with_optimisations(
 mod tests {
     use super::*;
     use crate::run_pipeline;
+
+    #[test]
+    // Implementation contract: naming.variable.registry-event-frame-identity
+    // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+    fn original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant() {
+        let source = "when HTTP_REQUEST {set local 1}";
+        let result = run_pipeline(source, "f5-irules");
+        let encoded = serialise_semantic(&result, &LineIndex::new(source), source);
+        let event = encoded
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|function| {
+                let event = &function["conditionalEvent"];
+                (!event.is_null()).then_some(event)
+            })
+            .expect("selected event descriptor appears in semantic view");
+        assert_eq!(event["event"], "HTTP_REQUEST");
+        assert_eq!(event["purpose"], "conditional-source-frame");
+        assert_eq!(event["licensesEnteredEvent"], false);
+        let source = "namespace eval ::when {}; proc ::when::HTTP_REQUEST {} {set local 1}";
+        let ordinary = run_pipeline(source, "f5-irules");
+        let encoded = serialise_semantic(&ordinary, &LineIndex::new(source), source);
+        assert!(
+            encoded
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|function| function["conditionalEvent"].is_null())
+        );
+    }
+
+    #[test]
+    fn completion_terminator_preserves_pending_native_return() {
+        use tcl_registry::completion_route::{InvocationCompletionRoute, ReturnCompletionRoute};
+        let source = "error BOOM";
+        let result = run_pipeline(source, "tcl8.6");
+        let snapshots = result.all_snapshots();
+        let term = Terminator::Complete {
+            route: InvocationCompletionRoute::Return(ReturnCompletionRoute {
+                eventual_code: tcl_registry::completion::CompletionCode::Error,
+                remaining_level: 2,
+            }),
+            span: None,
+        };
+        let encoded = terminator_dict(
+            &snapshots[0].unit.cfg,
+            Some(&term),
+            &LineIndex::new(source),
+            source,
+        );
+        assert_eq!(encoded["type"], "complete");
+        assert_eq!(encoded["completion"]["route"]["kind"], "return");
+        assert_eq!(encoded["completion"]["route"]["eventualCode"], 1);
+        assert_eq!(encoded["completion"]["route"]["remainingLevel"], 2);
+        assert_eq!(encoded["completion"]["normalPossible"], false);
+        assert_eq!(encoded["completion"]["abruptPossible"], true);
+        assert!(block_successors(&snapshots[0].unit.cfg, Some(&term)).is_empty());
+    }
+
+    #[test]
+    fn native_lookup_decline_and_interpreter_world_domains_remain_distinct() {
+        let reason = OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup {
+            lookup: tcl_registry::native_compilation::NativeCompilerImplementationLookup {
+                ensemble: "::binary",
+                member: "encode",
+                slot: "::tcl::binary::encode",
+                command: "binary",
+                prepended: &["encode"],
+            },
+        };
+        let encoded = unproved_implementation_lookup(&reason);
+        assert_eq!(encoded["ensemble"], "::binary");
+        assert_eq!(encoded["member"], "encode");
+        assert_eq!(encoded["slot"], "::tcl::binary::encode");
+        assert_eq!(encoded["command"], "binary");
+        assert_eq!(encoded["prepended"], json!(["encode"]));
+        assert_eq!(
+            invocation_resolution_label(&InvocationResolution::Unresolved(reason)),
+            "unresolved-unproved-native-implementation-lookup"
+        );
+        assert_eq!(
+            world_domain_name(WorldRegionKind::InterpreterResult),
+            "interpreter-result"
+        );
+        assert_eq!(
+            world_domain_name(WorldRegionKind::CompletionState),
+            "completion-state"
+        );
+        assert_eq!(
+            registry_world_domain_name(tcl_registry::WorldStateDomain::InterpreterResult),
+            "interpreter-result"
+        );
+        assert_eq!(
+            registry_world_domain_name(tcl_registry::WorldStateDomain::CompletionState),
+            "completion-state"
+        );
+    }
 
     #[test]
     fn meta_lists_all_dialects_views_and_severities() {
@@ -5007,5 +5335,431 @@ mod tests {
         let start = usize::try_from(cond_range["startOffset"].as_u64().unwrap()).unwrap();
         let end = usize::try_from(cond_range["endOffset"].as_u64().unwrap()).unwrap();
         assert_eq!(&src[start..end], "{$x}");
+    }
+}
+
+#[cfg(test)]
+mod original_configured_index_tests {
+    use super::*;
+    #[test]
+    fn original_structural_completeness_keeps_module_input_and_unknown_null() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Explorer source display; fixed C9 structural indexes remain separate.
+        let mut result = crate::run_pipeline("set x ${a{}", "tcl9.1");
+        result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert_eq!(
+            serialise_result(&result)["structuralIndex"]["scriptComplete"],
+            true
+        );
+        result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(
+            serialise_result(&result)["structuralIndex"]["scriptComplete"],
+            false
+        );
+        result.source.push_str("foreign");
+        assert!(serialise_result(&result)["structuralIndex"]["scriptComplete"].is_null());
+        let mut jim = crate::run_pipeline("set x 1", "jim");
+        jim.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        assert!(serialise_result(&jim)["structuralIndex"]["scriptComplete"].is_null());
+    }
+}
+
+#[cfg(test)]
+mod retained_explorer_source_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::ResolvedAnalysisInput;
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+
+    fn fixture(
+        source: &str,
+        engine: &str,
+        registry: &tcl_registry::CommandRegistry,
+        config: LexerConfig,
+    ) -> ExplorerResult {
+        let environment =
+            tcl_registry::model::resolve_known_environment(engine).expect("known provider ingress");
+        let context = Arc::new(
+            environment
+                .default_context_registry()
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context,
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+        .with_interprocedural(registry, Some(environment.unit_profile()));
+        ExplorerResult {
+            source: source.to_owned(),
+            dialect: engine.to_owned(),
+            unit,
+        }
+    }
+
+    #[test]
+    fn retained_explorer_source_keeps_actual_profiles_and_ignores_display_labels() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Producer/model controls, independently of C/Jim binary observations.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let environment = tcl_registry::model::resolve_known_environment(engine).unwrap();
+            let registry = environment.default_context_registry();
+            let config = LexerConfig::from_grammar(environment.grammar());
+            let mut result = fixture("set retained VALUE", engine, registry.commands(), config);
+            result.dialect = "display-label-has-no-semantic-owner".to_owned();
+            let owner = retained_explorer_source(&result, &result.source).expect(engine);
+            assert_eq!(owner.config, config, "{engine}");
+            assert_eq!(
+                owner.dialect.unwrap().cache_key(),
+                environment.unit_profile().cache_key(),
+                "{engine}"
+            );
+            assert_eq!(
+                owner.registry.snapshot().semantic_key(),
+                registry.commands().snapshot().semantic_key(),
+                "{engine}"
+            );
+            assert_eq!(
+                owner.input,
+                result
+                    .unit
+                    .ir_module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap(),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn retained_event_order_uses_the_custom_full_config_and_actual_command_store() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Explicit source-parser axis, not a measured BIG-IP BOM acceptance claim.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::from_grammar(environment.grammar())
+        };
+        let source = "\u{feff}when HTTP_REQUEST {}";
+        let mut result = fixture(source, "f5-irules", context.commands(), config);
+        result.dialect = "tcl8.4".to_owned();
+        let rows = serialise_event_order_for_result(&result, &LineIndex::new(source));
+        let rows = rows.as_array().expect("current source inventory");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[0]["range"]["startOffset"], "\u{feff}when ".len());
+
+        let mut commands = context.commands().as_ref().clone();
+        let mut when = commands.get("when").unwrap().clone();
+        when.traits.remove(tcl_registry::Traits::IS_EVENT_HANDLER);
+        commands.insert(when);
+        let result = fixture(
+            "when HTTP_REQUEST {}",
+            "f5-irules",
+            &commands,
+            LexerConfig::from_grammar(environment.grammar()),
+        );
+        let owner = retained_explorer_source(&result, &result.source).unwrap();
+        assert_eq!(
+            owner.registry.snapshot().semantic_key(),
+            commands.snapshot().semantic_key()
+        );
+        assert_eq!(
+            serialise_event_order_for_result(&result, &LineIndex::new(&result.source)),
+            json!([])
+        );
+    }
+
+    fn remaining_source_views(result: &ExplorerResult, source: &str) -> Vec<(&'static str, Value)> {
+        let li = LineIndex::new(source);
+        vec![
+            ("asm", crate::asm::serialise_asm(result, &li, source)),
+            (
+                "wasm",
+                serialise_wasm_with_options(
+                    result,
+                    tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+                ),
+            ),
+            ("shimmer", serialise_shimmer(result, &li, source)),
+            ("gvn", serialise_gvn(result, &li, source)),
+            ("taintWarnings", serialise_taint(result, &li, source)),
+            ("cfgPostSsa", serialise_cfg_post_ssa(result, &li, source)),
+            ("liveness", serialise_liveness(result)),
+            ("irulesFlow", serialise_irules_flow(result, &li, source)),
+            ("bounds", serialise_bounds(result)),
+        ]
+    }
+
+    fn assert_retained_views_withdraw(result: &ExplorerResult, label: &str) {
+        let line_index = LineIndex::new(&result.source);
+        assert!(
+            retained_explorer_source(result, &result.source).is_none(),
+            "{label}"
+        );
+        assert!(
+            serialise_event_order_for_result(result, &line_index).is_null(),
+            "{label}"
+        );
+        assert!(
+            serialise_optimisations(result, &line_index, &result.source).is_null(),
+            "{label}"
+        );
+        assert!(
+            serialise_optimiser_passes(result, &line_index, &result.source).is_null(),
+            "{label}"
+        );
+        assert!(serialise_stats(result).is_null(), "{label}");
+        assert_eq!(
+            serialise_annotations(result, &line_index, &result.source),
+            (Value::Null, Value::Null),
+            "{label}"
+        );
+        assert!(optimised_result(result).is_none(), "{label}");
+        for (field, value) in remaining_source_views(result, &result.source) {
+            assert!(value.is_null(), "{label}/{field}");
+        }
+    }
+
+    #[test]
+    fn retained_explorer_views_refuse_missing_changed_and_foreign_source_owners() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {}";
+        let original = fixture(source, "f5-irules", context.commands(), config);
+        assert!(retained_explorer_source(&original, source).is_some());
+        assert_eq!(
+            serialise_event_order_for_result(&original, &LineIndex::new(source))
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        let controls: [(&str, fn(&mut ExplorerResult)); 13] = [
+            ("missing retained interpretation", |r| {
+                r.unit.ir_module.retained_source_bindings = None
+            }),
+            ("missing registry snapshot", |r| {
+                r.unit.ir_module.registry_snapshot = None
+            }),
+            ("missing full input", |r| {
+                r.unit.ir_module.source_metadata_input = None
+            }),
+            ("changed Module image", |r| {
+                r.unit.ir_module.source = tcl_lexer::SourceImage::document("when HTTP_RESPONSE {}")
+            }),
+            ("changed source channel", |r| {
+                r.unit.ir_module.source = tcl_lexer::SourceImage::native(r.source.as_bytes())
+            }),
+            ("changed CU image", |r| {
+                r.unit.source.push_str("; set changed VALUE")
+            }),
+            ("changed presentation image", |r| {
+                r.source.push_str("; set changed VALUE")
+            }),
+            ("changed full BOM config", |r| {
+                r.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip
+            }),
+            ("changed source coordinates", |r| {
+                r.unit.ir_module.lexer_config.base_line += 1
+            }),
+            ("changed profile", |r| {
+                r.unit.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::plain_tcl())
+            }),
+            ("changed entry", |r| {
+                r.unit.ir_module.source_entry.unknown_entry =
+                    !r.unit.ir_module.source_entry.unknown_entry
+            }),
+            ("same-store foreign availability", |r| {
+                let input = r.unit.ir_module.source_metadata_input.as_ref().unwrap();
+                let commands = r
+                    .unit
+                    .ir_module
+                    .registry_snapshot
+                    .as_ref()
+                    .unwrap()
+                    .shared_registry();
+                let foreign = Arc::new(
+                    tcl_registry::model::ingress::static_context_for("tcl8.4")
+                        .with_command_store(commands),
+                );
+                r.unit.ir_module.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    foreign,
+                    input.lexer_config(),
+                ));
+            }),
+            ("foreign command snapshot", |r| {
+                r.unit.ir_module.registry_snapshot = Some(
+                    tcl_registry::model::ingress::static_context_for("tcl8.4")
+                        .commands()
+                        .snapshot(),
+                )
+            }),
+        ];
+        for (label, mutate) in controls {
+            let mut changed = ExplorerResult {
+                source: original.source.clone(),
+                dialect: original.dialect.clone(),
+                unit: original.unit.clone(),
+            };
+            mutate(&mut changed);
+            assert_retained_views_withdraw(&changed, label);
+        }
+        let index = LineIndex::new(source);
+        assert!(serialise_optimisations(&original, &index, "foreign source").is_null());
+        assert!(serialise_optimiser_passes(&original, &index, "foreign source").is_null());
+        assert_eq!(
+            serialise_annotations(&original, &index, "foreign source"),
+            (Value::Null, Value::Null)
+        );
+        assert!(retained_explorer_source(&original, source).is_some());
+    }
+
+    #[test]
+    fn rewritten_explorer_image_retains_metadata_without_reusing_old_source_ownership() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.4").unwrap();
+        let context = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let original = fixture(
+            "set retained ORIGINAL",
+            "tcl8.4",
+            context.commands(),
+            config,
+        );
+        let owner = retained_explorer_source(&original, &original.source).unwrap();
+        let rewritten = rewritten_explorer_result("set retained REWRITTEN", "display-only", &owner);
+        let current = retained_explorer_source(&rewritten, &rewritten.source).unwrap();
+        assert_eq!(current.input, owner.input);
+        assert_eq!(current.config, config);
+        assert!(std::ptr::eq(
+            current.input.borrowed_context_registry(),
+            owner.input.borrowed_context_registry()
+        ));
+        assert_ne!(
+            rewritten.unit.ir_module.source,
+            original.unit.ir_module.source
+        );
+        assert!(retained_explorer_source(&rewritten, &original.source).is_none());
+    }
+
+    #[test]
+    fn remaining_actual_cu_views_retain_profiles_and_ignore_display_labels() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Source/model agreement, independently of provider execution results.
+        for engine in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let environment = tcl_registry::model::resolve_known_environment(engine).unwrap();
+            let registry = environment.default_context_registry();
+            let config = LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Skip,
+                ..LexerConfig::from_grammar(environment.grammar())
+            };
+            let mut result = fixture(
+                "proc keep {v} {set copy $v; puts $copy}",
+                engine,
+                registry.commands(),
+                config,
+            );
+            let current = remaining_source_views(&result, &result.source);
+            for (field, value) in &current {
+                assert!(value.is_array(), "{engine}/{field}: {value}");
+            }
+            result.dialect = "unrecognised-presentation-label".to_owned();
+            assert_eq!(
+                remaining_source_views(&result, &result.source),
+                current,
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn remaining_source_range_consumers_refuse_foreign_source_arguments() {
+        let result = crate::run_pipeline("puts current", "tcl8.6");
+        let source = "puts foreign";
+        let li = LineIndex::new(source);
+        for (field, value) in [
+            ("asm", crate::asm::serialise_asm(&result, &li, source)),
+            ("shimmer", serialise_shimmer(&result, &li, source)),
+            ("gvn", serialise_gvn(&result, &li, source)),
+            ("taintWarnings", serialise_taint(&result, &li, source)),
+            ("cfgPostSsa", serialise_cfg_post_ssa(&result, &li, source)),
+            ("irulesFlow", serialise_irules_flow(&result, &li, source)),
+        ] {
+            assert!(value.is_null(), "{field}");
+        }
+    }
+
+    #[test]
+    fn retained_irules_warning_view_and_statistics_share_the_actual_count() {
+        let mut result = crate::run_pipeline("when HTTP_REQUEST {set u [HTTP::uri]}", "f5-irules");
+        let li = LineIndex::new(&result.source);
+        let warnings = serialise_irules_flow(&result, &li, &result.source);
+        let count = warnings
+            .as_array()
+            .expect("available warning inventory")
+            .len();
+        assert!(count > 0, "fixture must produce a real warning");
+        assert_eq!(serialise_stats(&result)["irulesFlowWarnings"], count);
+        result.dialect = "tcl9.1".to_owned();
+        assert_eq!(
+            serialise_irules_flow(&result, &li, &result.source),
+            warnings
+        );
+        assert_eq!(serialise_stats(&result)["irulesFlowWarnings"], count);
+    }
+
+    #[test]
+    fn bounds_withdraws_if_a_function_loses_its_actual_module_metadata() {
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let registry = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let mut result = fixture(
+            "proc keep {v} {puts $v}",
+            "tcl8.6",
+            registry.commands(),
+            config,
+        );
+        assert!(serialise_bounds(&result).is_array());
+        // The original Module still owns its full source. Replacing just the
+        // independently supplied function withdraws the required FU join.
+        let foreign = crate::run_pipeline("proc foreign {} {puts foreign}", "tcl9.1");
+        result.unit.top_level = foreign.unit.top_level;
+        assert!(retained_explorer_source(&result, &result.source).is_some());
+        assert!(serialise_bounds(&result).is_null());
     }
 }

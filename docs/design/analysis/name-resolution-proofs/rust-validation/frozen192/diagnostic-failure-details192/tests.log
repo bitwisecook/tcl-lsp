@@ -1,0 +1,47 @@
+
+running 7 tests
+test analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged ... 
+thread 'analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged' (705004) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9535:5:
+an interpolated head folding to a deleted proc must still draw W123; got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::diagnostics::var_command::retained_constant_context_tests::array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile ... 
+thread 'analyser::diagnostics::var_command::retained_constant_context_tests::array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile' (705005) panicked at rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2514:13:
+assertion `left == right` failed: positive original metadata: tcl9.0
+  left: 0
+ right: 1
+FAILED
+test analyser::oo::tests::extract_unknown_proc_info_case_insensitive_via_string_tolower ... 
+thread 'analyser::oo::tests::extract_unknown_proc_info_case_insensitive_via_string_tolower' (705007) panicked at rust/tcl-compiler/src/analyser/oo.rs:5394:9:
+assertion failed: info.case_insensitive
+FAILED
+test analyser::oo::tests::extract_unknown_proc_info_chains_original_via_known_target ... 
+thread 'analyser::oo::tests::extract_unknown_proc_info_chains_original_via_known_target' (705008) panicked at rust/tcl-compiler/src/analyser/oo.rs:5330:9:
+assertion failed: info.chains_original
+FAILED
+test analyser::oo::tests::extract_unknown_proc_info_detects_auto_load_call ... 
+thread 'analyser::oo::tests::extract_unknown_proc_info_detects_auto_load_call' (705010) panicked at rust/tcl-compiler/src/analyser/oo.rs:5384:9:
+assertion failed: info.has_auto_load
+FAILED
+test analyser::oo::tests::extract_unknown_proc_info_detects_exec_call ... 
+thread 'analyser::oo::tests::extract_unknown_proc_info_detects_exec_call' (705011) panicked at rust/tcl-compiler/src/analyser/oo.rs:5376:9:
+assertion failed: info.has_exec
+FAILED
+test analyser::oo::tests::extract_unknown_proc_info_exact_switch_collects_dispatch_targets ... 
+thread 'analyser::oo::tests::extract_unknown_proc_info_exact_switch_collects_dispatch_targets' (705012) panicked at rust/tcl-compiler/src/analyser/oo.rs:5306:9:
+assertion failed: info.dispatch_targets.contains("foo")
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged
+    analyser::diagnostics::var_command::retained_constant_context_tests::array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile
+    analyser::oo::tests::extract_unknown_proc_info_case_insensitive_via_string_tolower
+    analyser::oo::tests::extract_unknown_proc_info_chains_original_via_known_target
+    analyser::oo::tests::extract_unknown_proc_info_detects_auto_load_call
+    analyser::oo::tests::extract_unknown_proc_info_detects_exec_call
+    analyser::oo::tests::extract_unknown_proc_info_exact_switch_collects_dispatch_targets
+
+test result: FAILED. 0 passed; 7 failed; 0 ignored; 0 measured; 8367 filtered out; finished in 2.51s
+

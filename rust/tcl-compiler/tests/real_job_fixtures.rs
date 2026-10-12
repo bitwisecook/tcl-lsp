@@ -11,7 +11,6 @@ use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::model::ingress::static_context_for;
-use tcl_registry::model::semantic::SemanticContext;
 
 const SQAWK_ASSEMBLE: &str = include_str!("fixtures/real_jobs/sqawk/assemble.tcl");
 const ODO_CHECKSUM: &str = include_str!("fixtures/real_jobs/odo-miner/checksum.tcl");
@@ -34,6 +33,8 @@ const FIXTURES: &[Fixture] = &[
 
 #[test]
 fn real_jobs_lower_and_keep_semantics_around_boundary_regions() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let registry = static_context_for("tcl8.6").commands();
 
     for fixture in FIXTURES {
@@ -48,11 +49,19 @@ fn real_jobs_lower_and_keep_semantics_around_boundary_regions() {
 
         let unit = CompilationUnit::build_for_dialect(fixture.source, registry, false, "tcl8.6");
         assert_eq!(
-            unit.top_level.semantic_facts.context(),
-            Some(SemanticContext::for_environment("tcl8.6")),
+            unit.top_level.semantic_facts.metadata_context(),
+            Some(static_context_for("tcl8.6").context()),
             "{} must retain the explicitly selected profile",
             fixture.name,
         );
+        assert!(unit.top_level.semantic_facts.context().is_none());
+        assert!(std::ptr::eq(
+            unit.top_level.semantic_facts.metadata_context().unwrap(),
+            unit.top_level
+                .source_metadata_input()
+                .unwrap()
+                .availability_context(),
+        ));
 
         // A boundary region is either a structured control region with real
         // executable edges or one of the remaining opaque compatibility

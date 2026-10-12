@@ -1,0 +1,2 @@
+proc ::alpha {} {}
+alias ::a ::alpha

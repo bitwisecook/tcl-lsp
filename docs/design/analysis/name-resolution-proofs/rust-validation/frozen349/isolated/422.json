@@ -1,0 +1,19 @@
+{
+  "ordinal": 422,
+  "selector": "interp::tests::tailcall_selected_miss_does_not_relookup_the_callers_command",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::tailcall_selected_miss_does_not_relookup_the_callers_command",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 10.33663390399306,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 10.15s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/422.log",
+  "log_sha256": "a984e1f14335fdf72652760178883d24e61db30b5315b045278549021eca340d"
+}

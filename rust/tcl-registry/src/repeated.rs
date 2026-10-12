@@ -135,6 +135,22 @@ impl RepeatedArgLayout {
         }
     }
 
+    /// Apply an optional-leading layout after a shared grammar resolved its width.
+    /// Other layouts retain their ordinary stride semantics.
+    #[must_use]
+    pub fn indices_with_leading_word(self, arg_count: usize, leading_width: usize) -> Vec<usize> {
+        if !self.optional_leading_word {
+            return self.indices(arg_count);
+        }
+        let stride = usize::from(self.stride);
+        if stride == 0 {
+            return Vec::new();
+        }
+        let start = usize::from(self.start).saturating_add(leading_width);
+        let end = arg_count.saturating_sub(usize::from(self.exclude_trailing));
+        (start..end).step_by(stride).collect()
+    }
+
     /// The covered argument indices for a call supplying `arg_count` words.
     ///
     /// Returns an empty vector for a degenerate declaration (`stride == 0`)

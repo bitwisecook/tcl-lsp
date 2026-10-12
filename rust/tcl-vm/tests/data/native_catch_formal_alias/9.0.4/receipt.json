@@ -1,0 +1,24 @@
+{
+  "provider": "9.0.4",
+  "input_channel": "ASCII file bytes passed to shell stdin",
+  "source_sha256": "1dd339248836dfcdd3365901230b31f6b0a97e9a5557ec92be4886255ec4e143",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+  "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+  "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+  "source_owner_sha256": "5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0",
+  "makefile_sha256": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+  ],
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+  "process_exit": 0,
+  "stdout_sha256": "57938f3e727c68183e1638293f9d59022d3c88be7f7d5719a3110a87f8c802c0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "9.0.4",
+  "rows": [
+    "VERSION|9.0.4",
+    "LINKED|0|424f4f4d20424f4f4d",
+    "PLAIN|0|424f4f4d",
+    "SEPARATE_RESULT|0|4f4c4420424f4f4d204f4c44"
+  ]
+}

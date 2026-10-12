@@ -1,0 +1,6 @@
+compiled_empty_custom|0|DUPLICATE NO|1|0|1
+generic_empty_custom|0|ELEMENTS NO|0|1|1
+compiled_empty_length_only|0|LENGTH NO|1|0|1
+generic_empty_length_only|0|SAFE NO|0|1|1
+compiled_empty_plain|0|SAFE NO|0|0|0
+generic_empty_plain|0|SAFE NO|0|0|0

@@ -1,0 +1,9 @@
+{
+  "question": "Which source file changed during build235 and does it permit a uniform source verification claim?",
+  "original_sha256": "cf18c1d9cfebeb418bcef31d29f2587ac0f0b9e67533241d45f58a20fbbca504",
+  "cargo_updated_sha256": "fadac8dbf4462bf15460b7b3dd660b02022a854fe99162557227a5f37940a13f",
+  "original_matches_snapshot": true,
+  "source_uniform": false,
+  "outcome": "Compiler235 is a failed nonuniform build, without executable pin or assertions; only Cargo.lock changed when the new test-support dev-dependency was reconciled. Future Cargo operations require --locked.",
+  "diff": "--- a/Cargo.lock\n+++ b/Cargo.lock\n@@ -4262,6 +4262,7 @@\n  \"tcl-platform\",\n  \"tcl-runtime-api\",\n  \"tcl-syntax\",\n+ \"tcl-test-support\",\n ]\n \n [[package]]\n"
+}

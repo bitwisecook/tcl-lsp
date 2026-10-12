@@ -1,0 +1,227 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+error: associated function `source_less` is never used
+   --> rust/tcl-compiler/src/signature_scan/command_prefix.rs:103:25
+    |
+101 | impl<'a> CommandPrefixWords<'a, 'static> {
+    | ---------------------------------------- associated function in this implementation
+102 |     /// Group post-head word facts before a source map is attached.
+103 |     pub(crate) const fn source_less(
+    |                         ^^^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: function `instance_method_command_prefix_invocations` is never used
+   --> rust/tcl-compiler/src/signature_scan/command_prefix.rs:179:15
+    |
+179 | pub(crate) fn instance_method_command_prefix_invocations(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: redundant closure
+    --> rust/tcl-compiler/src/analyser/commands.rs:5990:71
+     |
+5990 |                 let Some(word) = native_input.original_word_key().map(|key| key.original_word()) else { continue; };
+     |                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `super::super::signature_scan::original_name::SignatureSourceNameKey::original_word`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+     = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: this function has too many lines (103/100)
+     --> rust/tcl-compiler/src/analyser/handlers.rs:10291:5
+      |
+10291 | /     pub(super) fn handle_oo_class_source(
+10292 | |         &mut self,
+10293 | |         call: super::original_definer::ClassDefinerCall<'_>,
+10294 | |     ) -> bool {
+      | |_____________^
+      |
+      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+      = note: `-D clippy::too-many-lines` implied by `-D warnings`
+      = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this argument is passed by value, but not consumed in the function body
+     --> rust/tcl-compiler/src/analyser/handlers.rs:10293:15
+      |
+10293 |         call: super::original_definer::ClassDefinerCall<'_>,
+      |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+help: or consider marking this type as `Copy`
+     --> rust/tcl-compiler/src/analyser/original_definer.rs:86:1
+      |
+   86 | pub(super) struct ClassDefinerCall<'a> {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+      = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+      = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+      |
+10293 |         call: &super::original_definer::ClassDefinerCall<'_>,
+      |               +
+
+error: this argument is passed by value, but not consumed in the function body
+    --> rust/tcl-compiler/src/analyser/oo.rs:1496:15
+     |
+1496 |         call: super::original_definer::ClassDefinerCall<'_>,
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: or consider marking this type as `Copy`
+    --> rust/tcl-compiler/src/analyser/original_definer.rs:86:1
+     |
+  86 | pub(super) struct ClassDefinerCall<'a> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+     |
+1496 |         call: &super::original_definer::ClassDefinerCall<'_>,
+     |               +
+
+error: this argument is passed by value, but not consumed in the function body
+    --> rust/tcl-compiler/src/analyser/oo.rs:1939:15
+     |
+1939 |         call: super::original_definer::ClassDefinerCall<'_>,
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: or consider marking this type as `Copy`
+    --> rust/tcl-compiler/src/analyser/original_definer.rs:86:1
+     |
+  86 | pub(super) struct ClassDefinerCall<'a> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+     |
+1939 |         call: &super::original_definer::ClassDefinerCall<'_>,
+     |               +
+
+error: this function has too many lines (101/100)
+    --> rust/tcl-compiler/src/analyser/oo.rs:2039:5
+     |
+2039 | /     pub(super) fn handle_jim_class_source(
+2040 | |         &mut self,
+2041 | |         call: super::original_definer::ClassDefinerCall<'_>,
+2042 | |     ) -> bool {
+     | |_____________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: this argument is passed by value, but not consumed in the function body
+    --> rust/tcl-compiler/src/analyser/oo.rs:2041:15
+     |
+2041 |         call: super::original_definer::ClassDefinerCall<'_>,
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: or consider marking this type as `Copy`
+    --> rust/tcl-compiler/src/analyser/original_definer.rs:86:1
+     |
+  86 | pub(super) struct ClassDefinerCall<'a> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+     |
+2041 |         call: &super::original_definer::ClassDefinerCall<'_>,
+     |               +
+
+error: this function has too many lines (102/100)
+   --> rust/tcl-compiler/src/command_binding/source_name_lookup.rs:267:5
+    |
+267 | /     pub fn original_registry_target_for_name(
+268 | |         &self,
+269 | |         key: &SignatureSourceNameKey,
+270 | |     ) -> Option<super::SourceCommandTarget> {
+    | |___________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: item in documentation is missing backticks
+   --> rust/tcl-compiler/src/command_binding/source_declared_command.rs:215:9
+    |
+215 |     /// PotentialEvaluation cannot borrow builtin or entered-body semantics.
+    |         ^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_markdown
+    = note: `-D clippy::doc-markdown` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+    |
+215 -     /// PotentialEvaluation cannot borrow builtin or entered-body semantics.
+215 +     /// `PotentialEvaluation` cannot borrow builtin or entered-body semantics.
+    |
+
+error: this function has too many lines (105/100)
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:310:5
+    |
+310 | /     fn command(
+311 | |         &mut self,
+312 | |         tape: &mut OriginalSourceTransitionAdviceTape,
+313 | |         graph: &mut AdviceGraph,
+...   |
+316 | |         depth: usize,
+317 | |     ) -> Option<()> {
+    | |___________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: useless conversion to the same type: `usize`
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/source_instance.rs:315:18
+    |
+315 |               Some(usize::from(grammar.conditional_construction_name_at(
+    |  __________________^
+316 | |                 first,
+317 | |                 std::iter::empty::<&str>(),
+318 | |             )?))
+    | |_______________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#useless_conversion
+    = note: `-D clippy::useless-conversion` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::useless_conversion)]`
+help: consider removing `usize::from()`
+    |
+315 ~             Some(grammar.conditional_construction_name_at(
+316 +                 first,
+317 +                 std::iter::empty::<&str>(),
+318 ~             )?)
+    |
+
+error: missing documentation for a struct field
+  --> rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:29:9
+   |
+29 |         supplied: usize,
+   |         ^^^^^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> rust/tcl-compiler/src/lib.rs:81:9
+   |
+81 | #![deny(missing_docs)]
+   |         ^^^^^^^^^^^^
+
+error: missing documentation for a struct field
+  --> rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:30:9
+   |
+30 |         expected_minimum: usize,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing documentation for a struct field
+  --> rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:34:9
+   |
+34 |         supplied: usize,
+   |         ^^^^^^^^^^^^^^^
+
+error: missing documentation for a struct field
+  --> rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:35:9
+   |
+35 |         expected_maximum: usize,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing documentation for a struct field
+  --> rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs:38:29
+   |
+38 |     NoCompatibleSignature { supplied: usize },
+   |                             ^^^^^^^^^^^^^^^
+
+error: could not compile `tcl-compiler` (lib) due to 18 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 18 previous errors

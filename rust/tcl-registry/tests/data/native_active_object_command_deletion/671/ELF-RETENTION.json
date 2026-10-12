@@ -1,0 +1,67 @@
+{
+  "purpose": "Exact linked probe executable retention and independent whole-byte decompression checks.",
+  "question": "naming.embedding.original-active-object-command-deletion",
+  "images": [
+    {
+      "provider_directory": "8.4.20",
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/probe.elf.gz",
+      "sha256": "0030435de1cedbd1381bac871cc4a68df4664a55c482e4d22740dfa03ebd6cf0",
+      "bytes": 386935,
+      "uncompressed_sha256": "43acfd89fa1a5a9cfe5533b237347d80269fe4a33094e694218ea599c8530c56",
+      "uncompressed_bytes": 859088,
+      "compression": "gzip, mtime=0, empty filename",
+      "whole_decompression_roundtrip_verified": true
+    },
+    {
+      "provider_directory": "8.5.19",
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/probe.elf.gz",
+      "sha256": "6b4630b8faa6d8b91f19222a55cefbe1a8c4669b727a3cbfc7fc2e0cd7937ca2",
+      "bytes": 567213,
+      "uncompressed_sha256": "6d3b1a303f6b7af7d71fb188b7410a43f4f2a50ee58139f74555a4e31dcb2fce",
+      "uncompressed_bytes": 1254176,
+      "compression": "gzip, mtime=0, empty filename",
+      "whole_decompression_roundtrip_verified": true
+    },
+    {
+      "provider_directory": "8.6.18",
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/probe.elf.gz",
+      "sha256": "ea84bb346141f42729c6a36d210ea9869f83b212df6aa489b68c70df77bc51cc",
+      "bytes": 809046,
+      "uncompressed_sha256": "2be2675e3c60f77dc16c648f3bc14134ac69eeaa9dd3c901ce63b07153a99316",
+      "uncompressed_bytes": 1866888,
+      "compression": "gzip, mtime=0, empty filename",
+      "whole_decompression_roundtrip_verified": true
+    },
+    {
+      "provider_directory": "9.0.4",
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/probe.elf.gz",
+      "sha256": "9b4acf551f83018e238b6196d642004753770ed1bfd1f16f2e4012b3908eb435",
+      "bytes": 959479,
+      "uncompressed_sha256": "c9de9302a293fe72275df01c01bcf42ece429c8d56d9382ddff4c9c5ce904574",
+      "uncompressed_bytes": 2270352,
+      "compression": "gzip, mtime=0, empty filename",
+      "whole_decompression_roundtrip_verified": true
+    },
+    {
+      "provider_directory": "9.1.0",
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/probe.elf.gz",
+      "sha256": "0400423a1df1e0d7e84aaabd3893ed908c8ef3d20bcff64de1456ac5daf60467",
+      "bytes": 1027687,
+      "uncompressed_sha256": "ab4a5f20aa19ecdafabb90b3af0b5a3397642b9fb583419abd06d2d225545f05",
+      "uncompressed_bytes": 2511960,
+      "compression": "gzip, mtime=0, empty filename",
+      "whole_decompression_roundtrip_verified": true
+    },
+    {
+      "provider_directory": "jim",
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/probe.elf.gz",
+      "sha256": "5863dff022e24dda10223fa648fc797187370056e24048aa92e567e1f2e0555d",
+      "bytes": 187564,
+      "uncompressed_sha256": "32feb36adbbd51460b7f1c4193555b81e93f0ce13d577d6dc7909069685e95f1",
+      "uncompressed_bytes": 426760,
+      "compression": "gzip, mtime=0, empty filename",
+      "whole_decompression_roundtrip_verified": true
+    }
+  ],
+  "limits": "Compression and byte retention do not provide additional provider execution, test results, client-data lifetime, source-to-library or cross-provider equivalence."
+}

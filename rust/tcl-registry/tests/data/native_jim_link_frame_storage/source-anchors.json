@@ -1,0 +1,40 @@
+{
+  "source_anchors": [
+    {
+      "original_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+      "original_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        4937,
+        4974
+      ],
+      "snippet": "Jim_Obj *Jim_GetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)\n{\n    if (interp->safeexpr) {\n        return nameObjPtr;\n    }\n    switch (SetVariableFromAny(interp, nameObjPtr)) {\n        case JIM_OK:{\n                Jim_VarVal *vv = nameObjPtr->internalRep.varValue.vv;\n\n                if (vv->linkFramePtr == NULL) {\n                    return vv->objPtr;\n                }\n                else {\n                    Jim_Obj *objPtr;\n\n                    /* The variable is a link? Resolve it. */\n                    Jim_CallFrame *savedCallFrame = interp->framePtr;\n\n                    interp->framePtr = vv->linkFramePtr;\n                    objPtr = Jim_GetVariable(interp, vv->objPtr, flags);\n                    interp->framePtr = savedCallFrame;\n                    if (objPtr) {\n                        return objPtr;\n                    }\n                    /* Error, so fall through to the error message */\n                }\n            }\n            break;\n\n        case JIM_DICT_SUGAR:\n            /* [dict] syntax sugar. */\n            return JimDictSugarGet(interp, nameObjPtr, flags);\n    }\n    if (flags & JIM_ERRMSG) {\n        Jim_SetResultFormatted(interp, \"can't read \\\"%#s\\\": no such variable\", nameObjPtr);\n    }\n    return NULL;\n}",
+      "snippet_sha256": "178b3e058f606f88129c613eb578d23e05d1af15898f0b2409cbe6c9cfd26585",
+      "function": "Jim_Obj *Jim_GetVariable",
+      "purpose": "Exact recursive link getter or free-frame storage/epoch ownership; not a source or activation entry receipt"
+    },
+    {
+      "original_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+      "original_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        5260,
+        5292
+      ],
+      "snippet": "static Jim_CallFrame *JimCreateCallFrame(Jim_Interp *interp, Jim_CallFrame *parent, Jim_Obj *nsObj)\n{\n    Jim_CallFrame *cf;\n\n    if (interp->freeFramesList) {\n        cf = interp->freeFramesList;\n        interp->freeFramesList = cf->next;\n\n        cf->argv = NULL;\n        cf->argc = 0;\n        cf->procArgsObjPtr = NULL;\n        cf->procBodyObjPtr = NULL;\n        cf->next = NULL;\n        cf->staticVars = NULL;\n        cf->localCommands = NULL;\n        cf->tailcallObj = NULL;\n        cf->tailcallCmd = NULL;\n    }\n    else {\n        cf = Jim_Alloc(sizeof(*cf));\n        memset(cf, 0, sizeof(*cf));\n\n        Jim_InitHashTable(&cf->vars, &JimVariablesHashTableType, interp);\n    }\n\n    cf->id = interp->callFrameEpoch++;\n    cf->parent = parent;\n    cf->level = parent ? parent->level + 1 : 0;\n    cf->nsObj = nsObj;\n    Jim_IncrRefCount(nsObj);\n\n    return cf;\n}",
+      "snippet_sha256": "0c51da137fb2885f5f439805dd2efe4c218a76369dd7b0247cd61e1663d23378",
+      "function": "static Jim_CallFrame *JimCreateCallFrame",
+      "purpose": "Exact recursive link getter or free-frame storage/epoch ownership; not a source or activation entry receipt"
+    },
+    {
+      "original_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c",
+      "original_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        5387,
+        5403
+      ],
+      "snippet": "static void JimFreeCallFrame(Jim_Interp *interp, Jim_CallFrame *cf, int action)\n {\n    JimDeleteLocalProcs(interp, cf->localCommands);\n\n    if (cf->procArgsObjPtr)\n        Jim_DecrRefCount(interp, cf->procArgsObjPtr);\n    if (cf->procBodyObjPtr)\n        Jim_DecrRefCount(interp, cf->procBodyObjPtr);\n    Jim_DecrRefCount(interp, cf->nsObj);\n    if (action == JIM_FCF_FULL || cf->vars.size != JIM_HT_INITIAL_SIZE)\n        Jim_FreeHashTable(&cf->vars);\n    else {\n        Jim_ClearHashTable(&cf->vars);\n    }\n    cf->next = interp->freeFramesList;\n    interp->freeFramesList = cf;\n}",
+      "snippet_sha256": "b829f65933d57fd3dfa7c0e31590f3d3f8a1df66192b7e9c2d88bd71660a85de",
+      "function": "static void JimFreeCallFrame",
+      "purpose": "Exact recursive link getter or free-frame storage/epoch ownership; not a source or activation entry receipt"
+    }
+  ]
+}

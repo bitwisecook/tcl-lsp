@@ -1,0 +1,2253 @@
+{
+  "schema_version": 1,
+  "scope": "Offline byte reconstruction only. Each program concatenates the independently retained original body hex and the shown catch/binary-scan wrapper, then matches the original capture source_sha256 exactly. These are recovered input bytes, not newly executed native programs, provider validation, or Rust test outcomes. Bodies and provider associations remain separate.",
+  "groups": {
+    "unset-execution": {
+      "proof_id": "naming.variable.unset-execution-frontiers",
+      "producer": "runtime/rust/tests/data/native_unset_execution/probe.py",
+      "rows": [
+        {
+          "provider_label": "8.4",
+          "case": "undefined-trace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.4.tsv",
+            "sha256": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/0/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b207472616365207661726961626c652067686f737420752063623b207365742063205b6361746368207b756e7365742067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b74726163652076696e666f2067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "fb35ffb2d2edfa2b50988f6184d126ca672d95798dd66c42c24a5653233ef0c5"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "undefined-trace-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.4.tsv",
+            "sha256": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/1/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b207472616365207661726961626c652067686f737420752063623b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b74726163652076696e666f2067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "607140f87e65d1c1426143a2a67ae97b558be1bfc965ba1a24c8c2f36472375d"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "quiet-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.4.tsv",
+            "sha256": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/2/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a767d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "quiet-array-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.4.tsv",
+            "sha256": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/3/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a61286b297d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "sequential-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.4.tsv",
+            "sha256": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/4/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a666972737420313b20736574203a3a7365636f6e6420313b20736574203a3a6576656e7473207b7d3b2070726f63206e616d65207b77686963687d207b6c617070656e64203a3a6576656e7473205b6c69737420247768696368205b696e666f20657869737473203a3a66697273745d5d3b2072657475726e207b7d7d3b2070726f632070207b7d207b756e736574202d6e6f636f6d706c61696e203a3a66697273745b6e616d65204f4e455d203a3a7365636f6e645b6e616d652054574f5d7d3b20703b206c69737420246576656e7473205b696e666f20657869737473203a3a66697273745d205b696e666f20657869737473203a3a7365636f6e645d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "element-order",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.4.tsv",
+            "sha256": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/5/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a7365656e204245464f52453b2070726f6320696478207b76616c75657d207b736574203a3a7365656e202476616c75653b2072657475726e202476616c75657d3b2070726f632070207b7d207b756e7365742061285b6964782046495253545d292061285b696478205345434f4e445d297d3b207365742063205b6361746368207b707d206d5d3b206c69737420246320246d20243a3a7365656e7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "undefined-trace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.5.tsv",
+            "sha256": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/6/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e7365742067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "undefined-trace-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.5.tsv",
+            "sha256": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/7/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "quiet-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.5.tsv",
+            "sha256": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/8/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a767d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "quiet-array-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.5.tsv",
+            "sha256": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/9/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a61286b297d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "sequential-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.5.tsv",
+            "sha256": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/10/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a666972737420313b20736574203a3a7365636f6e6420313b20736574203a3a6576656e7473207b7d3b2070726f63206e616d65207b77686963687d207b6c617070656e64203a3a6576656e7473205b6c69737420247768696368205b696e666f20657869737473203a3a66697273745d5d3b2072657475726e207b7d7d3b2070726f632070207b7d207b756e736574202d6e6f636f6d706c61696e203a3a66697273745b6e616d65204f4e455d203a3a7365636f6e645b6e616d652054574f5d7d3b20703b206c69737420246576656e7473205b696e666f20657869737473203a3a66697273745d205b696e666f20657869737473203a3a7365636f6e645d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "element-order",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.5.tsv",
+            "sha256": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/11/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a7365656e204245464f52453b2070726f6320696478207b76616c75657d207b736574203a3a7365656e202476616c75653b2072657475726e202476616c75657d3b2070726f632070207b7d207b756e7365742061285b6964782046495253545d292061285b696478205345434f4e445d297d3b207365742063205b6361746368207b707d206d5d3b206c69737420246320246d20243a3a7365656e7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "undefined-trace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.6.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/12/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e7365742067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "undefined-trace-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.6.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/13/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "quiet-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.6.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/14/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a767d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "quiet-array-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.6.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/15/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a61286b297d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "sequential-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.6.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/16/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a666972737420313b20736574203a3a7365636f6e6420313b20736574203a3a6576656e7473207b7d3b2070726f63206e616d65207b77686963687d207b6c617070656e64203a3a6576656e7473205b6c69737420247768696368205b696e666f20657869737473203a3a66697273745d5d3b2072657475726e207b7d7d3b2070726f632070207b7d207b756e736574202d6e6f636f6d706c61696e203a3a66697273745b6e616d65204f4e455d203a3a7365636f6e645b6e616d652054574f5d7d3b20703b206c69737420246576656e7473205b696e666f20657869737473203a3a66697273745d205b696e666f20657869737473203a3a7365636f6e645d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "element-order",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/8.6.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/17/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a7365656e204245464f52453b2070726f6320696478207b76616c75657d207b736574203a3a7365656e202476616c75653b2072657475726e202476616c75657d3b2070726f632070207b7d207b756e7365742061285b6964782046495253545d292061285b696478205345434f4e445d297d3b207365742063205b6361746368207b707d206d5d3b206c69737420246320246d20243a3a7365656e7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "undefined-trace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.0.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/18/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e7365742067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "undefined-trace-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.0.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/19/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "quiet-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.0.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/20/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a767d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "quiet-array-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.0.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/21/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a61286b297d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "sequential-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.0.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/22/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a666972737420313b20736574203a3a7365636f6e6420313b20736574203a3a6576656e7473207b7d3b2070726f63206e616d65207b77686963687d207b6c617070656e64203a3a6576656e7473205b6c69737420247768696368205b696e666f20657869737473203a3a66697273745d5d3b2072657475726e207b7d7d3b2070726f632070207b7d207b756e736574202d6e6f636f6d706c61696e203a3a66697273745b6e616d65204f4e455d203a3a7365636f6e645b6e616d652054574f5d7d3b20703b206c69737420246576656e7473205b696e666f20657869737473203a3a66697273745d205b696e666f20657869737473203a3a7365636f6e645d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "element-order",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.0.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/23/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a7365656e204245464f52453b2070726f6320696478207b76616c75657d207b736574203a3a7365656e202476616c75653b2072657475726e202476616c75657d3b2070726f632070207b7d207b756e7365742061285b6964782046495253545d292061285b696478205345434f4e445d297d3b207365742063205b6361746368207b707d206d5d3b206c69737420246320246d20243a3a7365656e7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "undefined-trace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.1.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/24/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e7365742067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "undefined-trace-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.1.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/25/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "quiet-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.1.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/26/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a767d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "quiet-array-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.1.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/27/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a61286b297d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "sequential-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.1.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/28/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a666972737420313b20736574203a3a7365636f6e6420313b20736574203a3a6576656e7473207b7d3b2070726f63206e616d65207b77686963687d207b6c617070656e64203a3a6576656e7473205b6c69737420247768696368205b696e666f20657869737473203a3a66697273745d5d3b2072657475726e207b7d7d3b2070726f632070207b7d207b756e736574202d6e6f636f6d706c61696e203a3a66697273745b6e616d65204f4e455d203a3a7365636f6e645b6e616d652054574f5d7d3b20703b206c69737420246576656e7473205b696e666f20657869737473203a3a66697273745d205b696e666f20657869737473203a3a7365636f6e645d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "element-order",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/9.1.tsv",
+            "sha256": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/29/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a7365656e204245464f52453b2070726f6320696478207b76616c75657d207b736574203a3a7365656e202476616c75653b2072657475726e202476616c75657d3b2070726f632070207b7d207b756e7365742061285b6964782046495253545d292061285b696478205345434f4e445d297d3b207365742063205b6361746368207b707d206d5d3b206c69737420246320246d20243a3a7365656e7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d"
+        },
+        {
+          "provider_label": "jim",
+          "case": "undefined-trace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/jim.tsv",
+            "sha256": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/30/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e7365742067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81"
+        },
+        {
+          "provider_label": "jim",
+          "case": "undefined-trace-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/jim.tsv",
+            "sha256": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/31/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206576656e7473207b7d3b2070726f63206362207b6e2069206f707d207b6c617070656e64203a3a6576656e7473205b6c69737420246e20246920246f705d3b2072657475726e202d636f6465206572726f722054524143457d3b20747261636520616464207661726961626c652067686f737420756e7365742063623b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2067686f73747d206d5d3b206c69737420246320246d20246576656e7473205b747261636520696e666f207661726961626c652067686f73745d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002"
+        },
+        {
+          "provider_label": "jim",
+          "case": "quiet-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/jim.tsv",
+            "sha256": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/32/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a767d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109"
+        },
+        {
+          "provider_label": "jim",
+          "case": "quiet-array-namespace",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/jim.tsv",
+            "sha256": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/33/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574206572726f72436f6465204f524947494e414c3b207365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e203a3a6d697373696e673a3a61286b297d206d5d3b206c69737420246320246d20246572726f72436f64657d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50"
+        },
+        {
+          "provider_label": "jim",
+          "case": "sequential-quiet",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/jim.tsv",
+            "sha256": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/34/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a666972737420313b20736574203a3a7365636f6e6420313b20736574203a3a6576656e7473207b7d3b2070726f63206e616d65207b77686963687d207b6c617070656e64203a3a6576656e7473205b6c69737420247768696368205b696e666f20657869737473203a3a66697273745d5d3b2072657475726e207b7d7d3b2070726f632070207b7d207b756e736574202d6e6f636f6d706c61696e203a3a66697273745b6e616d65204f4e455d203a3a7365636f6e645b6e616d652054574f5d7d3b20703b206c69737420246576656e7473205b696e666f20657869737473203a3a66697273745d205b696e666f20657869737473203a3a7365636f6e645d7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f"
+        },
+        {
+          "provider_label": "jim",
+          "case": "element-order",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/jim.tsv",
+            "sha256": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_unset_execution/provenance.json",
+            "sha256": "9c32a3b69ef549630217ca05d1d6eccd463e07f5f4c17f4ff3497c836c170f24",
+            "json_pointer": "/rows/35/source_sha256"
+          },
+          "prefix_utf8": "set code [catch {",
+          "suffix_utf8": "} result]\nbinary scan $result H* hex\nputs \"$code\\t$hex\"\n",
+          "program_hex": "73657420636f6465205b6361746368207b736574203a3a7365656e204245464f52453b2070726f6320696478207b76616c75657d207b736574203a3a7365656e202476616c75653b2072657475726e202476616c75657d3b2070726f632070207b7d207b756e7365742061285b6964782046495253545d292061285b696478205345434f4e445d297d3b207365742063205b6361746368207b707d206d5d3b206c69737420246320246d20243a3a7365656e7d20726573756c745d0a62696e617279207363616e2024726573756c7420482a206865780a70757473202224636f64655c7424686578220a",
+          "program_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d"
+        }
+      ]
+    },
+    "unset-options": {
+      "proof_id": "naming.variable.unset-option-and-name-grammar",
+      "producer": "rust/tcl-registry/tests/data/native_unset_options/probe.py",
+      "rows": [
+        {
+          "provider_label": "8.4",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/0/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/1/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d62616420787d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "defined-unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/2/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d626164204241443b736574207820583b756e736574202d62616420783b6c697374205b696e666f20657869737473202d6261645d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "repeated",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/3/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b736574207820583b756e736574202d6e6f636f6d706c61696e202d6e6f636f6d706c61696e20783b6c697374205b696e666f20657869737473202d6e6f636f6d706c61696e5d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "only-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/4/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "only-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/5/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d2d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "quiet-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/6/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d6e6f636f6d706c61696e202d2d202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "end-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/7/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d2d202d6e6f636f6d706c61696e206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "unknown-prefix",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/8/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d70206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "nul-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 10,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/9/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643665366636333666366437303663363136393665303037343631363936635d3b756e7365742024666c6167206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b"
+        },
+        {
+          "provider_label": "8.4",
+          "case": "nul-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.4.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 11,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/10/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643264303037343631363936635d3b736574202d6e6f636f6d706c61696e204b4545503b756e7365742024666c6167202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/11/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/12/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d62616420787d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "defined-unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/13/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d626164204241443b736574207820583b756e736574202d62616420783b6c697374205b696e666f20657869737473202d6261645d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "repeated",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/14/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b736574207820583b756e736574202d6e6f636f6d706c61696e202d6e6f636f6d706c61696e20783b6c697374205b696e666f20657869737473202d6e6f636f6d706c61696e5d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "only-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/15/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "only-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/16/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d2d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "quiet-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/17/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d6e6f636f6d706c61696e202d2d202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "end-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/18/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d2d202d6e6f636f6d706c61696e206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "unknown-prefix",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/19/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d70206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "nul-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 10,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/20/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643665366636333666366437303663363136393665303037343631363936635d3b756e7365742024666c6167206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "nul-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.5.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 11,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/21/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643264303037343631363936635d3b736574202d6e6f636f6d706c61696e204b4545503b756e7365742024666c6167202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/22/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/23/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d62616420787d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "defined-unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/24/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d626164204241443b736574207820583b756e736574202d62616420783b6c697374205b696e666f20657869737473202d6261645d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "repeated",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/25/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b736574207820583b756e736574202d6e6f636f6d706c61696e202d6e6f636f6d706c61696e20783b6c697374205b696e666f20657869737473202d6e6f636f6d706c61696e5d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "only-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/26/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "only-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/27/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d2d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "quiet-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/28/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d6e6f636f6d706c61696e202d2d202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "end-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/29/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d2d202d6e6f636f6d706c61696e206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "unknown-prefix",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/30/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d70206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "nul-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 10,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/31/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643665366636333666366437303663363136393665303037343631363936635d3b756e7365742024666c6167206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "nul-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/8.6.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 11,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/32/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643264303037343631363936635d3b736574202d6e6f636f6d706c61696e204b4545503b756e7365742024666c6167202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/33/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/34/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d62616420787d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "defined-unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/35/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d626164204241443b736574207820583b756e736574202d62616420783b6c697374205b696e666f20657869737473202d6261645d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "repeated",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/36/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b736574207820583b756e736574202d6e6f636f6d706c61696e202d6e6f636f6d706c61696e20783b6c697374205b696e666f20657869737473202d6e6f636f6d706c61696e5d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "only-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/37/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "only-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/38/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d2d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "quiet-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/39/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d6e6f636f6d706c61696e202d2d202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "end-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/40/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d2d202d6e6f636f6d706c61696e206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "unknown-prefix",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/41/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d70206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "nul-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 10,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/42/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643665366636333666366437303663363136393665303037343631363936635d3b756e7365742024666c6167206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "nul-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.0.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 11,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/43/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643264303037343631363936635d3b736574202d6e6f636f6d706c61696e204b4545503b756e7365742024666c6167202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/44/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/45/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d62616420787d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "defined-unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/46/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d626164204241443b736574207820583b756e736574202d62616420783b6c697374205b696e666f20657869737473202d6261645d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "repeated",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/47/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b736574207820583b756e736574202d6e6f636f6d706c61696e202d6e6f636f6d706c61696e20783b6c697374205b696e666f20657869737473202d6e6f636f6d706c61696e5d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "only-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/48/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "only-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/49/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d2d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "quiet-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/50/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d6e6f636f6d706c61696e202d2d202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "end-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/51/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d2d202d6e6f636f6d706c61696e206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "unknown-prefix",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/52/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d70206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "nul-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 10,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/53/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643665366636333666366437303663363136393665303037343631363936635d3b756e7365742024666c6167206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "nul-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/9.1.tsv",
+            "sha256": "aae194f3d940932bd5194ac5f190436a9b45bb554d0000b19721aab46bece310",
+            "line": 11,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/54/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643264303037343631363936635d3b736574202d6e6f636f6d706c61696e204b4545503b756e7365742024666c6167202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba"
+        },
+        {
+          "provider_label": "jim",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/55/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "jim",
+          "case": "unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/56/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d62616420787d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2b4efaa0c8881f28297f0e53e7d1db4b7b44adadeb1a5c41a3f21aa7dbc47783"
+        },
+        {
+          "provider_label": "jim",
+          "case": "defined-unknown",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/57/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d626164204241443b736574207820583b756e736574202d62616420783b6c697374205b696e666f20657869737473202d6261645d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "06beda2a0f838ff0c6bfdf35f7bf22dfbaa0b2f6693d659aae9245371ba55d9b"
+        },
+        {
+          "provider_label": "jim",
+          "case": "repeated",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/58/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b736574207820583b756e736574202d6e6f636f6d706c61696e202d6e6f636f6d706c61696e20783b6c697374205b696e666f20657869737473202d6e6f636f6d706c61696e5d205b696e666f2065786973747320785d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "105547bfb5705e5c60065a00f89aed1bf940e87a76d8c8061e1f7f4cc66559c3"
+        },
+        {
+          "provider_label": "jim",
+          "case": "only-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/59/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "33571c75e9b9f894cc95428e5bfe0ee8e868dfdf4b6dfba8320a5d28802d59b6"
+        },
+        {
+          "provider_label": "jim",
+          "case": "only-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/60/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d2d7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "546fdd3a6dcc93056ed19b89fb113bddccd40e7fbc1ff301cc3ee56008479c0f"
+        },
+        {
+          "provider_label": "jim",
+          "case": "quiet-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/61/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d6e6f636f6d706c61696e202d2d202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "3a514582cdcf7ca59db039a2bb76ed5b536b3398f435fa5e8d5621a93e905330"
+        },
+        {
+          "provider_label": "jim",
+          "case": "end-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/62/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b736574202d6e6f636f6d706c61696e204b4545503b756e736574202d2d202d6e6f636f6d706c61696e206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "5aa7cd64c86de1d4bf6552d933d5c508d32ac267fb8353a2861a9ba2ffaa9055"
+        },
+        {
+          "provider_label": "jim",
+          "case": "unknown-prefix",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/63/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d70206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "fd2027c8abde2c632bd97804a1d22f25f80457e80e4985f5e96e4c9e7d242535"
+        },
+        {
+          "provider_label": "jim",
+          "case": "nul-quiet",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 10,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/64/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643665366636333666366437303663363136393665303037343631363936635d3b756e7365742024666c6167206d697373696e677d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "139b4d1106a0248e5423fc883ed5db143dc2bc8694241bf4dfe0ce1eb658133b"
+        },
+        {
+          "provider_label": "jim",
+          "case": "nul-end",
+          "body_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/jim.tsv",
+            "sha256": "2008adf85c9d4ce9b85f03f88497533204efc65752ed5d0b24e40cdbf7339d42",
+            "line": 11,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-registry/tests/data/native_unset_options/provenance.json",
+            "sha256": "0d8cf9133ec220060ec05dd0798fb6ce9f5bc3613ab6909766e8e6237249d907",
+            "json_pointer": "/rows/65/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420666c6167205b62696e61727920666f726d617420482a2032643264303037343631363936635d3b736574202d6e6f636f6d706c61696e204b4545503b756e7365742024666c6167202d6e6f636f6d706c61696e3b696e666f20657869737473202d6e6f636f6d706c61696e7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "29412d745d99fc69fea28f331521122a78beae5380c838acd12594c60225dcba"
+        }
+      ]
+    },
+    "jim-unset": {
+      "proof_id": "naming.jim.dictionary-unset-target-and-copy-frontiers",
+      "producer": "Exact wrapper bytes recovered only by agreement with the original whole-input digest; no original producer program is retained for this purpose.",
+      "rows": [
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "none",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/0/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365747d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "missing-parent",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/1/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e7365742061286b297d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "eb16a33b56f48c5fece34a15172ee9524c4988269ba7c81e4e0bd30e0ec1269c"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "malformed-parent",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/2/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b7365742061204d414c464f524d45443b756e7365742061286b297d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "d28e5ca92ed9020cf4a6bf5d468e518725b9528083d234effdb4242625561bd1"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "missing-member",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/3/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b7365742061207b6f74686572204f7d3b756e7365742061286b297d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "9e73208b71ea796efc30c2e81917c012879fc9ef433de4afa4039b6e86989efd"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "shared-root",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/4/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b7365742061207b6b204b206f74686572204f7d3b73657420616c6961732024613b756e7365742061286b293b6c6973742024612024616c6961737d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "d39db027f68822a4d11251fc937600e3ad7a27092f92c54fb71324778e99d884"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "quiet-parent",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/5/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b756e736574202d6e6f636f6d706c61696e2061286b293b696e666f2065786973747320617d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "e7faedc00f9b916cfb12d1302b25a9c14109cc754e811e9eb4e0f69019126f8d"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "quiet-malformed",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 7,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/6/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b7365742061204d414c464f524d45443b756e736574202d6e6f636f6d706c61696e2061286b293b73657420617d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "6b0c9aced4389ec395f79743aa18c23d811c5f8663d2dd24544b9f2183242c93"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "indexed-link",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 8,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/7/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b70726f632070207b7d207b7570766172202330206d697373696e6720763b756e7365742076286b297d3b707d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "ea700bf21a8ca73499340073eab390d0dedb5f942afb45f6876ac6f06ee7a281"
+        },
+        {
+          "provider_label": "Jim 0.84 pinned reference",
+          "case": "simple-link",
+          "body_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv",
+            "sha256": "599ec015d7b86c99e1eea2d9a2ca62f53aa007aed98cec50fb6cbf461bf29eb2",
+            "line": 9,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "rust/tcl-syntax/tests/data/native_jim_unset/provenance.json",
+            "sha256": "04b8217436481af3e3f2a62a5d32a68b597ee8b64c3203a042df8ce6ed711544",
+            "json_pointer": "/cases/8/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b70726f632070207b7d207b7570766172202330206d697373696e6720763b756e73657420767d3b707d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "cd1c9281bf42150e23dcd6dae92a133db71059314ca6b29bb800242fa6c1bfd9"
+        }
+      ]
+    },
+    "dynamic-catch": {
+      "proof_id": "naming.error.dynamic-catch-log-reset",
+      "producer": "Exact wrapper bytes recovered only by agreement with the original whole-input digest; no original producer program is retained for this purpose.",
+      "rows": [
+        {
+          "provider_label": "8.4",
+          "case": "8.4",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv",
+            "sha256": "07bfaebda294758d938189487ba1f01d7c69af9fa7f489572910935d140fdadc",
+            "line": 1,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+            "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+            "json_pointer": "/0/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420626f6479207b6572726f722046495253547d3b63617463682024626f64792066697273743b73657420626f6479207b6572726f72205345434f4e447d3b63617463682024626f6479207365636f6e643b6c6973742024666972737420247365636f6e6420243a3a6572726f72496e666f7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "651dde21f1cfd36191b49a01cf48128a54dc1fb45bdfd2e662908428b36e58aa"
+        },
+        {
+          "provider_label": "8.5",
+          "case": "8.5",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv",
+            "sha256": "07bfaebda294758d938189487ba1f01d7c69af9fa7f489572910935d140fdadc",
+            "line": 2,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+            "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+            "json_pointer": "/1/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420626f6479207b6572726f722046495253547d3b63617463682024626f64792066697273743b73657420626f6479207b6572726f72205345434f4e447d3b63617463682024626f6479207365636f6e643b6c6973742024666972737420247365636f6e6420243a3a6572726f72496e666f7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "651dde21f1cfd36191b49a01cf48128a54dc1fb45bdfd2e662908428b36e58aa"
+        },
+        {
+          "provider_label": "8.6",
+          "case": "8.6",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv",
+            "sha256": "07bfaebda294758d938189487ba1f01d7c69af9fa7f489572910935d140fdadc",
+            "line": 3,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+            "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+            "json_pointer": "/2/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420626f6479207b6572726f722046495253547d3b63617463682024626f64792066697273743b73657420626f6479207b6572726f72205345434f4e447d3b63617463682024626f6479207365636f6e643b6c6973742024666972737420247365636f6e6420243a3a6572726f72496e666f7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "651dde21f1cfd36191b49a01cf48128a54dc1fb45bdfd2e662908428b36e58aa"
+        },
+        {
+          "provider_label": "9.0",
+          "case": "9.0",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv",
+            "sha256": "07bfaebda294758d938189487ba1f01d7c69af9fa7f489572910935d140fdadc",
+            "line": 4,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+            "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+            "json_pointer": "/3/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420626f6479207b6572726f722046495253547d3b63617463682024626f64792066697273743b73657420626f6479207b6572726f72205345434f4e447d3b63617463682024626f6479207365636f6e643b6c6973742024666972737420247365636f6e6420243a3a6572726f72496e666f7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "651dde21f1cfd36191b49a01cf48128a54dc1fb45bdfd2e662908428b36e58aa"
+        },
+        {
+          "provider_label": "9.1",
+          "case": "9.1",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv",
+            "sha256": "07bfaebda294758d938189487ba1f01d7c69af9fa7f489572910935d140fdadc",
+            "line": 5,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+            "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+            "json_pointer": "/4/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420626f6479207b6572726f722046495253547d3b63617463682024626f64792066697273743b73657420626f6479207b6572726f72205345434f4e447d3b63617463682024626f6479207365636f6e643b6c6973742024666972737420247365636f6e6420243a3a6572726f72496e666f7d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "651dde21f1cfd36191b49a01cf48128a54dc1fb45bdfd2e662908428b36e58aa"
+        },
+        {
+          "provider_label": "jim",
+          "case": "jim",
+          "body_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv",
+            "sha256": "07bfaebda294758d938189487ba1f01d7c69af9fa7f489572910935d140fdadc",
+            "line": 6,
+            "column": 2
+          },
+          "capture_source": {
+            "path": "runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json",
+            "sha256": "9cfa0c153b3043d8f37cbe27f4e40da2573613e32c3b847743ba86c09f485a19",
+            "json_pointer": "/5/source_sha256"
+          },
+          "prefix_utf8": "set c [catch {",
+          "suffix_utf8": "} m]\nbinary scan $m H* h\nputs \"$c\\t$h\"\n",
+          "program_hex": "7365742063205b6361746368207b73657420626f6479207b6572726f722046495253547d3b63617463682024626f64792066697273743b73657420626f6479207b6572726f72205345434f4e447d3b63617463682024626f6479207365636f6e643b6c6973742024666972737420247365636f6e647d206d5d0a62696e617279207363616e20246d20482a20680a70757473202224635c742468220a",
+          "program_sha256": "2168def2629136f15a4a6853b9a4500bebcaaf270ad4c5084e016e07fc724dfe"
+        }
+      ]
+    }
+  }
+}

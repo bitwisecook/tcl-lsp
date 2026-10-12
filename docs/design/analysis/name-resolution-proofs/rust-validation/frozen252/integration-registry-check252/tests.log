@@ -1,0 +1,802 @@
+warning: constant `TCL_WS` is never used
+   --> rust/tcl-cmd-core/src/list.rs:480:7
+    |
+480 | const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
+    |       ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-cmd-core` (lib) generated 1 warning
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+error[E0432]: unresolved import `registry::TryCompletionSelector`
+   --> rust/tcl-registry/src/lib.rs:444:54
+    |
+444 |     ResolvedCall, ResolvedTerminator, TryClauseKind, TryCompletionSelector, TryControlClause,
+    |                                                      ^^^^^^^^^^^^^^^^^^^^^ no `TryCompletionSelector` in `registry`
+
+error[E0407]: method `as_str` is not a member of trait `ValueOps`
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:885:5
+    |
+885 | /     fn as_str(&mut self, v: &ConstValue) -> Rc<str> {
+886 | |         if let Some(s) = v.as_utf8() {
+887 | |             Rc::from(s)
+888 | |         } else {
+...   |
+892 | |     }
+    | |_____^ not a member of trait `ValueOps`
+
+error[E0407]: method `char_len` is not a member of trait `ValueOps`
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:894:5
+    |
+894 | /     fn char_len(&mut self, v: &ConstValue) -> usize {
+895 | |         self.require(Needs::CHAR_MODEL);
+896 | |         let text = self.as_str(v);
+897 | |         if let Some(count) = StringCharacterModel::count_for(self.target.character_model, &text) {
+...   |
+903 | |     }
+    | |_____^ not a member of trait `ValueOps`
+
+error[E0425]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:143:8
+    |
+143 |     On(TryCompletionSelector),
+    |        ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:143:8
+    |
+143 |     On(TryCompletionSelector),
+    |        ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+141 | pub enum TryClauseKind<TryCompletionSelector> {
+    |                       +++++++++++++++++++++++
+
+error[E0425]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:165:6
+    |
+165 | impl TryCompletionSelector {
+    |      ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:467:13
+    |
+467 | ) -> Option<TryCompletionSelector> {
+    |             ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+463 | fn parse_try_completion_selector<TryCompletionSelector>(
+    |                                 +++++++++++++++++++++++
+
+error[E0425]: cannot find function `append_bytes` in module `tcl_cmd_core::var`
+   --> rust/tcl-registry/src/value_transfer/cell_update.rs:243:57
+    |
+243 |             CellUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(&mut ops, current, &values)),
+    |                                                         ^^^^^^^^^^^^ not found in `tcl_cmd_core::var`
+
+error[E0425]: cannot find function `append_bytes` in module `tcl_cmd_core::var`
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:289:58
+    |
+289 |             KeyedUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(ops, old, values)),
+    |                                                          ^^^^^^^^^^^^ not found in `tcl_cmd_core::var`
+
+error[E0609]: no field `end_options_option` on type `spec::CaseListSpec`
+  --> rust/tcl-registry/src/case_bodies.rs:66:52
+   |
+66 |                 && !values[..index].contains(&self.end_options_option)
+   |                                                    ^^^^^^^^^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `subject_args`, `two_arg_optionless_surface`, `fallthrough_body`, `value_options_require_regex`, `special_match_options` ... and 15 others
+
+error[E0063]: missing field `effect` in initializer of `hover::OptionSpec`
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:375:47
+    |
+375 | const JIM_ENSEMBLE_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    |                                               ^^^^^^^^^^ missing `effect`
+
+error[E0277]: the `?` operator can only be used on `Result`s, not `Option`s, in a function that returns `Result`
+   --> rust/tcl-registry/src/model/assembly.rs:490:65
+    |
+463 | / pub fn registry_for_environment_if_built(
+464 | |     environment: &Arc<EnvironmentDefinition>,
+465 | |     identity: &EnvironmentIdentity,
+466 | |     keyed: &KeyedVersions,
+467 | |     overlay: u64,
+468 | | ) -> Result<Arc<ContextRegistry>, OverlayMiss> {
+    | |______________________________________________- this function returns a `Result`
+...
+490 |       let commands = command_store(environment, identity, overlay)?;
+    |                                                                   ^ use `.ok_or(...)?` to provide an error compatible with `std::result::Result<Arc<ContextRegistry>, OverlayMiss>`
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/pack_hooks.rs:314:28
+    |
+314 |     ("concat::const_fold", crate::const_fold::fold_concat),
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected fn pointer, found fn item
+    |
+    = note: expected fn pointer `for<'a, 'b> fn(&'a _) -> Option<String>`
+                  found fn item `for<'a, 'b> fn(&'a _) -> String {fold_concat}`
+
+error[E0063]: missing field `destination` in initializer of `state_transition::VariableCellAliasTransition`
+    --> rust/tcl-registry/src/pack_hooks.rs:1944:14
+     |
+1944 |         } => VariableCellAliasTransition {
+     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `destination`
+
+error[E0061]: this function takes 4 arguments but 1 argument was supplied
+    --> rust/tcl-registry/src/pack_hooks.rs:1959:24
+     |
+1959 |                 local: crate::state_transition::local_alias_name(&variable),
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^----------- three arguments of type `usize`, `VariableAliasNamePurpose`, and `Option<InvocationDialect>` are missing
+     |
+note: function defined here
+    --> rust/tcl-registry/src/state_transition.rs:2395:8
+     |
+2395 | pub fn local_alias_name(
+     |        ^^^^^^^^^^^^^^^^
+2396 |     subject: &TransitionSubject,
+2397 |     argument_index: usize,
+     |     ---------------------
+2398 |     purpose: VariableAliasNamePurpose,
+     |     ---------------------------------
+2399 |     dialect: Option<crate::InvocationDialect>,
+     |     -----------------------------------------
+help: provide the arguments
+     |
+1959 |                 local: crate::state_transition::local_alias_name(&variable, /* usize */, /* VariableAliasNamePurpose */, /* Option<InvocationDialect> */),
+     |                                                                           ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+    --> rust/tcl-registry/src/pack_hooks.rs:1959:24
+     |
+1959 |                 local: crate::state_transition::local_alias_name(&variable),
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `TransitionSubject`, found `Option<TransitionSubject>`
+     |
+     = note: expected enum `TransitionSubject`
+                found enum `Option<TransitionSubject>`
+help: consider using `Option::expect` to unwrap the `Option<state_transition::TransitionSubject>` value, panicking if the value is an `Option::None`
+     |
+1959 |                 local: crate::state_transition::local_alias_name(&variable).expect("REASON"),
+     |                                                                            +++++++++++++++++
+
+error[E0063]: missing field `destination` in initializer of `state_transition::VariableCellAliasTransition`
+    --> rust/tcl-registry/src/pack_hooks.rs:1958:13
+     |
+1958 |             VariableCellAliasTransition {
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `destination`
+
+error[E0433]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:474:50
+    |
+474 |         crate::completion::CompletionCode::Ok => TryCompletionSelector::Ok,
+    |                                                  ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `TryCompletionSelector`
+
+error[E0433]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:475:53
+    |
+475 |         crate::completion::CompletionCode::Error => TryCompletionSelector::Error,
+    |                                                     ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `TryCompletionSelector`
+
+error[E0433]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:476:54
+    |
+476 |         crate::completion::CompletionCode::Return => TryCompletionSelector::Return,
+    |                                                      ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `TryCompletionSelector`
+
+error[E0433]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:477:53
+    |
+477 |         crate::completion::CompletionCode::Break => TryCompletionSelector::Break,
+    |                                                     ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `TryCompletionSelector`
+
+error[E0433]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:478:56
+    |
+478 |         crate::completion::CompletionCode::Continue => TryCompletionSelector::Continue,
+    |                                                        ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `TryCompletionSelector`
+
+error[E0433]: cannot find type `TryCompletionSelector` in this scope
+   --> rust/tcl-registry/src/registry.rs:479:59
+    |
+479 |         crate::completion::CompletionCode::Other(code) => TryCompletionSelector::Numeric(code),
+    |                                                           ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `TryCompletionSelector`
+
+error[E0027]: pattern does not mention fields `own_packages`, `special_vars`, `overlay`, `pack_origins`, `reference_texts`, `generation`
+    --> rust/tcl-registry/src/registry.rs:1744:21
+     |
+1744 |                   let Self {
+     |  _____________________^
+1745 | |                     by_name,
+1746 | |                     overlay_specs,
+1747 | |                     loaded_layers,
+...    |
+1753 | |                     native_registrations: _,
+1754 | |                 } = self;
+     | |_________________^ missing fields `own_packages`, `special_vars`, `overlay`, `pack_origins`, `reference_texts`, `generation`
+     |
+help: include the missing fields in the pattern
+     |
+1753 -                     native_registrations: _,
+1754 -                 } = self;
+1753 +                     native_registrations: _, own_packages, special_vars, overlay, pack_origins, reference_texts, generation } = self;
+     |
+help: if you don't care about these missing fields, you can explicitly ignore them
+     |
+1753 -                     native_registrations: _,
+1754 -                 } = self;
+1753 +                     native_registrations: _, own_packages: _, special_vars: _, overlay: _, pack_origins: _, reference_texts: _, generation: _ } = self;
+     |
+help: or always ignore missing fields here
+     |
+1753 -                     native_registrations: _,
+1754 -                 } = self;
+1753 +                     native_registrations: _, .. } = self;
+     |
+
+error[E0063]: missing fields `generation`, `overlay`, `own_packages` and 3 other fields in initializer of `CommandRegistry`
+    --> rust/tcl-registry/src/registry.rs:1780:32
+     |
+1780 |                 let registry = Self {
+     |                                ^^^^ missing `generation`, `overlay`, `own_packages` and 3 other fields
+
+error[E0308]: mismatched types
+    --> rust/tcl-registry/src/registry.rs:7030:70
+     |
+7030 |                 || query.is_some_and(|query| query.packages.contains(&package))
+     |                                                             -------- ^^^^^^^^ expected `&PackageFloor<'_>`, found `&&str`
+     |                                                             |
+     |                                                             arguments to this method are incorrect
+     |
+     = note: expected reference `&PackageFloor<'_>`
+                found reference `&&str`
+note: method defined here
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/slice/mod.rs:2600:11
+
+error[E0599]: no variant, associated function, or constant named `Append` found for enum `AnalyserHookId` in the current scope
+    --> rust/tcl-registry/src/resolved_invocation.rs:3507:74
+     |
+3507 |         self.authored_source_append_layout(crate::hooks::AnalyserHookId::Append)
+     |                                                                          ^^^^^^ variant, associated function, or constant not found in `AnalyserHookId`
+     |
+    ::: rust/tcl-registry/src/hooks.rs:308:1
+     |
+ 308 | pub enum AnalyserHookId {
+     | ----------------------- variant, associated function, or constant `Append` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `Lappend` found for enum `AnalyserHookId` in the current scope
+    --> rust/tcl-registry/src/resolved_invocation.rs:3514:74
+     |
+3514 |         self.authored_source_append_layout(crate::hooks::AnalyserHookId::Lappend)
+     |                                                                          ^^^^^^^ variant, associated function, or constant not found in `AnalyserHookId`
+     |
+    ::: rust/tcl-registry/src/hooks.rs:308:1
+     |
+ 308 | pub enum AnalyserHookId {
+     | ----------------------- variant, associated function, or constant `Lappend` not found for this enum
+
+error[E0599]: no method named `is_some` found for enum `ExecOutcome` in the current scope
+   --> rust/tcl-registry/src/variable_output.rs:129:46
+    |
+129 |     let matched = regex.exec(&subject, 0, 0).is_some();
+    |                                              ^^^^^^^ method not found in `ExecOutcome`
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/builtins.rs:449:20
+    |
+449 |                 Ok(tcl_cmd_core::string::length(ops, &subject))
+    |                 -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `ConstValue`, found `Result<ConstValue, CmdError>`
+    |                 |
+    |                 arguments to this enum variant are incorrect
+    |
+    = note: expected struct `ConstValue`
+                 found enum `std::result::Result<ConstValue, CmdError>`
+help: the type constructed contains `std::result::Result<ConstValue, CmdError>` due to the type of the argument passed
+   --> rust/tcl-registry/src/value_transfer/builtins.rs:449:17
+    |
+449 |                 Ok(tcl_cmd_core::string::length(ops, &subject))
+    |                 ^^^-------------------------------------------^
+    |                    |
+    |                    this argument influences the type of `Ok`
+note: tuple variant defined here
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/result.rs:562:4
+help: consider using `Result::expect` to unwrap the `std::result::Result<ConstValue, CmdError>` value, panicking if the value is a `Result::Err`
+    |
+449 |                 Ok(tcl_cmd_core::string::length(ops, &subject).expect("REASON"))
+    |                                                               +++++++++++++++++
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/builtins.rs:522:20
+    |
+522 |                 Ok(tcl_cmd_core::list::split(ops, &args[0], args.get(1)))
+    |                 -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `ConstValue`, found `Result<ConstValue, CmdError>`
+    |                 |
+    |                 arguments to this enum variant are incorrect
+    |
+    = note: expected struct `ConstValue`
+                 found enum `std::result::Result<ConstValue, CmdError>`
+help: the type constructed contains `std::result::Result<ConstValue, CmdError>` due to the type of the argument passed
+   --> rust/tcl-registry/src/value_transfer/builtins.rs:522:17
+    |
+522 |                 Ok(tcl_cmd_core::list::split(ops, &args[0], args.get(1)))
+    |                 ^^^-----------------------------------------------------^
+    |                    |
+    |                    this argument influences the type of `Ok`
+note: tuple variant defined here
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/result.rs:562:4
+help: consider using `Result::expect` to unwrap the `std::result::Result<ConstValue, CmdError>` value, panicking if the value is a `Result::Err`
+    |
+522 |                 Ok(tcl_cmd_core::list::split(ops, &args[0], args.get(1)).expect("REASON"))
+    |                                                                         +++++++++++++++++
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:636:36
+    |
+636 |             if !inline && let Some(value) = deferred.pop().flatten() {
+    |                                    ^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+    = note: all local variables must have a statically known size
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:636:31
+    |
+636 |             if !inline && let Some(value) = deferred.pop().flatten() {
+    |                               ^^^^^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Some`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:606:4
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:636:60
+    |
+636 |             if !inline && let Some(value) = deferred.pop().flatten() {
+    |                                                            ^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Option::<Option<T>>::flatten`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:2934:4
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:632:24
+    |
+632 |     let mut deferred = Vec::new();
+    |                        ^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Option`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:598:0
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:638:17
+    |
+638 |                 deferred.push(None);
+    |                 ^^^^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Option`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:598:0
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:638:31
+    |
+638 |                 deferred.push(None);
+    |                               ^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `std::prelude::v1::None`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:602:4
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:645:42
+    |
+645 |             } else if let Some(nested) = deferred.last_mut() {
+    |                                          ^^^^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Option`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:598:0
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/completion.rs:646:27
+    |
+646 |                 *nested = Some(value);
+    |                 -------   ^^^^^^^^^^^ expected `Option<str>`, found `Option<String>`
+    |                 |
+    |                 expected due to the type of this binding
+    |
+    = note: expected enum `Option<str>`
+               found enum `Option<std::string::String>`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> rust/tcl-registry/src/value_transfer/completion.rs:648:17
+    |
+648 |                 deferred.push(Some(value));
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Option`
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:598:0
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/completion.rs:648:31
+    |
+636 |             if !inline && let Some(value) = deferred.pop().flatten() {
+    |                                             -------- here the type of `deferred` is inferred to be `Vec<Option<str>>`
+...
+648 |                 deferred.push(Some(value));
+    |                          ---- ^^^^^^^^^^^ expected `Option<str>`, found `Option<String>`
+    |                          |
+    |                          arguments to this method are incorrect
+    |
+    = note: expected enum `Option<str>`
+               found enum `Option<std::string::String>`
+note: method defined here
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/vec/mod.rs:995:11
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:708:58
+    |
+708 |         let raised = Raised::parse_failure(&self.target, error.message());
+    |                      ---------------------               ^^^^^^^^^^^^^^^ expected `&str`, found `Result<&str, NativeValueAccessRefusal>`
+    |                      |
+    |                      arguments to this function are incorrect
+    |
+    = note: expected reference `&str`
+                    found enum `std::result::Result<&str, NativeValueAccessRefusal>`
+note: associated function defined here
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:438:12
+    |
+438 |     pub fn parse_failure(target: &TargetSemantics, message: &str) -> Self {
+    |            ^^^^^^^^^^^^^                           -------------
+help: consider using `Result::expect` to unwrap the `std::result::Result<&str, NativeValueAccessRefusal>` value, panicking if the value is a `Result::Err`
+    |
+708 |         let raised = Raised::parse_failure(&self.target, error.message().expect("REASON"));
+    |                                                                         +++++++++++++++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:896:25
+    |
+896 |         let text = self.as_str(v);
+    |                         ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+896 |         let text = self.try_as_str(v);
+    |                         ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:906:25
+    |
+906 |         let text = self.as_str(v);
+    |                         ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+906 |         let text = self.try_as_str(v);
+    |                         ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:918:25
+    |
+918 |         let text = self.as_str(v);
+    |                         ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+918 |         let text = self.try_as_str(v);
+    |                         ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:934:25
+    |
+934 |         let text = self.as_str(v);
+    |                         ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+934 |         let text = self.try_as_str(v);
+    |                         ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:978:25
+    |
+978 |         let text = self.as_str(v);
+    |                         ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+978 |         let text = self.try_as_str(v);
+    |                         ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:987:25
+    |
+987 |         let text = self.as_str(v);
+    |                         ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+987 |         let text = self.try_as_str(v);
+    |                         ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+    --> rust/tcl-registry/src/value_transfer/const_ops.rs:1021:30
+     |
+1021 |             .map(|pair| self.as_str(&pair[0]))
+     |                              ^^^^^^
+     |
+help: there is a method `try_as_str` with a similar name
+     |
+1021 |             .map(|pair| self.try_as_str(&pair[0]))
+     |                              ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:256:36
+    |
+256 |                 let key_text = ops.as_str(key);
+    |                                    ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+256 |                 let key_text = ops.try_as_str(key);
+    |                                    ++++
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:258:56
+    |
+258 |                 let new_value = self.update_value(ops, old, values)?;
+    |                                      ------------      ^^^ expected `Option<ConstValue>`, found `Result<Option<ConstValue>, CmdError>`
+    |                                      |
+    |                                      arguments to this method are incorrect
+    |
+    = note: expected enum `Option<_>`
+               found enum `std::result::Result<Option<_>, CmdError>`
+note: method defined here
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:267:8
+    |
+267 |     fn update_value(
+    |        ^^^^^^^^^^^^
+...
+270 |         old: Option<ConstValue>,
+    |         -----------------------
+help: use the `?` operator to extract the `std::result::Result<Option<ConstValue>, CmdError>` value, propagating a `Result::Err` value to the caller
+    |
+258 |                 let new_value = self.update_value(ops, old?, values)?;
+    |                                                           +
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:320:28
+    |
+320 |         let key_text = ops.as_str(key);
+    |                            ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+320 |         let key_text = ops.try_as_str(key);
+    |                            ++++
+
+error[E0593]: closure is expected to take 1 argument, but it takes 0 arguments
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:322:64
+    |
+322 |             tcl_cmd_core::dict::lookup(ops, &pairs, &key_text).unwrap_or_else(|| ops.empty());
+    |                                                                ^^^^^^^^^^^^^^ -- takes 0 arguments
+    |                                                                |
+    |                                                                expected closure that takes 1 argument
+    |
+help: consider changing the closure to take and ignore the expected argument
+    |
+322 |             tcl_cmd_core::dict::lookup(ops, &pairs, &key_text).unwrap_or_else(|_| ops.empty());
+    |                                                                                +
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:324:16
+    |
+315 |     let mut node = dictionary;
+    |                    ---------- expected due to this value
+...
+324 |         node = next;
+    |                ^^^^ expected `ConstValue`, found `Option<ConstValue>`
+    |
+    = note: expected struct `ConstValue`
+                 found enum `Option<ConstValue>`
+help: consider using `Option::expect` to unwrap the `Option<ConstValue>` value, panicking if the value is an `Option::None`
+    |
+324 |         node = next.expect("REASON");
+    |                    +++++++++++++++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut ConstOps<'_>` in the current scope
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:344:28
+    |
+344 |         let key_text = ops.as_str(key);
+    |                            ^^^^^^
+    |
+help: there is a method `try_as_str` with a similar name
+    |
+344 |         let key_text = ops.try_as_str(key);
+    |                            ++++
+
+error[E0308]: mismatched types
+   --> rust/tcl-registry/src/value_transfer/keyed_update.rs:345:13
+    |
+345 |         let Some(next) = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text) else {
+    |             ^^^^^^^^^^   -------------------------------------------------- this expression has type `std::result::Result<Option<ConstValue>, CmdError>`
+    |             |
+    |             expected `Result<Option<ConstValue>, CmdError>`, found `Option<_>`
+    |
+    = note: expected enum `std::result::Result<Option<ConstValue>, CmdError>`
+               found enum `Option<_>`
+help: try wrapping the pattern in `Ok`
+    |
+345 |         let Ok(Some(next)) = tcl_cmd_core::dict::lookup(ops, &pairs, &key_text) else {
+    |             +++          +
+
+error[E0027]: pattern does not mention field `error_term`
+   --> rust/tcl-registry/src/value_transfer/template.rs:336:9
+    |
+336 |     for SpannedPart { part, start, end } in
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing field `error_term`
+    |
+help: include the missing field in the pattern
+    |
+336 |     for SpannedPart { part, start, end, error_term } in
+    |                                       ++++++++++++
+help: if you don't care about this missing field, you can explicitly ignore it
+    |
+336 |     for SpannedPart { part, start, end, error_term: _ } in
+    |                                       +++++++++++++++
+help: or always ignore missing fields here
+    |
+336 |     for SpannedPart { part, start, end, .. } in
+    |                                       ++++
+
+error[E0004]: non-exhaustive patterns: `InvocationWord::KnownBytes(_)` and `InvocationWord::ArrayElementName { .. }` not covered
+   --> rust/tcl-registry/src/option_effect.rs:511:30
+    |
+511 |         let spelling = match word {
+    |                              ^^^^ patterns `InvocationWord::KnownBytes(_)` and `InvocationWord::ArrayElementName { .. }` not covered
+    |
+note: `InvocationWord<'_>` defined here
+   --> rust/tcl-registry/src/invocation_words.rs:88:10
+    |
+ 88 | pub enum InvocationWord<'w> {
+    |          ^^^^^^^^^^^^^^
+...
+ 93 |     KnownBytes(&'w [u8]),
+    |     ---------- not covered
+...
+104 |     ArrayElementName {
+    |     ---------------- not covered
+    = note: the matched value is of type `InvocationWord<'_>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+516 ~             },
+517 +             InvocationWord::KnownBytes(_) | InvocationWord::ArrayElementName { .. } => todo!()
+    |
+
+error: lifetime may not live long enough
+    --> rust/tcl-registry/src/registry.rs:4489:9
+     |
+4478 |     pub fn resolve_structured_instance_invocation<'r, 'w>(
+     |                                                   --  -- lifetime `'w` defined here
+     |                                                   |
+     |                                                   lifetime `'r` defined here
+...
+4489 |         self.resolve_structured_instance_invocation_for_descriptor(class_spec, words, None, dialect)
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method was supposed to return data with lifetime `'r` but it is returning data with lifetime `'w`
+     |
+     = help: consider adding the following bound: `'w: 'r`
+
+error: lifetime may not live long enough
+    --> rust/tcl-registry/src/registry.rs:4545:9
+     |
+4496 |       pub fn resolve_structured_instance_invocation_for_descriptor<'r, 'w>(
+     |                                                                    --  -- lifetime `'w` defined here
+     |                                                                    |
+     |                                                                    lifetime `'r` defined here
+...
+4545 | /         Some(ResolvedInvocation::new_instance(
+4546 | |             words,
+4547 | |             class_spec,
+4548 | |             method,
+...    |
+4551 | |             availability,
+4552 | |         ))
+     | |__________^ method was supposed to return data with lifetime `'w` but it is returning data with lifetime `'r`
+     |
+     = help: consider adding the following bound: `'r: 'w`
+
+error: lifetime may not live long enough
+    --> rust/tcl-registry/src/registry.rs:7051:9
+     |
+7042 |     fn effect_invocation_for_query<'r, 'w>(
+     |                                    --  -- lifetime `'w` defined here
+     |                                    |
+     |                                    lifetime `'r` defined here
+...
+7051 |         self.resolve_structured_invocation(words, query).resolved()
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method was supposed to return data with lifetime `'w` but it is returning data with lifetime `'r`
+     |
+     = help: consider adding the following bound: `'r: 'w`
+
+error[E0004]: non-exhaustive patterns: `frame_effect::FrameLevelWord::Upvar` not covered
+    --> rust/tcl-registry/src/resolved_invocation.rs:2742:27
+     |
+2742 |         let taken = match frame.level_word {
+     |                           ^^^^^^^^^^^^^^^^ pattern `frame_effect::FrameLevelWord::Upvar` not covered
+     |
+note: `frame_effect::FrameLevelWord` defined here
+    --> rust/tcl-registry/src/frame_effect.rs:470:10
+     |
+ 470 | pub enum FrameLevelWord {
+     |          ^^^^^^^^^^^^^^
+...
+ 495 |     Upvar,
+     |     ----- not covered
+     = note: the matched value is of type `frame_effect::FrameLevelWord`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+2754 ~             },
+2755 ~             frame_effect::FrameLevelWord::Upvar => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `frame_effect::FrameLevelWord::Upvar` not covered
+    --> rust/tcl-registry/src/state_transition.rs:2297:11
+     |
+2297 |     match level_word {
+     |           ^^^^^^^^^^ pattern `frame_effect::FrameLevelWord::Upvar` not covered
+     |
+note: `frame_effect::FrameLevelWord` defined here
+    --> rust/tcl-registry/src/frame_effect.rs:470:10
+     |
+ 470 | pub enum FrameLevelWord {
+     |          ^^^^^^^^^^^^^^
+...
+ 495 |     Upvar,
+     |     ----- not covered
+     = note: the matched value is of type `frame_effect::FrameLevelWord`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+2300 ~         FrameLevelWord::LeadingProbe => alias_pairs_by_leading_probe,
+2301 ~         frame_effect::FrameLevelWord::Upvar => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `&ValueError::NativeFatalCondition(_)`, `&ValueError::NativeScalarGetter(_)`, `&ValueError::NotIntegerBytes(_)` and 14 more not covered
+   --> rust/tcl-registry/src/value_transfer/const_ops.rs:715:15
+    |
+715 |         match error {
+    |               ^^^^^ patterns `&ValueError::NativeFatalCondition(_)`, `&ValueError::NativeScalarGetter(_)`, `&ValueError::NotIntegerBytes(_)` and 14 more not covered
+    |
+note: `ValueError` defined here
+   --> rust/tcl-syntax/src/value.rs:87:1
+    |
+ 87 | pub enum ValueError {
+    | ^^^^^^^^^^^^^^^^^^^
+ 88 |     /// Native fatal behavior remains an outer host refusal.
+ 89 |     NativeFatalCondition(NativeFatalCondition),
+    |     -------------------- not covered
+...
+ 92 |     NativeScalarGetter(Box<crate::scalar_getter::NativeScalarGetterError>),
+    |     ------------------ not covered
+...
+ 96 |     NotIntegerBytes(Vec<u8>),
+    |     --------------- not covered
+...
+100 |     NotDoubleBytes(Vec<u8>),
+    |     -------------- not covered
+...
+104 |     NotBooleanBytes(Vec<u8>),
+    |     --------------- not covered
+    = note: the matched value is of type `&ValueError`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern as shown, or multiple match arms
+    |
+727 ~             ValueError::IntegerOverflow => self.fault.unwrap_or(DeclineReason::WrongRepresentation),
+728 ~             _ => todo!(),
+    |
+
+Some errors have detailed explanations: E0004, E0027, E0061, E0063, E0277, E0308, E0407, E0425, E0432...
+For more information about an error, try `rustc --explain E0004`.
+error: could not compile `tcl-registry` (lib) due to 65 previous errors

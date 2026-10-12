@@ -1,0 +1,22 @@
+{
+  "ordinal": 472,
+  "selector": "interp::tests::the_release_command_surface_gates_alias_and_import_dispatch",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::tests::the_release_command_surface_gates_alias_and_import_dispatch",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 5.80516147101298,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 5.75s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/472.log",
+  "log_sha256": "e2d9b151bb3ca0c9f079f3f2cbdac3c0bcd4b9aeb68face3b03f6d4cfda02330"
+}

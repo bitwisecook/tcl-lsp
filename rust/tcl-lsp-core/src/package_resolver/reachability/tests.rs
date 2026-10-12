@@ -483,3 +483,5 @@ fn pathological_nesting_terminates() {
     // The only requirement is that this returns at all.
     let _ = availabilities(&src, V90);
 }
+
+mod written_head_tests;

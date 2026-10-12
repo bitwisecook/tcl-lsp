@@ -1,0 +1,28 @@
+chrome::tests::render_table_emits_header_rows_and_border: test
+chrome::tests::styles_construct: test
+environment::tests::the_document_context_answers_like_the_threaded_profile: test
+environment::tests::the_two_ingress_forms_differ_only_at_tk: test
+highlight::tests::original_highlight_html_shares_script_regions_and_source_escaping: test
+highlight::tests::original_highlight_keeps_actual_custom_and_reference_only_source_schemas: test
+highlight::tests::original_highlight_keeps_data_inert_and_single_line_bodies_visible: test
+highlight::tests::original_highlight_keeps_selected_alias_prefix_and_shadow_roles: test
+highlight::tests::original_highlight_uses_actual_c_jim_and_irules_lexical_axes: test
+input::tests::a_selecting_language_id_resolves: test
+input::tests::every_runtime_enumeration_is_the_registry: test
+input::tests::explicit_irules_alias_resolves_to_the_canonical_profile: test
+input::tests::explicit_set_only_dialect_resolves_at_cli_ingress: test
+input::tests::unknown_explicit_dialect_is_an_input_error: test
+input::tests::unsupported_source_file_error_names_the_registry_extensions: test
+secret_input::tests::env_used_when_no_explicit_or_file: test
+secret_input::tests::explicit_wins: test
+secret_input::tests::file_before_env: test
+secret_input::tests::missing_file_is_error: test
+secret_input::tests::nothing_resolves_to_none: test
+secret_input::tests::strip_false_preserves_whitespace: test
+spec_import::tests::a_comment_line_cannot_escape_its_line_or_unbalance_the_file: test
+spec_import::tests::a_snapshot_argument_splits_on_the_first_equals: test
+spec_import::tests::a_snapshot_argument_without_both_halves_is_rejected: test
+spec_import::tests::archive_kinds_come_from_the_extension: test
+spec_import::tests::sources_are_collected_by_extension_in_a_stable_order: test
+
+26 tests, 0 benchmarks

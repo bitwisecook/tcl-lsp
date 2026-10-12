@@ -36,7 +36,7 @@
 use std::borrow::Cow;
 
 use tcl_lexer::{Span, Token, TokenType};
-use tcl_syntax::list::{Element, find_element};
+use tcl_syntax::list::Element;
 
 /// The list elements of a lambda literal, as absolute byte spans into the
 /// original source.
@@ -106,6 +106,59 @@ pub fn split_lambda_literal(source: &str, tok: Token) -> Option<LambdaLiteralEle
     })
 }
 
+/// Lambda source geometry from one genuine complete original braced word.
+/// The parent's full configuration selects list syntax; no child word key,
+/// invocation, fresh frame or native body preparation is manufactured.
+#[must_use]
+pub fn split_original_lambda_literal(
+    word: &tcl_lexer::NativeWord,
+) -> Option<LambdaLiteralElements> {
+    // Implementation contract: naming.source.original-editor-body-structure
+    // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+
+    if word.group().kind != tcl_lexer::WordKind::Braced {
+        return None;
+    }
+    let content = word.content_span().ok()?;
+    let source = word.image().try_text().ok()?;
+    let text = source.get(content.as_range())?;
+    let (params, body, namespace) = locate_list_elements(text, word.config().list_parse)?;
+    let to_span = |element: &Element| -> Option<Span> {
+        Some(Span::new(
+            content
+                .start()
+                .checked_add(u32::try_from(element.value.start).ok()?)?,
+            content
+                .start()
+                .checked_add(u32::try_from(element.value.end).ok()?)?,
+        ))
+    };
+    Some(LambdaLiteralElements {
+        params: to_span(&params)?,
+        body: body.as_ref().and_then(to_span),
+        body_braced: body.as_ref().is_some_and(|element| element.braced),
+        namespace: namespace.as_ref().and_then(to_span),
+    })
+}
+
+fn locate_list_elements(
+    text: &str,
+    syntax: tcl_dialect::ListParse,
+) -> Option<(Element, Option<Element>, Option<Element>)> {
+    let params = tcl_syntax::list::find_element_with_syntax(text, 0, syntax)
+        .ok()
+        .flatten()?;
+    let body = tcl_syntax::list::find_element_with_syntax(text, params.next, syntax)
+        .ok()
+        .flatten();
+    let namespace = body.as_ref().and_then(|element| {
+        tcl_syntax::list::find_element_with_syntax(text, element.next, syntax)
+            .ok()
+            .flatten()
+    });
+    Some((params, body, namespace))
+}
+
 /// Shared element-location logic for [`split_lambda_literal`] and
 /// [`split_lambda_literal_decoded`]: locate the (params, ?body?, ?namespace?)
 /// list elements of a lambda literal, keeping each [`Element`]'s `literal`
@@ -130,13 +183,8 @@ fn locate_elements(
     }
     let text = source.get(content_start as usize..content_end as usize)?;
 
-    let params_el = find_element(text, 0).ok().flatten()?;
-    let body_el = find_element(text, params_el.next).ok().flatten();
-    let namespace_el = body_el
-        .as_ref()
-        .and_then(|el| find_element(text, el.next).ok().flatten());
-
-    Some((content_start, params_el, body_el, namespace_el))
+    let (params, body, namespace) = locate_list_elements(text, tcl_dialect::ListParse::Strict)?;
+    Some((content_start, params, body, namespace))
 }
 
 /// A lambda literal's list elements, decoded to the actual value Tcl's list
@@ -159,6 +207,80 @@ pub struct DecodedLambdaLiteral<'a> {
     pub body: Option<Cow<'a, str>>,
     /// Element 2's decoded value (the namespace), when present.
     pub namespace: Option<Cow<'a, str>>,
+}
+
+/// Decoded lambda values from the actual complete static parent input.
+/// The input must own `word`; its independently selected native value/list
+/// recipe supplies bytes. Values without an exact UTF-8 view decline rather than changing
+/// native units. These owned values supply no cooked source offsets or body admission.
+#[must_use]
+pub fn split_original_lambda_literal_decoded(
+    word: &tcl_lexer::NativeWord,
+    input: &crate::signature_scan::scope::SignatureSourceNameInput,
+) -> Option<DecodedLambdaLiteral<'static>> {
+    // Implementation contract: naming.source.original-editor-body-structure
+    // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+
+    let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = input else {
+        return None;
+    };
+    if key.original_word() != word
+        || word.group().kind != tcl_lexer::WordKind::Braced
+        || input.original_list_element(3).is_some()
+    {
+        return None;
+    }
+    let decode = |ordinal| {
+        let child = input.original_list_element(ordinal)?;
+        std::str::from_utf8(child.bytes())
+            .ok()
+            .map(|text| Cow::Owned(text.to_owned()))
+    };
+    Some(DecodedLambdaLiteral {
+        params: decode(0)?,
+        body: Some(decode(1)?),
+        namespace: if input.original_list_element(2).is_some() {
+            Some(decode(2)?)
+        } else {
+            None
+        },
+    })
+}
+
+/// Source-only decoded lambda fields under the complete original word grammar.
+/// This supplies Unicode lexical presentation for explicit Logical consumers;
+/// no Native value/list recipe, key, cooked extent or activation is issued.
+#[must_use]
+pub fn split_original_lambda_literal_lexical_decoded(
+    word: &tcl_lexer::NativeWord,
+) -> Option<DecodedLambdaLiteral<'static>> {
+    // naming.editor.logical-formatting-context
+    // docs/design/analysis/name-resolution-proofs/logical-formatting-context.md
+    if word.image().channel() != tcl_lexer::SourceChannel::Document
+        || word.group().kind != tcl_lexer::WordKind::Braced
+        || word.group().expand
+    {
+        return None;
+    }
+    let content = word.content_span().ok()?;
+    let raw = word.image().bytes().get(content.as_range())?;
+    let value = tcl_syntax::backslash::source_braced_word_bytes(
+        raw,
+        word.image().channel(),
+        word.config().brace_backslash_newline,
+    );
+    let text = std::str::from_utf8(&value).ok()?;
+    let elements = tcl_syntax::word_rules::WordValueRules::from_config(&word.config())
+        .split_list(text)
+        .ok()?;
+    if !(2..=3).contains(&elements.len()) {
+        return None;
+    }
+    Some(DecodedLambdaLiteral {
+        params: Cow::Owned(elements[0].to_string()),
+        body: Some(Cow::Owned(elements[1].to_string())),
+        namespace: elements.get(2).map(|value| Cow::Owned(value.to_string())),
+    })
 }
 
 /// Decoded counterpart of [`split_lambda_literal`] — see
@@ -189,6 +311,47 @@ pub fn split_lambda_literal_decoded(source: &str, tok: Token) -> Option<DecodedL
 mod tests {
     use super::*;
     use crate::segmenter::segment_commands;
+
+    #[test]
+    fn original_lexical_lambda_decoding_retains_word_config_and_channel() {
+        // naming.editor.logical-formatting-context
+        // docs/design/analysis/name-resolution-proofs/logical-formatting-context.md
+        let source = "apply {a {puts a\\
+ b}}";
+        let config = tcl_lexer::LexerConfig::default();
+        let word = |image, config| {
+            let end = u32::try_from(source.len()).unwrap();
+            let plan = tcl_lexer::native_script_words_in(image, Span::new(0, end), config).unwrap();
+            plan.commands[0].words[1].clone()
+        };
+        let folded = word(tcl_lexer::SourceImage::document(source), config);
+        assert_eq!(
+            split_original_lambda_literal_lexical_decoded(&folded)
+                .unwrap()
+                .body
+                .as_deref(),
+            Some("puts a b")
+        );
+        let literal = word(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::LexerConfig {
+                brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Literal,
+                ..config
+            },
+        );
+        assert_eq!(
+            split_original_lambda_literal_lexical_decoded(&literal)
+                .unwrap()
+                .body
+                .as_deref(),
+            Some(
+                "puts a\\
+ b"
+            )
+        );
+        let native = word(tcl_lexer::SourceImage::native(source.as_bytes()), config);
+        assert!(split_original_lambda_literal_lexical_decoded(&native).is_none());
+    }
 
     fn lambda_tok(src: &str) -> Token {
         // `apply <lambda> …` — the lambda literal is argv[1].
@@ -322,5 +485,103 @@ mod tests {
         let cmds = segment_commands(src);
         let tok = cmds[0].argv[1];
         assert!(split_lambda_literal_decoded(src, tok).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_geometry_tests {
+    #[test]
+    fn original_lambda_geometry_uses_its_parent_selected_list_grammar() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = tcl_lexer::SourceImage::document("apply {{} {puts x}tail}");
+        for (profile, expected) in [("tcl8.6", None), ("jim0.84", Some("puts x"))] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(profile).analyser_profile();
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let plan = tcl_lexer::native_script_words_in(
+                source.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let lambda = &plan.commands[0].words[1];
+            let body = super::split_original_lambda_literal(lambda)
+                .and_then(|elements| elements.braced_body())
+                .and_then(|span| source.try_text().ok()?.get(span.as_range()));
+            assert_eq!(body, expected);
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_decoded_tests {
+    #[test]
+    fn original_lambda_decoding_retains_parent_native_units_without_cooked_geometry() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim0.84"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
+            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let image = tcl_lexer::SourceImage::document("apply {{} puts\\ hi ::N}");
+            let plan = tcl_lexer::native_script_words_in(
+                image.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[1];
+            let recipe = dialect.authored_name_policy().unwrap();
+            let key =
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    recipe,
+                )
+                .unwrap();
+            let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key);
+            let decoded = super::split_original_lambda_literal_decoded(word, &input).unwrap();
+            assert_eq!(decoded.params, "");
+            assert_eq!(decoded.body.as_deref(), Some("puts hi"));
+            assert_eq!(decoded.namespace.as_deref(), Some("::N"));
+            assert!(
+                super::split_original_lambda_literal(word)
+                    .unwrap()
+                    .braced_body()
+                    .is_none()
+            );
+            let foreign = &plan.commands[0].words[0];
+            assert!(super::split_original_lambda_literal_decoded(foreign, &input).is_none());
+            let astral = tcl_lexer::SourceImage::document("apply {{} {puts 😀}}");
+            let plan = tcl_lexer::native_script_words_in(
+                astral.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(astral.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[1];
+            let key =
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    recipe,
+                )
+                .unwrap();
+            let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key);
+            let decoded = super::split_original_lambda_literal_decoded(word, &input);
+            if dialect
+                .tcl_version
+                .is_some_and(|version| version < tcl_dialect::TclVersion::V9_0)
+            {
+                assert!(
+                    decoded.is_none(),
+                    "{name}: native surrogate units have no UTF-8 view"
+                );
+            } else {
+                assert_eq!(decoded.unwrap().body.as_deref(), Some("puts 😀"), "{name}");
+            }
+        }
     }
 }

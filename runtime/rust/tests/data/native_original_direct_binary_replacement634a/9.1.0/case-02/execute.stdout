@@ -1,0 +1,14 @@
+case	2	whole-original-replacement
+purpose	direct-TclStringReplace	parsed-first=0	parsed-count=4	flags=2	omit=0	extra-subject-reference=0
+input-subject	4100ff5a
+input-replacement	51fe
+before-subject	bytearray	0	1	0
+before-replacement	bytearray	0	1	0
+returned	1
+reached-subject	bytearray	0	1	0
+reached-replacement	bytearray	0	1	0
+reached-result	bytearray	0	1	0
+result-alias	subject=0	replacement=1
+result-bytes	51c3be
+materialised-result	bytearray	1	1	3
+subject-bytes	41c080c3bf5a

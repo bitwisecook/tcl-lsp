@@ -1,0 +1,35 @@
+{
+  "question": "What exact public existence and caught read results follow root or linked unset of precision, and how is an unrelated namespace same-tail variable treated?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Same untouched original counted fullInit CAPI driver as Native202/318, fresh interpreter independently for EACH of3 cases. Original ASCII source, no raw NUL/Unicode.",
+  "observation": "Root existence/caught read; linked local alias and root existence/caught reads plus global reported alias-name ::p caught read; unrelated same-tail namespace variable. All failure results caught explicitly so later observations retained. No private cell/header/trace identity claim.",
+  "notes": [
+    "Preserve prior318 executed whole-source failure as a harness limitation: without catches it does not locate the failing read or answer later questions.",
+    "Each case explicitly sets precision12, also ordinary C9/Jim variables. Do not infer hidden trace in profiles without it.",
+    "Pin six exact builds/patchlevels, headers/libraries/source channels and full stdout/stderr/exit receipts."
+  ],
+  "cases": [
+    {
+      "id": "root",
+      "source_file": "root.tcl",
+      "source_sha256": "49a76d450d34c48b203a8590a21225bee5f09ba0c684cec8918b63f14b0c5dc3"
+    },
+    {
+      "id": "linked",
+      "source_file": "linked.tcl",
+      "source_sha256": "866d821a998116f2b61018240a95e4b71088f0edc82c50621856880631cb3755"
+    },
+    {
+      "id": "unrelated",
+      "source_file": "unrelated.tcl",
+      "source_sha256": "25dc37764fdf7cf3698f6ffcc0e1057c56ff46bd0c2614dd9f3f70520df00e82"
+    }
+  ]
+}

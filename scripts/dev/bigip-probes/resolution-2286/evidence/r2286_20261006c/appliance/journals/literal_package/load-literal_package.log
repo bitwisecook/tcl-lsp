@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/literal_package.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_literal_package] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_literal_package:2: error: [command is disabled: "package"][package provide Tcl]
+
+Unexpected Error: Loading configuration process failed.

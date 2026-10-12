@@ -1,0 +1,19 @@
+{
+  "ordinal": 196,
+  "selector": "dict::tests::unset_preserves_order_and_frees",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "dict::tests::unset_preserves_order_and_frees",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.012338621978415176,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/196.log",
+  "log_sha256": "20710286460742e3150fb3ba19fb4aad176ae8b285d0f4acbd1709093e7a1d4e"
+}

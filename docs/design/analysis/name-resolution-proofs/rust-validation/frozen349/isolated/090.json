@@ -1,0 +1,19 @@
+{
+  "ordinal": 90,
+  "selector": "cmd_oo::original_argument_tests::definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::original_argument_tests::definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.49098159399,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.45s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/090.log",
+  "log_sha256": "d3a4fb7bd1f946506307be4289638ec27d09c15446358781ef2cde1857242499"
+}

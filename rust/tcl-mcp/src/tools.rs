@@ -25,7 +25,7 @@
 use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::config_ini;
@@ -34,8 +34,8 @@ use tcl_lsp_core::diagnostic_policy::{
     Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Reason, Report, Shown,
 };
 use tcl_lsp_core::diagnostic_report::{
-    DocumentSource, SourcePass, StandaloneDocument, document_report, optimise_under_policy,
-    standalone_findings,
+    DocumentSource, SourcePass, StandaloneDocument, StandaloneFindings,
+    document_report_with_analysis, optimise_under_policy, standalone_findings,
 };
 use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 use tcl_registry::CommandRegistry;
@@ -155,11 +155,15 @@ fn cursor(source: &str, line: u32, character: u32) -> (LineIndex, u32) {
 }
 
 fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Value {
-    json!({
+    let mut result = json!({
         "title": r.title,
         "rewritten": r.apply(source),
         "edit_count": r.edits.len(),
-    })
+    });
+    if let Some(reason) = &r.disabled {
+        result["disabled"] = json!(reason);
+    }
+    result
 }
 
 /// The configuration layers one tool call resolves its policy under
@@ -227,10 +231,8 @@ struct Analysed {
     analysis_text: String,
     /// The source's dialect.
     dialect: &'static DialectProfile,
-    /// The analysis, for the tools that read its facts beside the report.
-    analysis: AnalysisResult,
-    /// The analyser's findings, then the compiler checks', converted.
-    produced: Vec<Finding>,
+    /// The analysis, findings and actual shared unit from one producer.
+    findings: StandaloneFindings,
     policy: Policy,
 }
 
@@ -246,7 +248,7 @@ impl Analysed {
     fn diagnostics_report(&self) -> Report {
         let mut policy = self.policy.clone();
         policy.optimiser.enabled = false;
-        let mut report = self.report_under(self.produced.clone(), &policy);
+        let mut report = self.report_under(self.findings.produced.clone(), &policy);
         report.declare_optimiser_skip(&policy);
         report
     }
@@ -255,7 +257,7 @@ impl Analysed {
     /// `rewrites`, under the policy as the layers resolve it, the optimiser
     /// switch included — the editor's lightbulb decides the same way.
     fn actions_report(&self, rewrites: Vec<Finding>) -> Report {
-        let mut produced = self.produced.clone();
+        let mut produced = self.findings.produced.clone();
         produced.extend(rewrites);
         self.report_under(produced, &self.policy)
     }
@@ -263,7 +265,7 @@ impl Analysed {
     /// `produced` with the report's own producers under `policy`, the
     /// analyser's skip declared.
     fn report_under(&self, produced: Vec<Finding>, policy: &Policy) -> Report {
-        let mut report = document_report(
+        let mut report = document_report_with_analysis(
             &DocumentSource {
                 text: &self.source,
                 analysis_text: &self.analysis_text,
@@ -275,6 +277,7 @@ impl Analysed {
             },
             produced,
             policy,
+            Some(&self.findings.analysis),
         );
         report.declare_analyser_skip(policy);
         report
@@ -288,7 +291,7 @@ impl Analysed {
 /// [`registry`] first, then the overlay key it built: the analyser resolves its
 /// own registry from the dialect profile, so without the key it would miss the
 /// bundled `.tclspec` loadables and call every EDA vendor command unknown.
-fn analyse(source: &str, dialect: &str) -> AnalysisResult {
+pub(crate) fn analyse(source: &str, dialect: &str) -> AnalysisResult {
     let _ = registry(dialect);
     Analyser::new()
         .with_pack_overlay(tcl_spectcl::bundled::packs().key)
@@ -329,8 +332,7 @@ fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed
         source: source.to_owned(),
         analysis_text,
         dialect: profile,
-        analysis: standalone.analysis,
-        produced: standalone.produced,
+        findings: standalone,
         policy,
     }
 }
@@ -378,6 +380,9 @@ fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
         "range": byte_range(sm, d.span),
         "category": crate::diag_meta::meta().categorise(code),
     });
+    if let Some(subject) = d.structured_data() {
+        obj["data"] = subject;
+    }
     if !d.fixes.is_empty() {
         let fixes: Vec<Value> = d
             .fixes
@@ -481,39 +486,68 @@ fn doc_symbol_to_json(sym: &tcl_lsp_core::document_symbols::DocumentSymbol) -> V
     node
 }
 
-/// iRule events in canonical firing order as `{index, name, multiplicity}`
-/// (1-based index) — the `ordered_events` shape.
-fn event_order_list(source: &str) -> Vec<Value> {
+/// The independently selected source event cards in this current analysis.
+fn event_source_cards(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<tcl_lsp_core::document_symbols::DocumentSymbol> {
+    tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, analysis)
+        .into_iter()
+        .filter(|card| card.kind == tcl_lsp_core::document_symbols::SymbolKind::Event)
+        .collect()
+}
+
+/// Order supported authored event units after actual source-role selection.
+/// The catalogue supplies presentation ordering, never runtime event authority.
+fn event_order_list(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
     let events = EventRegistry::build();
     let mut seen = HashSet::new();
-    let names: Vec<String> = tcl_irules::when_blocks(source)
+    let cards = event_source_cards(source, analysis);
+    let Some(declarations) = tcl_lsp_core::vendor_declaration::declarations(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let index = LineIndex::new(source);
+    let names = declarations
         .into_iter()
-        .map(|block| block.event)
+        .filter(|row| {
+            row.symbol_metadata()
+                .is_some_and(|metadata| metadata.kind == tcl_registry::DefinedSymbolKind::Event)
+        })
+        .filter(|row| {
+            cards.iter().any(|card| {
+                index.offset_at_utf16(
+                    card.selection_range.start_line,
+                    Utf16Col::new(card.selection_range.start_character),
+                    source,
+                ) == row.span().start()
+            })
+        })
+        .filter_map(|row| row.input().literal_units(row.purpose()))
+        .filter(|units| units.is_ascii())
+        .filter_map(|units| std::str::from_utf8(units).ok())
+        .map(str::to_ascii_uppercase)
         .filter(|event| seen.insert(event.clone()))
-        .collect();
+        .collect::<Vec<_>>();
     events
         .order_events(&names)
         .into_iter()
         .enumerate()
         .map(|(i, name)| {
             let multiplicity = events.event_multiplicity(&name);
-            json!({ "index": i + 1, "name": name, "multiplicity": multiplicity })
+            json!({"index":i+1,"name":name,"multiplicity":multiplicity})
         })
         .collect()
 }
 
-/// iRule `when EVENT` handlers as `{name, line}` (0-based line), first
-/// appearance only, using the shared top-level event-handler owner.
-fn detect_events(source: &str) -> Vec<Value> {
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    let lines = tcl_lexer::LineIndex::new(source);
-    for block in tcl_irules::when_blocks(source) {
-        if seen.insert(block.event.clone()) {
-            out.push(json!({ "name": block.event, "line": lines.line_at(block.span.start()) }));
-        }
-    }
-    out
+/// Readable selected source event headers; unavailable units remain source cards.
+fn detect_events(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
+    let mut seen = HashSet::new();
+    event_source_cards(source, analysis)
+        .into_iter()
+        .filter(|card| seen.insert(card.name.clone()))
+        .map(|card| json!({"name":card.name,"line":card.selection_range.start_line}))
+        .collect()
 }
 
 /// Split `s` into lines keeping each trailing `\n` (like
@@ -536,42 +570,39 @@ fn split_keep_ends(s: &str) -> Vec<String> {
 
 // ── Individual tool handlers ──────────────────────────────────────────
 
-fn call_graph(args: &Value) -> Value {
+type SourceGraphBuilder = fn(
+    &str,
+    &CommandRegistry,
+    Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> Result<Value, tcl_lsp_core::graphs::GraphSourceInputDecline>;
+
+fn supplied_source_graph(args: &Value, build: SourceGraphBuilder) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::call_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
+    let analysis = analyse(source, &dialect);
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return json!({ "error": "The graph's retained source input is unavailable" });
+    };
+    let context = input.context_registry();
+    build(source, context.commands(), Some(input))
+        .unwrap_or_else(|reason| json!({ "error": reason.to_string() }))
+}
+
+fn call_graph(args: &Value) -> Value {
+    supplied_source_graph(args, tcl_lsp_core::graphs::call_graph_with_source_input)
 }
 
 fn symbol_graph(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    tcl_lsp_core::graphs::symbol_graph(
-        source,
-        tcl_lsp_core::profile_for_dialect(&resolve_dialect(args, source)),
-    )
+    supplied_source_graph(args, tcl_lsp_core::graphs::symbol_graph_with_source_input)
 }
 
 fn dataflow_graph(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::dataflow_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
+    supplied_source_graph(args, tcl_lsp_core::graphs::dataflow_graph_with_source_input)
 }
 
 fn def_use_chains(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    let mut graph = tcl_lsp_core::graphs::def_use_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    );
+    let mut graph =
+        supplied_source_graph(args, tcl_lsp_core::graphs::def_use_graph_with_source_input);
     // Optional variable filter.
     let variable = arg_str(args, "variable");
     if !variable.is_empty()
@@ -593,12 +624,9 @@ fn def_use_chains(args: &Value) -> Value {
 }
 
 fn memory_aliases(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::memory_alias_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
+    supplied_source_graph(
+        args,
+        tcl_lsp_core::graphs::memory_alias_graph_with_source_input,
     )
 }
 
@@ -623,7 +651,10 @@ fn detect_dialect(args: &Value) -> Value {
 }
 
 fn event_order(args: &Value) -> Value {
-    let ordered = event_order_list(arg_str(args, "source"));
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let ordered = event_order_list(source, &analysis);
     json!({ "events": ordered, "total": ordered.len() })
 }
 
@@ -769,17 +800,15 @@ fn refactor_at(
     f: impl FnOnce(
         &str,
         u32,
-        &CommandRegistry,
+        &AnalysisResult,
         &LineIndex,
-        LexerConfig,
     ) -> Option<tcl_lsp_core::refactor::Refactoring>,
 ) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
-    match f(source, off, &registry(&dialect), &idx, config) {
+    let analysis = analyse(source, &dialect);
+    match f(source, off, &analysis, &idx) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -809,9 +838,8 @@ fn brace_expr(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (_idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
-    match tcl_lsp_core::refactor::brace_expr(source, off, &registry(&dialect), config) {
+    let analysis = analyse(source, &dialect);
+    match tcl_lsp_core::refactor::brace_expr(source, off, &analysis) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -833,17 +861,19 @@ fn analyze(args: &Value) -> Value {
 fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     let diagnostics: Vec<Value> = report.shown().map(|d| diag_to_json(&d, &sm)).collect();
-    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
+    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols_from_analysis(
         source,
-        tcl_lsp_core::profile_for_dialect(&dialect),
+        &analysed.findings.analysis,
     )
     .iter()
     .map(doc_symbol_to_json)
     .collect();
     json!({
+        "analysis_context_unavailable": report.analysis_context_status_data(),
         "diagnostic_count": diagnostics.len(),
         "diagnostics": diagnostics,
         "symbols": symbols,
@@ -860,7 +890,8 @@ fn validate(args: &Value) -> Value {
 fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let mut categories = Map::new();
@@ -888,7 +919,8 @@ fn review(args: &Value) -> Value {
 fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let filt = |set: &std::collections::HashSet<String>| -> Vec<Value> {
@@ -923,7 +955,8 @@ fn find_legacy(args: &Value) -> Value {
 fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let report = analyse_under(source, &dialect, inputs).diagnostics_report();
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
     // `conversion_for`) rather than a second hand-duplicated copy of the same
@@ -1117,13 +1150,12 @@ const SOURCE_URI: &str = "file:///source.tcl";
 fn symbols(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let syms: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
-        source,
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
-    .iter()
-    .map(doc_symbol_to_json)
-    .collect();
+    let analysis = analyse(source, &dialect);
+    let syms: Vec<Value> =
+        tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, &analysis)
+            .iter()
+            .map(doc_symbol_to_json)
+            .collect();
     json!({ "symbols": syms })
 }
 
@@ -1254,11 +1286,15 @@ fn code_actions(args: &Value) -> Value {
 /// offered for a finding the document shows and for no other — and a shown
 /// rewrite is an offerable action, not only a diagnostic payload.
 fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
-    use tcl_compiler::optimiser::optimise_with_dialect;
-
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysed = analyse_under(source, &dialect, inputs);
+    code_actions_from_analysis(args, &analysed)
+}
+
+/// Render actions from the already supplied producer. Optimisation reads its
+/// retained unit and complete current input rather than rebuilding a world.
+fn code_actions_from_analysis(args: &Value, analysed: &Analysed) -> Value {
     let range = LspRange {
         start_line: arg_u32(args, "start_line"),
         start_character: arg_u32(args, "start_character"),
@@ -1271,19 +1307,17 @@ fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
     // the same policy, whose optimiser switch stays the layers'. Both run
     // over the analysis form, as the editor's lightbulb does, so a lone-`\r`
     // source's ranges are on the client's line model.
-    let rewrites: Vec<Finding> = optimise_with_dialect(
-        &analysed.analysis_text,
-        &registry(&dialect),
-        Some(analysed.dialect),
-    )
-    .into_iter()
-    .map(Finding::from)
-    .collect();
+    let rewrites: Vec<Finding> = analysed
+        .findings
+        .optimisation_candidates(&analysed.analysis_text)
+        .into_iter()
+        .map(Finding::from)
+        .collect();
     let report = analysed.actions_report(rewrites);
     let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
         &analysed.analysis_text,
         range,
-        Some(&analysed.analysis),
+        Some(&analysed.findings.analysis),
         &report,
     )
     .iter()
@@ -1307,6 +1341,9 @@ fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
             if let Some(dg) = &a.data_group_definition {
                 m.insert("data_group_definition".to_owned(), json!(dg));
             }
+            if let Some(reason) = &a.disabled {
+                m.insert("disabled".to_owned(), json!(reason));
+            }
             obj
         })
         .collect();
@@ -1318,8 +1355,7 @@ fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
 fn extract_variable(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
+    let analysis = analyse(source, &dialect);
     let line_index = LineIndex::new(source);
     let start_off = line_index.offset_at_utf16(
         arg_u32(args, "start_line"),
@@ -1337,32 +1373,36 @@ fn extract_variable(args: &Value) -> Value {
     };
     match tcl_lsp_core::refactor::extract_variable(
         source,
-        start_off,
-        end_off,
+        (start_off, end_off),
         var_name,
+        &analysis,
         &line_index,
-        config,
     ) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
 }
 
+/// Both tool surfaces keep the analysis owner through conditional source edits.
+fn datagroup_advice(
+    source: &str,
+    cursor: u32,
+    name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<tcl_lsp_core::refactor::Refactoring> {
+    tcl_lsp_core::refactor::extract_to_datagroup_with_analysis(
+        source, cursor, name, analysis, line_index,
+    )
+}
+
 fn extract_datagroup(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let dg_name = arg_str(args, "dg_name");
-    let reg = registry(IRULES_DIALECT);
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(IRULES_DIALECT).grammar);
-    let Some(r) = tcl_lsp_core::refactor::extract_to_datagroup(
-        source,
-        cursor,
-        dg_name,
-        &reg,
-        &line_index,
-        config,
-    ) else {
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let Some(r) = datagroup_advice(source, cursor, dg_name, &analysis, &line_index) else {
         return Value::Null;
     };
     let Some(dg) = r.data_group.as_ref() else {
@@ -1403,12 +1443,14 @@ fn refactor(args: &Value) -> Value {
         source,
     );
     let analysis = analyse(source, &dialect);
-    let config =
-        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
     let mut available: Vec<Value> = Vec::new();
     let mut push = |tool: &str, r: Option<tcl_lsp_core::refactor::Refactoring>| {
         if let Some(r) = r {
-            available.push(json!({ "tool": tool, "title": r.title }));
+            let mut candidate = json!({ "tool": tool, "title": r.title });
+            if let Some(reason) = r.disabled {
+                candidate["disabled"] = json!(reason);
+            }
+            available.push(candidate);
         }
     };
     // Extract-variable only applies to a non-empty selection.
@@ -1417,11 +1459,10 @@ fn refactor(args: &Value) -> Value {
             "extract_variable",
             tcl_lsp_core::refactor::extract_variable(
                 source,
-                start_off,
-                end_off,
+                (start_off, end_off),
                 "result",
+                &analysis,
                 &line_index,
-                config,
             ),
         );
     }
@@ -1431,26 +1472,19 @@ fn refactor(args: &Value) -> Value {
     );
     push(
         "if_to_switch",
-        tcl_lsp_core::refactor::if_to_switch(source, start_off, &reg, &line_index, config),
+        tcl_lsp_core::refactor::if_to_switch(source, start_off, &analysis, &line_index),
     );
     push(
         "switch_to_dict",
-        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &reg, &line_index, config),
+        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &analysis, &line_index),
     );
     push(
         "brace_expr",
-        tcl_lsp_core::refactor::brace_expr(source, start_off, &reg, config),
+        tcl_lsp_core::refactor::brace_expr(source, start_off, &analysis),
     );
     push(
         "extract_datagroup",
-        tcl_lsp_core::refactor::extract_to_datagroup(
-            source,
-            start_off,
-            "",
-            &reg,
-            &line_index,
-            config,
-        ),
+        datagroup_advice(source, start_off, "", &analysis, &line_index),
     );
     json!({ "total": available.len(), "available": available })
 }
@@ -1467,37 +1501,29 @@ fn generate_docstring(args: &Value) -> Value {
     };
     let decoration = arg_bool(args, "decoration");
     let analysis = analyse(source, &dialect);
-    // Resolve `proc_name` to its `ProcDef`: the qualified spelling (`::name`,
-    // or the exact name as given) first, then — for a bare name that names a
-    // proc in some namespace — the lexicographically smallest qualified name
-    // among the same-named procs.  The tool has no call-site namespace to
-    // resolve against, so an ambiguous bare name resolves *deterministically*
-    // rather than in `HashMap` iteration order (which picked an arbitrary
-    // same-named proc across namespaces run to run).
-    let qualified = format!("::{proc_name}");
-    let proc = analysis
-        .all_procs
-        .values()
-        .find(|p| p.qualified_name == qualified || p.qualified_name == proc_name)
-        .or_else(|| {
-            // drift-ok: a user-typed bare name with no cursor context — the
-            // deterministic (lexicographically-least) simple-name fallback,
-            // the same discipline as definition.rs::fallback_proc_by_simple_name.
-            analysis
-                .all_procs
-                .values()
-                .filter(|p| p.name == proc_name)
-                .min_by(|a, b| a.qualified_name.cmp(&b.qualified_name))
-        });
-    match proc {
-        Some(proc) => {
+    let Some(declarations) =
+        tcl_lsp_core::procedure_symbol::for_literal_name(source, &analysis, proc_name)
+    else {
+        return json!({ "error": "The current original procedure inventory is unavailable" });
+    };
+    match declarations.as_slice() {
+        [proc] => {
             let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
             let docstring = tcl_lsp_core::formatting::generate_stub_for_proc(
                 proc, tag, decoration, '.', 70, "",
             );
             json!({ "proc": proc_name, "docstring": docstring })
         }
-        None => json!({ "error": format!("Proc '{proc_name}' not found") }),
+        [] => json!({
+            "error": format!("Proc '{proc_name}' not found at global scope; use its qualified name for a namespace declaration"),
+        }),
+        _ => json!({
+            "error": format!("Proc '{proc_name}' has multiple source declarations"),
+            "declarations": declarations.iter().map(|proc| json!({
+                "name_start": proc.name_span.start(),
+                "name_end": proc.name_span.end(),
+            })).collect::<Vec<_>>(),
+        }),
     }
 }
 
@@ -1505,8 +1531,9 @@ fn read_proc_docs(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
-    let mut procs: Vec<_> = analysis.all_procs.values().collect();
-    procs.sort_by_key(|p| p.name_span.start());
+    let Some(procs) = tcl_lsp_core::procedure_symbol::declarations(source, &analysis) else {
+        return json!({ "error": "The current original procedure inventory is unavailable" });
+    };
     let entries: Vec<Value> = procs
         .into_iter()
         .map(|proc| {
@@ -1524,6 +1551,17 @@ fn read_proc_docs(args: &Value) -> Value {
             let mut entry =
                 json!({ "name": proc.name, "qualified_name": proc.qualified_name, "params": params });
             let m = entry.as_object_mut().expect("json object");
+            if let Some(original) = analysis
+                .original_procedure_declarations()
+                .find(|row| row.metadata().name_span == proc.name_span)
+            {
+                m.insert(
+                    "name_source".to_owned(),
+                    json!(source.get(original.name_input().span().as_range())),
+                );
+            }
+            m.insert("name_start".to_owned(), json!(proc.name_span.start()));
+            m.insert("name_end".to_owned(), json!(proc.name_span.end()));
             if proc.doc.is_empty() {
                 m.insert("doc".to_owned(), Value::Null);
             } else {
@@ -1559,14 +1597,16 @@ fn update_docstrings(args: &Value) -> Value {
     let analysis = analyse(source, &dialect);
     let line_index = LineIndex::new(source);
     let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
-    let total_procs = analysis.all_procs.len();
+    let Some(procs) = tcl_lsp_core::procedure_symbol::declarations(source, &analysis) else {
+        return json!({ "error": "The current original procedure inventory is unavailable" });
+    };
+    let total_procs = procs.len();
 
-    // Undocumented procs, bottom-up so earlier insertions don't shift later
-    // line numbers.
-    let mut targets: Vec<_> = analysis
-        .all_procs
-        .values()
-        .filter(|p| p.doc.is_empty())
+    // Insert from the last original declaration so earlier source positions
+    // stay valid while each independent declaration receives its own comment.
+    let mut targets: Vec<_> = procs
+        .into_iter()
+        .filter(|proc| proc.doc.is_empty())
         .collect();
     targets.sort_by_key(|p| std::cmp::Reverse(line_index.line_at(p.name_span.start())));
 
@@ -1823,7 +1863,7 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "event_order",
         description: "iRule events in canonical firing order with multiplicity.",
-        params: &[SRC],
+        params: &[SRC, DIALECT],
         required: &["source"],
         handler: event_order,
     },
@@ -2059,6 +2099,7 @@ const TOOLS: &[ToolDef] = &[
         description: "Extract an if/switch over literals into an iRules data-group + lookup.",
         params: &[
             SRC,
+            DIALECT,
             LINE,
             CHAR,
             (
@@ -2596,9 +2637,10 @@ mod source_integrity_tests {
 
     #[test]
     fn event_order_deduplicates_repeated_handlers() {
-        let result = event_order_list(
-            "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n",
-        );
+        let source =
+            "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n";
+        let analysis = analyse(source, "f5-irules");
+        let result = event_order_list(source, &analysis);
         let names: Vec<_> = result
             .iter()
             .filter_map(|row| row["name"].as_str())
@@ -3152,6 +3194,116 @@ mod policy_tests {
     }
 
     #[test]
+    fn original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners() {
+        // naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let args = json!({
+            "source": FOLDING, "dialect": "tcl9.0",
+            "start_line": 0, "start_character": 0,
+            "end_line": 0, "end_character": 80,
+        });
+        let inputs = inputs(&args, "diagnostics", "[optimiser]\nprofile = full\n");
+        let mut analysed = analyse_under(FOLDING, "tcl9.0", &inputs);
+        let original = analysed.findings.analysis.clone();
+        let fold = |response: &Value| {
+            response["actions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|action| {
+                    action["edits"]
+                        .as_array()
+                        .is_some_and(|edits| edits.iter().any(|edit| edit["new_text"] == "set x 3"))
+                })
+        };
+        let control = code_actions_from_analysis(&args, &analysed);
+        assert!(
+            fold(&control),
+            "actual code-action consumer offers the retained unit's fold: {control}"
+        );
+        assert_eq!(code_actions_with(&args, &inputs), control);
+        let input = original.resolved_input.as_ref().unwrap();
+        assert_eq!(
+            input.borrowed_context_registry().commands().snapshot(),
+            registry("tcl9.0").snapshot()
+        );
+        assert!(input.lexer_config() == original.body_lexer_config.unwrap());
+        analysed.findings.analysis.resolved_input = None;
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.findings.analysis = original.clone();
+        analysed.findings.analysis.analysis_context_unavailable =
+            Some(tcl_registry::model::OverlayMiss {
+                environment: "tcl9.0".to_owned(),
+                overlay: u64::MAX - 436,
+            });
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.findings.analysis = original.clone();
+        analysed
+            .findings
+            .analysis
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting ^= true;
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        let older = tcl_registry::model::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(std::sync::Arc::clone(
+                input.borrowed_context_registry().commands(),
+            ));
+        let older_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(older),
+            input.lexer_config(),
+        );
+        assert!(std::sync::Arc::ptr_eq(
+            input.borrowed_context_registry().commands(),
+            older_input.borrowed_context_registry().commands()
+        ));
+        assert_ne!(input, &older_input);
+        analysed.findings.analysis = Analyser::new()
+            .with_resolved_input(older_input)
+            .analyse(FOLDING, input.analyser_profile().name);
+        assert!(analysed.findings.analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(FOLDING),
+            input.lexer_config()
+        ));
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        let mut foreign_store = CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreignMcpCandidateStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert_ne!(
+            foreign_store.snapshot(),
+            input.borrowed_context_registry().commands().snapshot()
+        );
+        let foreign_context = input
+            .borrowed_context_registry()
+            .with_command_store(foreign_store.snapshot().shared_registry());
+        let foreign_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(foreign_context),
+            input.lexer_config(),
+        );
+        analysed.findings.analysis = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(FOLDING, input.analyser_profile().name);
+        assert!(analysed.findings.analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(FOLDING),
+            input.lexer_config()
+        ));
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.findings.analysis = original.clone();
+        analysed.analysis_text = FOLDING.replace("1 + 2", "1 + 4");
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.analysis_text = FOLDING.to_owned();
+        assert_eq!(code_actions_from_analysis(&args, &analysed), control);
+    }
+
+    #[test]
     fn code_actions_offer_nothing_for_a_silenced_finding() {
         let brace = |actions: &[Value]| {
             actions
@@ -3437,15 +3589,304 @@ mod docstring_tests {
     }
 
     #[test]
-    fn ambiguous_bare_name_is_deterministic() {
-        // A bare `dup` names a proc in two namespaces; with no call-site
-        // namespace to resolve against, the smallest qualified name
-        // (`::a::dup`) wins — and it must win on every run, never in `HashMap`
-        // iteration order.
-        for _ in 0..32 {
-            let ds = docstring_for("dup");
-            assert!(ds.contains("alphaparam"), "{ds}");
-            assert!(!ds.contains("omegaparam"), "{ds}");
+    fn bare_name_without_a_namespace_does_not_choose_an_unrelated_declaration() {
+        let result = generate_docstring(&json!({
+            "source": TWO_NS_DUP,
+            "proc_name": "dup",
+        }));
+        assert!(result["docstring"].is_null());
+        assert!(result["error"].as_str().unwrap().contains("qualified name"));
+    }
+
+    #[test]
+    fn original_doc_tools_preserve_opaque_names_and_repeated_declarations() {
+        let source = r"proc p\uD800 {} {}
+proc p\uD801 {} {}
+proc repeated {first} {}
+proc repeated {second} {}";
+        let result = read_proc_docs(&json!({ "source": source, "dialect": "tcl8.6" }));
+        let rows = result["procs"].as_array().unwrap();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0]["name_source"], r"p\uD800");
+        assert_eq!(rows[1]["name_source"], r"p\uD801");
+        assert_ne!(rows[0]["name_start"], rows[1]["name_start"]);
+        let ambiguous = generate_docstring(&json!({
+            "source": source, "dialect": "tcl8.6", "proc_name": "repeated",
+        }));
+        assert!(ambiguous["docstring"].is_null());
+        assert_eq!(ambiguous["declarations"].as_array().unwrap().len(), 2);
+        let updated = update_docstrings(&json!({ "source": source, "dialect": "tcl8.6" }));
+        assert_eq!(updated["total_procs"], 4);
+        assert_eq!(updated["procs_documented"], 4);
+        let after = updated["source"].as_str().unwrap();
+        assert!(after.contains(r"proc p\uD800"));
+        assert!(after.contains(r"proc p\uD801"));
+    }
+}
+
+#[cfg(test)]
+mod original_refactor_request_tests {
+    use super::*;
+
+    fn authored_datagroup_registry() -> std::sync::Arc<CommandRegistry> {
+        const OUTPUTS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "match",
+                arity: tcl_registry::Arity::exact(3),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "lookup",
+                arity: tcl_registry::Arity::exact(2),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        // An authored source output surface is independent of loaded handlers.
+        registry.insert(tcl_registry::CommandSpec {
+            name: "class",
+            surface: Some(tcl_registry::model::SpecSurface::TCL90_PLUS),
+            subcommands: OUTPUTS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        std::sync::Arc::new(registry)
+    }
+
+    fn datagroup_analysis(
+        source: &str,
+        environment: &str,
+        registry: std::sync::Arc<CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(registry),
+            ),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let result = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(result.allows_lexical_declaration_advice());
+        result
+    }
+
+    #[test]
+    fn original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons() {
+        // naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let registry = authored_datagroup_registry();
+        let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
+        let index = LineIndex::new(source);
+        let action = datagroup_advice(source, 0, "answers", &analysis, &index)
+            .expect("actual authored output and original conditional arm source");
+        assert_eq!(action.apply(source), "set answer [class lookup $x answers]");
+        assert_eq!(action.data_group.as_ref().unwrap().records.len(), 2);
+        let older = datagroup_analysis(source, "tcl8.4", registry.clone());
+        assert!(datagroup_advice(source, 0, "answers", &older, &index).is_none());
+        for prefix in ["proc set args {}; ", "proc class args {}; "] {
+            let replaced = format!("{prefix}{source}");
+            let owner = datagroup_analysis(&replaced, "tcl9.0", registry.clone());
+            assert!(
+                datagroup_advice(
+                    &replaced,
+                    u32::try_from(prefix.len()).unwrap(),
+                    "answers",
+                    &owner,
+                    &LineIndex::new(&replaced)
+                )
+                .is_none()
+            );
         }
+        let alias = "interp alias {} choose {} if
+choose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+        let alias_owner = datagroup_analysis(alias, "tcl9.0", registry.clone());
+        assert!(
+            datagroup_advice(
+                alias,
+                u32::try_from(alias.rfind("choose").unwrap()).unwrap(),
+                "answers",
+                &alias_owner,
+                &LineIndex::new(alias)
+            )
+            .is_some()
+        );
+        let captured = "interp alias {} choose {} if {$x eq one}
+choose {puts SAME} elseif {$x eq two} {puts SAME}";
+        let owner = datagroup_analysis(captured, "tcl9.0", registry);
+        assert!(
+            datagroup_advice(
+                captured,
+                u32::try_from(captured.rfind("choose").unwrap()).unwrap(),
+                "answers",
+                &owner,
+                &LineIndex::new(captured)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners() {
+        // naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let registry = authored_datagroup_registry();
+        let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
+        let index = LineIndex::new(source);
+        assert!(datagroup_advice(source, 0, "answers", &analysis, &index).is_some());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = datagroup_analysis(source, "tcl8.4", registry).resolved_input;
+        let mut unavailable = analysis.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".into(),
+            overlay: u64::MAX - 405,
+        });
+        for refused in [missing, stale, foreign, unavailable] {
+            assert!(datagroup_advice(source, 0, "answers", &refused, &index).is_none());
+        }
+        assert!(datagroup_advice("# changed", 0, "answers", &analysis, &index).is_none());
+        assert!(datagroup_advice(source, 0, "answers", &analysis, &index).is_some());
+    }
+
+    // Implementation contract: naming.consumer.original-mcp-refactor-context
+    // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+    #[test]
+    fn original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules() {
+        let source = "switch -- $value { a {set result 1} b {set result 2} }";
+        for dialect in ["tcl8.6", "tcl9.0", "jimtcl", "f5-irules", "f5-tmsh"] {
+            let args = json!({"source":source,"dialect":dialect,"line":0,"character":0,
+                "start_line":0,"start_character":0,"end_line":0,"end_character":0});
+            assert_eq!(extract_datagroup(&args), Value::Null, "{dialect}");
+            let candidates = refactor(&args);
+            assert!(
+                candidates["available"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|candidate| candidate["tool"] != "extract_datagroup"),
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_code_action_responses_retain_disabled_rewrite_obligations() {
+        // Implementation contract: naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let source = "if {1} {puts YES} else {puts NO}";
+        let response = code_actions(&json!({
+            "source": source,
+            "dialect": "tcl8.6",
+            "start_line": 0,
+            "start_character": 0,
+            "end_line": 0,
+            "end_character": 0,
+        }));
+        let action = response["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|action| action["title"] == "Convert if chain to switch")
+            .expect("selected Native structure retains its rewrite obligation");
+        assert!(action["edits"].is_null());
+        assert!(
+            action["disabled"]
+                .as_str()
+                .unwrap()
+                .starts_with("missing-control-flow-equivalence:")
+        );
+    }
+
+    // Implementation contract: naming.consumer.original-mcp-refactor-context
+    // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+    #[test]
+    fn original_refactor_requests_use_the_selected_analysis_for_shadowed_heads() {
+        let source = "proc expr {value} {return $value}\nexpr $x + 1\n";
+        let args = json!({"source":source,"dialect":"tcl8.6","line":1,"character":2});
+        let result = brace_expr(&args);
+        assert!(
+            result.is_null() || result.get("disabled").is_some(),
+            "{result}"
+        );
+        assert_eq!(arg_str(&args, "dialect"), "tcl8.6");
+    }
+}
+
+#[cfg(test)]
+mod original_event_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps() {
+        // Implementation contract: naming.consumer.original-mcp-event-source-advice
+        // docs/design/analysis/name-resolution-proofs/original-mcp-event-source-advice.md
+        let source = "when HTTP_REQUEST {}";
+        let mut analysis = analyse(source, "f5-irules");
+        analysis.all_defined_symbols.clear();
+        analysis.global_scope.defined_symbols.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "counterfactual".to_owned();
+        }
+        assert_eq!(detect_events(source, &analysis)[0]["name"], "HTTP_REQUEST");
+        assert_eq!(
+            event_order_list(source, &analysis)[0]["name"],
+            "HTTP_REQUEST"
+        );
+        assert!(detect_events(&format!("# moved\n{source}"), &analysis).is_empty());
+        for profile in ["tcl8.6", "tcl9.0", "f5-iapps"] {
+            let result = analyze(&json!({"source":source,"dialect":profile}));
+            assert_eq!(result["events"], json!([]), "{profile}");
+            assert_eq!(result["event_order"], json!([]), "{profile}");
+        }
+        let shadow = "proc when {args} {}; when HTTP_REQUEST {}";
+        assert!(detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod retained_graph_input_tests {
+    #[test]
+    fn memory_alias_tool_keeps_authored_exposure_and_unknown_storage() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let graph = super::memory_aliases(&serde_json::json!({
+            "source": "proc aliaser {} {global ::shared; set shared 1}", "dialect": "tcl",
+        }));
+        let function = graph["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::aliaser")
+            .unwrap();
+        assert!(
+            function["alias_sets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|alias| {
+                    alias["reason"] == "global-cell"
+                        && alias["names"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|name| name == "::shared")
+                        && alias["names"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|name| name == "shared")
+                })
+        );
+        assert_eq!(function["has_wildcard_aliasing"].as_bool(), Some(true));
     }
 }

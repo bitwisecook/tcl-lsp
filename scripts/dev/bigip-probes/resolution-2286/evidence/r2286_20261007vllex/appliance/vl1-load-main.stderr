@@ -1,0 +1,6 @@
+01070151:3: Rule [/Common/__tcl_lsp_2286_vl1_main] error: /Common/__tcl_lsp_2286_vl1_main:7: error: [undefined procedure: R2286_vl1_hex][R2286_vl1_hex $name]
+/Common/__tcl_lsp_2286_vl1_main:22: error: [wrong # args][trace add variable R2286_vl1_value {read unset} R2286_vl1_watch]
+/Common/__tcl_lsp_2286_vl1_main:24: error: [undefined procedure: R2286_vl1_watch][R2286_vl1_watch]
+/Common/__tcl_lsp_2286_vl1_main:33: error: [wrong # args][trace remove variable R2286_vl1_value {read unset} R2286_vl1_watch]
+
+Unexpected Error: Loading configuration process failed.

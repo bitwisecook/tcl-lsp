@@ -1,0 +1,43 @@
+{
+  "request_id": "naming.info.original-missing-and-empty-selector-dispatch",
+  "question": "Which exact public completion and diagnostic does each authentic C Tcl 8.4\u20139.1/current Jim interpreter publish for the original commands info and info {}?",
+  "problem": "C Tcl 8.4 dispatches info through Tcl_InfoObjCmd, whose missing-selector usage says option ?arg arg ...? and whose selector uses GetIndexFromObj with noun option. Later C info is an ensemble and Jim owns an independent dispatch protocol. A generic ensemble renderer can hide this lowest-level dialect distinction. Missing and empty selectors must be checked independently without identifying a dispatch purpose by reparsing diagnostic text.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "cases": [
+    {
+      "id": "original-info-no-selector",
+      "source_file": "/workspace/.proofs/native-info-original-dispatch292-request/original-info-no-selector.tcl",
+      "source_sha256": "704c9a1ff715bbff654851879f53bb8e18674d4588f9a17c31f59dfea6d19090",
+      "source_encoding": "Exact ASCII LF original source, no binary characters or wrappers."
+    },
+    {
+      "id": "original-info-empty-selector",
+      "source_file": "/workspace/.proofs/native-info-original-dispatch292-request/original-info-empty-selector.tcl",
+      "source_sha256": "d742af88fccd79c5a9ead36c0c755ade24401d075b685fc217b9fc72a04aca83",
+      "source_encoding": "Exact ASCII LF original source, no binary characters or wrappers."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "copy_file": "/workspace/.proofs/native-info-original-dispatch292-request/tcl84-tclCmdIL.c",
+      "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "excerpt_file": "/workspace/.proofs/native-info-original-dispatch292-request/Tcl_InfoObjCmd.c.txt",
+      "excerpt_lines": [
+        416,
+        455
+      ],
+      "excerpt_sha256": "2902dfe2694f4d9a3824b6334571ab0c58bacb5c04b3f509cc43af19d09d1e7b",
+      "function": "Tcl_InfoObjCmd"
+    }
+  ],
+  "driver": "Reuse byte-identical original-counted fullInit Native288 CAPI driver and exact same six provider pins. One fresh actual Tcl_Init or Jim core plus static extensions interpreter per original source. Execute both unchanged originals for all six providers, with no outer script wrapper and no NOT_APPLICABLE substitution: info is genuinely available in every provider. Retain full ORIGINAL code/result hex, provider version, host exit, stdout/stderr, driver/source/build hashes.",
+  "scope": "Two whole public completion windows per provider. The caught code and message are independent result fields. Source inspection and public output are separate evidence channels. No original command object, native table/key/cache/header identity, bytecode mechanism, private dispatch identity, BIG-IP behavior, or Rust consumer pass is claimed."
+}

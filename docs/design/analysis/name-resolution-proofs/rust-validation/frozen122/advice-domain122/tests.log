@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.15s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 3 tests
+test analyser::types::lexical_source_advice_domain_tests::explicit_logical_source_advice_keeps_its_own_context_without_native_promotion ... ok
+test analyser::types::lexical_source_advice_domain_tests::hosted_source_advice_domain_does_not_require_complete_name_occurrences ... ok
+test analyser::types::lexical_source_advice_domain_tests::hosted_source_policy_and_context_remain_independent_of_occurrence_inventory ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 8116 filtered out; finished in 3.74s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2632 filtered out; finished in 1.60s
+

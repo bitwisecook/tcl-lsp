@@ -1,0 +1,30 @@
+{
+  "provider": "tcl8.5",
+  "reported_version": "8.5.19",
+  "source": "/workspace/.proofs/recovered-configurable-bootstrap64/cases.tcl",
+  "source_sha256": "981fbf5717fed4be0452f492405a6d104c8faf92ff6d573a9163cf4f92452983",
+  "input_channel": "Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/recovered-configurable-bootstrap64/cases.tcl"
+  ],
+  "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+  "library_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+  "makefile_sha256": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+  "source_owner": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+  "source_owner_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+  "startup_command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+  ],
+  "startup_exit": 0,
+  "startup_input_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+  "startup_stdout_sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+  "startup_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "stdout_sha256": "474d1a121decfed79f338824c5c07d9857091d6c40c09bdcd1c9906bdf7ea928",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started": 1791506019.374606,
+  "finished": 1791506019.39751
+}

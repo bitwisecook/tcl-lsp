@@ -1,0 +1,17 @@
+{
+  "question": "naming.runtime.original-command-source-extent",
+  "problem": "Which exact original source bytes, particularly trailing spaces/tabs/continuations and closing delimiters, are retained in public errorInfo command excerpts and info frame cmd for parsed or compiled script/procedure commands?",
+  "input_channel": "Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.",
+  "source_sha256": "434c29827baf1e2a72cba6b5ef8ed863b92664dedb895144e807a972d3c14b49",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "provider_unavailability": "INFO_FRAME_AVAILABILITY independently catches whether info frame exists; never fabricate a C8.4/Jim frame result. Jim errorInfo formatting remains its own provider output.",
+  "bigip": "not-tested; no hosted runtime inference",
+  "expected_rows": "Metadata + 7*3 specimen source/result/errorinfo rows, procedure result/errorinfo, independently caught frame availability and optional 3 actual frame rows. Preserve exact stdout/stderr/exit/tool/source pins."
+}

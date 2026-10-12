@@ -1,0 +1,1 @@
+set log {}; proc fresh args {lappend ::log NEW}; proc old args {lappend ::log OLD}; proc root args {trace remove variable ::xx unset old; trace add variable ::xx unset fresh}; namespace eval ::N {set a(x) X}; upvar #0 ::N::a(x) xx; trace add variable ::N::a(x) unset old; trace add variable ::N::a unset root; namespace delete ::N; set log

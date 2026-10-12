@@ -1,0 +1,141 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-analyser-handlers205.base-files.tar.gz",
+  "archive_sha256": "b273a2f4e0232f01a6a8c47534b698af6ad155462566e9002f8aaa0b3b324e0d",
+  "archive_bytes": 548525,
+  "uncompressed_bytes": 2298398,
+  "source_manifest_sha256": "4ff113dd012ee2251a8178d4473b98e26861bdb2e4b9efc695142a4e1543c502",
+  "source_patch_sha256": "a38d3096509f234878672c64f977734cb5d250bbf6e55391c3d869294898210b",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/a38d3096509f234878672c64f977734cb5d250bbf6e55391c3d869294898210b.patch",
+  "original_application_journal_sha256": "a38d3096509f234878672c64f977734cb5d250bbf6e55391c3d869294898210b",
+  "member_count": 14,
+  "members": {
+    "native-analyser-handlers205/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.8976715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.8976715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.8976715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.8976715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.9251082,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/base/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.900205,
+      "size": 351432,
+      "sha256": "34f2f1a8cde1d765c7c03923c59a7d3ad8f829a205b45b69d96b0cd9d1dd16ee"
+    },
+    "native-analyser-handlers205/base/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.9256713,
+      "size": 793657,
+      "sha256": "f1886286488e209cb30f3ffb7a125d25755fcb88fe0e74a81ab417fff6683dfb"
+    },
+    "native-analyser-handlers205/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.900205,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.900205,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.900205,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.900205,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560443.9256713,
+      "size": 0,
+      "sha256": null
+    },
+    "native-analyser-handlers205/files/rust/tcl-compiler/src/analyser/commands.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560855.9564524,
+      "size": 357389,
+      "sha256": "e118096b610028191f6a3f1841220ee0f2b538741984a6ff3c9896dd15c04338"
+    },
+    "native-analyser-handlers205/files/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791560782.347036,
+      "size": 795920,
+      "sha256": "4eee3b84ac6db5f3ea87ef8782516cd823fa4d7684ef886349c0d13e41e12e4e"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

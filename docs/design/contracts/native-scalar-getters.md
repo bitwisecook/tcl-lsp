@@ -1,0 +1,597 @@
+# Contract: native scalar getters
+
+Primitive Int, Long, Wide, Double and Boolean queries preserve the original
+object's cache, string residency, returned value and reached error effects.
+Consumers select the getter purpose and actual object context independently of
+source numeral grammar. A parsed value or a dialect label supplies no object,
+interpreter, handler or execution permission.
+
+The public observations are recorded in
+[numeric-original-capi-scalar-publication-width.md](../analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md).
+Expression Boolean purposes have their independent record in
+[numeric-original-primitive-boolean-vs-expression-truth.md](../analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md).
+The broader number and expression contract is
+[numeric-tower-and-expr-semantics.md](numeric-tower-and-expr-semantics.md).
+
+## Owners and entry points
+
+| Responsibility | Owner |
+| --- | --- |
+| Selected primitive conversion, cache transition and failure recipe | `tcl_syntax::scalar_getter::NativeScalarGetterProtocol` |
+| Actual host layout and numeric thread state | `tcl_platform::NumericEnvironment`; `tcl_host_c_abi::NativeNumericEnvironment` |
+| Original cache layout and reached primitive eligibility | `NativeScalarGetterProtocol::{validate_cache_abi, validate_primitive_abi}`; `tcl_cmd_core::native_numeric::scalar_getter_recipe_abi` |
+| Reached C84/Jim conversion stages | `tcl_cmd_core::native_numeric::{fresh_c84_conversion, fresh_jim_conversion}` |
+| Entered Runtime object probe and failure rendering | `typed_value::{native_scalar_probe_with_environment_and_currency, native_scalar_failure_presentation_with_currency}` |
+| Entered VM object probe and failure rendering | `OriginalNumericOps::{probe, failure}` through `Value::{native_scalar_probe_checked_with_string, native_scalar_failure_presentation_checked_with_string}` |
+| Independent VM object recipes | `Value::{native_scalar_probe, native_scalar_getter}` |
+
+The Runtime and VM entry points validate the original live header and selected
+protocol, inspect its genuine cache, obtain required target facts, and apply the
+selected cache transition. A guest conversion failure can still change that
+cache. Keep those changes when returning the failure. Foreign or retired headers
+and missing capabilities return typed host refusals; consumers preserve the
+first cause instead of publishing a guessed Tcl diagnostic.
+
+The entered VM facade supplies its same-scope, node-aware String provider to
+the checked Value kernels. Runtime entered adapters supply their original
+`NativeOperationCurrency`; command adapters retain it through
+`OriginalArguments`. Independent object recipes delegate those same
+kernels without an operation checker. The VM
+`native_scalar_failure_presentation` compatibility wrapper is test-only;
+production failure presentation goes through the checked facade.
+
+## Query the actual target
+
+`NumericEnvironment::c_integer_abi()` reports `NativeCIntegerAbi` fields:
+`char_bits`, `int_bytes` and `long_bytes`. Sizes count C characters. The selected
+actual host owns these facts. Source grammar, a cached integer, the compiler's
+build target and an interpreter name cannot replace this query.
+
+Runtime object issuance retains its actual engine, Host and queried ABI,
+checks eight-bit C characters, four-byte C int and four- or eight-byte C long,
+and compares the output widths with that Runtime's FFI types. This descriptive
+output identity is independent of the reached getter recipe.
+
+`NativeScalarGetterTarget::from_c_integer_abi(char_bits, int_bytes, long_bytes)`
+continues to admit only the selected eight-bit/four-byte/eight-byte recipe
+capability. An admitted output layout with four-byte long does not widen that
+capability. Neither descriptive layout nor the checked recipe target supplies
+an engine, original object, source unit or selected handler. The original LP64
+getter captures make no claim for LLP64 or wasm32.
+
+Physical adapters obtain the recipe target only when selected:
+
+```rust
+let target = tcl_cmd_core::native_numeric::scalar_getter_target(environment)?;
+```
+
+Backend owners can pass `Some(target)` to
+`protocol.cached_conversion(kind, original_cache, Some(target))` or
+`protocol.fresh_conversion_with_target(kind, original_bytes, Some(target))`.
+Ordinary consumers use the original-object probe so they retain its header,
+cache and environment checks. The probe separately validates the actual
+`NativeScalarGetterStage::Cached(original_cache)` or reached `Fresh` stage via
+`scalar_getter_recipe_abi`. `requires_target(kind, original_cache)` selects an
+additional recipe-target obligation; it is not the complete eligibility check.
+C84 Boolean words and definite-invalid spellings remain before its fresh numeric
+ABI obligation. A failed reached recipe cannot fall through to reparsing.
+
+`validate_cache_abi` checks a retained C84 native-long primary against the actual
+long width. Runtime binding validates an existing cache before publishing its
+issuer; later cache adoption uses that same retained ABI before mutation,
+without a fresh Host query. The engine scalar-carrier producer binds its already
+issued owner before initial cache adoption. Neutral constructors remain
+separately unissued and supply no physical ABI permission.
+
+With four-byte long, genuine cached C84 long or wide integer values in signed
+32-bit range retain the selected Long direct-return equation. Wider wide values
+remain separate; a C84 native-long primary outside that range refuses. Fresh
+C84 Int, Long, Wide and numeric Boolean still require their original build's
+parser/cache or `TCL_WIDE_INT_IS_LONG` recipe and refuse on this layout. Double's
+actual `strtod` stage is independent. Modern C/Jim Long64 and cached Jim raw
+Boolean keep their separately measured eight-byte-long capability.
+
+`c_integer_abi`, `reset`, `unsigned_c84`, `signed_long` and `unsigned_long` default to
+`NumericEnvironmentUnavailable::Target`. Required `state`, `unsigned` and
+`double` methods must also report actual availability. Missing methods do not
+mean zero errno or permission to reparse a reached cache. A target-dependent
+cache refusal is terminal. Do not retry it through string conversion.
+
+The host's numeric environment observes the current thread's errno. Conversion
+receipts retain their before/after state and end pointer; reset is an explicit
+selected operation. An interpreter-local mirror cannot replace that owner.
+
+`WasiHost` supplies an environment only for `wasm32-wasip1`, using that compiled
+guest's libc types, conversion functions and errno cell. Browser and preview-2
+routes remain independently unavailable. The SDK and standalone Rust guest
+observations in
+[numeric-wasi-libc-environment.md](../analysis/name-resolution-proofs/numeric-wasi-libc-environment.md)
+record environment facts. Applying them to a Runtime requires its own selected
+libc/link closure and separate Runtime validation; they establish no original
+Tcl Long32, expression, object or execution recipe.
+
+## Preserve the selected conversion
+
+Long and Wide are independent getter kinds. In the measured LP64 C9 controls,
+Long accepts positive unsigned edges that Wide rejects. The shared Long recipe
+retains the parsed magnitude/cache separately from its wrapped returned value.
+Fresh Jim Long uses the existing actual-host GetWide stages and then its selected
+Long cast; it does not reuse a C Wide policy or a local integer parser. The
+unavailable public Jim Int API cannot be substituted with Jim Long or a C Int
+recipe.
+
+C84 fresh Boolean follows its audited library `TCL_WIDE_INT_IS_LONG` branch:
+`strtol` produces signed long, that value narrows to C int, and the narrowed
+integer determines zero/one. An incomplete counted integer reaches `strtod`.
+Neither Boolean stage resets errno or treats ERANGE as a Boolean guest error.
+The pure explicit-target recipe shares the integer parser,
+`number::native_signed64_saturating_integer` and
+`number::native_int32_low_bits`; it supplies no C-call or errno effects.
+Targetless successful numeric conversion refuses, while the shared Boolean-word
+and definite-invalid recipes remain available.
+
+Fresh String `4294967296` therefore produces primitive zero in the recorded C84
+build; an already cached Wide `4294967296` produces one through its distinct
+cache branch. The library's retained configuration selects that branch. A probe
+translation unit's width macro does not establish the library configuration.
+Counted completeness and byte-array materialisation retain their own recipes;
+these examples grant no general numeric permission for NUL-bearing strings.
+
+## Probe once, render only when required
+
+The neutral probe returns `Result<Result<NativeScalarGetterValue,
+NativeScalarGetterFailure>, ValueError>`. The outer error is host unavailability;
+the inner error is the reached guest conversion failure. Neutrality means no
+guest diagnostic publication, not absence of cache changes or selected C-call
+effects.
+
+For an internal Runtime nullable adapter, the composition is:
+
+```rust
+let outcome = native_scalar_probe_with_environment(
+    original, dialect, kind, Some(environment),
+)?;
+if let Err(failure) = outcome {
+    if has_live_interpreter {
+        let diagnostic = native_scalar_failure_presentation(
+            original, dialect, kind, failure,
+        )?;
+        // The consuming adapter publishes this reached diagnostic.
+    }
+}
+```
+
+The VM uses the corresponding methods on the same original `Value`. A live
+interpreter renders the already observed failure once. A NULL-interpreter route
+returns the conversion status without rendering or guest publication. It still
+validates the actual object/target and retains probe effects. Neither route
+replays the getter after an error. Write a C output parameter only on success;
+preserve its sentinel on failure.
+
+`failure_requires_original_string(kind, failure)` returns `Some(true)` for
+selected operand-dependent diagnostics, `Some(false)` for selected constants,
+and `None` when the stage is unmodelled. For `true`, the backend renderer uses
+the checked original String getter before `failure_presentation`. For `false`,
+it uses `failure_presentation_without_original_string`; that method refuses
+operand-dependent rendering. An unavailable obligation stays a host refusal.
+
+This distinction matters for cached NaN: the measured C85+ Boolean constant
+failure keeps its absent String. Invalid spelling and selected cached
+noninteger errors need their original operand bytes. Calling a String getter
+before consulting the obligation would change an observed failure window.
+
+## Keep raw Boolean separate from expression truth
+
+`NativeScalarGetterValue::Boolean` carries `NativeBooleanGetterValue`.
+`returned_integer()` exposes the exact public primitive output. The measured Jim
+cached integer 17 returns 17; cached `4294967296` returns zero after the selected
+C-int cast. CAPI adapters publish that integer without normalising it.
+
+`is_true()` is an explicit logical projection of the returned primitive integer
+only. It cannot implement Jim ExprBool, unary-not, logical operands, command
+conditions or a compiled Boolean expression. The original expression controls
+return true for Jim cached `4294967296` even though its primitive getter returns
+zero. NaN routes also differ in success, diagnostic and String effects. Select
+the independent expression purpose and its original operand/context whenever a
+consumer asks one of those questions.
+
+## Linked precision callbacks
+
+The Runtime precision callback enters the original `NativeOperationScope` before
+reading the selected receiver or changing precision and pending guest errors.
+Its checked installer and every callback caller preserve an outer
+`NativeExecutionError` separately from `VariableTraceGuestOutcome`. A safe
+interpreter rejects a write before either String or numeric access.
+
+For C84, the original cell supplies its borrowed String reference. An
+allocation-only lease preserves memory safety without adding a native reference
+around the getter. `tcl_cmd_core::native_numeric::c84_precision_from_host` queries
+the selected eight-bit/four-byte/eight-byte recipe target and calls
+`NumericEnvironment::unsigned_long(original, 0, 10)`. This is decimal `strtoul`
+without an errno reset. The original NULL getter outcome selects an empty C
+string and still reaches that worker. The shared validator requires the full C
+string to be consumed, narrows through the existing C-int owner and accepts
+precision 1 through 17. C84 restores the previous precision on a safe or invalid
+write.
+
+C85/C86 use the error-neutral Int probe on the original object and accept 0
+through 17 through `number::double_precision_from_native_integer`. They do not
+render a primitive conversion error or obtain String merely to validate a
+cached Int or rejected Double. A cached recipe can proceed without an optional
+numeric environment only when its selected protocol requires none. These
+versions leave the written cell in place on a safe or invalid write.
+
+The Runtime checks original currency and object liveness around reached getters,
+conversion, publication and retirement. Its selected read/restore and
+registration workers ignore their genuine guest setter failures where the
+original callback does; a host refusal remains an outer error and stops later
+precision or guest-error publication. The checked constructor consumes installer
+failure, while compatibility installers retain the first typed cause.
+
+`number::parse_double_precision` remains an explicit pure text utility. It does
+not observe the original cell, libc errno, getter cache or interpreter currency.
+The VM precision adapter uses the same selected C84 decimal worker and
+C85/C86 neutral Int policy through its original entered operation scope. Its
+safe-mode check precedes access; read publication and C84 restoration retire
+displaced values before checking currency. Its authored math simulation remains
+a separate text policy. Neither the decimal worker nor a descriptive ABI receipt
+supplies an original Tcl32 getter recipe.
+
+The source controls in
+[Runtime precision stage tests](../../../runtime/rust/src/interp/native_precision/original_stage_tests.rs)
+check safe-before-getter order, decimal C-int narrowing, borrowed reference role,
+NULL-getter worker selection, missing capabilities, original-cache access and
+callback/retirement refusal. Their software scope is recorded under
+[embedding host publication](../analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md).
+The independent six-provider
+[precision unset observations](../analysis/name-resolution-proofs/variable-original-precision-unset-publication.md)
+retain their public unset purpose; they do not establish precision-write getter
+or callback chronology.
+
+## Checked numeric stages
+
+`tcl_platform::CheckedNumericEnvironment` forwards the independently supplied
+environment under one before/after checker and the caller's ABI observation
+cell. It selects no parser, conversion recipe or errno reset. A changed observed
+ABI refuses before continuation. Runtime's checked environment delegates this
+forwarding and retains its actual operation receipt and full first cause.
+
+The VM `Value` conversion and cache owner accepts an optional stage checker.
+Public pure probe/getter APIs pass no checker and keep their primitive purpose.
+Original execution uses `interp::native_numeric_ops::OriginalNumericOps` with
+the genuine existing `NativeOperationScope`. Checked scalar/number and Boolean
+children share the same conversion kernel. They check after reached getters,
+Host numeric stages and old-primary retirement before later cache or precision
+publication. Primary retirement runs outside the representation borrow; the
+checker adds no native object reference.
+
+A checked Jim fresh conversion retains the object context's actual Host. The
+same worker receives checked forwarding at each numeric stage; an original
+stage error remains typed independently of the neutral availability result.
+An outer supplied environment cannot replace that retained worker. The pure
+Jim context entry points retain their explicit primitive purpose.
+
+The precision observer borrows the selected cell's original header with an
+allocation-only lifetime lease. It adds no native object reference before the
+C8.4 String getter or C8.5/C8.6 neutral integer getter, and retires that lease
+before the final original-currency check and ambient precision publication.
+Safe-interpreter refusal precedes both getters. A C8.4 NULL read still reaches
+the independently selected decimal unsigned-long stage with empty input.
+
+The Platform checker returns only `NumericEnvironmentUnavailable`. Runtime and
+VM retain their full typed execution cause in their actual operation owner and
+check that owner after the forwarding stage, before using a result or presenting
+a guest error. Do not construct a Host cause from the neutral enum or diagnostic
+text. Missing numeric capability remains independent of a retained Host refusal.
+
+VM `Value` does not expose Runtime's extension object-type updater/free issuer.
+Its software controls exercise actual Host numeric forwarding, original header
+and cache transport, and the stage checker after primary retirement. They do
+not establish an extension callback chronology or a new physical object issuer.
+The existing provider comparisons retain their own narrower measured purposes.
+
+## VM consumer interfaces
+
+`Vm::authored_numeric_context` selects the actual configured Logical simulation
+without querying a native Host. `numeric_policy_context` is callback-free
+policy data and supplies no environment or execution receipt. Use these for
+routing; a native branch enters `OriginalNumericOps` before any Host query.
+The test-only `numeric_context` facade queries its supplied environment.
+Production Native consumers use the checked execution facade.
+
+`OriginalNumericOps::entered` captures or inherits the actual operation scope.
+`getter`, `probe`, `number` and `failure` retain the same original object,
+selected physical dialect, Host and ABI observation. Jim getter/probe ingress
+binds the actual retained interpreter context centrally. `dialect` exposes the
+captured policy for an independent consumer protocol join. `current` checks
+the original interpreter receipt for ambient stages. `current_for_value`
+additionally checks the exact original header and retains a genuine header
+refusal in the VM's existing typed first-cause owner. It supplies no new object,
+getter, frame or runtime identity.
+
+Operand-dependent environment queries use `with_environment_for_value`.
+It shares the facade's captured Host and ABI observation cell and checks that
+same original header before and after each reached numeric worker, including
+failed workers. Getter, probe, Number, Boolean, failure and String methods use
+this operand check; ambient precision and nonfinite error queries keep their
+independent operation-only purpose. A frame adapter must not recreate a local
+environment checker or issue a fresh receipt after a callback.
+
+`with_vm_for_value` brackets an existing mutable VM worker with the same
+original operation and operand-header checks, including failed results. Frame
+List probing uses this adapter; it supplies neither a new getter purpose nor a
+replacement operation receipt.
+
+The legacy ValueOps, ListIndex, duration and info integer seams return
+`ValueError`. Their shared facade uses a constant unavailable-operation token
+only to unwind a retained Host cause. That token is not a reconstructed cause.
+Consumers must propagate it before Guest rendering or later work; the real
+VM completion boundary checks `native_access_refusal` and the public checked
+execution boundary returns the full retained first cause. Genuine primitive
+Guest scalar records keep their existing typed fields. Integer magnitude and
+integer addition use their existing integer-only grammar under that same
+original owner. The optional operation stages check String success and failure
+before parsing, and check cache backing retirement before publication. Magnitude
+keeps its no-cache purpose; addition keeps its existing accepted Int cache.
+The integer diagnostic boundary consults the retained full cause before any
+Guest message. Explicit authored numeric simulation and independent pure
+conversion controls use the same kernels without an original operation receipt. Quiet ListIndex misses
+and Event option fallback may swallow only genuine Guest failure.
+
+## Add or migrate a consumer
+
+Retain the original object and selected physical getter context through the
+query. Pass its actual host environment to the probe, preserve the returned
+cache effects, and distinguish guest failure from typed host refusal. Reuse the
+shared failure renderer and output projection required by the consumer's
+purpose. An authored source value can use a separately admitted analytical
+model; it cannot donate the physical object or target context.
+
+Extend a missing conversion or diagnostic obligation in the shared owner, then
+supply the necessary host capability and backend adapter. Keep unknown layouts
+unavailable. Do not duplicate integer parsing, infer ABI from a profile, render
+from borrowed context-free bytes, or turn a failed cache query into fresh input.
+
+The source controls
+`queried_output_layout_does_not_supply_long64_or_a_c84_build_recipe` and
+`c84_primary_width_and_reached_fresh_recipe_are_independent` in
+[Syntax ABI tests](../../../rust/tcl-syntax/src/scalar_getter/abi_tests.rs)
+check layout/cache/recipe boundaries without an original Tcl32 getter or engine
+claim. Discriminating original-field controls are in
+[Syntax target tests](../../../rust/tcl-syntax/src/scalar_getter/target_tests.rs),
+[CmdCore host-stage tests](../../../rust/tcl-cmd-core/src/native_numeric_float_tests.rs)
+and [VM target tests](../../../rust/tcl-vm/src/value_scalar_target_tests.rs):
+
+- `original_jim_cached_boolean_returns_the_measured_public_integer` compares the
+  raw public result and preserved cache/residency.
+- `original_long64_public_value_cache_and_live_failure_fields_match_captures`
+  keeps Long's selected value, cache and live diagnostic windows.
+- `original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_does_not`
+  distinguishes the fresh and cached branches.
+- `c84_boolean_preserves_reached_errno_and_refuses_missing_target_before_numeric_calls`
+  checks reached stages, no implicit reset and terminal missing-target refusal.
+- `original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fields`
+  distinguishes constant failure from operand-dependent String access.
+- `descriptive_target_does_not_admit_retired_or_foreign_original_cache` keeps
+  layout facts independent of original-header admission.
+
+The `primitive_boolean_storage_and_followup_wide_match_all_native_fixtures`
+controls in [Runtime](../../../runtime/rust/src/typed_value.rs) and
+[VM](../../../rust/tcl-vm/src/value_scalar_tests.rs) retain all 77 original
+storage/followup rows. Native process observations, source/policy controls and
+successful Rust assertions remain separate validation scopes in the linked
+proof records.
+
+Original VM String materialisation uses `OriginalNumericOps::string` (or the
+ValueError-compatible `string_value`) and `Value::native_string_bytes_checked_for_value`.
+The selected protocol must match the captured actual invocation; the same
+entered scope and exact original header check Host formatter acquisition,
+formatter build and format, compound children, and publication of String bytes.
+A resident String is returned only after the actual entered scope, root header,
+selected protocol and Jim context checks. That path does not query the Host
+formatter or manufacture a native conversion recipe. Actual header withdrawal
+remains a typed first cause even when the formatter also returns an unavailable
+result. The existing worker's optional checker
+receives each reached original value. The canonical facade checks both its
+original root and that actual child before further work; a live root cannot
+replace a retired child's header or cause after backing retirement. Compound backing leases
+retain original children without adding native object references. A refused
+child does not publish its bytes or run later child updaters. Previously reached
+child effects remain observable.
+
+The public Value String APIs are independent adapters with no entered-operation
+receipt. Their explicit formatter capability supplies no VM context authority.
+A consumer with an actual VM must use the checked adapter. ValueError is only
+a compatibility unwind carrier: the actual VM retains its full first cause and
+the execution boundary checks it before guest presentation.
+
+The VM software controls release the actual original value owner during a
+supplied numeric or formatter callback while retaining only allocation leases.
+They check first-cause transport and suppression of later workers or cache
+publication. They do not establish a Runtime extension object issuer or an
+external Tcl updater/free callback chronology.
+
+## Entered arithmetic contexts
+
+The VM expression adapter and arithmetic opcodes use
+`expr::with_original_numeric_context` before invoking the shared arithmetic,
+unary and comparison algorithms. Routing uses callback-free policy data. An
+explicit authored simulation supplies no native environment or receipt. A
+native context borrows `OriginalNumericOps` in its original scope and separately
+joins the selected arithmetic, scalar-getter and String protocols to the actual
+invocation. Other policy fields do not substitute for those independent joins.
+
+`NumericContext` carries an optional borrowed `OriginalArithmeticStages`.
+The sole live implementation is the canonical numeric facade. Its String,
+integer, Boolean, scalar-probe, cache and C84 long-store stages use the existing
+Value kernels, with the same original header check before and after reached
+workers, including failed workers. It shares the actual Host and ABI observation
+cell. C84 expression preparation does not install an integer cache after a
+reached worker withdraws the original header. Cache replacement extracts and
+retires the old backing outside its borrow, then checks the original owner
+before publishing the replacement. Allocation leases supply no native object
+reference or execution permission.
+
+The context returns the complete `NativeExecutionError` through the existing
+`TclError` Host channel. An unavailable numeric-environment enum, compatibility
+unwind token or diagnostic message cannot reconstruct that cause. Operand
+presentation follows the owner check; a genuine Guest conversion failure keeps
+its selected diagnostic. The eager C84 logical result keeps the same entered
+scope across both operand conversions and its allowed original-header store.
+
+Context-free Value and explicit policy arithmetic routes pass no stage provider
+to the same kernels. They remain pure or explicitly supplied adapters and do not
+issue an entered VM receipt. Consumers with a VM must retain the checked context
+for the complete operation, rather than reacquiring a Host or issuing a fresh
+entry after a callback. Software Host controls validate those continuation and
+reference-role boundaries independently of external Tcl/Jim observations.
+
+Checked scalar, Number, getter-failure and C84 integer-expression workers pass
+the captured String provider to the existing Value kernels. The provider is
+invoked only where the selected worker requires String bytes; cached or neutral
+branches preserve their existing behaviour. Compound numeric operands use the
+same actual Host formatter and node-aware header checks as direct String
+consumers. The check follows a successful or failed String stage before parsing,
+failure presentation or cache adoption. A diagnostic renderer cannot replace
+this handoff with a pure String call.
+
+The pure Value and explicit policy wrappers pass no provider and preserve their
+existing conversion and header checks. Test-only checked probe wrappers retain
+their supplied checker without issuing VM currency. The original facade uses
+the String-aware siblings; no caller replays the conversion to recover bytes.
+
+Original increment adapters retain the canonical numeric operation through COW
+preparation, the selected Number or legacy Long/Wide getter, addition and cache
+store. The original cell value is viewed through an allocation lease before
+preparation; that lease adds no native reference and does not change the shared
+object decision. Existing selected fixture adapters remain independent. Failed
+workers and mandatory prepared/result retirement retain the first typed cause
+before variable or dictionary publication.
+
+`Vm::prepare_original_expression_value` enters the same original operation
+before source String work. Its shared preparation kernel checks both successful
+and failed String results before parser and source-cache admission. Cache
+replacement uses the Value retirement owner and checks the original header
+before publishing the replacement. The Jim Wide expression and both regexp
+index consumers share this source owner and the actual Jim context; context,
+namespace, frame and installed function-table guards remain independent. The
+explicit authored and independent `prepare_expression_value` routes pass no
+operation provider to that same kernel. An authored source or display label
+cannot provide native compiler, namespace or physical frame authority.
+
+
+Checked Value conversion siblings accept the captured `NumericContext`, rather
+than an operation checker alone. The context keeps selected `NumberSyntax`
+through String callbacks and cache publication. A callback that constructs
+another VM may change the independent ambient parser policy; it does not
+change the captured conversion grammar. The context-free APIs retain their
+ambient grammar and existing reference roles.
+
+`Value::as_int_with_stages`, `as_wide_with_stages`, `as_double_with_stages`
+and `as_bool_with_stages` share the public converter kernels. Checked i128 and
+Big converters return `Result<Option<_>, TclError>`: a genuine non-integer is
+absence, while a Host refusal remains a typed error. Optional text conversion
+preserves the pure UTF-8 failure route without another String read. Native
+math consumers retain the same original operation across all operands,
+classification, selected integer-preserving results, output formatting and
+generator mutation. Only a Guest conversion failure can try another converter;
+a Host refusal stops before fallback, later operands or random-seed changes.
+
+A consumer with an actual VM uses `with_original_numeric_context` and passes
+`Some(context)` to these siblings. It handles the typed result before any Guest
+message or default. The explicit authored route and independent public Value
+APIs pass no original provider. Neither route supplies a physical scalar-getter
+policy by selecting a generic integer, double or Boolean converter.
+
+
+`with_original_numeric_context` checks a genuinely entered current operation
+before selecting authored arithmetic and after the authored callback on either
+outcome. Authored independent conversion issues no Native receipt. The original
+currency check does not borrow a numeric or grammar policy. Saved metadata,
+parked interpreter records and ended weak records do not establish current entry.
+
+
+Public read-count, seek-offset, encoder line-length and debug-Boolean consumers
+use `expr::with_original_numeric_command`. Its captured command context keeps
+authored numeric policy separate from actual execution currency. A retained
+scope supplies currentness only; it cannot select a Native getter or replace an
+authored policy. The context remains live across Name and index stages, numeric
+success or failure, backend/debug mutation and unpublished-result retirement.
+
+`InvocationDialect::native_numeric_command_protocol` supplies the reached
+command purpose through the Registry numeric-error owner. Its read dispatch,
+primitive width, failed-getter continuation and seek-origin order remain
+independent of conversion success, object lifetime and backend permission.
+Unsupported binary/debug workers supply no recipe. The VM compares the selected
+complete scalar and String protocols with its actual captured numeric facade.
+Only a genuine Guest result can enter the command's documented continuation;
+a full Host cause stops before wrapper diagnostics, defaults or later effects.
+
+`OriginalNumericCommandContext::authored` selects the independent generic Value
+kernels with the captured numeral grammar. An existing actual operation is still checked before and after these
+workers. Resident Guest result and error-code fields can cross the debug
+CmdError boundary; missing fields and Host results cannot become defaults or be
+reconstructed by parsing a message. Channel owners retain the actual opened
+path, so Jim seek diagnostics use that path and negative targets reject before
+cursor mutation. The public conversion and side-effect observations are in
+[numeric-io-debug-public-conversion-and-side-effect-order](../analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md).
+The software callback controls establish continuation and lifetime boundaries
+separately from those public C Tcl/Jim measurements.
+
+
+Runtime primitive consumers use
+`typed_value::native_scalar_getter_with_environment_and_currency` with the
+same `OriginalArguments` receipt. The checked probe and failure presenter use
+the original header and an allocation-only lease through each reached String,
+Host worker and cache effect. The shared Platform environment forwards the
+actual supplied Host for C. Checked Jim stages instead retain that context's
+own Host and the same ABI observation cell, queried only at an actual existing
+ABI/target/fresh worker stage. Cache-only and Boolean word paths add no query. Failed workers are checked before
+later conversion or Guest formatting, and the actual first Host or header
+cause remains in the interpreter.
+
+`obj::change_type_with_stage_check` shares the existing primary retirement
+worker. The issued publication epoch, original descriptor and original backing
+identify the selected slot. After the reached old free, only that same live slot
+can become vacant. Reentrant replacement is preserved. The extracted auxiliary
+owner retires outside storage borrows, and the final original check precedes
+incoming adoption. Epoch overflow stays unavailable. Every error leaves the
+incoming backing owned by the caller; successful adoption transfers it to the
+object, with no checker or callback afterward. Prepared Bignum backing follows
+this same ownership rule. The neutral entry retains its independent role order.
+
+Runtime encoder line lengths use the Registry command-purpose primitive,
+not container Index grammar. The whole original argv receipt covers option,
+numeric, data and result stages. Primitive failure retains its structured
+error; only a successful negative integer selects the encoder line-length
+error. Descriptive width and currency do not supply another conversion purpose.
+
+
+Expression membership captures one original operation before List or String
+conversion. `OriginalNumericOps::list`, `list_with_original_check` and
+`list_for_expression` share the existing native object-List worker with the
+same node-aware String provider and primary retirement checks. The alias query
+retains its actual command/namespace owner checks; array conversion retains
+its original currency. These List/String facades issue no numeric getter or
+arithmetic purpose.
+
+The Native membership caller compares selected character, List and escape
+axes with the actual physical recipe before a Host query. Member equality is
+byte equality through the same original String owner. Parse errors retain the
+String already reached and never invoke another getter. List member views are
+allocation-only, and generation/currentness checks precede later members and
+results. The authored route keeps its configured parser and pure String policy;
+an inherited operation supplies currency only. Existing public neutral List
+conversion APIs keep their independent policies and role order.
+
+
+A Runtime build without TomMath retains the original body compiler, source,
+literal, local, control and non-expression instruction owners. It does not run
+the missing constant evaluator or manufacture its numeric literal primaries.
+Existing rejected-syntax records keep their separate reporting route. A reached
+parsed expression, dynamic expression evaluator or numeric primitive returns
+the typed `ExpressionEngineUnavailable`, preserving the actual first cause and
+mandatory operand cleanup. The existing independent String equality worker
+remains available. Descriptive expression syntax or a source cache supplies no
+missing evaluator capability. Genuine `have_tommath` and absent-backend control
+requests are separate build profiles; source declarations alone prove neither.

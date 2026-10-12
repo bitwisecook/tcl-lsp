@@ -1,0 +1,49 @@
+{
+  "question": "naming.source.original-surrogate-versus-replacement-escape-values",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-source-unit-distinction431/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0062932969885878265,
+  "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "actual_version": "0.84-9-g5bac7c9",
+  "version_query": {
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/native-source-unit-distinction431/version.tcl"
+    ],
+    "exit": 0,
+    "seconds": 0.008410471986280754,
+    "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+    "stdout_sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "selected_environment": {},
+  "build_inputs_before_and_after": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+  },
+  "prior_build_input_receipt": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json",
+  "prior_build_input_receipt_sha256": "006a4501536c0ae6e1919ef33f8cfcad38ebd8698b965f90abfcd6d364e32b54",
+  "scope": "Public string equal and string length observations for single source numeric high-surrogate vs replacement-character escapes, adjacent high-surrogate escapes, replacement self comparison, valid non-ASCII escape vs ASCII value, and braced literal escape text. Source/request only; no claimed outcome before actual run. No binary scan/getter, bytes/object/header/name-slot/Normal/pairing or wide-escape claim.",
+  "rows": [
+    "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+    "SOURCE_ADJACENT_SURROGATES|0|1",
+    "SOURCE_REPLACEMENT_SELF|1",
+    "SOURCE_VALID_UNICODE|0|4",
+    "SOURCE_BRACED_ESCAPE|0|6"
+  ],
+  "build_limit": "Original pinned CLI and required build inputs verified before and after, without recompilation. Compiler version and unlisted inherited environment are not recorded."
+}

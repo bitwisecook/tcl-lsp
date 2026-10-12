@@ -1,0 +1,7 @@
+{
+  "selected": [
+    "regex_source::tests::literal_flows_to_regexp_in_a_large_multi_proc_file",
+    "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque"
+  ],
+  "scope": "Unchanged original full600 and30-alias fixtures; actual immutable source320 own image, original source-phase tracing enabled, no test budget or changed expectations."
+}

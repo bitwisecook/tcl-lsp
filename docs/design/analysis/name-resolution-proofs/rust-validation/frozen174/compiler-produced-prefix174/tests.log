@@ -1,0 +1,9 @@
+
+running 4 tests
+test command_binding::source_transition_advice::produced_prefix::tests::logical_produced_prefix_retains_consensus_roles_without_an_entered_frame ... ok
+test command_binding::source_transition_advice::produced_prefix::tests::original_produced_prefix_keeps_deferred_parent_builder_and_each_word ... ok
+test command_binding::source_transition_advice::produced_prefix::tests::original_produced_prefix_keeps_logical_context_capture_and_terminal_refusals ... ok
+test command_binding::source_transition_advice::produced_prefix::tests::substitution_geometry_keeps_expansion_and_declines_compound_or_multiple_commands ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 8263 filtered out; finished in 8.87s
+

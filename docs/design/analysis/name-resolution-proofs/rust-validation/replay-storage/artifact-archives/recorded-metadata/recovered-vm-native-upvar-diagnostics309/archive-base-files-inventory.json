@@ -1,0 +1,141 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-vm-native-upvar-diagnostics309.base-files.tar.gz",
+  "archive_sha256": "fc51f7c5ef53cfc29a76e81e2c85437f8c8e2fa9a97bfa5ff46e2ba9bc1c78b3",
+  "archive_bytes": 127367,
+  "uncompressed_bytes": 623732,
+  "source_manifest_sha256": "2931dac7938de084cb95c65f1c36092153943e07201f4f53268e0ec4a0b91c08",
+  "source_patch_sha256": "38739c5a8e3d7c765d467dd0eee27e2ec352fbde0a3c8fa538de30d9509abd61",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/38739c5a8e3d7c765d467dd0eee27e2ec352fbde0a3c8fa538de30d9509abd61.patch",
+  "original_application_journal_sha256": "38739c5a8e3d7c765d467dd0eee27e2ec352fbde0a3c8fa538de30d9509abd61",
+  "member_count": 14,
+  "members": {
+    "recovered-vm-native-upvar-diagnostics309/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.533917,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.533917,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/base/rust/tcl-vm": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.533917,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/base/rust/tcl-vm/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.5387824,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/base/rust/tcl-vm/src/command.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.5362408,
+      "size": 195876,
+      "sha256": "6a16f21e43e2a474a8a82cd9b4f6e900bd5507666fbde64693b85b7f8d52c844"
+    },
+    "recovered-vm-native-upvar-diagnostics309/base/rust/tcl-vm/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.5387824,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/base/rust/tcl-vm/src/interp/native_variable_names.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.540291,
+      "size": 115083,
+      "sha256": "5988edaa30681b65bad1873dde17cb9cf78f264cfb5bd17ecd4737aa228c164b"
+    },
+    "recovered-vm-native-upvar-diagnostics309/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.537917,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.537917,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/files/rust/tcl-vm": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.537917,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/files/rust/tcl-vm/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.540291,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/files/rust/tcl-vm/src/command.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791605891.7828314,
+      "size": 196429,
+      "sha256": "8db6e9a7eff6fe0e4dc13d493f1eb848666f8cb363773881ac3faecc3b0df5a8"
+    },
+    "recovered-vm-native-upvar-diagnostics309/files/rust/tcl-vm/src/interp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791604994.540291,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-vm-native-upvar-diagnostics309/files/rust/tcl-vm/src/interp/native_variable_names.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791605891.7873096,
+      "size": 116344,
+      "sha256": "7b7fcc6fb1fc846db2085c81fc18676fa44a19cf7facd0728f974c0e592c840b"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

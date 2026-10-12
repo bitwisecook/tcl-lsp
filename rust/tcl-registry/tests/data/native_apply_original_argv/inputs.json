@@ -1,0 +1,42 @@
+{
+  "values": [
+    {
+      "name": "TEXT",
+      "hex": "56414c5545"
+    },
+    {
+      "name": "EMPTY",
+      "hex": ""
+    },
+    {
+      "name": "RAW_ZERO",
+      "hex": "410042"
+    },
+    {
+      "name": "ENCODED_ZERO",
+      "hex": "41c08042"
+    },
+    {
+      "name": "OPAQUE_FF",
+      "hex": "41ff42"
+    },
+    {
+      "name": "SURROGATE_D800",
+      "hex": "41eda08042"
+    },
+    {
+      "name": "SUPPLEMENTARY",
+      "hex": "41f09f988042"
+    }
+  ],
+  "direct_lambda_hex": "7b787d207b72657475726e2024787d",
+  "coroutine_lambda_hex": "7b787d207b7969656c642052454144593b2072657475726e2024787d",
+  "shadow_source": "proc apply args {return SHADOW}; coroutine c apply {} VALUE",
+  "channel": "Original counted string-object argv; ASCII shadow source Tcl_Eval/Jim_Eval. Pointer equality before result getter.",
+  "limits": [
+    "C8.4 apply unavailable",
+    "C8.4/C8.5 coroutine unavailable",
+    "Jim/C8.4 no C return options API",
+    "No custom object/header/refcount/cache or complete errorstack equivalence claim"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-trace-absolute-source253/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.005485985006089322,
+  "reported_version_row": "version 0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "fedbb2fc9b26c70cfaf67624bfa331a48bc218f1674e3e8d484a16235d183855",
+  "stdout_sha256": "c0868e6029f77eccaad348ec5755159a47fe8ab1489f96607377a8a02cbcab95",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "version 0.84-9-g5bac7c9",
+    "trace-command {}",
+    "add variable cb 1 {invalid command name \"trace\"}",
+    "add command cb 1 {invalid command name \"trace\"}",
+    "add execution cb 1 {invalid command name \"trace\"}",
+    "add variable ::Dest::cb 1 {invalid command name \"trace\"}",
+    "add command ::Dest::cb 1 {invalid command name \"trace\"}",
+    "add execution ::Dest::cb 1 {invalid command name \"trace\"}"
+  ],
+  "input_channel": "Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.",
+  "question": "naming.callback.absolute-trace-source-lookup"
+}

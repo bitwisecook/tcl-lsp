@@ -1,0 +1,30 @@
+    case OPT_ALIAS: {
+	Tcl_Interp *parentInterp;
+
+	if (objc < 4) {
+	aliasArgs:
+	    Tcl_WrongNumArgs(interp, 2, objv,
+		    "slavePath slaveCmd ?masterPath masterCmd? ?arg ...?");
+	    return TCL_ERROR;
+	}
+	childInterp = GetInterp(interp, objv[2]);
+	if (childInterp == NULL) {
+	    return TCL_ERROR;
+	}
+	if (objc == 4) {
+	    return AliasDescribe(interp, childInterp, objv[3]);
+	}
+	if ((objc == 5) && (TclGetString(objv[4])[0] == '\0')) {
+	    return AliasDelete(interp, childInterp, objv[3]);
+	}
+	if (objc > 5) {
+	    parentInterp = GetInterp(interp, objv[4]);
+	    if (parentInterp == NULL) {
+		return TCL_ERROR;
+	    }
+
+	    return AliasCreate(interp, childInterp, parentInterp, objv[3],
+		    objv[5], objc - 6, objv + 6);
+	}
+	goto aliasArgs;
+    }

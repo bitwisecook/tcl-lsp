@@ -1,0 +1,612 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-callback-scope238.source-trees.tar.gz",
+  "archive_sha256": "3ae9e7040648993399d5d8517b7afe115a017886b21d988a287ef2a906c815ed",
+  "archive_bytes": 356690,
+  "uncompressed_bytes": 1631752,
+  "source_manifest_sha256": "a94651fbdd31b5d30fb163c4bccc5dcfbdebdd360870076651695c02159c7d24",
+  "source_patch_sha256": "d65e9c4c0d990b56d7c8f308fb11d6201acb54e8c139eede790bd47dc57f8114",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 50,
+  "members": {
+    "consumer-callback-scope238/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7241452,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.739958,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7241452,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.729469,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.729469,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/analyser/diagnostic_subject": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.729469,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.730316,
+      "size": 30278,
+      "sha256": "74d03b42df5c1a70ee56354332c54a08a40f80924e2062d8d37ede6b4f322b1c"
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7290854,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/command_binding/original_callback_lookup.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.728152,
+      "size": 21912,
+      "sha256": "e5a24d9899d58d686c1585a686733a918a407318a086832a6ce9cbf7d6af633e"
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/command_binding/source_transition_advice": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7286282,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7289042,
+      "size": 41945,
+      "sha256": "55faa17bc380911a7582c3c2aa823418b7014fce700bfbcf15b245e73dd1738f"
+    },
+    "consumer-callback-scope238/base/rust/tcl-compiler/src/command_binding/source_transition_advice.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.729266,
+      "size": 98687,
+      "sha256": "b84cb08e1d280ba87f889b465f31d64394cd7d9ca5c438c6e02a33ac29dcc0e6"
+    },
+    "consumer-callback-scope238/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7305841,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7305841,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-lsp-core/src/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7308452,
+      "size": 79542,
+      "sha256": "fcc55b7814569692c1c708dd6a9488eb9a42a5be3c4ea206da65df47d671bf67"
+    },
+    "consumer-callback-scope238/base/rust/tcl-lsp-db": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7311153,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-lsp-db/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7311153,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-lsp-db/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.732145,
+      "size": 408038,
+      "sha256": "8d1519ac0b3d3b17864f5a0e2bc5b17875b4c05ff244d3a6d722548d6decf23c"
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.739958,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7416384,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry/src/commands": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.739958,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry/src/commands/tcl": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7413547,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry/src/commands/tcl/namespace_.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7409036,
+      "size": 91590,
+      "sha256": "9ab52cb475310a8b1a3df85f16a3fb0c2143161a0aa11ddc51153ded62cdb367"
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry/src/commands/tcl/package_.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7415366,
+      "size": 41161,
+      "sha256": "ed8f1ee975a6e73faba0492f23872d6851dffe71e3e612166082bee415642d5f"
+    },
+    "consumer-callback-scope238/base/rust/tcl-registry/src/script_lookup_scope.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7440622,
+      "size": 914,
+      "sha256": "17180cd882aadde2286007f3879d2432f92ae37565f4b0438db778d527d20119"
+    },
+    "consumer-callback-scope238/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.728152,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7409036,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.728152,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.730316,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.730316,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/analyser/diagnostic_subject": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.730316,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7491698,
+      "size": 30278,
+      "sha256": "ec388fe03f926508a47c519ffeedcea5b96008fb347382fb8d43cd96fd8ade09"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.729266,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/command_binding/original_callback_lookup.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.747986,
+      "size": 22076,
+      "sha256": "9ec24c33880d0932e1bdfd0cb78887507ebd67c509d414d0c8f570fae8753c5d"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/command_binding/source_transition_advice": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7289042,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601168.3516912,
+      "size": 44583,
+      "sha256": "e21635b0c6840a3da449b676655b1021787cdf057b5ae33d3b9bd8e1510fa66e"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-compiler/src/command_binding/source_transition_advice.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7489102,
+      "size": 98877,
+      "sha256": "412ae18668915741d810a4e10d84ff7d5742d13a388544275dbd4ba46fc57840"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7308452,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7308452,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-lsp-core/src/diagnostic_subject.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601168.4476905,
+      "size": 79698,
+      "sha256": "fddff5d44d71c6086151ec5abbea330e12727ae905b51410d27bc961fd51c3ca"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-lsp-db": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.736145,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-lsp-db/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.736145,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-lsp-db/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601168.5956893,
+      "size": 408118,
+      "sha256": "dc40993c084aff9cd0ae07537321868e35505f5804e9928e21b6edc5756aa62a"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7409036,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7440622,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry/src/commands": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7409036,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry/src/commands/tcl": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7415366,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry/src/commands/tcl/namespace_.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.763277,
+      "size": 91810,
+      "sha256": "c7f51914ff55707127d889152ced3fabdd4a99ff87cce088b2a56f8a0ecfd55d"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry/src/commands/tcl/package_.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7634928,
+      "size": 41312,
+      "sha256": "22a3fcb1c2c1ff34ec9703279e10795c4e1749c40dfefed19014cddddc6a5e13"
+    },
+    "consumer-callback-scope238/candidate/rust/tcl-registry/src/script_lookup_scope.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791601111.7635705,
+      "size": 933,
+      "sha256": "5e1019bb904e69bf2759102b35b1cc50b1082ea2748188cad9c5ff36ca83b8c9"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "ec388fe03f926508a47c519ffeedcea5b96008fb347382fb8d43cd96fd8ade09",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs",
+      "hash_key": "base_sha256",
+      "sha256": "74d03b42df5c1a70ee56354332c54a08a40f80924e2062d8d37ede6b4f322b1c",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_callback_lookup.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "9ec24c33880d0932e1bdfd0cb78887507ebd67c509d414d0c8f570fae8753c5d",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_callback_lookup.rs",
+      "hash_key": "base_sha256",
+      "sha256": "e5a24d9899d58d686c1585a686733a918a407318a086832a6ce9cbf7d6af633e",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "e21635b0c6840a3da449b676655b1021787cdf057b5ae33d3b9bd8e1510fa66e",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs",
+      "hash_key": "base_sha256",
+      "sha256": "55faa17bc380911a7582c3c2aa823418b7014fce700bfbcf15b245e73dd1738f",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "412ae18668915741d810a4e10d84ff7d5742d13a388544275dbd4ba46fc57840",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "hash_key": "base_sha256",
+      "sha256": "b84cb08e1d280ba87f889b465f31d64394cd7d9ca5c438c6e02a33ac29dcc0e6",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "fddff5d44d71c6086151ec5abbea330e12727ae905b51410d27bc961fd51c3ca",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+      "hash_key": "base_sha256",
+      "sha256": "fcc55b7814569692c1c708dd6a9488eb9a42a5be3c4ea206da65df47d671bf67",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "dc40993c084aff9cd0ae07537321868e35505f5804e9928e21b6edc5756aa62a",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "hash_key": "base_sha256",
+      "sha256": "8d1519ac0b3d3b17864f5a0e2bc5b17875b4c05ff244d3a6d722548d6decf23c",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/namespace_.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "c7f51914ff55707127d889152ced3fabdd4a99ff87cce088b2a56f8a0ecfd55d",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/namespace_.rs",
+      "hash_key": "base_sha256",
+      "sha256": "9ab52cb475310a8b1a3df85f16a3fb0c2143161a0aa11ddc51153ded62cdb367",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/package_.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "22a3fcb1c2c1ff34ec9703279e10795c4e1749c40dfefed19014cddddc6a5e13",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/package_.rs",
+      "hash_key": "base_sha256",
+      "sha256": "ed8f1ee975a6e73faba0492f23872d6851dffe71e3e612166082bee415642d5f",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/script_lookup_scope.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "5e1019bb904e69bf2759102b35b1cc50b1082ea2748188cad9c5ff36ca83b8c9",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/src/script_lookup_scope.rs",
+      "hash_key": "base_sha256",
+      "sha256": "17180cd882aadde2286007f3879d2432f92ae37565f4b0438db778d527d20119",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

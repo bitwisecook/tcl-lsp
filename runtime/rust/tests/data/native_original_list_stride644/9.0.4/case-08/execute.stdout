@@ -1,0 +1,19 @@
+provider	C-Tcl
+case	8	expression-spelling-is-not-primitive
+operation	lsearch
+input-stride	312b30
+input-roles	stride-original-counted-string=1	stride-explicit-argument-owner=1	additional-observer-native-holds=0	input-list-length=0
+before-stride	none	1	1	3
+before-container	none	1	1	0
+code	1
+reached-stride	none	1	1	3
+reached-container	none	1	1	0
+reached-result	string	1	1	30
+result-alias	stride=0	container=0
+result-bytes	657870656374656420696e74656765722062757420676f742022312b3022
+materialised-result	string	1	1	30
+after-result-getter-stride	none	1	1	3
+error-code-bytes	54434c2056414c5545204e554d424552
+error-info-bytes	657870656374656420696e74656765722062757420676f742022312b30220a202020207768696c6520657865637574696e670a226c736561726368202d73747269646520312b30207b7d204222
+stride-bytes	312b30
+materialised-stride	none	1	1	3

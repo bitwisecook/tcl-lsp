@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_command_recreation::tests::original_public_constructor_stops_after_delete_host_or_restored_context_refusal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 5.27s
+

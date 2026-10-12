@@ -51,7 +51,7 @@ fn run_at(src: &str, release: &str) -> String {
     let svc = BytecodeCompileService::for_profile(profile);
     let asm = match svc.compile(src) {
         Ok(asm) => asm,
-        Err(e) => return e.0,
+        Err(e) => return e.to_string(),
     };
     let mut vm = Vm::with_output(Box::new(Capture::default()));
     vm.set_dialect_profile(profile);
@@ -78,7 +78,7 @@ fn run_flipping(steps: &[(&str, &str)]) -> String {
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
         match BytecodeCompileService::for_profile(profile).compile(src) {
             Ok(asm) => last = vm.run_module(&asm).result.to_str().to_string(),
-            Err(e) => return e.0,
+            Err(e) => return e.to_string(),
         }
     }
     last

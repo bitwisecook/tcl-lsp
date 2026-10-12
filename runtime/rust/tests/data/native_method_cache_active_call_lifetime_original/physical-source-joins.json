@@ -1,0 +1,3365 @@
+{
+  "scope": "Whole launch-pinned source and original normalized text-window hashes verified unchanged; canonical anchors independently rejoin complete physical-LF original bytes. Text line numbers remain their original provenance, not silently substituted physical byte extents.",
+  "joins": [
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 3312,
+      "byte_end": 5212,
+      "first_line": 107,
+      "last_line": 202,
+      "snippet_sha256": "20efa3777cfd1afef723cdd74998d5a7e0b9d13e7c8780124c45d9765625ba9b",
+      "original_text_line_window_sha256": "319526e7084d7f694406ea4f7a278b6987cb2931b3e6d77fce1b6250fae223de",
+      "original_text_lines": [
+        108,
+        206
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 3919,
+      "byte_end": 5972,
+      "first_line": 138,
+      "last_line": 233,
+      "snippet_sha256": "20dfc82232f5e5394a8b16b5607dec69be2630990a3a6fe9aee62c99fbc35b0d",
+      "original_text_line_window_sha256": "4209e50a125b0877e0c00beb616b848aa1717893eb1899da7279743dacf28a0f",
+      "original_text_lines": [
+        140,
+        238
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 4248,
+      "byte_end": 6496,
+      "first_line": 156,
+      "last_line": 251,
+      "snippet_sha256": "6e45e7672e7351d787f4199b4bd62c48bb741d70a9a1fb1c55ead07bc479ba6f",
+      "original_text_line_window_sha256": "95cac30aa0e23e26fdf4e7aeaad8d9276f733d41e767256b40c2abf82e9d8ce3",
+      "original_text_lines": [
+        159,
+        257
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 5826,
+      "byte_end": 8542,
+      "first_line": 228,
+      "last_line": 325,
+      "snippet_sha256": "f3e70f8d61d0084b60ce5c21acd5222ad595535f72eebf743ca7c2031f8cfb5e",
+      "original_text_line_window_sha256": "b01d40ff328b6ff9bdd74085f642cd6c619430693ca15688c8fe53e8a209b30b",
+      "original_text_lines": [
+        233,
+        331
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 30254,
+      "byte_end": 33182,
+      "first_line": 1073,
+      "last_line": 1171,
+      "snippet_sha256": "93ca18075f47593ce9530dde8513587764f24d22b464925d283c2945aab7a69e",
+      "original_text_line_window_sha256": "93ca18075f47593ce9530dde8513587764f24d22b464925d283c2945aab7a69e",
+      "original_text_lines": [
+        1086,
+        1184
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 30865,
+      "byte_end": 33911,
+      "first_line": 1098,
+      "last_line": 1196,
+      "snippet_sha256": "4c9beadf3708089549229284626c6fedd7e13a116b98cf1070f8fc8b95891798",
+      "original_text_line_window_sha256": "4c9beadf3708089549229284626c6fedd7e13a116b98cf1070f8fc8b95891798",
+      "original_text_lines": [
+        1111,
+        1209
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 32764,
+      "byte_end": 35740,
+      "first_line": 1158,
+      "last_line": 1255,
+      "snippet_sha256": "5cfd6931a7c7428a656b504968c66723114fae1223bd682e4662a37a903ecdaf",
+      "original_text_line_window_sha256": "fef3080c2b8ff7ad54113ceb7a44c18fc855f0f0ecb51eb35b322498ecb37285",
+      "original_text_lines": [
+        1171,
+        1269
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 33064,
+      "byte_end": 36077,
+      "first_line": 1168,
+      "last_line": 1265,
+      "snippet_sha256": "da3f41651f175d00091a07e08eb707f7e1a04aa5e3af0497c51fff1f1b9ce1bf",
+      "original_text_line_window_sha256": "4062b71e8bb568e54e01bee996af24414df1c6ac5adb15aead56519ac4149868",
+      "original_text_lines": [
+        1181,
+        1279
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 33911,
+      "byte_end": 36947,
+      "first_line": 1197,
+      "last_line": 1294,
+      "snippet_sha256": "619e2204d23eef86aaf89dc8e0c47cc6cfb48d922de63ea96a21a6ea5cc3c8ec",
+      "original_text_line_window_sha256": "8b598da2f54d09860de1d2faa9eca31fe1abda5149f0cfd1f62ee65cd8d4e20c",
+      "original_text_lines": [
+        1210,
+        1308
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 34130,
+      "byte_end": 37140,
+      "first_line": 1203,
+      "last_line": 1300,
+      "snippet_sha256": "20a7a6db23b0055acd035cf14a57e4c248d12fa63b7316caa33dbe30d8876c5c",
+      "original_text_line_window_sha256": "3c565ab232997ec511107311506d4ccd8626414103fd0e399a995da487c332bc",
+      "original_text_lines": [
+        1216,
+        1314
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 37057,
+      "byte_end": 40138,
+      "first_line": 1297,
+      "last_line": 1394,
+      "snippet_sha256": "a3f035e6c79a88ec69ea6fc1f5e32538b0ca87c4befad75eba989bd00908543b",
+      "original_text_line_window_sha256": "830bbbfc5afd95aa359d9d6838f0f86ee612b607afad8eb78f65a2f9be025778",
+      "original_text_lines": [
+        1311,
+        1409
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 38851,
+      "byte_end": 41520,
+      "first_line": 1351,
+      "last_line": 1448,
+      "snippet_sha256": "f0f89a015ce54a2c82ad70fb97afcbec3ccdc9052add84f3935f2a45dd9d338e",
+      "original_text_line_window_sha256": "0987dd25a3f06927fa17a6b4fdb8372e2476c0f84cfec8b72ac93e175b1142c1",
+      "original_text_lines": [
+        1365,
+        1463
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 2563,
+      "byte_end": 4551,
+      "first_line": 76,
+      "last_line": 171,
+      "snippet_sha256": "1293cdcb430782f158bfd75efb539e2bc722997dde9fde3a798e6d4334b41ac4",
+      "original_text_line_window_sha256": "32bae60111bf880b752bac9955549b528a14bbf4cf8fb5437a36cabac3ff660c",
+      "original_text_lines": [
+        76,
+        174
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 4750,
+      "byte_end": 7361,
+      "first_line": 180,
+      "last_line": 276,
+      "snippet_sha256": "a65875316496103c1bfa4df748d629a974c76e9c53b7415d1bb412e3aa030d62",
+      "original_text_line_window_sha256": "73d401a864773c9cd15521b671782ddfafbf742d91573921ddea25e4605b9dd4",
+      "original_text_lines": [
+        184,
+        282
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 5088,
+      "byte_end": 7745,
+      "first_line": 196,
+      "last_line": 292,
+      "snippet_sha256": "911e2799db06e225d09f5ba5e8ffa3a933c3e93cefa82961c008c9a5e1631b31",
+      "original_text_line_window_sha256": "58a654f1ab1a50061e1f486fb979dd62d66d14649dbf95051316942f4e56a3d8",
+      "original_text_lines": [
+        200,
+        298
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 33879,
+      "byte_end": 36864,
+      "first_line": 1194,
+      "last_line": 1291,
+      "snippet_sha256": "142e37e491bbba0b7b8900df24391949a787379c6b57ba67eb0011424fbb7afc",
+      "original_text_line_window_sha256": "89fbf038990d3481141e46333de893c75b2dafca4dd4ffa9be8cfbd29a05228f",
+      "original_text_lines": [
+        1207,
+        1305
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 39285,
+      "byte_end": 41800,
+      "first_line": 1365,
+      "last_line": 1461,
+      "snippet_sha256": "abba1023e48b66cae12a07801381070efba93de71ae5b21b681a584efc570a92",
+      "original_text_line_window_sha256": "ea5f982a50076a46944f48083b7853dfccc1a8371efc1755094790e9791e20ba",
+      "original_text_lines": [
+        1379,
+        1477
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 2318,
+      "byte_end": 4495,
+      "first_line": 71,
+      "last_line": 166,
+      "snippet_sha256": "f84e65354e09a1e4131583b1f5450d7bb8c5dafe66ccf9cb3aa40b3bed3b9adc",
+      "original_text_line_window_sha256": "985c8b9e5f069b0639fbe60d5b1aae702632b87d341335f524e4b552b0c3d5f5",
+      "original_text_lines": [
+        71,
+        169
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 5767,
+      "byte_end": 8445,
+      "first_line": 223,
+      "last_line": 320,
+      "snippet_sha256": "3626c6dcbc1f33fe35241e9dc3563ad3d629e508bba86c767ce1d8374dfc6bca",
+      "original_text_line_window_sha256": "9e6f50aa9f092558eefacd380785751a30d6b6b3a636f497c015f892bf9a4cc5",
+      "original_text_lines": [
+        228,
+        326
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 29257,
+      "byte_end": 32073,
+      "first_line": 1039,
+      "last_line": 1137,
+      "snippet_sha256": "c0da0daef81bf8d3e5252b23c7b27e54edf60cd1a54d636779d2e06d1f4755db",
+      "original_text_line_window_sha256": "c0da0daef81bf8d3e5252b23c7b27e54edf60cd1a54d636779d2e06d1f4755db",
+      "original_text_lines": [
+        1052,
+        1150
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 2225,
+      "byte_end": 4439,
+      "first_line": 69,
+      "last_line": 164,
+      "snippet_sha256": "c17b2f874c5bf763c95276a447fe80680d79466efdf0fb7221e8d9922037d00a",
+      "original_text_line_window_sha256": "6125b64b6e88ab565cfee978a20b35ab16d563546c3a953686fba80713972eef",
+      "original_text_lines": [
+        69,
+        167
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 5459,
+      "byte_end": 8231,
+      "first_line": 211,
+      "last_line": 308,
+      "snippet_sha256": "e6be86fc5fd879f331969902854056dcf0d176aeee2c9da47ac196e2a631a344",
+      "original_text_line_window_sha256": "59d27220326edec46418a91521c28cd128257ffdea94361b344891b4743fd2a9",
+      "original_text_lines": [
+        216,
+        314
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 6340,
+      "byte_end": 8876,
+      "first_line": 246,
+      "last_line": 344,
+      "snippet_sha256": "3a4c2c69abdf175a335d13b602e73307b35d1016d711a5524609522178d5a549",
+      "original_text_line_window_sha256": "3a4c2c69abdf175a335d13b602e73307b35d1016d711a5524609522178d5a549",
+      "original_text_lines": [
+        252,
+        350
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 8805,
+      "byte_end": 11413,
+      "first_line": 339,
+      "last_line": 436,
+      "snippet_sha256": "f081156b95199cf151ade66d5bb7ff75e90f3d552df34092ac12d0e4046f3901",
+      "original_text_line_window_sha256": "b8479a4964ff6e0c151090ebc90e062585149e80d847c78e7705de3848c8272d",
+      "original_text_lines": [
+        345,
+        443
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 1510,
+      "byte_end": 4109,
+      "first_line": 54,
+      "last_line": 149,
+      "snippet_sha256": "2564e59d7ff6e0e8fad40853b2abe877d0e8f5057a0ee76505c2e0e2404ebecd",
+      "original_text_line_window_sha256": "107028d6a30bc66dc6efeac478ce60b28223c462ef6a252f4f4a73a342b9e534",
+      "original_text_lines": [
+        54,
+        152
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 19872,
+      "byte_end": 23123,
+      "first_line": 750,
+      "last_line": 847,
+      "snippet_sha256": "bf18734b88f9fb8e65cf6f7255026e49736d9d6309696b4a710f5433b210e72c",
+      "original_text_line_window_sha256": "0b05666f957860e6079c03b4a98f8cb41ebfe7bf8985b359454b594cbc786742",
+      "original_text_lines": [
+        759,
+        857
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 20483,
+      "byte_end": 24024,
+      "first_line": 774,
+      "last_line": 872,
+      "snippet_sha256": "ef5f2059de800e9359656ed167726a22ba4f5e7455d01f952b4ce169fa8e0f1e",
+      "original_text_line_window_sha256": "ef5f2059de800e9359656ed167726a22ba4f5e7455d01f952b4ce169fa8e0f1e",
+      "original_text_lines": [
+        784,
+        882
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 43234,
+      "byte_end": 46280,
+      "first_line": 1505,
+      "last_line": 1602,
+      "snippet_sha256": "2f036d549360f9f8032aeb2db53d94eea7f21b4583848014762bca6ec6a70626",
+      "original_text_line_window_sha256": "9b81ab037435126992b7dad5ada20fce2fcdf4caedd9f91629072889a16b4f1b",
+      "original_text_lines": [
+        1521,
+        1619
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 43292,
+      "byte_end": 46413,
+      "first_line": 1508,
+      "last_line": 1605,
+      "snippet_sha256": "20941b3d14a7165a5dd6943361337aa57c714387eeb1eaf5f6cd5fb44ca55845",
+      "original_text_line_window_sha256": "c4435f45ff20ddd670f08745897377247eb488ac089ed40f773a769adaaa80ce",
+      "original_text_lines": [
+        1524,
+        1622
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 43892,
+      "byte_end": 46964,
+      "first_line": 1528,
+      "last_line": 1625,
+      "snippet_sha256": "a272dc0c8d420fb27a705223c4c759bc02b0775558732cbbb3c2f5fef24c5b20",
+      "original_text_line_window_sha256": "8f4ac71e264c42dd9a5532339acf6275d586ce2f868043bb3fa71be52485bb5d",
+      "original_text_lines": [
+        1544,
+        1642
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 2813,
+      "byte_end": 4658,
+      "first_line": 82,
+      "last_line": 176,
+      "snippet_sha256": "18b703b1c70c7a54fd90c601ece4bddb35d6bf14a54b5db65196e56198410202",
+      "original_text_line_window_sha256": "06398dd513af51b153fd3869cf6a6958517c6d79798626a9b12dcff30a58195a",
+      "original_text_lines": [
+        82,
+        180
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "byte_start": 6397,
+      "byte_end": 8976,
+      "first_line": 201,
+      "last_line": 297,
+      "snippet_sha256": "c5e31675056881139ccdb9663440ee9a3962969993eacc238efac43ec8ec9466",
+      "original_text_line_window_sha256": "4b984eb957e66cf9950afd040a6fbb19046b9d300485e4942653524f4628f41f",
+      "original_text_lines": [
+        203,
+        301
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "byte_start": 9162,
+      "byte_end": 12304,
+      "first_line": 302,
+      "last_line": 398,
+      "snippet_sha256": "d8fc35381c8796ebb0f679c16165348a204caddf643fcd6dc15cb914d9e2db93",
+      "original_text_line_window_sha256": "ea752d019b33aa93fdbe26aa385f3ecef038076dedcba5a010b57389c16c8762",
+      "original_text_lines": [
+        306,
+        404
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "byte_start": 19386,
+      "byte_end": 22118,
+      "first_line": 630,
+      "last_line": 727,
+      "snippet_sha256": "edea131dd8a8e25b7671b46c2dc0471edfb67fb93cfb897a4908a10aa39bdf23",
+      "original_text_line_window_sha256": "c21f67859760b76db6bb8fb5c1ada9a7dd1472308115529d72835ba73b5d1744",
+      "original_text_lines": [
+        638,
+        736
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "byte_start": 40836,
+      "byte_end": 43763,
+      "first_line": 1376,
+      "last_line": 1472,
+      "snippet_sha256": "b1c3e14283090c5a14b11bb4f0ae11c9e1d58b087b4dc7a846768299951d8d33",
+      "original_text_line_window_sha256": "422a270dc472f3d810c649f0488a4c274aeee32d64a4b45fe1931a8354520000",
+      "original_text_lines": [
+        1391,
+        1489
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "byte_start": 8211,
+      "byte_end": 10976,
+      "first_line": 265,
+      "last_line": 360,
+      "snippet_sha256": "f374c5226e4cc6e0eb8eb48e53e05cc7cfa6fe98b6f67bb24c522dce3e44ad70",
+      "original_text_line_window_sha256": "45dca1d97be64afcf450b9f1c6e4535343b1d4136f22a49370578001f263dec6",
+      "original_text_lines": [
+        268,
+        366
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 22394,
+      "byte_end": 24191,
+      "first_line": 559,
+      "last_line": 617,
+      "snippet_sha256": "7b39d9b72ea9c6b41b5d6fe1ba45ba247a7eb7f404cdac151a63454cb419685e",
+      "original_text_line_window_sha256": "e7bcb08dfa5e6e2b92fe8ed55c7d87e70b72bb714124eff3c4ecd8619d469c3f",
+      "original_text_lines": [
+        562,
+        621
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 883,
+      "byte_end": 4519,
+      "first_line": 40,
+      "last_line": 138,
+      "snippet_sha256": "5d93bf2936ec4e234bd057839544be9ea484116800af6a01a075aecfd6dbce26",
+      "original_text_line_window_sha256": "5d93bf2936ec4e234bd057839544be9ea484116800af6a01a075aecfd6dbce26",
+      "original_text_lines": [
+        40,
+        138
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 701,
+      "byte_end": 4189,
+      "first_line": 29,
+      "last_line": 127,
+      "snippet_sha256": "462eb259cc2dd802f95e8fd4a3e92cdca7c87d36279e918a3ba9fc45be47968f",
+      "original_text_line_window_sha256": "462eb259cc2dd802f95e8fd4a3e92cdca7c87d36279e918a3ba9fc45be47968f",
+      "original_text_lines": [
+        29,
+        127
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 10116,
+      "byte_end": 14176,
+      "first_line": 265,
+      "last_line": 363,
+      "snippet_sha256": "25655c862e42e1db046b7982e9f3ed31e9b17682ec8d43374916e42c82d3f719",
+      "original_text_line_window_sha256": "25655c862e42e1db046b7982e9f3ed31e9b17682ec8d43374916e42c82d3f719",
+      "original_text_lines": [
+        265,
+        363
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 10165,
+      "byte_end": 14205,
+      "first_line": 266,
+      "last_line": 364,
+      "snippet_sha256": "a8113a62678154343f8dc7237fb0b8f2dcf4a8c5e2fc7f97bc5ac5f0cc8c6d6c",
+      "original_text_line_window_sha256": "a8113a62678154343f8dc7237fb0b8f2dcf4a8c5e2fc7f97bc5ac5f0cc8c6d6c",
+      "original_text_lines": [
+        266,
+        364
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 13351,
+      "byte_end": 17199,
+      "first_line": 343,
+      "last_line": 440,
+      "snippet_sha256": "b1599f8957e778830c6d16904ad0a604cffc776429c041e33e036f08cbf3e11f",
+      "original_text_line_window_sha256": "c40ad924bcc8c8090373f317297b98f0ce5e743ec2a0ffd39c466d2833c2ee17",
+      "original_text_lines": [
+        343,
+        441
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 13154,
+      "byte_end": 16855,
+      "first_line": 335,
+      "last_line": 432,
+      "snippet_sha256": "69f0f678fe5702a7df11504a0b0276590afbf3a8289eab94ce33804c77a2adb3",
+      "original_text_line_window_sha256": "7fbdf82a3e0f22fcc00bd1294e75909b5b3648099ac07f0ea00299d638f567e4",
+      "original_text_lines": [
+        335,
+        433
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 13809,
+      "byte_end": 17639,
+      "first_line": 354,
+      "last_line": 451,
+      "snippet_sha256": "6f0aedf87e9c2a5119d3b94bc5dc69fbdef30bcaa840d14d9ec153ecef14b0dc",
+      "original_text_line_window_sha256": "fbdd81e695e42922c54e2bd60e2636d35a41a07585d8e4d1d4b79f7a19014d9d",
+      "original_text_lines": [
+        354,
+        452
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "source_sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "byte_start": 13921,
+      "byte_end": 17707,
+      "first_line": 357,
+      "last_line": 454,
+      "snippet_sha256": "c78bd438b85aab46da7d89c8f52e5ef22f3acf004a00484b558ba8cb5212a989",
+      "original_text_line_window_sha256": "e143dfc02fb7dd6ada170b1b423929d41b38e0e29288745f5901d3a7658ea2f9",
+      "original_text_lines": [
+        357,
+        455
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.h",
+      "source_sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "byte_start": 1386,
+      "byte_end": 4284,
+      "first_line": 59,
+      "last_line": 147,
+      "snippet_sha256": "5eb50418f3099bb27e4122d89588722bd3e3596c6f78a2ee945cfa2460ecd5aa",
+      "original_text_line_window_sha256": "6acf326d65bd55aa2c0aca654639f5fa96ecc3acfbbe530be9cb8d7b7b1250d5",
+      "original_text_lines": [
+        60,
+        152
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.h",
+      "source_sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "byte_start": 2250,
+      "byte_end": 4284,
+      "first_line": 76,
+      "last_line": 147,
+      "snippet_sha256": "5f989aa994e197460076f5e3607c72aa0389da7003643515945c0b1280b95ff0",
+      "original_text_line_window_sha256": "cc72a7f3c08f5de4b5fde3f015ef616d1d8d86a4b8880c7aef2bab7b6671f379",
+      "original_text_lines": [
+        78,
+        152
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.h",
+      "source_sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "byte_start": 2991,
+      "byte_end": 4284,
+      "first_line": 97,
+      "last_line": 147,
+      "snippet_sha256": "ffdb9759993a0e153468713c9991bb261ac254708f5f0a2fcfb5c6a3dc75f94e",
+      "original_text_line_window_sha256": "4eb40af04c6598bf94163eebd5e0cf1afa05ea5daed784ba1a45cdd41414802a",
+      "original_text_lines": [
+        99,
+        152
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "source_sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "byte_start": 1427,
+      "byte_end": 6200,
+      "first_line": 61,
+      "last_line": 159,
+      "snippet_sha256": "16ab99d20986d4ee45bbdd47550e4edb925568eeec8656d1efd7e95fb2cccd78",
+      "original_text_line_window_sha256": "16ab99d20986d4ee45bbdd47550e4edb925568eeec8656d1efd7e95fb2cccd78",
+      "original_text_lines": [
+        61,
+        159
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "source_sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "byte_start": 7756,
+      "byte_end": 9677,
+      "first_line": 204,
+      "last_line": 256,
+      "snippet_sha256": "03042b67028169b57a4fd0ac2b334fd2768cdf3cb7883a755f8b48ecd5b3e1c4",
+      "original_text_line_window_sha256": "03042b67028169b57a4fd0ac2b334fd2768cdf3cb7883a755f8b48ecd5b3e1c4",
+      "original_text_lines": [
+        204,
+        256
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "source_sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "byte_start": 691,
+      "byte_end": 4042,
+      "first_line": 39,
+      "last_line": 137,
+      "snippet_sha256": "34643d6c5a8f9c9c61d7491aad38c82fa68b79816c6a3f92da29dc742fee1940",
+      "original_text_line_window_sha256": "34643d6c5a8f9c9c61d7491aad38c82fa68b79816c6a3f92da29dc742fee1940",
+      "original_text_lines": [
+        39,
+        137
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "source_sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "byte_start": 7126,
+      "byte_end": 9677,
+      "first_line": 188,
+      "last_line": 256,
+      "snippet_sha256": "3d66ffb51d1f6d4abe386bcb8e80aa4dea8751891aa19f3df46ef918b4d0e501",
+      "original_text_line_window_sha256": "3d66ffb51d1f6d4abe386bcb8e80aa4dea8751891aa19f3df46ef918b4d0e501",
+      "original_text_lines": [
+        188,
+        256
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "source_sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "byte_start": 580,
+      "byte_end": 3755,
+      "first_line": 35,
+      "last_line": 133,
+      "snippet_sha256": "a6303507011c7d17a84c3af01d4517d84f139d428f473cfc1546222bfe4f2154",
+      "original_text_line_window_sha256": "a6303507011c7d17a84c3af01d4517d84f139d428f473cfc1546222bfe4f2154",
+      "original_text_lines": [
+        35,
+        133
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "source_sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "byte_start": 6966,
+      "byte_end": 9677,
+      "first_line": 184,
+      "last_line": 256,
+      "snippet_sha256": "663dd3aacb996eaa9a2dc94d6e13a6ef478de56995e132a5d60cb5139b788487",
+      "original_text_line_window_sha256": "663dd3aacb996eaa9a2dc94d6e13a6ef478de56995e132a5d60cb5139b788487",
+      "original_text_lines": [
+        184,
+        256
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 1801,
+      "byte_end": 5890,
+      "first_line": 63,
+      "last_line": 160,
+      "snippet_sha256": "2a0f546a441d47cc8292b385819eeff72920ab5f84d51056246c9331ecf3e2a7",
+      "original_text_line_window_sha256": "6d96357116c3cc3a3a28f1780f4d3474d5f9d18c71e481eb659dde3e995ec26b",
+      "original_text_lines": [
+        63,
+        161
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 12100,
+      "byte_end": 14658,
+      "first_line": 426,
+      "last_line": 523,
+      "snippet_sha256": "40b2415bead120ffeed91fde74092bf6c2579aa5ee837ce4d8a4d82513dd15b2",
+      "original_text_line_window_sha256": "2b1d021069c3deb1784417ee8f68991c31cac2eb05f77f07a71bdcc124988ef3",
+      "original_text_lines": [
+        433,
+        531
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 12260,
+      "byte_end": 14795,
+      "first_line": 433,
+      "last_line": 530,
+      "snippet_sha256": "129a2f46871a3a874efa0e0f5a7f57ed4dc399df34f3e168d67f2e74e6249fe7",
+      "original_text_line_window_sha256": "2d1308abf4d5ab12346f234ad9b1fdbed32560712a1e9385a201462857dafe98",
+      "original_text_lines": [
+        440,
+        538
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 34752,
+      "byte_end": 37003,
+      "first_line": 1262,
+      "last_line": 1359,
+      "snippet_sha256": "72a6667253a2522524e87505ed0e9b091776e760e16cef28ab9c50b17d391744",
+      "original_text_line_window_sha256": "fc5b72dfc0e973e416079f6231a4e44541cbc87b4377d21cb5d88502fa24e5a3",
+      "original_text_lines": [
+        1282,
+        1380
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 34977,
+      "byte_end": 37165,
+      "first_line": 1270,
+      "last_line": 1367,
+      "snippet_sha256": "7627b1891badeb9788ce27522d1df89b9840d26572019937984585dfb63c684c",
+      "original_text_line_window_sha256": "f9877947cbced03a604f95361fd908d16d914760098c7336501162b72653e7c2",
+      "original_text_lines": [
+        1290,
+        1388
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 35118,
+      "byte_end": 37274,
+      "first_line": 1276,
+      "last_line": 1373,
+      "snippet_sha256": "9fc7311198d7c0020cbc9abeca99a39ce68315a595fd4131fd6bded1baf92592",
+      "original_text_line_window_sha256": "7c965d89ef150308004cd0f7b0d2a11037603c5b0b70dad000cca2e0164a4b70",
+      "original_text_lines": [
+        1296,
+        1394
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 35370,
+      "byte_end": 37655,
+      "first_line": 1289,
+      "last_line": 1385,
+      "snippet_sha256": "7907bf3cdf0ce210dc5770ace2932838579a9372b4ab0daf25c91dc0303a8b21",
+      "original_text_line_window_sha256": "c32632154b80bec99d231d6d96f0683cf5675eab0a51c8e4c6f2920f69786400",
+      "original_text_lines": [
+        1309,
+        1407
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 35738,
+      "byte_end": 37959,
+      "first_line": 1301,
+      "last_line": 1397,
+      "snippet_sha256": "46041bfa749534c4f228e8695edf7a6aea3bde904f84544ec9b1414a50ba72c3",
+      "original_text_line_window_sha256": "392aab3f0d0ac3c468ab838f0c634dac81883305748d3b48777b7a5380d6324a",
+      "original_text_lines": [
+        1321,
+        1419
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 35906,
+      "byte_end": 38097,
+      "first_line": 1307,
+      "last_line": 1403,
+      "snippet_sha256": "da693afd617f2c8cd3b42860b3226f094f00702c443ff897168343552bc8c46c",
+      "original_text_line_window_sha256": "6091c1283216061d164d9e04e7acfda06951ad5ec1929fd3b9ede43fb3604d22",
+      "original_text_lines": [
+        1327,
+        1425
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "byte_start": 44007,
+      "byte_end": 46587,
+      "first_line": 1633,
+      "last_line": 1730,
+      "snippet_sha256": "a6ddbb49ca2859fc1339d42485f8fbca72140ec69ed008b7c81bc39345ff9ed8",
+      "original_text_line_window_sha256": "9bfa0cca003c9c92414220e0c41b5b6b75604b502a8810a7a2539bf3dd1c40d6",
+      "original_text_lines": [
+        1658,
+        1756
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 5819,
+      "byte_end": 7724,
+      "first_line": 179,
+      "last_line": 274,
+      "snippet_sha256": "a14f2bd5af80a2bb363c78d98cd32b828d7b44fabd626617ef30579c4e884d69",
+      "original_text_line_window_sha256": "d0f88667d7b1f24aeec0ac5e9f8f5dff1751d45291098e7686f789593d9a9d31",
+      "original_text_lines": [
+        180,
+        278
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 6426,
+      "byte_end": 8406,
+      "first_line": 210,
+      "last_line": 304,
+      "snippet_sha256": "deedc84cfb9fd0812a875e8017141a7d1e7e0b4d90a1f2315dfc933d1dce90eb",
+      "original_text_line_window_sha256": "01ad72e6137820112ee7da27ced6e79b965ba31aafb8508bbac17d1fbfaad594",
+      "original_text_lines": [
+        212,
+        310
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 6757,
+      "byte_end": 9114,
+      "first_line": 228,
+      "last_line": 323,
+      "snippet_sha256": "50ca0c2e58d6e22917703b5a19c42c298216d6f43a138da0e627794d22d03a8c",
+      "original_text_line_window_sha256": "b5377918c7d853fbce894934667def0c611ddc34784f07c5ee517c2689074dbd",
+      "original_text_lines": [
+        231,
+        329
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 8240,
+      "byte_end": 11085,
+      "first_line": 296,
+      "last_line": 393,
+      "snippet_sha256": "76e7148440987546e7f537ad4b0738c199ab5f1ccffe10a9476d856adccd6a5e",
+      "original_text_line_window_sha256": "d5716e497420be2a59645937a66a3f098ce68ca98512c45b0177dbd13fbc135b",
+      "original_text_lines": [
+        301,
+        399
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 36637,
+      "byte_end": 39580,
+      "first_line": 1258,
+      "last_line": 1356,
+      "snippet_sha256": "8e8fba910c542b184292990e3e7d2f233d1e5f7157a3be2e54c3e6badbc017ae",
+      "original_text_line_window_sha256": "8e8fba910c542b184292990e3e7d2f233d1e5f7157a3be2e54c3e6badbc017ae",
+      "original_text_lines": [
+        1274,
+        1372
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 37231,
+      "byte_end": 40452,
+      "first_line": 1284,
+      "last_line": 1382,
+      "snippet_sha256": "1bcc7d51a783d16211a221a47bd5ac1985705b09905467929fbae90700c2fa1a",
+      "original_text_line_window_sha256": "1bcc7d51a783d16211a221a47bd5ac1985705b09905467929fbae90700c2fa1a",
+      "original_text_lines": [
+        1300,
+        1398
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 39455,
+      "byte_end": 42368,
+      "first_line": 1350,
+      "last_line": 1447,
+      "snippet_sha256": "84dacdf9b1b42a209fc2389965c8293b1d566af41b910a88fa1400e074654c4e",
+      "original_text_line_window_sha256": "c122a3b6e49e5f2c6f737f6acb0cd25162e5347817cf36012f5be30541a6d541",
+      "original_text_lines": [
+        1366,
+        1464
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 39735,
+      "byte_end": 42761,
+      "first_line": 1361,
+      "last_line": 1458,
+      "snippet_sha256": "cff78ae74992846d06de89d1e88a3dc92ee9d50e4ccfad1e24d68eb149e0f621",
+      "original_text_line_window_sha256": "22ec6faa37b2cab8f97e965cff271794bdc264b28ff0c0f4e29272a1192f3a13",
+      "original_text_lines": [
+        1377,
+        1475
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 40650,
+      "byte_end": 43667,
+      "first_line": 1392,
+      "last_line": 1489,
+      "snippet_sha256": "dc8b399b581ae0c2f1696507fcc6add91fc0f53bf3aaad4417f442ad9af747b8",
+      "original_text_line_window_sha256": "f1e10a5515bd91eb5b832936bec99f68619a46121c3846699c5671fd80870003",
+      "original_text_lines": [
+        1408,
+        1506
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 40869,
+      "byte_end": 43861,
+      "first_line": 1398,
+      "last_line": 1495,
+      "snippet_sha256": "c1f4364dcc149b762ca8f67737e472f7338ecd50dfe6867341b1725ca5c7864a",
+      "original_text_line_window_sha256": "43bf5a4506a49036acd554337cddf3931cf869d83e941b06aedccb3b6b1fcab2",
+      "original_text_lines": [
+        1414,
+        1512
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 43778,
+      "byte_end": 46830,
+      "first_line": 1492,
+      "last_line": 1589,
+      "snippet_sha256": "64136cbb0dbd82fef4e5dbb786383c06b7a30f45a41ac401e63ab3654e9e9241",
+      "original_text_line_window_sha256": "5adb09690756cab8f4bc844f624561b9782c94190d64c4ad731700249c0f0917",
+      "original_text_lines": [
+        1509,
+        1607
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 45599,
+      "byte_end": 48280,
+      "first_line": 1547,
+      "last_line": 1644,
+      "snippet_sha256": "799db7e953dfb31a8c12d4a57241b779969f8eee2e56d41eb61f79161881ae7c",
+      "original_text_line_window_sha256": "14802b4a62dafdcd417442f362757e0af80dedac75b3f43197f076128f9bd207",
+      "original_text_lines": [
+        1564,
+        1662
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 5049,
+      "byte_end": 7064,
+      "first_line": 148,
+      "last_line": 243,
+      "snippet_sha256": "5517df3e860ddd46c21941d80b6f07629dc1de20d226164026b89ae4078c1bca",
+      "original_text_line_window_sha256": "d4e8f246611c0075906743b1bb50869ce090369c1a1972cc9c8206e33fdc70f0",
+      "original_text_lines": [
+        148,
+        246
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 7263,
+      "byte_end": 9909,
+      "first_line": 252,
+      "last_line": 348,
+      "snippet_sha256": "7fe0556d649a33789ed368827707cb9a57924285f7bb3de7411d8e08f2037caa",
+      "original_text_line_window_sha256": "13aa19e877b47d344bbd6a777c32641b3c58f202f1b9b8ab084c41ec6d0c50c4",
+      "original_text_lines": [
+        256,
+        354
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 7602,
+      "byte_end": 10272,
+      "first_line": 269,
+      "last_line": 365,
+      "snippet_sha256": "fbd7c25acaa2e1c8227a69d67017c2b743a39ddda4d53cfc826cd4914a571316",
+      "original_text_line_window_sha256": "72167321ec6bc5dade33bda95578268a7ceb1ba05d2c0edf4e6bd4e48d9e2cb4",
+      "original_text_lines": [
+        273,
+        371
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 8064,
+      "byte_end": 10893,
+      "first_line": 288,
+      "last_line": 385,
+      "snippet_sha256": "bd24b0a835374bd87e3a07f7779dee80e8ba12d1ad8437c66bd73e7ca42fbc61",
+      "original_text_line_window_sha256": "cb5bb9a52a10e28592313765f372d7d3f67d67b3b3d4f9edd8f87ea999b5a881",
+      "original_text_lines": [
+        293,
+        391
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 40618,
+      "byte_end": 43540,
+      "first_line": 1389,
+      "last_line": 1486,
+      "snippet_sha256": "e23ad5da0c5fc800e0c688ca729a3d30359bd77a20ed457aa0cd42a6d55d289c",
+      "original_text_line_window_sha256": "e51c64310ae52887317d46fca4830da9431d85a74b70edbe0bfe3ef4297616ea",
+      "original_text_lines": [
+        1405,
+        1503
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 46059,
+      "byte_end": 48589,
+      "first_line": 1563,
+      "last_line": 1659,
+      "snippet_sha256": "08dd01806e42e0ac5517f27d98d45f92bb35ed98814367449a8769d5f8e141e0",
+      "original_text_line_window_sha256": "c146f7a0acc443976f0974c404b9896d9d324dcfd005f244d359b842dcd4860c",
+      "original_text_lines": [
+        1580,
+        1678
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 4689,
+      "byte_end": 6948,
+      "first_line": 141,
+      "last_line": 236,
+      "snippet_sha256": "52c798abd6a2d3235754a8a9715e04169f7147526ea0e01ec9af001331cd5180",
+      "original_text_line_window_sha256": "91d339b11d0b7db5439a657a23aceb2392440330c000c563d70fcf3bbdda1687",
+      "original_text_lines": [
+        141,
+        239
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 8167,
+      "byte_end": 11021,
+      "first_line": 293,
+      "last_line": 390,
+      "snippet_sha256": "7c78048e9026d4b6572d646deecb37ca876a9ea70dd589ff52c1f1dcf1e391d9",
+      "original_text_line_window_sha256": "2999cbb0131c48c07babac508e53a714e5f94b3ec253fd2c12d44d69049dfb65",
+      "original_text_lines": [
+        298,
+        396
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 4575,
+      "byte_end": 6885,
+      "first_line": 139,
+      "last_line": 234,
+      "snippet_sha256": "307e3035b38f9fe7245ddc41033eff299aef62b7e6d11d9120e7051d538273b4",
+      "original_text_line_window_sha256": "999dacd2059bb1f0c9563738753172192f42cf8137ad1fd50418d38293728d53",
+      "original_text_lines": [
+        139,
+        237
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 7973,
+      "byte_end": 10720,
+      "first_line": 284,
+      "last_line": 381,
+      "snippet_sha256": "e1402cd6468a4b536f5b0b5212cafae2ed18fdbda75eb1b092416ef32eb68ac7",
+      "original_text_line_window_sha256": "a08414995e71fad850cf7546700db947081bc82a20b318f67a63ac3c0e6f8c8b",
+      "original_text_lines": [
+        289,
+        387
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 8767,
+      "byte_end": 11450,
+      "first_line": 314,
+      "last_line": 412,
+      "snippet_sha256": "2981d45485de9c4c78c3bfea17d029f431277b24c0735aa9c85cff99993c12c2",
+      "original_text_line_window_sha256": "2981d45485de9c4c78c3bfea17d029f431277b24c0735aa9c85cff99993c12c2",
+      "original_text_lines": [
+        320,
+        418
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 11429,
+      "byte_end": 14152,
+      "first_line": 411,
+      "last_line": 508,
+      "snippet_sha256": "3b1760cbd7698f0c2865b1e6cd7bbcd26404b3d3ab1f8dd185f5bb608c95bf72",
+      "original_text_line_window_sha256": "b44e87242b8035f37c1a8072f9e0c490a5ca4d92d0aeffc3edcf4ad70d09e6d7",
+      "original_text_lines": [
+        417,
+        515
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 3022,
+      "byte_end": 6338,
+      "first_line": 106,
+      "last_line": 202,
+      "snippet_sha256": "85cafd813974d33dc038d23ce0f487bb9aa7e06d5afc427f2419c57a4aa2063d",
+      "original_text_line_window_sha256": "e0615954352fc93130f3cc88a6eccaf9026f34697ae511c6c20822402a1d314d",
+      "original_text_lines": [
+        106,
+        204
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 23133,
+      "byte_end": 26168,
+      "first_line": 840,
+      "last_line": 937,
+      "snippet_sha256": "fb238f06b591efed851ea8c67fa157a0eacfc2792be0b9df751f5fdd2e2c954b",
+      "original_text_line_window_sha256": "7b4e79c946a09a19fdfe660a5d4d57b9b445c54778a3eb06f6d5e123e7f72a75",
+      "original_text_lines": [
+        851,
+        949
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 25684,
+      "byte_end": 28835,
+      "first_line": 920,
+      "last_line": 1017,
+      "snippet_sha256": "cdd105d72e4b60924f9698f05183fe2e261a0bc6a1e8bc8f23089b8f5dc1ee6e",
+      "original_text_line_window_sha256": "59a48b8a190d8797d5fd7549a316774b873b50dfe142898b2cf83c570fa40fe7",
+      "original_text_lines": [
+        932,
+        1030
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 26568,
+      "byte_end": 30114,
+      "first_line": 953,
+      "last_line": 1051,
+      "snippet_sha256": "d2b366fbb81ced78d0a061a2b5934f7b3f598c7bbd215409f49c5e95360cdfcd",
+      "original_text_line_window_sha256": "d2b366fbb81ced78d0a061a2b5934f7b3f598c7bbd215409f49c5e95360cdfcd",
+      "original_text_lines": [
+        966,
+        1064
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 50508,
+      "byte_end": 53237,
+      "first_line": 1715,
+      "last_line": 1812,
+      "snippet_sha256": "02f00a5156fa3731183b77a165270edbc9ed1ec64259f2ef8dda01100e3f37b1",
+      "original_text_line_window_sha256": "6b11a7c4b62a4f849bd8015b525fb88b3385ba367fc2b5ab1ba328646062ce81",
+      "original_text_lines": [
+        1734,
+        1832
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 52532,
+      "byte_end": 55491,
+      "first_line": 1787,
+      "last_line": 1884,
+      "snippet_sha256": "6fab5fd8ff047303d2ea5da8066da84bb972efcecfd6fee1f8ad7df37ce3853d",
+      "original_text_line_window_sha256": "be21585b9c4b994221f8c144dfd84689aa40ef74cf7b84e415d3b47592121372",
+      "original_text_lines": [
+        1807,
+        1905
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 52554,
+      "byte_end": 55616,
+      "first_line": 1790,
+      "last_line": 1887,
+      "snippet_sha256": "0289a4793f3f24e0247fae43f9132fc933c3958a5ce0a384e1dc70a3c26e5dbe",
+      "original_text_line_window_sha256": "44abfe0a75065af58e4c93a02e09a1aaa2e000bed32e735b1e8bed220098040d",
+      "original_text_lines": [
+        1810,
+        1908
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 53237,
+      "byte_end": 56343,
+      "first_line": 1813,
+      "last_line": 1910,
+      "snippet_sha256": "c513d54b89938e5a1c2e698c62188c46d0dc365ce86e168755e759efa23d22e5",
+      "original_text_line_window_sha256": "237299c45bf9d9dc10efb4dd84312d91169a30fc18449f3e43f4ec216e29f094",
+      "original_text_lines": [
+        1833,
+        1931
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "source_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "byte_start": 5301,
+      "byte_end": 7171,
+      "first_line": 154,
+      "last_line": 248,
+      "snippet_sha256": "73e05e69695f76a455b811989546957e62b2c28c41c75b8a913d3690521437c0",
+      "original_text_line_window_sha256": "23b6db87cef9dc39013375819957ce8fdebd42c20af9dbd18bee605d45eb18de",
+      "original_text_lines": [
+        154,
+        252
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 8258,
+      "byte_end": 11491,
+      "first_line": 252,
+      "last_line": 350,
+      "snippet_sha256": "4b36492ce93d65ffe3908240e5f7488e1c007dd0322be983ef89562c06adb96f",
+      "original_text_line_window_sha256": "4b36492ce93d65ffe3908240e5f7488e1c007dd0322be983ef89562c06adb96f",
+      "original_text_lines": [
+        255,
+        353
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 10548,
+      "byte_end": 13223,
+      "first_line": 327,
+      "last_line": 422,
+      "snippet_sha256": "e362dda7d7f749cddbe5ef671f653c5657f75ff9b97f3e796730ac60e8608783",
+      "original_text_line_window_sha256": "b2e21600049e6d9cc85a2d3175497af0247ac01310f21385af497c3adb8acfa0",
+      "original_text_lines": [
+        330,
+        428
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 11371,
+      "byte_end": 14056,
+      "first_line": 349,
+      "last_line": 444,
+      "snippet_sha256": "17e424f437dc5a06bfe2a08142b361d2c63119a26a045d496a269896592ca46b",
+      "original_text_line_window_sha256": "90edd775ebd2fa17707bb09aaf30fcd24c6125f9803ad81893305a0cacef9ea5",
+      "original_text_lines": [
+        352,
+        450
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 12690,
+      "byte_end": 15817,
+      "first_line": 401,
+      "last_line": 497,
+      "snippet_sha256": "af537f9ccc4d285701bf185a8a6750073da1ae64d3da3a9ce952e4312a3f179f",
+      "original_text_line_window_sha256": "ddf76c139b877610e74c38d372b65667df09603a43869496771c90f54d1eef94",
+      "original_text_lines": [
+        406,
+        504
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 23896,
+      "byte_end": 27141,
+      "first_line": 740,
+      "last_line": 837,
+      "snippet_sha256": "685feb0bff66c5696950fd8fb988b231030fe9816fced0ecb236e2f643a077cc",
+      "original_text_line_window_sha256": "a99064dd39fb5e7c520b711c62c138560fae4a2947dbb01dd1089ff3e9b95770",
+      "original_text_lines": [
+        750,
+        848
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 25449,
+      "byte_end": 28268,
+      "first_line": 783,
+      "last_line": 880,
+      "snippet_sha256": "48a3420ebe54f32aa176a6416d0048ca3f373ba7669d3f26fcea3755148653ef",
+      "original_text_line_window_sha256": "0d44394b8e7221bca8b4e07927d534263d4f8fd6aea8225fc7a796e63a6fb255",
+      "original_text_lines": [
+        793,
+        891
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 47848,
+      "byte_end": 50790,
+      "first_line": 1550,
+      "last_line": 1646,
+      "snippet_sha256": "3fd09e603bddcae0f46d27a76ed812bc3c8ce579cbf767e9d8ffab1104de1c2b",
+      "original_text_line_window_sha256": "56eb10b7de8e47709a84d4ee43e95ce2cd4f2a08ce221288398254792f6b5062",
+      "original_text_lines": [
+        1567,
+        1665
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 9937,
+      "byte_end": 12847,
+      "first_line": 309,
+      "last_line": 405,
+      "snippet_sha256": "bcb950989aaa16e6fa63f2e35a0b30a9f6427bc05c8bb0476404eb8024c52e0e",
+      "original_text_line_window_sha256": "09338229f1486eda03dc076088913687862525ac9642338aa65d49dfe9ff96b7",
+      "original_text_lines": [
+        312,
+        410
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 10721,
+      "byte_end": 13424,
+      "first_line": 331,
+      "last_line": 426,
+      "snippet_sha256": "475bdacf60c118eeeddde1c545150f0b981b7756dc343b7ae5e82331b050cda2",
+      "original_text_line_window_sha256": "ebb76892d692a4f8065b9b1cd5a26a2f47e23639bed5936c9a5b75e67e8cdc83",
+      "original_text_lines": [
+        334,
+        432
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "byte_start": 11783,
+      "byte_end": 14483,
+      "first_line": 364,
+      "last_line": 459,
+      "snippet_sha256": "973eaadc2e0a49172f1ae75d4b87a43e26613313de86e6b855027ebecf9f2b16",
+      "original_text_line_window_sha256": "c9fb601d08b128a5cd7ddd4b900be663043f282f2a3c8717af6ace84d3b9fff9",
+      "original_text_lines": [
+        368,
+        466
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 27591,
+      "byte_end": 30426,
+      "first_line": 668,
+      "last_line": 754,
+      "snippet_sha256": "84e34ae95f91a2745eb28acc15efd9a4f29cd8d881526d50f9bb999556c362e2",
+      "original_text_line_window_sha256": "a7e40190662b4be633eb0a6e6702ff2d8b9668c1e58cbb942f619758219e1d61",
+      "original_text_lines": [
+        671,
+        758
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 810,
+      "byte_end": 4565,
+      "first_line": 35,
+      "last_line": 133,
+      "snippet_sha256": "25a54e88a0a0f7142fe1e47e182e916e5a179c6986408c7eb8d596598cb78c45",
+      "original_text_line_window_sha256": "25a54e88a0a0f7142fe1e47e182e916e5a179c6986408c7eb8d596598cb78c45",
+      "original_text_lines": [
+        35,
+        133
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 1340,
+      "byte_end": 5131,
+      "first_line": 52,
+      "last_line": 150,
+      "snippet_sha256": "2c8f87a4d9bd79a147af03e2935b56b9040aacef94cc89993802a365b308496b",
+      "original_text_line_window_sha256": "2c8f87a4d9bd79a147af03e2935b56b9040aacef94cc89993802a365b308496b",
+      "original_text_lines": [
+        52,
+        150
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 701,
+      "byte_end": 4415,
+      "first_line": 29,
+      "last_line": 127,
+      "snippet_sha256": "f43acdf365cabf19f356543ad4357a956df1e8b7f32aae5a252852b15593fe9d",
+      "original_text_line_window_sha256": "f43acdf365cabf19f356543ad4357a956df1e8b7f32aae5a252852b15593fe9d",
+      "original_text_lines": [
+        29,
+        127
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 17312,
+      "byte_end": 21437,
+      "first_line": 439,
+      "last_line": 536,
+      "snippet_sha256": "4733f4be41790dba5195388cbd0565ae3b07a06b94373e683ff5c7b17da7738a",
+      "original_text_line_window_sha256": "05cc2d57a25864048e8bdcf3875b615a5d9df7c7bafa49eb01d2f8838f06fdf2",
+      "original_text_lines": [
+        439,
+        537
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 838,
+      "byte_end": 4604,
+      "first_line": 36,
+      "last_line": 134,
+      "snippet_sha256": "47ff5f22804ed78c469e4e7fb3659e4c406b76a130ef121c6cbb7a06df31d7fb",
+      "original_text_line_window_sha256": "47ff5f22804ed78c469e4e7fb3659e4c406b76a130ef121c6cbb7a06df31d7fb",
+      "original_text_lines": [
+        36,
+        134
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "source_sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "byte_start": 16929,
+      "byte_end": 20895,
+      "first_line": 428,
+      "last_line": 525,
+      "snippet_sha256": "90643eb1f27eca8737243435c495695464b374791d52c7da59ac21d91c7a5159",
+      "original_text_line_window_sha256": "3d4498e5b265893667e23a58a2e501863bad46652a8214bddcd1723b212663de",
+      "original_text_lines": [
+        428,
+        526
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 1413,
+      "byte_end": 4956,
+      "first_line": 60,
+      "last_line": 156,
+      "snippet_sha256": "1363f4f30581feb3a66d4e68403433f0c3dab4c66bf0416a0106f1fd08294d2f",
+      "original_text_line_window_sha256": "86851197a47029d8411f0d943397aa02ae92513a21d0131629d4816de1047652",
+      "original_text_lines": [
+        61,
+        159
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 1566,
+      "byte_end": 5090,
+      "first_line": 63,
+      "last_line": 159,
+      "snippet_sha256": "73a7214305ed3b7fcc3c04ee661b278516888db5c15c7d2342f6597a4b0cacf3",
+      "original_text_line_window_sha256": "3677b666208aa3f4958e9e28abf95de17d0a2a118f47b6295199c6fbdeda3e0b",
+      "original_text_lines": [
+        64,
+        162
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 2307,
+      "byte_end": 5487,
+      "first_line": 79,
+      "last_line": 175,
+      "snippet_sha256": "55cb53730019382b046d5885f9f89d38a9166ff0329193f745306ab3f68b1d98",
+      "original_text_line_window_sha256": "79fe0d0c14dfc5d9d74bf5586f927e4c6bf06069d5afe1c6c8c9e1a4c6343417",
+      "original_text_lines": [
+        81,
+        179
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 3086,
+      "byte_end": 5663,
+      "first_line": 97,
+      "last_line": 190,
+      "snippet_sha256": "ff68da2923d9f386f883ac8a9e1e5787a37a8f16ad533ba3ff2463024b65b0dc",
+      "original_text_line_window_sha256": "893b8c728b9802b35f99c07c3d1b73e2ab2c33468f2a673605b8df0895d217b2",
+      "original_text_lines": [
+        99,
+        195
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 2454,
+      "byte_end": 5539,
+      "first_line": 81,
+      "last_line": 177,
+      "snippet_sha256": "213df7eb95d1d4de6c74c0ff5bdff5574e3ac7471f9039d38cac7f286a106f9f",
+      "original_text_line_window_sha256": "7a15b86995d28ee1cce292f5364b37c612d465d6633646a0cf0ed1c26f028d44",
+      "original_text_lines": [
+        83,
+        181
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 3134,
+      "byte_end": 5663,
+      "first_line": 99,
+      "last_line": 190,
+      "snippet_sha256": "820b3721b461e0e25eb39a6230c68eca318921580ee651d4d217beb86796b4ed",
+      "original_text_line_window_sha256": "c194516a08be61019d2a7c99e3d873370ec80d69c281b1c906bfcffb86b39dcb",
+      "original_text_lines": [
+        101,
+        195
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 3916,
+      "byte_end": 5663,
+      "first_line": 121,
+      "last_line": 190,
+      "snippet_sha256": "60aec8c1b4d3461270443ce1461cbf2f37c6f3181520528fde75f33e0b39251f",
+      "original_text_line_window_sha256": "e156d96c4b9c48cec3888820d55fcbd1174d67613f6c4e31e4c0f9303bc07595",
+      "original_text_lines": [
+        123,
+        195
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 4024,
+      "byte_end": 5663,
+      "first_line": 124,
+      "last_line": 190,
+      "snippet_sha256": "dbad3e45c87eb35ffa24dad084b1a8a867ab7d770737737ef5c018205dea938c",
+      "original_text_line_window_sha256": "2bffbde185bd4772c0a1167a94dcccee27c571a94bc6fdda01502d9cb07b33c3",
+      "original_text_lines": [
+        126,
+        195
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "source_sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "byte_start": 4050,
+      "byte_end": 5663,
+      "first_line": 125,
+      "last_line": 190,
+      "snippet_sha256": "7b65798dbc4c7283d04e36677d45d96e59bea8de39301e34ccd09f26cbffd89d",
+      "original_text_line_window_sha256": "b6ccf411db39a48263258f6ab2459c17e2787376b785e05c89d949d5266d3197",
+      "original_text_lines": [
+        127,
+        195
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 1575,
+      "byte_end": 5324,
+      "first_line": 69,
+      "last_line": 167,
+      "snippet_sha256": "712b868bb1268e75943d16530c6d18ed615601169c6862c346b03b0c306938eb",
+      "original_text_line_window_sha256": "712b868bb1268e75943d16530c6d18ed615601169c6862c346b03b0c306938eb",
+      "original_text_lines": [
+        69,
+        167
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 3994,
+      "byte_end": 9410,
+      "first_line": 140,
+      "last_line": 238,
+      "snippet_sha256": "b927c2a1990db07260017c16dbdaa13ad56a62a6d2fd0ed48023b5c4e3c48453",
+      "original_text_line_window_sha256": "b927c2a1990db07260017c16dbdaa13ad56a62a6d2fd0ed48023b5c4e3c48453",
+      "original_text_lines": [
+        140,
+        238
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 8914,
+      "byte_end": 11299,
+      "first_line": 226,
+      "last_line": 293,
+      "snippet_sha256": "ff98b83e8e35e63598239165c4ff716bf94591c43cb673fd0c2957bcf2cbacca",
+      "original_text_line_window_sha256": "ff98b83e8e35e63598239165c4ff716bf94591c43cb673fd0c2957bcf2cbacca",
+      "original_text_lines": [
+        226,
+        293
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 10728,
+      "byte_end": 11299,
+      "first_line": 270,
+      "last_line": 293,
+      "snippet_sha256": "f527b03ae35a470ea4c723694cc24163f93639829a61a169df790fb1e0b20146",
+      "original_text_line_window_sha256": "f527b03ae35a470ea4c723694cc24163f93639829a61a169df790fb1e0b20146",
+      "original_text_lines": [
+        270,
+        293
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 11060,
+      "byte_end": 11299,
+      "first_line": 282,
+      "last_line": 293,
+      "snippet_sha256": "058d3df00199b2e25d5e1cc3d57411788446781e84b7c77c39b27d8cf1abf955",
+      "original_text_line_window_sha256": "058d3df00199b2e25d5e1cc3d57411788446781e84b7c77c39b27d8cf1abf955",
+      "original_text_lines": [
+        282,
+        293
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 839,
+      "byte_end": 4215,
+      "first_line": 47,
+      "last_line": 145,
+      "snippet_sha256": "8897a32b477ca5f0390fb5a9d7d9193934236107054a2ed750e75ebc6457a964",
+      "original_text_line_window_sha256": "8897a32b477ca5f0390fb5a9d7d9193934236107054a2ed750e75ebc6457a964",
+      "original_text_lines": [
+        47,
+        145
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 8284,
+      "byte_end": 11299,
+      "first_line": 210,
+      "last_line": 293,
+      "snippet_sha256": "b6e13c1b833496730dd797682a67f73be15e7b51ab525814229032f2cf1dd703",
+      "original_text_line_window_sha256": "b6e13c1b833496730dd797682a67f73be15e7b51ab525814229032f2cf1dd703",
+      "original_text_lines": [
+        210,
+        293
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 728,
+      "byte_end": 4082,
+      "first_line": 43,
+      "last_line": 141,
+      "snippet_sha256": "48209542daa706857bf063cf329968c5db656861b4656f6d125639c9ed916096",
+      "original_text_line_window_sha256": "48209542daa706857bf063cf329968c5db656861b4656f6d125639c9ed916096",
+      "original_text_lines": [
+        43,
+        141
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "source_sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "byte_start": 8124,
+      "byte_end": 11299,
+      "first_line": 206,
+      "last_line": 293,
+      "snippet_sha256": "18ea767832040f9748e7826d130653dfa18b8afe05838c108d586fcec94ebafe",
+      "original_text_line_window_sha256": "18ea767832040f9748e7826d130653dfa18b8afe05838c108d586fcec94ebafe",
+      "original_text_lines": [
+        206,
+        293
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 2611,
+      "byte_end": 7260,
+      "first_line": 85,
+      "last_line": 183,
+      "snippet_sha256": "941e0dcce06db84b5db96d417bcaf5b9138ae93f8d3144d788b792f74fb5c918",
+      "original_text_line_window_sha256": "941e0dcce06db84b5db96d417bcaf5b9138ae93f8d3144d788b792f74fb5c918",
+      "original_text_lines": [
+        85,
+        183
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 21730,
+      "byte_end": 24201,
+      "first_line": 731,
+      "last_line": 828,
+      "snippet_sha256": "6328eba760d36d0552f35fada5858395eec36560b918901f9643dec28f4eb756",
+      "original_text_line_window_sha256": "a949cde4f5e1370d3cb8de28435f4b3b4304be1456c2b6c38e78b009c3043726",
+      "original_text_lines": [
+        741,
+        839
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 21893,
+      "byte_end": 24349,
+      "first_line": 739,
+      "last_line": 836,
+      "snippet_sha256": "b548561bf81ece485bdde26d95fcd0e3d46ef1ed1cc6c493ba35147b595609d7",
+      "original_text_line_window_sha256": "528681b04c760f6fbb8212506d983f55714d95c52adf8fed532772cd3a71d271",
+      "original_text_lines": [
+        749,
+        847
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 53716,
+      "byte_end": 55948,
+      "first_line": 1964,
+      "last_line": 2061,
+      "snippet_sha256": "80b97af262256ad179f5835f8772940d3e152612bea4c1603f62acc1d3c8a8c7",
+      "original_text_line_window_sha256": "2807dca80fd54af1badcee8ffc3cb498b7c0e45a64395c01f6e04c1b19bf7640",
+      "original_text_lines": [
+        1991,
+        2089
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 53944,
+      "byte_end": 56087,
+      "first_line": 1973,
+      "last_line": 2070,
+      "snippet_sha256": "6116db4664db2cb3b54800616e0fe57a255052837c0be7ccfea5b505f777e637",
+      "original_text_line_window_sha256": "1e0f1560d3413b82ddb89a73bc35f4bf5222e9075a3e5de667f790736cd0ae57",
+      "original_text_lines": [
+        2000,
+        2098
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 54080,
+      "byte_end": 56378,
+      "first_line": 1979,
+      "last_line": 2076,
+      "snippet_sha256": "a72b91693e2f5f03e6c2e9885367348e699ec4e9b199b9bccdb967abeaf033c7",
+      "original_text_line_window_sha256": "d33823c395b3e978ed928168b3bdfaff609960af091874456c73b545c9034533",
+      "original_text_lines": [
+        2006,
+        2104
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 54332,
+      "byte_end": 56656,
+      "first_line": 1992,
+      "last_line": 2088,
+      "snippet_sha256": "2a764e4850d873ae6d95caea9f0d27ca3d67938ace1e50420517fa921ea727f5",
+      "original_text_line_window_sha256": "3994ea18bc94bcfeb43e24464ee0b0c2e2de3c1b808230121b9ca9151dbe9b50",
+      "original_text_lines": [
+        2019,
+        2117
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 54676,
+      "byte_end": 56884,
+      "first_line": 2004,
+      "last_line": 2100,
+      "snippet_sha256": "a2505973d93bab25ea67d6887b3a5ee02e90d92e5e4c86df1789dc7571518aff",
+      "original_text_line_window_sha256": "e3363285f031aa59e6355217789487cb52b7b78941820b9ea578607024628a3a",
+      "original_text_lines": [
+        2031,
+        2129
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 54844,
+      "byte_end": 57015,
+      "first_line": 2010,
+      "last_line": 2106,
+      "snippet_sha256": "86b0a74d4d523fdce936fd09d88b9cabed45a6e7db26a2557ab2af2cdacc1b4d",
+      "original_text_line_window_sha256": "8b8831e28fa7782922f035a9740b8418e813c3bce01febfa77cf26fce52ca1b5",
+      "original_text_lines": [
+        2037,
+        2135
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "byte_start": 66139,
+      "byte_end": 68338,
+      "first_line": 2475,
+      "last_line": 2571,
+      "snippet_sha256": "d41b3ecf3e9dd7adbde126394ed188c744a4c0106b69db98017c43c0c764adba",
+      "original_text_line_window_sha256": "2becd1ccb1e29beacdade990f6d5cfe1201d55e0d719ebfaaab921b7b3623b15",
+      "original_text_lines": [
+        2509,
+        2607
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 5856,
+      "byte_end": 7761,
+      "first_line": 177,
+      "last_line": 271,
+      "snippet_sha256": "96fe720b083eaa38a4d34f39d395b9676a9d9e358056c0fa41fb7edb59ed680c",
+      "original_text_line_window_sha256": "4fc8a34937377f729fc02f5b1ea3059f2c83338a21900bf8ca6179509c8b209a",
+      "original_text_lines": [
+        178,
+        276
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 6462,
+      "byte_end": 8515,
+      "first_line": 207,
+      "last_line": 301,
+      "snippet_sha256": "6c8e265f928c2b8bb4321c82c3918cd55bf9f29b167601e709e8300f883e6ac3",
+      "original_text_line_window_sha256": "33647e24c8b318db26b8f4c77d9a80b87525180e7064ddf24176afbc7a80b6e7",
+      "original_text_lines": [
+        209,
+        307
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 6790,
+      "byte_end": 9199,
+      "first_line": 224,
+      "last_line": 319,
+      "snippet_sha256": "0e3093639a0e224aff76c4bfc16a7eb3a523dcccfd0a8d515e295d8c66fe5855",
+      "original_text_line_window_sha256": "591d5d79829dd385ca3cb00485e52525eaabc111a7eab470827e9b7e2f1c9fc6",
+      "original_text_lines": [
+        227,
+        325
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 8275,
+      "byte_end": 11161,
+      "first_line": 292,
+      "last_line": 389,
+      "snippet_sha256": "f7b0e797ee2030d6cceb1abb809984b669329ccec0bd34441d4ee577ae3eafe1",
+      "original_text_line_window_sha256": "34823e27b871ca94bd1ed252c6b03627d6bdf5de60d12e63be76efd038f6c316",
+      "original_text_lines": [
+        297,
+        395
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 37489,
+      "byte_end": 40460,
+      "first_line": 1277,
+      "last_line": 1375,
+      "snippet_sha256": "17bbd2fa1c3424b5f6409d818adcf45bdc2c8d5f69e9f8ac8bd144869b8a4e09",
+      "original_text_line_window_sha256": "17bbd2fa1c3424b5f6409d818adcf45bdc2c8d5f69e9f8ac8bd144869b8a4e09",
+      "original_text_lines": [
+        1294,
+        1392
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 38086,
+      "byte_end": 41332,
+      "first_line": 1303,
+      "last_line": 1401,
+      "snippet_sha256": "62074167c2f532bf67f42843dbe0e98e40ae472a7c0f6051b73c383880a3efaa",
+      "original_text_line_window_sha256": "62074167c2f532bf67f42843dbe0e98e40ae472a7c0f6051b73c383880a3efaa",
+      "original_text_lines": [
+        1320,
+        1418
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 40294,
+      "byte_end": 43207,
+      "first_line": 1368,
+      "last_line": 1465,
+      "snippet_sha256": "84dacdf9b1b42a209fc2389965c8293b1d566af41b910a88fa1400e074654c4e",
+      "original_text_line_window_sha256": "c122a3b6e49e5f2c6f737f6acb0cd25162e5347817cf36012f5be30541a6d541",
+      "original_text_lines": [
+        1385,
+        1483
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 40574,
+      "byte_end": 43600,
+      "first_line": 1379,
+      "last_line": 1476,
+      "snippet_sha256": "cff78ae74992846d06de89d1e88a3dc92ee9d50e4ccfad1e24d68eb149e0f621",
+      "original_text_line_window_sha256": "22ec6faa37b2cab8f97e965cff271794bdc264b28ff0c0f4e29272a1192f3a13",
+      "original_text_lines": [
+        1396,
+        1494
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 41489,
+      "byte_end": 44506,
+      "first_line": 1410,
+      "last_line": 1507,
+      "snippet_sha256": "dc8b399b581ae0c2f1696507fcc6add91fc0f53bf3aaad4417f442ad9af747b8",
+      "original_text_line_window_sha256": "f1e10a5515bd91eb5b832936bec99f68619a46121c3846699c5671fd80870003",
+      "original_text_lines": [
+        1427,
+        1525
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 41708,
+      "byte_end": 44700,
+      "first_line": 1416,
+      "last_line": 1513,
+      "snippet_sha256": "c1f4364dcc149b762ca8f67737e472f7338ecd50dfe6867341b1725ca5c7864a",
+      "original_text_line_window_sha256": "43bf5a4506a49036acd554337cddf3931cf869d83e941b06aedccb3b6b1fcab2",
+      "original_text_lines": [
+        1433,
+        1531
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 44617,
+      "byte_end": 47698,
+      "first_line": 1510,
+      "last_line": 1607,
+      "snippet_sha256": "f46dd24a6286dd2361d246be5ac2948007102b634731f51d92c3f2a0ca603b14",
+      "original_text_line_window_sha256": "fab962197b8b873c1c8db4895ab895c2f268c960c3fd92982454e68a94e843a8",
+      "original_text_lines": [
+        1528,
+        1626
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 46438,
+      "byte_end": 49144,
+      "first_line": 1565,
+      "last_line": 1662,
+      "snippet_sha256": "2b2fad64acab47c1656ff4145ab1ba1090ae62ee32fd80c263b45999a9eb95d0",
+      "original_text_line_window_sha256": "5c079df50c22325536521f63a0d8f80ccbfdb5d3e1110b69fca55006f9f268ea",
+      "original_text_lines": [
+        1583,
+        1681
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 5056,
+      "byte_end": 7179,
+      "first_line": 148,
+      "last_line": 242,
+      "snippet_sha256": "7008b2fd16bcdc1aec24ccc3a27937f2992e0ae7d6661ba7f1bbc43184b39db8",
+      "original_text_line_window_sha256": "a1866ff202bcd9ffa16625a1198c5327aaa0b515cf38c090b1c9ef5d176dd277",
+      "original_text_lines": [
+        148,
+        246
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 7298,
+      "byte_end": 9948,
+      "first_line": 248,
+      "last_line": 344,
+      "snippet_sha256": "2f795f59b8b7a046409001a638e91347e1fc31c6cf72589d4e841ebd4fd3417f",
+      "original_text_line_window_sha256": "5e328ddcd6dbdd9c96b555bb14ff1f6cd64fa2b5c1d4dd25c03014d71e41d36a",
+      "original_text_lines": [
+        252,
+        350
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 7637,
+      "byte_end": 10311,
+      "first_line": 265,
+      "last_line": 361,
+      "snippet_sha256": "1dfb0fbb6822c5056ec2e71d057b068c8b2fdd048d313090c2fea53b6344b276",
+      "original_text_line_window_sha256": "a765ea4cb6ec4feede7cc27ff7f548b59f507baf73b3088c0bd5a1fcff2240b5",
+      "original_text_lines": [
+        269,
+        367
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 8099,
+      "byte_end": 10968,
+      "first_line": 284,
+      "last_line": 381,
+      "snippet_sha256": "9bc01ba00e38155cad90988551b55e971633f15bdda7f3fa300be9b9f2b0e277",
+      "original_text_line_window_sha256": "b88fd7f35cd316a1d87df6e2eba6e13dac47a3da541d5b7f615535dbb298518e",
+      "original_text_lines": [
+        289,
+        387
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 41457,
+      "byte_end": 44379,
+      "first_line": 1407,
+      "last_line": 1504,
+      "snippet_sha256": "e23ad5da0c5fc800e0c688ca729a3d30359bd77a20ed457aa0cd42a6d55d289c",
+      "original_text_line_window_sha256": "e51c64310ae52887317d46fca4830da9431d85a74b70edbe0bfe3ef4297616ea",
+      "original_text_lines": [
+        1424,
+        1522
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 46882,
+      "byte_end": 49410,
+      "first_line": 1580,
+      "last_line": 1676,
+      "snippet_sha256": "155ecf1c7e4f0cabd4f57f151d642fa9a7648576b8d6b4a8b91d2709b9f7a075",
+      "original_text_line_window_sha256": "93f973d85f1cef2ea5da288711a70c6ce684390da1906469bac0f08c56f97a9e",
+      "original_text_lines": [
+        1598,
+        1696
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 4693,
+      "byte_end": 7072,
+      "first_line": 141,
+      "last_line": 236,
+      "snippet_sha256": "17aed9744611a6fdd43f087eea4f231b11cb3c83f630443791e8f9ef6743da32",
+      "original_text_line_window_sha256": "693b641a5ca3a32be7cc72c2a756f10eceb79e3962a14e36aafdddc80f9d19a9",
+      "original_text_lines": [
+        141,
+        239
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 8202,
+      "byte_end": 11116,
+      "first_line": 289,
+      "last_line": 386,
+      "snippet_sha256": "62bf80a91bb9da6186221aac90116bf1e7c90e946a6bbdec6ed36aa5d6f2d61b",
+      "original_text_line_window_sha256": "75aed404b30848b612344d60a79791b766572050a47567383fc950776b928407",
+      "original_text_lines": [
+        294,
+        392
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 4579,
+      "byte_end": 7039,
+      "first_line": 139,
+      "last_line": 234,
+      "snippet_sha256": "6c3cec6407cde249f3d1afa00fb1bf55ce6ac294cdb334a6ddd76da578cddb96",
+      "original_text_line_window_sha256": "2e38cec83156391eab62afbdcfb116d72f7c360bf4da0eb6bb825c9147f98633",
+      "original_text_lines": [
+        139,
+        237
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 8008,
+      "byte_end": 10790,
+      "first_line": 280,
+      "last_line": 377,
+      "snippet_sha256": "b52065c8a8482b48aed5f8cf588b1f0f8ce238106c5cdac082971dbdf81c01f0",
+      "original_text_line_window_sha256": "2776eb48a266042d1f03d3bcb3a047639baea6e24ebd8108eb1eeb7d31849426",
+      "original_text_lines": [
+        285,
+        383
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 8799,
+      "byte_end": 11535,
+      "first_line": 309,
+      "last_line": 407,
+      "snippet_sha256": "0c0390b3d20e88b432bed1bbcc91ed9bfdfe618d4769dc87bcf65cb50fe03104",
+      "original_text_line_window_sha256": "0c0390b3d20e88b432bed1bbcc91ed9bfdfe618d4769dc87bcf65cb50fe03104",
+      "original_text_lines": [
+        315,
+        413
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 11535,
+      "byte_end": 14191,
+      "first_line": 408,
+      "last_line": 504,
+      "snippet_sha256": "810f63436ad07d694112c4c01ddd3bfef9403883ab62663b01e61865db6add54",
+      "original_text_line_window_sha256": "868b6bbd1859e3204b8c37ebcb85bac39b055b9580d70c0d10683a088fadf233",
+      "original_text_lines": [
+        414,
+        512
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 3022,
+      "byte_end": 6384,
+      "first_line": 106,
+      "last_line": 202,
+      "snippet_sha256": "1acd3146a3b8878b6ac3573a8e21557f028f5d3d5d30be8d79e2957c2d128487",
+      "original_text_line_window_sha256": "023ab1cdf0b064dfc5d58b55bccd5498fd83baba9b01d48f28f685f42d560d2e",
+      "original_text_lines": [
+        106,
+        204
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 23958,
+      "byte_end": 27038,
+      "first_line": 860,
+      "last_line": 957,
+      "snippet_sha256": "ae17a13c475d21e043683b8174cf19550d89cc0c113d4807255f3f64d03ea10b",
+      "original_text_line_window_sha256": "bf897453c842cd26e01148d45cad3f8d962fef7ddf5a2bc7dcb03122ed6ca156",
+      "original_text_lines": [
+        872,
+        970
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 26524,
+      "byte_end": 29732,
+      "first_line": 939,
+      "last_line": 1036,
+      "snippet_sha256": "434e4c88028111ae5a505f2d180fcc77648b9858e23e9f23f932c3d7ae3ca895",
+      "original_text_line_window_sha256": "b49fa9ad42b7a77ee2fe2c5cfe854c8f2afd9d026791954e95edfb107ffc5708",
+      "original_text_lines": [
+        952,
+        1050
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 27405,
+      "byte_end": 30954,
+      "first_line": 971,
+      "last_line": 1069,
+      "snippet_sha256": "1eeaa2ed7006619056ff13862db5369ddd8c475e41a1800fd61435dfaae247be",
+      "original_text_line_window_sha256": "1eeaa2ed7006619056ff13862db5369ddd8c475e41a1800fd61435dfaae247be",
+      "original_text_lines": [
+        985,
+        1083
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 51337,
+      "byte_end": 54085,
+      "first_line": 1732,
+      "last_line": 1829,
+      "snippet_sha256": "82d7f05dfcf246a7a2d4b42d78d37fe1fe84f1a7869c6a173edba7eaaf1a4766",
+      "original_text_line_window_sha256": "d5318bcf3a0b477b50c597ea94935654c2494e9b6f1d09339250ece680ca90f4",
+      "original_text_lines": [
+        1752,
+        1850
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 53377,
+      "byte_end": 56339,
+      "first_line": 1804,
+      "last_line": 1901,
+      "snippet_sha256": "c9afbe41e665121e125de5117c866053959404838f7c5c46939b9089341cdb81",
+      "original_text_line_window_sha256": "1fb621ff9b3e0bfde6b4ef748b67b346d0882dc432cfb71aa4fa8249b0ea8dcf",
+      "original_text_lines": [
+        1825,
+        1923
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 53399,
+      "byte_end": 56458,
+      "first_line": 1807,
+      "last_line": 1904,
+      "snippet_sha256": "c9f8fb9eb5af5f8625ca5e1c61486e1457b8f84c7b0cb724bc953668c7fcdad9",
+      "original_text_line_window_sha256": "beb18887aeb948542a98765c4958cc81f83defe9cf848d9e9061d12103cd7a86",
+      "original_text_lines": [
+        1828,
+        1926
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 54085,
+      "byte_end": 57171,
+      "first_line": 1830,
+      "last_line": 1927,
+      "snippet_sha256": "94a470ff99103837047521b13362f0b040d1f23626e8452c2d8c1613051d0d1d",
+      "original_text_line_window_sha256": "614291614a39b146507b0e870893133087f383efe94a3ebc548475998ac61c2e",
+      "original_text_lines": [
+        1851,
+        1949
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "source_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "byte_start": 5305,
+      "byte_end": 7298,
+      "first_line": 153,
+      "last_line": 247,
+      "snippet_sha256": "06ab67edf8af6554a796d8a9d8aba531a9371f4143a20fb7cb26d57562f8ed1a",
+      "original_text_line_window_sha256": "ab43408ac78b947823067545e362b94be407f98c80c6fef87c2fccaab0cd6c55",
+      "original_text_lines": [
+        153,
+        251
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 8446,
+      "byte_end": 11638,
+      "first_line": 258,
+      "last_line": 356,
+      "snippet_sha256": "ed7c06b63966f7c07d54df56974b124bd0ee6decc3367fce32fd42c707a27c61",
+      "original_text_line_window_sha256": "ed7c06b63966f7c07d54df56974b124bd0ee6decc3367fce32fd42c707a27c61",
+      "original_text_lines": [
+        261,
+        359
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 10788,
+      "byte_end": 13596,
+      "first_line": 335,
+      "last_line": 430,
+      "snippet_sha256": "a5e840ae854fccd1872ba6d1985416d40fad6ed0d15f685d3ac664502c7751e7",
+      "original_text_line_window_sha256": "2125a6af62a191265c21776831fe8d15c45c57adf84da420d55b82a593a3f521",
+      "original_text_lines": [
+        338,
+        436
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 11672,
+      "byte_end": 14541,
+      "first_line": 359,
+      "last_line": 454,
+      "snippet_sha256": "d06ef794db16fc2be6c63c53c8db03094882a34a6eb3d97402187b94e8cad522",
+      "original_text_line_window_sha256": "62714bff67b38dcabd6d540b989d611dad52e12fe3496a844c6f2d5f82478a1e",
+      "original_text_lines": [
+        362,
+        460
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 12951,
+      "byte_end": 16164,
+      "first_line": 408,
+      "last_line": 504,
+      "snippet_sha256": "eff7c61cc8f40991cce6735c737f5f90fa2c5aec88d8c091ddd348c6c0662c19",
+      "original_text_line_window_sha256": "14b62c9827b59cb410b97653ca38b89a1334c647464e070a683fa699e56ba815",
+      "original_text_lines": [
+        413,
+        511
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 24294,
+      "byte_end": 27532,
+      "first_line": 750,
+      "last_line": 847,
+      "snippet_sha256": "953e2643949a45b496771938cba8397a8c931cdca56e11fd04a16b3908461c1b",
+      "original_text_line_window_sha256": "0bf50886b61859ff5f40683c989f0b50fb7c51101821aff7eae0a555c84119e9",
+      "original_text_lines": [
+        760,
+        858
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 25903,
+      "byte_end": 28701,
+      "first_line": 794,
+      "last_line": 891,
+      "snippet_sha256": "7f87f7c58855b891398af35aab94ebc08f39b487d3750b802ed3d406d826a3b2",
+      "original_text_line_window_sha256": "4cad4d24dbfdb8481f0fee7c8dfba002c7d586ea7eb526caa1fe3acd2535a383",
+      "original_text_lines": [
+        804,
+        902
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 49698,
+      "byte_end": 52649,
+      "first_line": 1613,
+      "last_line": 1709,
+      "snippet_sha256": "eb8969c2bdb5b8fc60b512c1f83f9f39cdfafd2885ed99831e5dccf5ba21bff4",
+      "original_text_line_window_sha256": "f353ba8aa84d7744998ea54e42f203d22072e3524c0b581ac606bae4c53a8e4e",
+      "original_text_lines": [
+        1631,
+        1729
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 10162,
+      "byte_end": 13198,
+      "first_line": 317,
+      "last_line": 413,
+      "snippet_sha256": "082813c606c642c9ffef6dd543f08c6eaf590527653306da55f6e9bc01ae0864",
+      "original_text_line_window_sha256": "db1d4e771bbe7f617bb8529ea0ca737b816629d395ed48f90a7deabdb6ce27dc",
+      "original_text_lines": [
+        320,
+        418
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 11058,
+      "byte_end": 13884,
+      "first_line": 341,
+      "last_line": 436,
+      "snippet_sha256": "f51dddde8a22287bbd8c5ed878118e3164d69611a81e3bdfac8f1719ef132f18",
+      "original_text_line_window_sha256": "3b5f6cfc4a8fc4830a197f300119158fb29372508411ec38f2a8fb56812de0d1",
+      "original_text_lines": [
+        344,
+        442
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "byte_start": 12054,
+      "byte_end": 14816,
+      "first_line": 373,
+      "last_line": 468,
+      "snippet_sha256": "342c1cb6f7ee2ad7e17d9a451c8791fd6487309b7c772c655c965d7bdb2d2956",
+      "original_text_line_window_sha256": "d80fc8899b91bf6b008e7d6b064a9fff57ae7cb7017fda6f42deb0adfb988aee",
+      "original_text_lines": [
+        377,
+        475
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 29369,
+      "byte_end": 32133,
+      "first_line": 711,
+      "last_line": 792,
+      "snippet_sha256": "0da2d3e9f59ecccc08c60b102ce5f8557a8be08b55ad2210a6dc22d7190f412b",
+      "original_text_line_window_sha256": "6cef491de7f87c497044272b68f607cb6bdbf8fbf5f1a3471c5db1a6db600a59",
+      "original_text_lines": [
+        715,
+        797
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 809,
+      "byte_end": 4626,
+      "first_line": 35,
+      "last_line": 133,
+      "snippet_sha256": "276520739315c0630a52e499666bb0f59690af7b600bb69d420e5ea4300c0997",
+      "original_text_line_window_sha256": "276520739315c0630a52e499666bb0f59690af7b600bb69d420e5ea4300c0997",
+      "original_text_lines": [
+        35,
+        133
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 1229,
+      "byte_end": 5044,
+      "first_line": 47,
+      "last_line": 145,
+      "snippet_sha256": "5454a99de8483ec40df3a8cc6e315b6c89a84f2dab8eedc38c07db72c4f2f7ce",
+      "original_text_line_window_sha256": "5454a99de8483ec40df3a8cc6e315b6c89a84f2dab8eedc38c07db72c4f2f7ce",
+      "original_text_lines": [
+        47,
+        145
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 700,
+      "byte_end": 4475,
+      "first_line": 29,
+      "last_line": 127,
+      "snippet_sha256": "6af719a0ad7417f7b73b44dbcccf7ed1d4ca2409b1d53907b9e74d9fecc5ebb4",
+      "original_text_line_window_sha256": "6af719a0ad7417f7b73b44dbcccf7ed1d4ca2409b1d53907b9e74d9fecc5ebb4",
+      "original_text_lines": [
+        29,
+        127
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 17562,
+      "byte_end": 21717,
+      "first_line": 441,
+      "last_line": 538,
+      "snippet_sha256": "618c23ee8af3a5d601d6e5200f0a8e1ee5a866afc56765ab10c2de53aae0d995",
+      "original_text_line_window_sha256": "52ff9394083765c7e59f007d7de0ec908f06e82a49cfb173ff84fe0b90f99a07",
+      "original_text_lines": [
+        441,
+        539
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 837,
+      "byte_end": 4677,
+      "first_line": 36,
+      "last_line": 134,
+      "snippet_sha256": "7ba35c7943cff44e05182bef5be41472e716674ca8a165404421f112159ec994",
+      "original_text_line_window_sha256": "7ba35c7943cff44e05182bef5be41472e716674ca8a165404421f112159ec994",
+      "original_text_lines": [
+        36,
+        134
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "source_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "byte_start": 17179,
+      "byte_end": 21164,
+      "first_line": 430,
+      "last_line": 527,
+      "snippet_sha256": "100c77a49f6c9614885ebf669ea2a68f8e5ebcee11e7c88fbd2e6a35813a333b",
+      "original_text_line_window_sha256": "e327016c538ae37491649c6c9c193db5aeccf5d1e26cc73bfeb7f076a1646588",
+      "original_text_lines": [
+        430,
+        528
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 1488,
+      "byte_end": 5136,
+      "first_line": 61,
+      "last_line": 157,
+      "snippet_sha256": "f983d6299e0b5696de1832413649d2fecebafaa76875cdcec6c9a38eb47ddd56",
+      "original_text_line_window_sha256": "514f017c9e37480f67602ac9428cf6eccee947c253ac0c3da786f6b6d9e83c6c",
+      "original_text_lines": [
+        62,
+        160
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 1566,
+      "byte_end": 5183,
+      "first_line": 64,
+      "last_line": 160,
+      "snippet_sha256": "960cb19c1fbd80cdb6a9f270cfa3018793e2cbed5bcd89574831e7ebdd8db8d0",
+      "original_text_line_window_sha256": "58778b4fd6484d3ac6342eecccac2032fdeb9439051916058a64789e99b0b6ae",
+      "original_text_lines": [
+        65,
+        163
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 2408,
+      "byte_end": 5605,
+      "first_line": 80,
+      "last_line": 176,
+      "snippet_sha256": "e4199e85ea0cf3fab7383ae11f3fda96619d9045fcedf3a539738d6c9ef653d6",
+      "original_text_line_window_sha256": "863a7fc5493e80fc45e716cd598012832e0b388f0bfecac5a0914d975c67e426",
+      "original_text_lines": [
+        82,
+        180
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 3135,
+      "byte_end": 5729,
+      "first_line": 98,
+      "last_line": 189,
+      "snippet_sha256": "f209184376bd224955a4b805b5b7c8545bba8de2d9870cbd80600dcc4e2a931c",
+      "original_text_line_window_sha256": "0209d14b9200aaf16f09d0d97cc19880ee2bd13b315560d32a9fdae8070cd0b0",
+      "original_text_lines": [
+        100,
+        194
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 2481,
+      "byte_end": 5625,
+      "first_line": 82,
+      "last_line": 178,
+      "snippet_sha256": "c7ba6f7157dd55c3fbf8ce846a0bc7612d5a83376f62710d60cc00e7ec1cba48",
+      "original_text_line_window_sha256": "656ea8f8dd9677a66ecfde6bee617d9bfec4c558963463effaf1766ae4711e21",
+      "original_text_lines": [
+        84,
+        182
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 3183,
+      "byte_end": 5729,
+      "first_line": 100,
+      "last_line": 189,
+      "snippet_sha256": "ce6aaf3e3b62ff3d3f5b51ac2b3953e04d0a2e08c4336f62605fd9be2f9e2192",
+      "original_text_line_window_sha256": "d25daf697871cf54bfba9692bf3bd72171f62cdaca0dafea9454aa3cfd28c9d1",
+      "original_text_lines": [
+        102,
+        194
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 4042,
+      "byte_end": 5729,
+      "first_line": 122,
+      "last_line": 189,
+      "snippet_sha256": "c15cebd7c28d09cb8b1de5eb887386a8ff33737b0fe1ce94b9a14a979de24054",
+      "original_text_line_window_sha256": "4503a21102823fe53c4c9cc151560f5a1519a3206dcfef329a2043aa81b6626b",
+      "original_text_lines": [
+        124,
+        194
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 4067,
+      "byte_end": 5729,
+      "first_line": 123,
+      "last_line": 189,
+      "snippet_sha256": "c51b0cb727849a83e2a8d5cec92f661a536e37156f59b41f9b0401ef777dd8d3",
+      "original_text_line_window_sha256": "516a603e5c591a1b3a065252904172b6778ac0af85ce8d48a04cc2e9e82c8c55",
+      "original_text_lines": [
+        125,
+        194
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "source_sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "byte_start": 4097,
+      "byte_end": 5729,
+      "first_line": 125,
+      "last_line": 189,
+      "snippet_sha256": "481840781c7421e9a9b4379b604129a878c28d9c0303481faab288caf1e79c01",
+      "original_text_line_window_sha256": "0b409a3dfe52a857816efef8e619609a714153471a9774684aad312305d4c76d",
+      "original_text_lines": [
+        127,
+        194
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 1491,
+      "byte_end": 5240,
+      "first_line": 65,
+      "last_line": 163,
+      "snippet_sha256": "712b868bb1268e75943d16530c6d18ed615601169c6862c346b03b0c306938eb",
+      "original_text_line_window_sha256": "712b868bb1268e75943d16530c6d18ed615601169c6862c346b03b0c306938eb",
+      "original_text_lines": [
+        65,
+        163
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 3910,
+      "byte_end": 9326,
+      "first_line": 136,
+      "last_line": 234,
+      "snippet_sha256": "b927c2a1990db07260017c16dbdaa13ad56a62a6d2fd0ed48023b5c4e3c48453",
+      "original_text_line_window_sha256": "b927c2a1990db07260017c16dbdaa13ad56a62a6d2fd0ed48023b5c4e3c48453",
+      "original_text_lines": [
+        136,
+        234
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 8830,
+      "byte_end": 12613,
+      "first_line": 222,
+      "last_line": 319,
+      "snippet_sha256": "edba30caee6e96326321aaa86a5e98f0b875eff141d36d1942cbab3617288809",
+      "original_text_line_window_sha256": "edba30caee6e96326321aaa86a5e98f0b875eff141d36d1942cbab3617288809",
+      "original_text_lines": [
+        222,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 10644,
+      "byte_end": 12613,
+      "first_line": 266,
+      "last_line": 319,
+      "snippet_sha256": "f78b8ec88fdde0dd2f585d6a6505b1f6e0dc79cd4ead7d6c14d41ea29c5f8640",
+      "original_text_line_window_sha256": "f78b8ec88fdde0dd2f585d6a6505b1f6e0dc79cd4ead7d6c14d41ea29c5f8640",
+      "original_text_lines": [
+        266,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 10950,
+      "byte_end": 12613,
+      "first_line": 277,
+      "last_line": 319,
+      "snippet_sha256": "615425f76357d34c7373166bda6f0efb54b6e1a3215b157566f9b0f006cfc747",
+      "original_text_line_window_sha256": "615425f76357d34c7373166bda6f0efb54b6e1a3215b157566f9b0f006cfc747",
+      "original_text_lines": [
+        277,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 11553,
+      "byte_end": 12613,
+      "first_line": 297,
+      "last_line": 319,
+      "snippet_sha256": "34c1f9322b87a1c57e2668e16f2fd7d970238faf7f1d10deaaf46573386611ae",
+      "original_text_line_window_sha256": "34c1f9322b87a1c57e2668e16f2fd7d970238faf7f1d10deaaf46573386611ae",
+      "original_text_lines": [
+        297,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 11582,
+      "byte_end": 12613,
+      "first_line": 298,
+      "last_line": 319,
+      "snippet_sha256": "4c39f8076640b03f94f00c797e7c0ac4db78a51aef7d2647a6cd5f361bcc6e1a",
+      "original_text_line_window_sha256": "4c39f8076640b03f94f00c797e7c0ac4db78a51aef7d2647a6cd5f361bcc6e1a",
+      "original_text_lines": [
+        298,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 12180,
+      "byte_end": 12613,
+      "first_line": 309,
+      "last_line": 319,
+      "snippet_sha256": "c830aa1fac55b3af6392c2c290085e5c175ae8a48a800c51ae107d442495d165",
+      "original_text_line_window_sha256": "c830aa1fac55b3af6392c2c290085e5c175ae8a48a800c51ae107d442495d165",
+      "original_text_lines": [
+        309,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 12265,
+      "byte_end": 12613,
+      "first_line": 310,
+      "last_line": 319,
+      "snippet_sha256": "de5deb0b8e8314a4000281874f881479ea5cbdc8b7f395d82fb2af3fc45fafb2",
+      "original_text_line_window_sha256": "de5deb0b8e8314a4000281874f881479ea5cbdc8b7f395d82fb2af3fc45fafb2",
+      "original_text_lines": [
+        310,
+        319
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 755,
+      "byte_end": 4131,
+      "first_line": 43,
+      "last_line": 141,
+      "snippet_sha256": "8897a32b477ca5f0390fb5a9d7d9193934236107054a2ed750e75ebc6457a964",
+      "original_text_line_window_sha256": "8897a32b477ca5f0390fb5a9d7d9193934236107054a2ed750e75ebc6457a964",
+      "original_text_lines": [
+        43,
+        141
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 8200,
+      "byte_end": 12025,
+      "first_line": 206,
+      "last_line": 304,
+      "snippet_sha256": "18d447d5c0752defa867133556fd6e6bdd6d2f57152a70c58e0ac905a2b686c6",
+      "original_text_line_window_sha256": "18d447d5c0752defa867133556fd6e6bdd6d2f57152a70c58e0ac905a2b686c6",
+      "original_text_lines": [
+        206,
+        304
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 644,
+      "byte_end": 3998,
+      "first_line": 39,
+      "last_line": 137,
+      "snippet_sha256": "48209542daa706857bf063cf329968c5db656861b4656f6d125639c9ed916096",
+      "original_text_line_window_sha256": "48209542daa706857bf063cf329968c5db656861b4656f6d125639c9ed916096",
+      "original_text_lines": [
+        39,
+        137
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "source_sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "byte_start": 8040,
+      "byte_end": 11804,
+      "first_line": 202,
+      "last_line": 300,
+      "snippet_sha256": "717418269c407815d9181c16d03a0359198a3bc6cfa02ef18e2b57d90c370683",
+      "original_text_line_window_sha256": "717418269c407815d9181c16d03a0359198a3bc6cfa02ef18e2b57d90c370683",
+      "original_text_lines": [
+        202,
+        300
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 2617,
+      "byte_end": 6801,
+      "first_line": 85,
+      "last_line": 182,
+      "snippet_sha256": "f23c86bb54cb7d57d6df7a88e181357c05c4d36fc18cf9fba0a12ab785b80efe",
+      "original_text_line_window_sha256": "f7bc132677d419ba4195ed6617e2c7f0114ebe8effbe83fb9dd424c3f7062dba",
+      "original_text_lines": [
+        85,
+        183
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 20061,
+      "byte_end": 22533,
+      "first_line": 714,
+      "last_line": 811,
+      "snippet_sha256": "2157901890c2a09fc2edb5f542f2f38f7c7b64150755f956538e26674279aa96",
+      "original_text_line_window_sha256": "206b16baa422453bcc4f9c632e0e8dcc9dc81edc1d6f105adf6a681ba60de2bb",
+      "original_text_lines": [
+        726,
+        824
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 20224,
+      "byte_end": 22681,
+      "first_line": 722,
+      "last_line": 819,
+      "snippet_sha256": "24f7e73a149710914587d3ba358e6566392d4983b1632ee32390125116d73c74",
+      "original_text_line_window_sha256": "80caa733496e9cf82820a031139158d3ad290053872ea22a3d4c9f15eaa15be9",
+      "original_text_lines": [
+        734,
+        832
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 51974,
+      "byte_end": 54209,
+      "first_line": 1938,
+      "last_line": 2035,
+      "snippet_sha256": "086729da99426aacb787b758c67a88d1dfdcbe7d2c1f041e2e6390deb3dd4668",
+      "original_text_line_window_sha256": "9fc1c829fc73df3e2223f8b0d68623c18997d4ce4e6697ec31c5fdf8876b2003",
+      "original_text_lines": [
+        1967,
+        2065
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 52202,
+      "byte_end": 54467,
+      "first_line": 1947,
+      "last_line": 2044,
+      "snippet_sha256": "592a835a8baad66da150a88f2eca602ba61056cfb1249792a978d2cafed4653b",
+      "original_text_line_window_sha256": "817b03b5138abba5fdbf2a04ccdc5248982109d022f839c5def8170a286f1088",
+      "original_text_lines": [
+        1976,
+        2074
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 52338,
+      "byte_end": 54622,
+      "first_line": 1953,
+      "last_line": 2050,
+      "snippet_sha256": "b429254483117c4bdd86dcd49375e1f394739021fe05f4b5416dcc430bed8494",
+      "original_text_line_window_sha256": "ea476a868faacebaefe0fbe3e42dd20bda17c60fee9103242b6f89f60fc413f8",
+      "original_text_lines": [
+        1982,
+        2080
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 52585,
+      "byte_end": 54916,
+      "first_line": 1965,
+      "last_line": 2061,
+      "snippet_sha256": "cf5743dae0acc74d176d1bac571ec73511012c89dc2b668a4e72739f043804f3",
+      "original_text_line_window_sha256": "4e03f8c01e0c994745d9e69bc2e8b2e86989d488c280284e6785c8cd1ab30a3d",
+      "original_text_lines": [
+        1994,
+        2092
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 52822,
+      "byte_end": 55106,
+      "first_line": 1974,
+      "last_line": 2070,
+      "snippet_sha256": "a83471063cb56d3d04eb05bb01e2a259fa8245d3438aec7273967c60bf72bf32",
+      "original_text_line_window_sha256": "659cb2d7dd042e956ed15c822db1aded8678a7636b109b62ec7a3200a0423fc4",
+      "original_text_lines": [
+        2003,
+        2101
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 52990,
+      "byte_end": 55208,
+      "first_line": 1980,
+      "last_line": 2076,
+      "snippet_sha256": "1424bbd342f650d433de442050b286b63451a70f5908ae263a5c11548e05b4b1",
+      "original_text_line_window_sha256": "518182614029dc68506ea0b7f161aa86f0f33392d33b7f181109e49844a1ca5a",
+      "original_text_lines": [
+        2009,
+        2107
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "byte_start": 63558,
+      "byte_end": 65796,
+      "first_line": 2422,
+      "last_line": 2518,
+      "snippet_sha256": "9548e7e75dc1caab8a4d67a4e9ab1f4d197789e4152d3c8401cd094f74071756",
+      "original_text_line_window_sha256": "c6f01772385ed3db418d62ff4122df5c4c1af93f12e3a7828f58b19f0c3e5c7a",
+      "original_text_lines": [
+        2458,
+        2556
+      ]
+    }
+  ]
+}

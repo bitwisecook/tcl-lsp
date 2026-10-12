@@ -1,0 +1,14 @@
+ByteCode 0x0x55d3d22c1f50, refCt 1, epoch 17, interp 0x0x55d3d226e810 (epoch 17)
+  Source "info commands ::has\\n    spac..."
+  Cmds 1, src 30, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Proc 0x0x55d3d22b9eb0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-15, src 0-29
+  Command 1: "info commands ::has\\n    spac..."
+    (0) push1 0 	# "info"
+    (2) push1 1 	# "commands"
+    (4) push1 2 	# "::has"
+    (6) push1 3 	# "space"
+    (8) push1 4 	# "::tcl::info::commands"
+    (10) invokeReplace 4 2 
+    (16) done 

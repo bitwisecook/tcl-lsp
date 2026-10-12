@@ -1,0 +1,172 @@
+
+running 1 test
+test cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape ... 
+thread 'cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape' (1215983) panicked at src/cmd_proc.rs:1454:9:
+assertion `left == right` failed: V8_4
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape' (1215983) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+
+thread 'cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape' (1215983) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x55d2afe0bb61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x55d2afe2478a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x55d2afe12b6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x55d2afde3906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x55d2afe017c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x55d2afe01aeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x55d2afde39b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x55d2afddc229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x55d2afde487d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x55d2afe2502c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x55d2afe03abf - std[c29fa2d9dbea2b0e]::thread::local::panic_access_error
+  11:     0x55d2aeca681e - <std[c29fa2d9dbea2b0e]::thread::local::LocalKey<core[a9090a07a7fa7517]::cell::RefCell<std[c29fa2d9dbea2b0e]::collections::hash::map::HashMap<usize, tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>>>::with::<tcl_runtime[a8162d2466741ade]::obj::revoke_script_location::{closure#0}, core[a9090a07a7fa7517]::option::Option<tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>
+  12:     0x55d2af3a36bc - tcl_runtime[a8162d2466741ade]::obj::revoke_script_location
+  13:     0x55d2af3a8a0e - tcl_runtime[a8162d2466741ade]::obj::free_obj
+  14:     0x55d2af39e6bd - tcl_runtime[a8162d2466741ade]::obj::decr_ref_count
+  15:     0x55d2af3f1809 - <tcl_runtime[a8162d2466741ade]::obj::Owned as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  16:     0x55d2af010846 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::obj::Owned>
+  17:     0x55d2aea4d934 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::obj::Owned>>::drop_slow
+  18:     0x55d2aeab0cf4 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::obj::Owned> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  19:     0x55d2af0003f6 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::obj::Owned>>
+  20:     0x55d2af014e38 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::JimNamespaceObject>
+  21:     0x55d2af02100d - core[a9090a07a7fa7517]::ptr::drop_glue::<(tcl_runtime[a8162d2466741ade]::namespace::JimNamespaceObject, alloc[12ca63220423dfc2]::rc::Rc<[u8]>)>
+  22:     0x55d2aeffd6c5 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<(tcl_runtime[a8162d2466741ade]::namespace::JimNamespaceObject, alloc[12ca63220423dfc2]::rc::Rc<[u8]>)>>
+  23:     0x55d2af015051 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::Namespace>
+  24:     0x55d2af01d332 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::namespace::Namespace]>
+  25:     0x55d2aefc02d1 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::namespace::Namespace> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  26:     0x55d2af00221d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::namespace::Namespace>>
+  27:     0x55d2af01487b - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>
+  28:     0x55d2aeff8bee - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>>
+  29:     0x55d2aeffa21a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>>
+  30:     0x55d2af012a87 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::InterpState>
+  31:     0x55d2aea4dc04 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState>>::drop_slow
+  32:     0x55d2aeab0e44 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  33:     0x55d2af00042e - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState>>
+  34:     0x55d2af013a63 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::Interp>
+  35:     0x55d2aeffc3a8 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>
+  36:     0x55d2aeff889e - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  37:     0x55d2aeff9c9a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  38:     0x55d2ae83bbfd - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}
+  39:     0x55d2af2451d9 - std[c29fa2d9dbea2b0e]::sys::thread_local::abort_on_dtor_unwind::<std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}>
+  40:     0x55d2ae83aa8d - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  41:     0x7fb6ce24df1f - __call_tls_dtors
+  42:     0x7fb6ce29ea49 - <unknown>
+  43:     0x7fb6ce31c7f8 - <unknown>
+  44:                0x0 - <unknown>
+
+thread 'cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape' (1215983) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x55d2afe0bb61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x55d2afe2478a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x55d2afe12b6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x55d2afde3906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x55d2afe017c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x55d2afe01aeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x55d2afde39b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x55d2afddc229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x55d2afde487d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x55d2afe2502c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x55d2afe03abf - std[c29fa2d9dbea2b0e]::thread::local::panic_access_error
+  11:     0x55d2aeca681e - <std[c29fa2d9dbea2b0e]::thread::local::LocalKey<core[a9090a07a7fa7517]::cell::RefCell<std[c29fa2d9dbea2b0e]::collections::hash::map::HashMap<usize, tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>>>::with::<tcl_runtime[a8162d2466741ade]::obj::revoke_script_location::{closure#0}, core[a9090a07a7fa7517]::option::Option<tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>
+  12:     0x55d2af3a36bc - tcl_runtime[a8162d2466741ade]::obj::revoke_script_location
+  13:     0x55d2af3a8a0e - tcl_runtime[a8162d2466741ade]::obj::free_obj
+  14:     0x55d2af39e6bd - tcl_runtime[a8162d2466741ade]::obj::decr_ref_count
+  15:     0x55d2aebe98cd - <tcl_runtime[a8162d2466741ade]::frame::Var>::release
+  16:     0x55d2aec7f704 - <tcl_runtime[a8162d2466741ade]::frame::CellContents as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  17:     0x55d2af010f6d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::CellContents>
+  18:     0x55d2aeff8b96 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>
+  19:     0x55d2aeffa16a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>
+  20:     0x55d2aea4d444 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>>::drop_slow
+  21:     0x55d2aeab0a84 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  22:     0x55d2af000366 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>>
+  23:     0x55d2af0112ef - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::Cell>
+  24:     0x55d2af01c560 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::frame::Cell]>
+  25:     0x55d2aefc0011 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::Cell> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  26:     0x55d2af001b3d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::Cell>>
+  27:     0x55d2af0117ef - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::VarTable>
+  28:     0x55d2af0151e5 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::Namespace>
+  29:     0x55d2af01d332 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::namespace::Namespace]>
+  30:     0x55d2aefc02d1 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::namespace::Namespace> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  31:     0x55d2af00221d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::namespace::Namespace>>
+  32:     0x55d2af01487b - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>
+  33:     0x55d2aeff8bee - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>>
+  34:     0x55d2aeffa21a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>>
+  35:     0x55d2af012a87 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::InterpState>
+  36:     0x55d2aea4dc04 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState>>::drop_slow
+  37:     0x55d2aeab0e44 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  38:     0x55d2af00042e - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState>>
+  39:     0x55d2af013a63 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::Interp>
+  40:     0x55d2aeffc3a8 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>
+  41:     0x55d2aeff889e - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  42:     0x55d2aeff9c9a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  43:     0x55d2ae83bbfd - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}
+  44:     0x55d2af2451d9 - std[c29fa2d9dbea2b0e]::sys::thread_local::abort_on_dtor_unwind::<std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}>
+  45:     0x55d2ae83aa8d - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  46:     0x7fb6ce24df1f - __call_tls_dtors
+  47:     0x7fb6ce29ea49 - <unknown>
+  48:     0x7fb6ce31c7f8 - <unknown>
+  49:                0x0 - <unknown>
+
+thread 'cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape' (1215983) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x55d2afe0bb61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x55d2afe2478a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x55d2afe12b6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x55d2afde3906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x55d2afe017c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x55d2afe01aeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x55d2afde39b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x55d2afddc229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x55d2afde487d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x55d2afe2502c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x55d2afe03abf - std[c29fa2d9dbea2b0e]::thread::local::panic_access_error
+  11:     0x55d2aeca681e - <std[c29fa2d9dbea2b0e]::thread::local::LocalKey<core[a9090a07a7fa7517]::cell::RefCell<std[c29fa2d9dbea2b0e]::collections::hash::map::HashMap<usize, tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>>>::with::<tcl_runtime[a8162d2466741ade]::obj::revoke_script_location::{closure#0}, core[a9090a07a7fa7517]::option::Option<tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>
+  12:     0x55d2af3a36bc - tcl_runtime[a8162d2466741ade]::obj::revoke_script_location
+  13:     0x55d2af3a8a0e - tcl_runtime[a8162d2466741ade]::obj::free_obj
+  14:     0x55d2af39e6bd - tcl_runtime[a8162d2466741ade]::obj::decr_ref_count
+  15:     0x55d2aebe98cd - <tcl_runtime[a8162d2466741ade]::frame::Var>::release
+  16:     0x55d2aec7f704 - <tcl_runtime[a8162d2466741ade]::frame::CellContents as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  17:     0x55d2af010f6d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::CellContents>
+  18:     0x55d2aeff8b96 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>
+  19:     0x55d2aeffa16a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>
+  20:     0x55d2aea4d444 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>>::drop_slow
+  21:     0x55d2aeab0a84 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  22:     0x55d2af000366 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>>
+  23:     0x55d2af0112ef - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::Cell>
+  24:     0x55d2af01c5a3 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::frame::Cell]>
+  25:     0x55d2aefc0011 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::Cell> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  26:     0x55d2af001b3d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::Cell>>
+  27:     0x55d2af0117ef - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::VarTable>
+  28:     0x55d2af0151e5 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::Namespace>
+  29:     0x55d2af01d332 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::namespace::Namespace]>
+  30:     0x55d2aefc02d1 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::namespace::Namespace> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  31:     0x55d2af00221d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::namespace::Namespace>>
+  32:     0x55d2af01487b - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>
+  33:     0x55d2aeff8bee - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>>
+  34:     0x55d2aeffa21a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::namespace::Namespaces>>
+  35:     0x55d2af012a87 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::InterpState>
+  36:     0x55d2aea4dc04 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState>>::drop_slow
+  37:     0x55d2aeab0e44 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  38:     0x55d2af00042e - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::interp::InterpState>>
+  39:     0x55d2af013a63 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::Interp>
+  40:     0x55d2aeffc3a8 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>
+  41:     0x55d2aeff889e - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  42:     0x55d2aeff9c9a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  43:     0x55d2ae83bbfd - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}
+  44:     0x55d2af2451d9 - std[c29fa2d9dbea2b0e]::sys::thread_local::abort_on_dtor_unwind::<std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}>
+  45:     0x55d2ae83aa8d - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  46:     0x7fb6ce24df1f - __call_tls_dtors
+  47:     0x7fb6ce29ea49 - <unknown>
+  48:     0x7fb6ce31c7f8 - <unknown>
+  49:                0x0 - <unknown>
+
+thread 'cmd_proc::original_apply_frame_tests::original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape' (1215983) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:233:5:
+panic in a destructor during cleanup
+thread caused non-unwinding panic. aborting.

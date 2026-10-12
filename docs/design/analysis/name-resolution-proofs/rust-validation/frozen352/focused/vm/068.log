@@ -1,0 +1,15 @@
+
+running 1 test
+test command::tests::legacy_bareword_errors_use_actual_fixed_function_name_resolution ... 
+thread 'command::tests::legacy_bareword_errors_use_actual_fixed_function_name_resolution' (1358408) panicked at rust/tcl-vm/src/command.rs:5181:22:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::legacy_bareword_errors_use_actual_fixed_function_name_resolution
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 8.52s
+

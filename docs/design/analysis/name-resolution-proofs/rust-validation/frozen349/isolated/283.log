@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_error_variables::tests::error_info_byte_append_preserves_seed_primary_until_nonempty_mutation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.86s
+

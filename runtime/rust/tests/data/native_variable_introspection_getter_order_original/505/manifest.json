@@ -1,0 +1,231 @@
+{
+  "status": "prepared-only",
+  "question_id": "naming.invocation.original-variable-and-introspection-getter-order",
+  "request_sha256": "0eb9e8fabd90918d982cf1399323103975b21d560b444b9f5d0592a8894a5625",
+  "files": [
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/cases.json",
+      "sha256": "612a90683b52c1e565b14f68dd8bde5139720a936de88569f2550aa3486efeb6"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/launch.py",
+      "sha256": "c7ca16b8d0ee7bb0085d031c676857aafc74c4daa5df9ba8e3654f5044438744"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/prepare.py",
+      "sha256": "abf1dcaa425f5db08ca49875b2decf4a08e1fc0e27214b9b29395f99229b2cc1"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/probe.c",
+      "sha256": "a13751018b5ff6f71e0be257839787431b00943434cfc85b7318c6c513692ee6"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/request.json",
+      "sha256": "0eb9e8fabd90918d982cf1399323103975b21d560b444b9f5d0592a8894a5625"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.4.20/tclBasic.c-3351.txt",
+      "sha256": "5020b1c0026241672844f9337d2dc11088b89c1489b33ebd4b591103e2dd503d"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.4.20/tclCmdIL.c-328.txt",
+      "sha256": "a99bce640ad1647bd9f54baf40bfe365a0b3b4b07f162463f9f6896cfcc450bc"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.4.20/tclCmdIL.c-928.txt",
+      "sha256": "a562f4cea93deba43f4f98f6f0d12a5f25972cc1caf5c1a7fca12ade0f4adad6"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.4.20/tclVar.c-1493.txt",
+      "sha256": "88ee60b06357fdeb69a0fa2ad70dbf822b897cf440dbea2f63b152f8edee275c"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.4.20/tclVar.c-2597.txt",
+      "sha256": "250b25da13496a30c96419807d62a6bf48d3e89b1af565a1e3c37e6b745830f1"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.4.20/tclVar.c-2921.txt",
+      "sha256": "a2c78578e8ac59bee9cb6cf56490aa0af2455aa093da3b3ed31d21f3f9b39c7c"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclBasic.c-3916.txt",
+      "sha256": "5071b0e9aa52c54dbfbebdaa1fc3821edc552eab9e4a75ea918c4754c6d9e3db"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclCmdIL.c-333.txt",
+      "sha256": "9017bdec69b06fb7afc4d9e6d498b21550d782cc043130824b4bca3e9aef739c"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclCmdIL.c-900.txt",
+      "sha256": "0aa80a81edac608e41a2ebf1a6de3688305383a33a3d22ddce0a2a36aa3af824"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclVar.c-1727.txt",
+      "sha256": "0b0f07ef7ce03cbcc8dede5f70cf8de6f8af44fdd05e80703bc4b49592c7b6ab"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclVar.c-2019.txt",
+      "sha256": "7416107cfd284fbc1bd897c086594376a9c82ec0e4a62500349a411fef7c448f"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclVar.c-2073.txt",
+      "sha256": "e9ac27302b2892077d43b55585069b70521051cb7baa5aca289d2fd7a4feb0cf"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclVar.c-2516.txt",
+      "sha256": "c786ad1c107f094d71774da9db7abdbcb507a6b6eff3b7d8da7fe580a1f293ff"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.5.19/tclVar.c-2792.txt",
+      "sha256": "f591fb9343668c87657cdd58644c224484ee524b849c143c519043c664bf2a09"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclBasic.c-4246.txt",
+      "sha256": "a2f44b9eb2fb3d08abed182b04ca45cbfc5fb6b972db51e14c1960528fe6ff09"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclCmdIL.c-388.txt",
+      "sha256": "0b9f1be6f0bb9ab2bd360ebfbf7264e4adf47ebfca6324072e74703d43b42ee6"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclCmdIL.c-959.txt",
+      "sha256": "570adcbf8edf8c8295d02b88bc58b4e1ee52ad6e63490544b1969e8e7e4eb8ad"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclVar.c-1734.txt",
+      "sha256": "eea2622a0eb2a5f891b87d8690016c3689ca1e26c5c6acd40553370ac5c62031"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclVar.c-2071.txt",
+      "sha256": "362381f673504c2ca7042fe0fc07f5384398b9c5a44d2d5c1f4e1cf49c814bd8"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclVar.c-2125.txt",
+      "sha256": "6d74658ca3e22bd95fcf209b2723826cd1229bd77474927ca98dbedaf638e92a"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclVar.c-2710.txt",
+      "sha256": "667e9e70beb78fc77ca0f20220a434d1466b29c6857f09ced181a71668f99428"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/8.6.18/tclVar.c-3655.txt",
+      "sha256": "4b27dc87bcf463926d10c1a79347a43864a43310781ef9722c0828f6031554a6"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclBasic.c-4472.txt",
+      "sha256": "1d7307abe544853a4ea3d7ab63d7ee0fedde79ae7e1dcbd26fd1870c9af15f55"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclCmdIL.c-387.txt",
+      "sha256": "f0e25c3704e0c1b729c7ee986fc5b6bb0ebeab21bc6a694a68e1fde041ae159f"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclCmdIL.c-948.txt",
+      "sha256": "55a93629449c0c16b44071ebc6e8e003ff13e0fd4519af9c47c19ea185597dc9"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-1673.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-2116.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-2170.txt",
+      "sha256": "f7c882d147bbbbf220ed11ba10f2111476ffcca7d99c371a076c5a16fb069110"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-2746.txt",
+      "sha256": "40f9bc555a90ae205f84f4ad620707d0db611bc716740dbc66f08da30f75fac8"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-3095.txt",
+      "sha256": "e5757eaef2285ddfa685e94a94cbf53592af39446fca90e72e1428a827be078f"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-3170.txt",
+      "sha256": "e508e7d04fa1b9a099a91568c2446880f165a465160b732f16f06894bde5c347"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-4014.txt",
+      "sha256": "4981adc5c9bc2a31037d294bd0cc0118caacff2753211b01427a1611efd149fd"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.0.4/tclVar.c-4879.txt",
+      "sha256": "6226d934b4d0e107fb3321c319c18723a2325d75a4b6e1d67ab04c730c2e031b"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclBasic.c-4442.txt",
+      "sha256": "a45093a9d772249842cb795d31a5d1530d40bcb140c4ba11df0ef4d58813a8da"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclCmdIL.c-389.txt",
+      "sha256": "1ea502cd9f6097fe2a3f42aa97f68324ea01de69dcad35a57cf10ae9012619d2"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclCmdIL.c-926.txt",
+      "sha256": "32c1d115b17017ce4c4cdd8da4d3eab245ebe0c23836db51e1fc45939f87af4d"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-1727.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-2170.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-2224.txt",
+      "sha256": "e51b50333d21e7068de42c8d5370fe28b4e36edcfbf33c3a9c8a25280a5845c0"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-2797.txt",
+      "sha256": "efdc02ca4edce2fc2c8bb50ee9380af140918c2b9239fb0962588cbf7d2daf22"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-3146.txt",
+      "sha256": "d49c81bd12968385c7d7d20efbd26b73d297cb1de35c516a9c855e5bc820e7be"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-3221.txt",
+      "sha256": "dc0ff646af583da64f6567714a956af1b1f7c96cb9fc367f245ee2c26e3bfa8e"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-4069.txt",
+      "sha256": "fb2cbca5a01469c34c029186088c67a2f0112d79d55198bd6af9e6351fc0a0c8"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/9.1.0/tclVar.c-4894.txt",
+      "sha256": "1f44c424021b2494fd4c2108cffc54be7580bcb3b103fd3e3042d0deb683bd89"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim-array.c-168.txt",
+      "sha256": "df02802a132fab6b6770d1e95333017b13dc472835c271732c43f4f2bdcc8c13"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim.c-10953.txt",
+      "sha256": "19553cc2a728fb9513f488acefcffd0925d17a5a2c834818d8b2446186759962"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim.c-11217.txt",
+      "sha256": "2b48b3f1bba63cf8f80c06bd5051aec9237dabcebe29e44782867f178d3527ac"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim.c-12753.txt",
+      "sha256": "bf3125b2e2598541b2a0fb3302034d5b2da7802e7a4edadecdf369cf0a31dbb6"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim.c-15986.txt",
+      "sha256": "af047188017fbeadbcfa9026128eb44cd91137a8e6a429994bdfd82942e7eee0"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim.c-5000.txt",
+      "sha256": "8d5fc6d3e3b376bb99e00e35642f2a446fdbd07a6da76c7f20b71a5f4542f5af"
+    },
+    {
+      "path": "/workspace/.proofs/native-variable-introspection-order505/source-windows/jim/jim.h-761.txt",
+      "sha256": "b691049b9358d090143239903a14eeed7f65bf25b55d2938794cb4e40df7895f"
+    }
+  ]
+}

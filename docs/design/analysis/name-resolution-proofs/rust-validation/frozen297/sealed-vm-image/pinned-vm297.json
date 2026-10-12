@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-vm297.elf",
+  "sha256": "fe3ddb8ea5fe05ffad39f64c46145fcd5f880a4f01146fbbb27b566f2ea5da9c",
+  "build_receipt": "/workspace/.proofs/integration-vm-own-test-build297.json",
+  "build_receipt_sha256": "b4ebf7493d77a8a48851c823b99db12a28da3868df05c92a38b5a7462ea5bbf8",
+  "source_snapshot_sha256": "121d2992a31feef5ad1aa4d971b3b2ffdce7011a0cfd25aedd568ca5ffb25d2b"
+}

@@ -1,0 +1,52 @@
+TclCompileDictAppendCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    Tcl_Token *tokenPtr;
+    int i, dictVarIndex;
+    DefineLineInformation;	/* TIP #280 */
+
+    /*
+     * There must be at least two argument after the command. Since we
+     * implement using INST_CONCAT1, make sure the number of arguments
+     * stays within its range.
+     */
+
+    if (parsePtr->numWords<4 || parsePtr->numWords>258) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Get the index of the local variable that we will be working with.
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    dictVarIndex = LocalScalarFromToken(tokenPtr, envPtr);
+    if (dictVarIndex < 0) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Produce the string to concatenate onto the dictionary entry.
+     */
+
+    tokenPtr = TokenAfter(tokenPtr);
+    for (i=2 ; i<parsePtr->numWords ; i++) {
+	CompileWord(envPtr, tokenPtr, interp, i);
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+    if (parsePtr->numWords > 4) {
+	TclEmitInstInt1(INST_CONCAT1, parsePtr->numWords-3, envPtr);
+    }
+
+    /*
+     * Do the concatenation.
+     */
+
+    TclEmitInstInt4(INST_DICT_APPEND, dictVarIndex, envPtr);
+    return TCL_OK;
+}

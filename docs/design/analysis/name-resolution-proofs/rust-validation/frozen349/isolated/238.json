@@ -1,0 +1,19 @@
+{
+  "ordinal": 238,
+  "selector": "interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 13.70449232897954,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 13.69s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/238.log",
+  "log_sha256": "c3074f74b6ec8ec82f2edfc494ce906a40714edc8225a95751c2b1226a894c18"
+}

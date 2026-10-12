@@ -124,7 +124,7 @@ use std::sync::{Arc, OnceLock};
 use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
-use tcl_lexer::{LexerConfig, SourceMap};
+use tcl_lexer::{SourceMap, SourceSegmentationPurpose};
 use tcl_registry::CommandRegistry;
 use tcl_spectcl::Tier;
 use tcl_spectcl::export::{self, Registration};
@@ -1188,7 +1188,7 @@ impl PackStore {
         {
             return None;
         }
-        let version_span = segments(&self.source)
+        let version_span = segments(&self.source, SourceSegmentationPurpose::WholeInput)
             .into_iter()
             .find(|statement| statement.words.first().map(String::as_str) == Some("speclib"))?
             .spans
@@ -1265,7 +1265,7 @@ impl PackStore {
             return block.to_owned();
         };
         let old_body_text = self.source[old_body.clone()].to_owned();
-        let old_statements = segments(&old_body_text);
+        let old_statements = segments(&old_body_text, SourceSegmentationPurpose::NestedScript);
         // The rendered block is a pack *body*: the command statement plus any
         // value tables it needed, with no `speclib` wrapper.
         if find_command(block, Some(0..block.len()), name).is_none() {
@@ -1284,7 +1284,7 @@ impl PackStore {
             // `span.inner` is relative to `old_body_text`, the slice `segments`
             // read it from.
             let sub_body_text = old_body_text[span.inner.clone()].to_owned();
-            let sub_statements = segments(&sub_body_text);
+            let sub_statements = segments(&sub_body_text, SourceSegmentationPurpose::NestedScript);
             let Some((_, new_command_body)) = find_command(&out, Some(0..out.len()), name) else {
                 continue;
             };
@@ -1326,7 +1326,10 @@ impl PackStore {
         else {
             return out;
         };
-        for statement in segments(&self.source[body.clone()]) {
+        for statement in segments(
+            &self.source[body.clone()],
+            SourceSegmentationPurpose::NestedScript,
+        ) {
             let Some(word) = statement.words.first() else {
                 continue;
             };
@@ -1338,7 +1341,7 @@ impl PackStore {
                 continue;
             };
             let inner = body.start + span.inner.start..body.start + span.inner.end;
-            for nested in segments(&self.source[inner]) {
+            for nested in segments(&self.source[inner], SourceSegmentationPurpose::NestedScript) {
                 if let Some(word) = nested.words.first() {
                     out.insert(
                         format!("subcommand {sub} / {word}"),
@@ -2044,7 +2047,7 @@ fn hook_json(hook: &loader::HookDecl) -> Value {
 /// which is the "not a pack yet" case every caller has to handle anyway.
 #[must_use]
 pub fn pack_body(source: &str) -> Option<std::ops::Range<usize>> {
-    for statement in segments(source) {
+    for statement in segments(source, SourceSegmentationPurpose::WholeInput) {
         if statement.words.first().map(String::as_str) != Some("speclib") {
             continue;
         }
@@ -2077,7 +2080,7 @@ fn find_command(
 ) -> Option<(std::ops::Range<usize>, std::ops::Range<usize>)> {
     let region = region?;
     let base = region.start;
-    for statement in segments(&source[region]) {
+    for statement in segments(&source[region], SourceSegmentationPurpose::NestedScript) {
         if statement.words.first().map(String::as_str) != Some("command") {
             continue;
         }
@@ -2109,7 +2112,10 @@ fn find_subcommand(
     name: &str,
 ) -> Option<(std::ops::Range<usize>, std::ops::Range<usize>)> {
     let base = region.start;
-    for statement in segments(&source[region.clone()]) {
+    for statement in segments(
+        &source[region.clone()],
+        SourceSegmentationPurpose::NestedScript,
+    ) {
         if statement.words.first().map(String::as_str) != Some("subcommand") {
             continue;
         }
@@ -2142,7 +2148,10 @@ fn reclaim(
     block: &str,
     block_region: std::ops::Range<usize>,
 ) -> Option<String> {
-    let written = segments(&block[block_region.clone()]);
+    let written = segments(
+        &block[block_region.clone()],
+        SourceSegmentationPurpose::NestedScript,
+    );
     let mut reclaimed: BTreeSet<&str> = BTreeSet::new();
     for statement in old_statements {
         let Some(word) = statement.words.first() else {
@@ -2207,7 +2216,7 @@ struct CommandLocation {
 
 impl SourceIndex {
     fn new(source: &str) -> Self {
-        let mut top_level = segments(source);
+        let mut top_level = segments(source, SourceSegmentationPurpose::WholeInput);
         let pack_body = top_level
             .iter()
             .find(|statement| statement.words.first().map(String::as_str) == Some("speclib"))
@@ -2219,7 +2228,7 @@ impl SourceIndex {
             .clone()
             .map(|body| {
                 let base = body.start;
-                segments(&source[body])
+                segments(&source[body], SourceSegmentationPurpose::NestedScript)
                     .into_iter()
                     .map(|mut statement| {
                         if statement.words.first().map(String::as_str) == Some("command")
@@ -2308,11 +2317,14 @@ struct WordSpan {
 /// Segment `source` into statements, the same way the loader does — same
 /// lexer, same segmenter, so what this sees and what the loader reads are the
 /// same statements.
-fn segments(source: &str) -> Vec<Segmented> {
+fn segments(source: &str, purpose: SourceSegmentationPurpose) -> Vec<Segmented> {
     let source_map = SourceMap::new(source);
     // dialect-drift-ok: `.tclspec` pack DSL text, not a document's Tcl — this
     // must read exactly what the SpecTcl loader reads, under its own grammar.
-    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let (document, _warnings) = build_document(
+        source,
+        tcl_spectcl::loader::pack_source_lexer_config(purpose),
+    );
     segments_from_document(document, &source_map)
         .into_iter()
         .map(|segment| {
@@ -2988,7 +3000,12 @@ command add_parameter {\narity 1..\n}\n}\n";
              foreach name {alpha beta} { fleet-command $name }\n}\n",
         );
         let names: Vec<&str> = store.commands().iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names, vec!["fleet::alpha", "fleet::beta"]);
+        assert_eq!(
+            names,
+            vec!["fleet::alpha", "fleet::beta"],
+            "{:?}",
+            store.notices()
+        );
         for name in names {
             let site = store.declaration_site(name).expect("a declaration site");
             assert!(site.expanded, "{name}: {site:?}");
@@ -3353,5 +3370,34 @@ command add_parameter {\narity 1..\n}\n}\n";
         );
         assert_eq!(installed.arity.min, 2, "and every other fact does");
         assert_eq!(installed.alias_of, Some("lassign"));
+    }
+
+    #[test]
+    fn original_pack_store_keeps_file_bom_and_nested_splice_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = "\u{feff}speclib demo 1.0 {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}\n";
+        let store = PackStore::from_source(source);
+        assert_eq!(store.source(), source);
+        assert_eq!(store.name(), "demo");
+        assert_eq!(store.dsl_version(), "1.0");
+        assert!(store.draft("visible").is_some());
+        assert!(store.draft("hidden").is_none());
+        let body = pack_body(source).expect("same genuine file body");
+        let visible = command_span(source, "visible").expect("same original command extent");
+        assert_eq!(&source[visible.clone()], "command visible {arity 0}");
+        assert!(body.start <= visible.start && visible.end <= body.end);
+        assert!(command_span(source, "hidden").is_none());
+        let root = segments(source, SourceSegmentationPurpose::WholeInput);
+        assert_eq!(root[0].words[0], "speclib");
+        assert_eq!(root[0].span.start, '\u{feff}'.len_utf8());
+        let block = "\u{feff}command generated {arity 0}";
+        let nested = segments(block, SourceSegmentationPurpose::NestedScript);
+        assert_eq!(nested[0].words[0], "\u{feff}command");
+        assert_eq!(nested[0].span.start, 0);
+        assert_eq!(
+            segments(&source[body], SourceSegmentationPurpose::NestedScript)[1].words[0],
+            "\u{feff}command"
+        );
     }
 }

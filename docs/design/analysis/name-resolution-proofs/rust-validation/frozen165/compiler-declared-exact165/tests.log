@@ -1,0 +1,41 @@
+
+running 7 tests
+test command_binding::source_declared_command::tests::original_declared_body_scope_keeps_global_fallback_without_root_stamping ... 
+thread 'command_binding::source_declared_command::tests::original_declared_body_scope_keeps_global_fallback_without_root_stamping' (630204) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:489:77:
+proc p {} {check {argument}}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::source_declared_command::tests::original_declared_body_scope_refuses_unowned_names_and_known_replacements ... ok
+test command_binding::source_declared_command::tests::original_declared_words_keep_roles_provenance_and_direct_ordinals ... 
+thread 'command_binding::source_declared_command::tests::original_declared_words_keep_roles_provenance_and_direct_ordinals' (630224) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:308:76:
+tcl8.6
+FAILED
+test command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation ... 
+thread 'command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation' (630233) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:341:76:
+tcl8.6
+FAILED
+test command_binding::source_declared_command::tests::original_declared_words_retain_qualified_and_nested_procedure_scope ... 
+thread 'command_binding::source_declared_command::tests::original_declared_words_retain_qualified_and_nested_procedure_scope' (630234) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:443:77:
+proc ::N::p {} {check {$value + 1}}
+FAILED
+test command_binding::source_declared_command::tests::original_declared_words_retain_static_namespace_source_ancestry ... 
+thread 'command_binding::source_declared_command::tests::original_declared_words_retain_static_namespace_source_ancestry' (630235) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:526:77:
+namespace eval ::N {check {$value + 1}}
+FAILED
+test command_binding::source_declared_command::tests::original_declared_words_use_current_contracts_in_every_document_ingress ... 
+thread 'command_binding::source_declared_command::tests::original_declared_words_use_current_contracts_in_every_document_ingress' (630236) panicked at rust/tcl-compiler/src/command_binding/source_declared_command.rs:392:22:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_declared_command::tests::original_declared_body_scope_keeps_global_fallback_without_root_stamping
+    command_binding::source_declared_command::tests::original_declared_words_keep_roles_provenance_and_direct_ordinals
+    command_binding::source_declared_command::tests::original_declared_words_refuse_replacements_and_builtin_trait_donation
+    command_binding::source_declared_command::tests::original_declared_words_retain_qualified_and_nested_procedure_scope
+    command_binding::source_declared_command::tests::original_declared_words_retain_static_namespace_source_ancestry
+    command_binding::source_declared_command::tests::original_declared_words_use_current_contracts_in_every_document_ingress
+
+test result: FAILED. 1 passed; 6 failed; 0 ignored; 0 measured; 8219 filtered out; finished in 6.64s
+

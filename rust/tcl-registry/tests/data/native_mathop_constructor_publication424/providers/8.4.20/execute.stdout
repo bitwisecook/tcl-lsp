@@ -1,0 +1,11 @@
+NATIVE_TABLE|create-only|not_available_in_selected_public_header
+WINDOW|create-only|operator-plus|0|
+WINDOW|create-only|operator-family|0|
+WINDOW|create-only|namespace-exists|0|30
+WINDOW|create-only|namespace-exports|0|414253454e54
+INITIALISE_DISTRIBUTION|0
+NATIVE_TABLE|distribution-initialised|not_available_in_selected_public_header
+WINDOW|distribution-initialised|operator-plus|0|
+WINDOW|distribution-initialised|operator-family|0|
+WINDOW|distribution-initialised|namespace-exists|0|30
+WINDOW|distribution-initialised|namespace-exports|0|414253454e54

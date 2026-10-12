@@ -1,0 +1,17 @@
+{
+  "source_only": true,
+  "window": {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "8.4.20",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+    "function": "Tcl_TimeObjCmd",
+    "lines": [
+      3002,
+      3051
+    ],
+    "source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+    "snippet_sha256": "089660eb29fb03e3ddbcdf692bc28c743120f26a7dba56e67d5c8a746561e079",
+    "snippet": "Tcl_TimeObjCmd(dummy, interp, objc, objv)\n    ClientData dummy;\t\t/* Not used. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    register Tcl_Obj *objPtr;\n    Tcl_Obj *objs[4];\n    register int i, result;\n    int count;\n    double totalMicroSec;\n    Tcl_Time start, stop;\n\n    if (objc == 2) {\n\tcount = 1;\n    } else if (objc == 3) {\n\tresult = Tcl_GetIntFromObj(interp, objv[2], &count);\n\tif (result != TCL_OK) {\n\t    return result;\n\t}\n    } else {\n\tTcl_WrongNumArgs(interp, 1, objv, \"command ?count?\");\n\treturn TCL_ERROR;\n    }\n    \n    objPtr = objv[1];\n    i = count;\n    Tcl_GetTime(&start);\n    while (i-- > 0) {\n\tresult = Tcl_EvalObjEx(interp, objPtr, 0);\n\tif (result != TCL_OK) {\n\t    return result;\n\t}\n    }\n    Tcl_GetTime(&stop);\n    \n    totalMicroSec = ( ( (double) ( stop.sec - start.sec ) ) * 1.0e6\n\t\t      + ( stop.usec - start.usec ) );\n    if (count <= 1) {\n\t/* Use int obj since we know time is not fractional [Bug 1202178] */\n\tobjs[0] = Tcl_NewIntObj((count <= 0) ? 0 : (int) totalMicroSec);\n    } else {\n\tobjs[0] = Tcl_NewDoubleObj(totalMicroSec/count);\n    }\n    objs[1] = Tcl_NewStringObj(\"microseconds\", -1);\n    objs[2] = Tcl_NewStringObj(\"per\", -1);\n    objs[3] = Tcl_NewStringObj(\"iteration\", -1);\n    Tcl_SetObjResult(interp, Tcl_NewListObj(4, objs));\n    return TCL_OK;\n}\n"
+  }
+}

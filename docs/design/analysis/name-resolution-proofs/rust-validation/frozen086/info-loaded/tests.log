@@ -1,0 +1,30 @@
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.09s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 1 test
+test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... 
+thread 'cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements' (352589) panicked at rust/tcl-vm/src/cmd_info.rs:616:57:
+called `Result::unwrap()` on an `Err` value: Host(Execution(CompileServiceRefusal(NativeCompileServiceRefusal { reason: "eval / command substitution requires a CompileService", source: SourceImage { bytes: [105, 110, 102, 111, 32, 108, 111, 97, 100, 101, 100, 32, 123, 125], channel: Document, byte_hash: 6248261181964731609 }, compilation_namespace: ByteNamespacePath([]), scope: Script, source_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, native_profile: DialectProfileKey { core_point: None, name: "tcl8.4", aliases: [], display_name: "Tcl 8.4", short_name: "Tcl 8.4", editor_language_id: Some("tcl84"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, "8.4")], grammar_union: [Core(Tcl)], version_ceiling: Some(V8_4), signature_base: Some(V8_4), runtime_base: Some(V8_4), leading_zero_is_octal: Yes, expr_grammar_base: Some(V8_4), grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, operators_as_commands: false, tcloo: false, has_fixed_ensembles: false, vm_runtime_version: V8_4, libraries: [LibraryPin { package: "Tk", version: TracksBase, ambient: false }, LibraryPin { package: "Itcl", version: Pinned("3.4"), ambient: false }], help_terms: ["tcl", "tk"] }, interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, frame: 0, namespace: ByteNamespacePath([]), namespace_token: 0 })))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 632 filtered out; finished in 0.52s
+
+error: test failed, to rerun pass `-p tcl-vm --lib`

@@ -1,0 +1,44 @@
+
+running 1 test
+test interp::native_trace_result::settlement_tests::original_trace_result_retirement_is_checked_after_saved_owner_restoration ... 
+thread 'interp::native_trace_result::settlement_tests::original_trace_result_retirement_is_checked_after_saved_owner_restoration' (1339254) panicked at src/interp/native_trace_result.rs:557:9:
+assertion `left == right` failed
+  left: 4
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'interp::native_trace_result::settlement_tests::original_trace_result_retirement_is_checked_after_saved_owner_restoration' (1339254) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:     0x563f5c32de51 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x563f5c346f7a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x563f5c33535c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x563f5c305936 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x563f5c323ab1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x563f5c323ddb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x563f5c305a14 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x563f5c2fdcc9 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x563f5c3069bd - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x563f5c34761d - core[a9090a07a7fa7517]::panicking::panic_nounwind_fmt
+  10:     0x563f5c34759b - core[a9090a07a7fa7517]::panicking::panic_nounwind
+  11:     0x563f5c347727 - core[a9090a07a7fa7517]::panicking::panic_cannot_unwind
+  12:     0x563f5b3a6f52 - tcl_runtime[e4ffbb17d55ca06b]::interp::native_trace_result::settlement_tests::retire
+  13:     0x563f5b346493 - tcl_runtime[e4ffbb17d55ca06b]::obj::free_obj
+  14:     0x563f5b33b64d - tcl_runtime[e4ffbb17d55ca06b]::obj::decr_ref_count
+  15:     0x563f5a9ab68e - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::restore_native_variable_trace_result
+  16:     0x563f5aafd839 - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::fire_var_trace_resolved_with_errors
+  17:     0x563f5aad5d88 - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::fire_var_trace_resolved
+  18:     0x563f5aa90757 - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::fire_var_trace
+  19:     0x563f5ab05bb2 - <tcl_runtime[e4ffbb17d55ca06b]::interp::Interp>::var_set
+  20:     0x563f5b3a84c5 - tcl_runtime[e4ffbb17d55ca06b]::interp::native_trace_result::settlement_tests::original_trace_result_retirement_is_checked_after_saved_owner_restoration
+  21:     0x563f5b30f563 - tcl_runtime[e4ffbb17d55ca06b]::interp::native_trace_result::settlement_tests::original_trace_result_retirement_is_checked_after_saved_owner_restoration::{closure#0}
+  22:     0x563f5b1fe166 - <tcl_runtime[e4ffbb17d55ca06b]::interp::native_trace_result::settlement_tests::original_trace_result_retirement_is_checked_after_saved_owner_restoration::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  23:     0x563f5b95312b - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  24:     0x563f5b960795 - test[de0ab365ed256f3]::run_test::{closure#0}
+  25:     0x563f5b95b154 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  26:     0x563f5b9638f2 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  27:     0x563f5c32cd59 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  28:     0x7ffbdf2e4b7b - <unknown>
+  29:     0x7ffbdf3627f8 - <unknown>
+  30:                0x0 - <unknown>
+thread caused non-unwinding panic. aborting.

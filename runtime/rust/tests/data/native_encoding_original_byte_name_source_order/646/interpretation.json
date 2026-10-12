@@ -1,0 +1,1970 @@
+{
+  "proof_id": "naming.encoding.original-byte-name-lookup-and-source-order",
+  "counts": {
+    "probe_processes": 6,
+    "fresh_interpreter_blocks": 48,
+    "tested_command_code_0": 4,
+    "tested_command_code_1": 44,
+    "same_library_version_processes": 6,
+    "cli_version_processes": 6
+  },
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "provider_id": "tcl8.4",
+      "version_cli": "8.4.20",
+      "version_same_library": "library-version\t8\t4\t20\t2\ncode\t0\npatchlevel\t8.4.20",
+      "process_exit": 0,
+      "blocks": [
+        {
+          "label": "directory-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-binary",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "plain-directory",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-utf8",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-unknown",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e342e3230"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        }
+      ],
+      "original_stream": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stdout",
+      "original_stream_sha256": "42191e68761b4260daab2c1ad6b387730cfaf08083e3b2c1db1f662a55098c83",
+      "original_receipt": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/receipt.json",
+      "original_receipt_sha256": "5c90919f04a1c04ec3df3565dd9252956707919772b8926e31d43495ccbed52b",
+      "scope": "Exact original ASCII pipe-delimited projection of counted byte hex. RETURN is the tested command; VERSION, AVAILABILITY, SYSTEM_BEFORE and SYSTEM_AFTER are separate queries. All 8 blocks create fresh initialized interpreters inside one provider process."
+    },
+    {
+      "provider": "8.5.19",
+      "provider_id": "tcl8.5",
+      "version_cli": "8.5.19",
+      "version_same_library": "library-version\t8\t5\t19\t2\ncode\t0\npatchlevel\t8.5.19",
+      "process_exit": 0,
+      "blocks": [
+        {
+          "label": "directory-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-binary",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "plain-directory",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "0",
+              "534f555243455f4f4b"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "594553"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-utf8",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-unknown",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e352e3139"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        }
+      ],
+      "original_stream": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stdout",
+      "original_stream_sha256": "3b6cd7809fd1510051f72dcb9590989059d69b0cb57d86b78e7add4af3ab7cca",
+      "original_receipt": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/receipt.json",
+      "original_receipt_sha256": "bbd45e752afaec3a6bb912c81f7e95a6a191199e1479b40a9dccc9a0f54d5101",
+      "scope": "Exact original ASCII pipe-delimited projection of counted byte hex. RETURN is the tested command; VERSION, AVAILABILITY, SYSTEM_BEFORE and SYSTEM_AFTER are separate queries. All 8 blocks create fresh initialized interpreters inside one provider process."
+    },
+    {
+      "provider": "8.6.18",
+      "provider_id": "tcl8.6",
+      "version_cli": "8.6.18",
+      "version_same_library": "library-version\t8\t6\t18\t2\ncode\t0\npatchlevel\t8.6.18",
+      "process_exit": 0,
+      "blocks": [
+        {
+          "label": "directory-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-binary",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "plain-directory",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a20696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b696c6c6567616c206f7065726174696f6e206f6e2061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "0",
+              "534f555243455f4f4b"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "594553"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-utf8",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-unknown",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "382e362e3138"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        }
+      ],
+      "original_stream": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stdout",
+      "original_stream_sha256": "87361dcaae0e29eb6fc0d1e7f13a8df1282e35f11e958d92c0220892756f1a3f",
+      "original_receipt": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/receipt.json",
+      "original_receipt_sha256": "6d623021fcfa24314deed4a646c12206e661a6aa9b11d3f3f03862e7c6361c98",
+      "scope": "Exact original ASCII pipe-delimited projection of counted byte hex. RETURN is the tested command; VERSION, AVAILABILITY, SYSTEM_BEFORE and SYSTEM_AFTER are separate queries. All 8 blocks create fresh initialized interpreters inside one provider process."
+    },
+    {
+      "provider": "9.0.4",
+      "provider_id": "tcl9.0",
+      "version_cli": "9.0.4",
+      "version_same_library": "library-version\t9\t0\t4\t2\ncode\t0\npatchlevel\t9.0.4",
+      "process_exit": 0,
+      "blocks": [
+        {
+          "label": "directory-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a2069732061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b69732061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-binary",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202262696e617279223a204e6f206c6f6e67657220737570706f727465642e0a09706c65617365207573652065697468657220222d7472616e736c6174696f6e2062696e61727922206f7220222d656e636f64696e672069736f383835392d3122"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "plain-directory",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a2069732061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b69732061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "0",
+              "534f555243455f4f4b"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "594553"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-utf8",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-unknown",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e302e34"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        }
+      ],
+      "original_stream": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stdout",
+      "original_stream_sha256": "af4d32f67c73c1c24f8870b72b5ef67bfde4367e7b70384c7840c76886e8738f",
+      "original_receipt": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/receipt.json",
+      "original_receipt_sha256": "e8c069727ae20eaa813064d04065657a04a9ebe0c7bb7fecf603dad17ef1b643",
+      "scope": "Exact original ASCII pipe-delimited projection of counted byte hex. RETURN is the tested command; VERSION, AVAILABILITY, SYSTEM_BEFORE and SYSTEM_AFTER are separate queries. All 8 blocks create fresh initialized interpreters inside one provider process."
+    },
+    {
+      "provider": "9.1.0",
+      "provider_id": "tcl9.1",
+      "version_cli": "9.1.0",
+      "version_same_library": "library-version\t9\t1\t0\t2\ncode\t0\npatchlevel\t9.1.0",
+      "process_exit": 0,
+      "blocks": [
+        {
+          "label": "directory-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a2069732061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b69732061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "directory-binary",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202262696e617279223a204e6f206c6f6e67657220737570706f727465642e0a09706c65617365207573652065697468657220222d7472616e736c6174696f6e2062696e61727922206f7220222d656e636f64696e672069736f383835392d3122"
+            ],
+            [
+              "ERROR_CODE",
+              "4e4f4e45"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "plain-directory",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a2069732061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454953444952207b69732061206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "0",
+              "534f555243455f4f4b"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "594553"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "existing-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "756e6b6e6f776e20656e636f64696e67202252323238365f6d697373696e675f656e636f64696e6722"
+            ],
+            [
+              "ERROR_CODE",
+              "54434c204c4f4f4b555020454e434f44494e472052323238365f6d697373696e675f656e636f64696e67"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-utf8",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        },
+        {
+          "label": "missing-unknown",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "392e312e30"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "312031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "0",
+              "7574662d38"
+            ],
+            [
+              "RETURN",
+              "1",
+              "636f756c646e277420726561642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d67756172616e746565642d616273656e742e74636c223a206e6f20737563682066696c65206f72206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "504f53495820454e4f454e54207b6e6f20737563682066696c65206f72206469726563746f72797d"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "0",
+              "7574662d38"
+            ]
+          ]
+        }
+      ],
+      "original_stream": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stdout",
+      "original_stream_sha256": "5c8f998a7a14fcf6a499c65ab22880b47c985489b2996acc746f599175b50e11",
+      "original_receipt": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/receipt.json",
+      "original_receipt_sha256": "86001c402181f452851774f8f7dc9b8aae1e0c1f9f98284888a9318fa8d5e921",
+      "scope": "Exact original ASCII pipe-delimited projection of counted byte hex. RETURN is the tested command; VERSION, AVAILABILITY, SYSTEM_BEFORE and SYSTEM_AFTER are separate queries. All 8 blocks create fresh initialized interpreters inside one provider process."
+    },
+    {
+      "provider": "Jim",
+      "provider_id": "jim",
+      "version_cli": "0.84-9-g5bac7c9",
+      "version_same_library": "code\t0\npatchlevel\t0.84-9-g5bac7c9",
+      "process_exit": 0,
+      "blocks": [
+        {
+          "label": "directory-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "directory-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "directory-binary",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "plain-directory",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "6661696c656420746f206c6f61642066696c6520222f776f726b73706163652f2e70726f6f66732f726f6f742d6e61746976652d736f757263652d726561642d6f726465723634362f736f757263652d6f776e65642d656d7074792d6469726563746f7279223a2049732061206469726563746f7279"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "existing-utf8",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "existing-unknown",
+          "worker": 1,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "missing-utf8",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        },
+        {
+          "label": "missing-unknown",
+          "worker": 2,
+          "lines": [
+            [
+              "VERSION",
+              "0",
+              "302e38342d392d6735626163376339"
+            ],
+            [
+              "AVAILABILITY",
+              "0",
+              "302031"
+            ],
+            [
+              "SYSTEM_BEFORE",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ],
+            [
+              "RETURN",
+              "1",
+              "77726f6e67202320617267733a2073686f756c642062652022736f757263652066696c654e616d6522"
+            ],
+            [
+              "ERROR_CODE",
+              "523232383620454e434f44494e4720534545444544"
+            ],
+            [
+              "SOURCE_EFFECT",
+              "4e4f"
+            ],
+            [
+              "SYSTEM_AFTER",
+              "1",
+              "696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722"
+            ]
+          ]
+        }
+      ],
+      "original_stream": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stdout",
+      "original_stream_sha256": "7b6760417ee9fdb24bd0b9fede2810b32e6a86750f710c4b9b7c9d73340fc74a",
+      "original_receipt": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/receipt.json",
+      "original_receipt_sha256": "fdc68df11efadb1ada53b9b73a44d5738d021cb238bd8b7161e5b317f29f1500",
+      "scope": "Exact original ASCII pipe-delimited projection of counted byte hex. RETURN is the tested command; VERSION, AVAILABILITY, SYSTEM_BEFORE and SYSTEM_AFTER are separate queries. All 8 blocks create fresh initialized interpreters inside one provider process."
+    }
+  ],
+  "scope": "All 48 original interpreter blocks, inside six original provider processes, each exit 0. Tested RETURN code is distinct from availability/current-system/version queries. Exact raw byte hex, source effect, result and errorCode are preserved; no Unicode replacement, guessed availability, callback chronology, Rust result or constructor outcome is inserted."
+}

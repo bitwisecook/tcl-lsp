@@ -1,0 +1,303 @@
+{
+  "sdk_provider_label": "0.84-9-g5bac7c9",
+  "actual_provider_rows": [
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "V|actual-provider|0|15|302e38342d392d6735626163376339"
+  ],
+  "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DUSE_JIM=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-vwait-forms137/jim/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "e8868b84378e2cefa05709338ef1e4b2bc15ec9ca933cc797883d437aa36604d",
+  "attempts": [
+    {
+      "case": "basic",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "basic"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.007339874995523132,
+      "stdout_sha256": "a8f62f23e7aafffaa08c5bcc63ada9b4f3921668de58b9974fc6aeeb8cb974c0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|basic|0|3|4e4557"
+      ]
+    },
+    {
+      "case": "lone-all",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "lone-all"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003696309999213554,
+      "stdout_sha256": "ff6a31928174948d4d268aacc66a806173b5e492bb40f605bd919c010ee53c47",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|lone-all|0|3|4e4557"
+      ]
+    },
+    {
+      "case": "lone-signal",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "lone-signal"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.0036365620035212487,
+      "stdout_sha256": "39474dbd1e79d0e5c8bb8cbb71c762089d67d65a8e0a6481e40bce98bed40686",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|lone-signal|0|3|4e4557"
+      ]
+    },
+    {
+      "case": "lone-end",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "lone-end"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.0038371980044757947,
+      "stdout_sha256": "a0cc447846b99baa8274feef9b81a486402eefdaffc15641b46f0a3fb23dfdaa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|lone-end|0|0|"
+      ]
+    },
+    {
+      "case": "end-name",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "end-name"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003961318987421691,
+      "stdout_sha256": "21d4fda69122e47007a88990be85bd416a96d0376cf64c80b385a3183715e1fd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|end-name|0|3|4e4557"
+      ]
+    },
+    {
+      "case": "option-variable",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "option-variable"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.0047605479921912774,
+      "stdout_sha256": "306b0bd6a535c6e0c4cafa64da054858455f27c512c6d4708c77106465b724b7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|option-variable|1|55|77726f6e67202320617267733a2073686f756c6420626520227677616974203f2d7369676e616c3f206e616d65203f7363726970743f22"
+      ]
+    },
+    {
+      "case": "abbreviated-variable",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "abbreviated-variable"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.0033970710064750165,
+      "stdout_sha256": "9b775e5d44770883e0569970cfdc5dda9c48e6e7a56f7267ba9f474dab8e0b83",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|abbreviated-variable|1|55|77726f6e67202320617267733a2073686f756c6420626520227677616974203f2d7369676e616c3f206e616d65203f7363726970743f22"
+      ]
+    },
+    {
+      "case": "timeout-or-jim-body",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "timeout-or-jim-body"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.004747037004563026,
+      "stdout_sha256": "81ce34c7b05e038eecc53dfe7a4077d3f9d838d4f48c0cf0baa63445b8059971",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|timeout-or-jim-body|0|0|"
+      ]
+    },
+    {
+      "case": "signal-name",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "signal-name"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003415485000004992,
+      "stdout_sha256": "ec42032197fa278fdba319e3434a7fbb0eedb43dab958262a7587c5b4e127a70",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|signal-name|0|3|4e4557"
+      ]
+    },
+    {
+      "case": "name-body",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "name-body"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.004207719990517944,
+      "stdout_sha256": "4ee0756bcd1e0e1ddc9e7dd5c45ec3a69ce264d877eab34a79be83549feeab1a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|name-body|0|0|"
+      ]
+    },
+    {
+      "case": "signal-name-body",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "signal-name-body"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.0033474470110377297,
+      "stdout_sha256": "e1c4b295981d2267b2837585cc2aa4b18a21545ffcd3441f33ec3b564b50c7cc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|signal-name-body|0|0|"
+      ]
+    },
+    {
+      "case": "abbreviation-is-jim-name",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "abbreviation-is-jim-name"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003645131000666879,
+      "stdout_sha256": "79001a6c95c4cf8095df12b1054b5f7eca1fef497653ea2e6a6fef5b77ee2cf3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|abbreviation-is-jim-name|0|3|4e4557"
+      ]
+    },
+    {
+      "case": "global-scope",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "global-scope"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003457490005530417,
+      "stdout_sha256": "a92b2747b43017fc4cfb8095f0aac8008a877507c656557ba86a038c165fe5a6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|global-scope|1|32|63616e27742072656164202278223a206e6f2073756368207661726961626c65"
+      ]
+    },
+    {
+      "case": "missing-option-value",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "missing-option-value"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003471938005532138,
+      "stdout_sha256": "1335c0bb2c2774eb831bf399e4ee8a56d6ad3fb2513f7c06e98996b643b6aec2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|missing-option-value|1|55|77726f6e67202320617267733a2073686f756c6420626520227677616974203f2d7369676e616c3f206e616d65203f7363726970743f22"
+      ]
+    },
+    {
+      "case": "missing-channel",
+      "command": [
+        "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+        "missing-channel"
+      ],
+      "external_timeout": false,
+      "timeout_seconds": 3,
+      "process_exit": 0,
+      "seconds": 0.003226692002499476,
+      "stdout_sha256": "3a8a10c8407a65999816f81eeb6ca839a82b992f13360c6e77a69191b6f1195b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "V|actual-provider|0|15|302e38342d392d6735626163376339",
+        "R|missing-channel|0|0|"
+      ]
+    }
+  ],
+  "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+}

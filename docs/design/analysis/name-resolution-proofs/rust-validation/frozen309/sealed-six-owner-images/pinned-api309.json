@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-api309.elf",
+  "sha256": "e9aa1186a5226f952e116780f0549c502b98b932295d4a493bea0809be45a9af",
+  "build_receipt": "/workspace/.proofs/integration-shared-owner-own-test-build309.json",
+  "build_receipt_sha256": "aca9fb33bf8fa45411ccf0f2e62c996c9e763b88cea982af571a45293fceecbd",
+  "source_snapshot_sha256": "69a296eeb7ec4899faa9d492f4d664972d17578ee9fbdbf041e3f6a1533d87cd"
+}

@@ -1,0 +1,22 @@
+{
+  "ordinal": 431,
+  "selector": "interp::tests::jim_raw_expression_comparisons_errors_and_numeric_nul_match_native",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::tests::jim_raw_expression_comparisons_errors_and_numeric_nul_match_native",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 101,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 8.097275339008775,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 8.06s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/431.log",
+  "log_sha256": "60dfe92130b630704692a3968561842f66a05aa5a97242c8291f7e20e5df2acc"
+}

@@ -157,45 +157,98 @@ fn errorstack_value(args: &[&str], start: usize) -> OptionValueOutcome {
 /// (`DevCentral`, "Advanced iRules: Getting Started with iRules
 /// Procedures"), so `self.current_event` is naturally `None` inside one
 /// and this gate never fires there.
-/// `return`'s argument roles: the bare `return VALUE` form's single word is
-/// the command's own [`ArgRole::Result`], and nothing else is.
-///
-/// Restricted to that one shape on purpose.  With options in
-/// play the word is no longer simply "this command's result": `return -code
-/// error $msg` completes exceptionally with `$msg` as the error payload, and
-/// `return -level 0 $v` completes the *caller's* frame.  A leading `-` is
-/// therefore rejected even at arity 1, where real Tcl would treat it as the
-/// result — an unpaired option word is far likelier to be a truncated call
-/// than a deliberate result, and abstaining costs nothing.
-///
-/// tclsh 9.0.4 / 8.6.16: `proc p {} { return abc }; p` → `abc`.
-pub(crate) fn return_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    match args {
-        [only] if !only.starts_with('-') => vec![(0, ArgRole::Result)],
-        _ => Vec::new(),
+/// A single ordinary argv word is always the result, even when its value is
+/// dynamic or starts with `-`. The native option parser requires a following
+/// word before treating that spelling as an option. Expansion must retain an
+/// independently known cardinality; ambiguous option mixtures stay unresolved.
+fn return_layout_roles(
+    args: crate::InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    match args.exact_argv_len()? {
+        0 => Some(Vec::new()),
+        1 => Some(vec![(0, ArgRole::Result)]),
+        _ => args.literal_values().map(|_| Vec::new()),
     }
 }
 
-fn return_context_gate(args: &[&str], in_event_body: bool) -> Option<&'static str> {
-    (in_event_body && !args.is_empty()).then_some(
+fn return_context_gate(
+    args: crate::InvocationArguments<'_>,
+    in_event_body: bool,
+) -> Option<&'static str> {
+    (in_event_body && args.exact_argv_len()? != 0).then_some(
         "`return` takes no arguments directly inside an iRules event body; \
          wrap the call in a proc to use -code/-level/-errorcode/etc.",
     )
 }
 
-const SIDE_EFFECTS: &[SideEffect] = &[
-    SideEffect {
-        target: SideEffectTarget::InterpState,
-        writes: true,
-        ..SideEffect::DEFAULT
-    },
-    SideEffect {
-        target: SideEffectTarget::EventControl,
-        writes: true,
-        surface: Some(SpecSurface::IRULES),
-        ..SideEffect::DEFAULT
-    },
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::EventControl,
+    writes: true,
+    surface: Some(SpecSurface::IRULES),
+    ..SideEffect::DEFAULT
+}];
+
+const RETURN_STORAGE: &[crate::world_effect::StaticEffectAccess] = &[
+    crate::world_effect::StaticEffectAccess::new(
+        crate::world_effect::WorldStateDomain::InterpreterResult,
+        crate::world_effect::EffectAccessMode::Write,
+        crate::world_effect::StaticInterpreterScope::Current,
+        crate::world_effect::StaticNamespaceScope::Any,
+        crate::world_effect::StaticSubjectScope::Wildcard,
+    ),
+    crate::world_effect::StaticEffectAccess::new(
+        crate::world_effect::WorldStateDomain::CompletionState,
+        crate::world_effect::EffectAccessMode::Write,
+        crate::world_effect::StaticInterpreterScope::Current,
+        crate::world_effect::StaticNamespaceScope::Any,
+        crate::world_effect::StaticSubjectScope::Wildcard,
+    ),
 ];
+
+fn return_state_effects(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::world_effect::EffectFootprint {
+    match crate::registry::native_return_state_effect(arguments) {
+        crate::completion_route::ReturnStateEffect::ResultAndCompletion => {
+            crate::world_effect::EffectFootprint::default()
+        }
+        crate::completion_route::ReturnStateEffect::MayMaterialiseError => {
+            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
+        }
+    }
+}
+
+fn return_state_transitions(arguments: crate::InvocationArguments<'_>) -> crate::StateTransitions {
+    match crate::registry::native_return_state_effect(arguments) {
+        crate::completion_route::ReturnStateEffect::ResultAndCompletion => {
+            crate::StateTransitions::default()
+        }
+        crate::completion_route::ReturnStateEffect::MayMaterialiseError => {
+            crate::StateTransitions::unknown_invocation()
+        }
+    }
+}
+
+const RETURN_STATE_TRANSITIONS: crate::StateTransitionDescriptor =
+    crate::StateTransitionDescriptor {
+        resolver: Some(return_state_transitions),
+        // Error-option publication may invoke observers before an abrupt return.
+        commit: crate::StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+        ..crate::StateTransitionDescriptor::EMPTY
+    };
+
+const RETURN_WORLD_EFFECTS: crate::WorldEffectDescriptor = crate::WorldEffectDescriptor {
+    static_footprint: crate::world_effect::StaticEffectFootprint {
+        accesses: RETURN_STORAGE,
+        callback: crate::world_effect::CallbackEffect::NONE,
+    },
+    resolver: Some(return_state_effects),
+    dynamic_fallback: crate::world_effect::WorldEffectDynamicFallback::Declared(
+        crate::world_effect::StaticEffectFootprint::EMPTY,
+    ),
+    ..crate::WorldEffectDescriptor::EMPTY
+};
 
 /// Command spec for `return`.
 ///
@@ -211,6 +264,15 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
+        native_result: Some(crate::native_result::NativeResultContract::ReturnResult),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Return,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Return,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("return"),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
@@ -231,10 +293,12 @@ pub fn spec() -> CommandSpec {
             | Traits::TERMINATES_BLOCK
             | Traits::NEEDS_START_CMD,
         arity: Arity::any(),
-        arg_role_resolver: Some(return_arg_roles),
+        arg_role_layout_resolver: Some(return_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Result],
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
+        world_effects: Some(RETURN_WORLD_EFFECTS),
+        state_transitions: Some(RETURN_STATE_TRANSITIONS),
         hover: Some(HoverSnippet {
             summary: "Return from the current procedure/script with optional control-code metadata.",
             synopsis: &[
@@ -253,6 +317,9 @@ pub fn spec() -> CommandSpec {
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::RETURN),
         forms: FORMS,
         context_gate: Some(return_context_gate),
+        // Native return scans option/value pairs while preserving the last
+        // word as a possible result, including an unknown singleton value.
+        reserved_trailing_words: 1,
         options: const {
             &[
                 OptionSpec {
@@ -311,5 +378,132 @@ pub fn spec() -> CommandSpec {
             ]
         },
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ArgRole, CommandRegistry, InvocationArguments, InvocationDialect, InvocationWord};
+
+    #[test]
+    fn sole_return_result_roles_match_all_six_native_option_spelling_controls() {
+        let registry = CommandRegistry::build_default();
+        let dialects = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(InvocationDialect::for_version)
+            .chain([InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment("jim").unit_profile(),
+            )]);
+        for dialect in dialects {
+            for value in [
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("-code"),
+                InvocationWord::Literal("-level"),
+                InvocationWord::Literal("-bad"),
+                InvocationWord::Literal("-1"),
+            ] {
+                let arguments = [value];
+                let resolution = registry.resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        InvocationWord::Literal("return"),
+                        &arguments,
+                    )
+                    .with_dialect(dialect),
+                    dialect.authoring_query(),
+                );
+                let resolved = resolution.resolved().expect("selected native return");
+                for facts in [resolved.facts(), resolved.facts_after_success()] {
+                    assert!(facts.arg_roles_complete, "{dialect:?} {value:?}");
+                    assert_eq!(facts.arg_roles, vec![(0, ArgRole::Result)]);
+                }
+                assert_eq!(
+                    registry.arg_indices_for_role_words(
+                        "return",
+                        InvocationArguments::structured(&[value]).with_dialect(dialect),
+                        ArgRole::Result
+                    ),
+                    Some(vec![0]),
+                    "{dialect:?} {value:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn return_option_pairs_keep_their_value_even_at_the_last_argv_position() {
+        let registry = CommandRegistry::build_default();
+        let dialects = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(|version| (Some(version), InvocationDialect::for_version(version)))
+            .chain([(
+                None,
+                InvocationDialect::of_profile(
+                    crate::model::ingress::resolve_environment("jim").unit_profile(),
+                ),
+            )]);
+        for (version, dialect) in dialects {
+            for arguments in [
+                vec!["-code", "ok"],
+                vec!["-code", "ok", "RESULT"],
+                vec!["-level", "0"],
+                vec!["-level", "0", "RESULT"],
+            ] {
+                if arguments[0] == "-level" && version == Some(tcl_dialect::TclVersion::V8_4) {
+                    continue;
+                }
+                let values = arguments
+                    .iter()
+                    .map(|value| InvocationWord::Literal(value))
+                    .collect::<Vec<_>>();
+                let resolution = registry.resolve_structured_invocation(
+                    crate::InvocationWords::structured(InvocationWord::Literal("return"), &values)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                );
+                let resolved = resolution.resolved().expect("selected native option pair");
+                for facts in [resolved.facts(), resolved.facts_after_success()] {
+                    assert!(facts.arg_roles_complete, "{version:?} {arguments:?}");
+                    assert!(
+                        !facts
+                            .arg_roles
+                            .iter()
+                            .any(|&(index, role)| index == 1 && role == ArgRole::Result)
+                    );
+                }
+                assert_eq!(
+                    resolved.semantics.options.leading_word_count(
+                        InvocationArguments::structured(&values).with_dialect(dialect)
+                    ),
+                    Some(2)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn return_result_roles_withdraw_for_unknown_expansion_and_option_mixtures() {
+        let registry = CommandRegistry::build_default();
+        for words in [
+            vec![InvocationWord::Expanded],
+            vec![InvocationWord::Dynamic, InvocationWord::Dynamic],
+        ] {
+            assert!(
+                registry
+                    .arg_indices_for_role_words(
+                        "return",
+                        InvocationArguments::structured(&words),
+                        ArgRole::Result
+                    )
+                    .is_none()
+            );
+        }
+        assert_eq!(
+            registry.arg_indices_for_role_words(
+                "return",
+                InvocationArguments::literals(&["-code", "error"]),
+                ArgRole::Result
+            ),
+            Some(Vec::new())
+        );
     }
 }

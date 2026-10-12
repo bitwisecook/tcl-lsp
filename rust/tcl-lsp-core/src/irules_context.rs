@@ -38,15 +38,13 @@
 
 use tcl_lexer::LineIndex;
 
-/// One request-local inventory of resolved iRules event-handler boundaries.
+/// One request-local inventory of current source event-handler boundaries.
 ///
-/// The constructor builds the document's [`CommandBindingRealm`]
-/// (`tcl_compiler::realm::CommandBindingRealm`) exactly once, then hands
-/// it to the registry's top-level boundary owner. Callers can derive both the
-/// enclosing event and the deduplicated file inventory without a global cache
-/// or a second identity scan.
+/// Compatibility constructors create one complete analysis; retained-analysis
+/// callers reuse its source cards and script regions. These facts supply
+/// authoring context, independently of event execution or reachability.
 pub struct EventHandlerFacts {
-    handlers: Vec<tcl_irules::WhenBlock>,
+    handlers: Vec<(String, tcl_lexer::Span)>,
     line_index: LineIndex,
 }
 
@@ -66,6 +64,141 @@ impl EventHandlerFacts {
         }
     }
 
+    /// Retain current source event cards and their genuine source-script placement.
+    /// This view supplies authoring context only, without event reachability.
+    pub(crate) fn from_analysis(
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Option<Self> {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        analysis
+            .matches_original_source_image(&image, config)
+            .then_some(())?;
+        let registry = analysis.resolved_registry()?;
+        let generation = analysis.resolved_input.as_ref()?.context_registry();
+        let structure =
+            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
+        let top_level = |span: tcl_lexer::Span| {
+            structure
+                .scripts
+                .iter()
+                .filter(|(region, _)| region.start() <= span.start() && span.end() <= region.end())
+                .min_by_key(|(region, _)| region.end() - region.start())
+                .is_some_and(|(_, depth)| *depth == 0)
+        };
+        let events = tcl_registry::events::EventRegistry::build();
+        if analysis.allows_lexical_declaration_advice() {
+            let realm = analysis.retained_command_realm()?;
+            let handlers = tcl_syntax::event_handler::event_handlers_with_head_predicate(
+                source,
+                config,
+                |head, offset| {
+                    generation
+                        .context()
+                        .resolve_spec(registry, realm.resolve(head, offset).spec_name())
+                        .is_some_and(|spec| {
+                            spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+                        })
+                },
+            )
+            .into_iter()
+            .filter(|handler| {
+                let arguments = handler
+                    .arguments
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>();
+                tcl_registry::events::IrulesDeclarationArguments::new(
+                    &arguments,
+                    &handler.argument_tokens,
+                    &handler.argument_single_tokens,
+                    &handler.argument_closed_braced_tokens,
+                )
+                .and_then(|arguments| registry.irules_event_declaration(arguments, &events))
+                .is_some()
+            })
+            .map(|handler| (handler.event, handler.span))
+            .collect();
+            return Some(Self {
+                handlers,
+                line_index: LineIndex::new(source),
+            });
+        }
+        let mut handlers = Vec::new();
+        for declaration in analysis.original_vendor_symbol_declarations() {
+            let metadata = declaration.metadata();
+            let input = declaration.name_input();
+            if metadata.kind != tcl_registry::DefinedSymbolKind::Event
+                || !input.matches_source(&image, config)
+                || !top_level(metadata.name_span)
+            {
+                continue;
+            }
+            let Some(command) = structure.commands.iter().find(|command| {
+                command.argv.first().is_some_and(|head| {
+                    head.span.start() == declaration.original_occurrence().site().offset
+                })
+            }) else {
+                continue;
+            };
+            let Some(words) =
+                crate::original_invocation::source_registry_words(source, analysis, command)
+            else {
+                continue;
+            };
+            if !words
+                .with_source_schema(&generation, |schema| {
+                    schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+                })
+                .unwrap_or(false)
+                || !words
+                    .operands
+                    .iter()
+                    .filter_map(Option::as_ref)
+                    .any(|operand| operand.word.as_ref() == Some(input.original_word()))
+            {
+                continue;
+            }
+            let Some(units) = input.literal_units(declaration.purpose()) else {
+                continue;
+            };
+            let Ok(event) = std::str::from_utf8(units) else {
+                continue;
+            };
+            let event = event.to_ascii_uppercase();
+            if events.is_known(&event) {
+                handlers.push((event, metadata.full_span));
+            }
+        }
+        for declaration in analysis.original_symbol_declarations() {
+            let metadata = declaration.metadata();
+            if metadata.kind != tcl_registry::DefinedSymbolKind::Event
+                || !declaration.matches_source(&image, config)
+                || !declaration.matches_registry(registry)
+                || !top_level(declaration.span())
+            {
+                continue;
+            }
+            let Ok(event) = std::str::from_utf8(declaration.name_input().bytes()) else {
+                continue;
+            };
+            let event = event.to_ascii_uppercase();
+            if events.is_known(&event) {
+                handlers.push((event, metadata.full_span));
+            }
+        }
+        handlers.sort_by_key(|(_, span)| (span.start(), span.end()));
+        handlers.dedup();
+        Some(Self {
+            handlers,
+            line_index: LineIndex::new(source),
+        })
+    }
+
     /// Build resolved event-handler boundaries for one request/document.
     ///
     /// This name-based convenience entry point canonicalises once, then
@@ -80,13 +213,13 @@ impl EventHandlerFacts {
     pub fn enclosing_event(&self, line: u32) -> Option<String> {
         self.handlers
             .iter()
-            .filter(|block| {
-                let start = self.line_index.line_at(block.span.start());
-                let end = self.line_index.line_at(block.span.end());
+            .filter(|(_, span)| {
+                let start = self.line_index.line_at(span.start());
+                let end = self.line_index.line_at(span.end());
                 start <= line && line <= end
             })
-            .min_by_key(|block| block.span.end() - block.span.start())
-            .map(|block| block.event.clone())
+            .min_by_key(|(_, span)| span.end() - span.start())
+            .map(|(event, _)| event.clone())
     }
 
     /// Every distinct resolved event name, uppercased and sorted.
@@ -95,7 +228,7 @@ impl EventHandlerFacts {
         let mut events: Vec<String> = self
             .handlers
             .iter()
-            .map(|block| block.event.clone())
+            .map(|(event, _)| event.clone())
             .collect();
         events.sort();
         events.dedup();
@@ -103,31 +236,26 @@ impl EventHandlerFacts {
     }
 }
 
-/// The one expensive identity-and-boundary construction for an iRules file.
-///
-/// Keeping this separate from `EventHandlerFacts` construction makes the
-/// sharing contract testable: a second map/boundary traversal is another
-/// call to this function, not merely another cheap view of its output.
+/// One fresh current analysis for the profile compatibility entry point.
 fn build_event_handlers(
     source: &str,
     profile: &'static tcl_dialect::DialectProfile,
-) -> Vec<tcl_irules::WhenBlock> {
+) -> Vec<(String, tcl_lexer::Span)> {
     #[cfg(test)]
     EXPENSIVE_BUILD_COUNT.with(|count| count.set(count.get() + 1));
 
-    let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
-    let registry = crate::registry_for_dialect_profile(profile);
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
-    let events = tcl_registry::events::EventRegistry::build();
-    tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
-        source,
-        registry,
-        &identities,
-    )
-    .into_iter()
-    .filter(|handler| events.is_known(&handler.event))
-    .collect()
+    let generation = tcl_registry::model::ingress::context_for_profile(profile);
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        generation,
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    );
+    let analysis = tcl_compiler::analyser::Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name);
+    EventHandlerFacts::from_analysis(source, &analysis)
+        .map_or_else(Vec::new, |facts| facts.handlers)
 }
 
 #[cfg(test)]
@@ -166,6 +294,21 @@ mod tests {
     use super::*;
 
     const D: &str = "f5-irules";
+
+    #[test]
+    fn original_event_compatibility_constructor_uses_current_source_cards() {
+        // naming.core.original-snippet-source-context
+        // docs/design/analysis/name-resolution-proofs/original-snippet-source-context.md
+        let profile = tcl_registry::model::ingress::resolve_environment(D).analyser_profile();
+        let source = "when HTTP_REQUEST {pool selected}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, D);
+        let retained = EventHandlerFacts::from_analysis(source, &analysis).unwrap();
+        let fresh = EventHandlerFacts::for_profile(source, profile);
+        assert_eq!(retained.file_events(), ["HTTP_REQUEST"]);
+        assert_eq!(fresh.file_events(), retained.file_events());
+        assert_eq!(fresh.enclosing_event(0), Some("HTTP_REQUEST".into()));
+        assert!(EventHandlerFacts::from_analysis("when HTTP_REQUEST {}", &analysis).is_none());
+    }
 
     #[test]
     fn inert_when_text_is_neither_context_nor_file_event() {

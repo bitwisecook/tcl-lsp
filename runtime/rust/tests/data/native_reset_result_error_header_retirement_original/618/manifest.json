@@ -1,0 +1,91 @@
+{
+  "status": "READY fresh immutable source request for peer review; no native or compiler process launched by publisher",
+  "question": "naming.error.original-reset-result-error-header-retirement",
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "probe_sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+  "launcher_sha256": "6fd2374ef054b2d0c4615dbf59a1a9f8a189ac4f0565c1da65c09f1cc2ab32d5",
+  "required_input_count": 7995,
+  "selected_original_C_producers": 5,
+  "cases_per_C": 5,
+  "physical_LF_source_windows": 10,
+  "files": [
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c",
+      "sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+      "bytes": 10697
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/launch.py",
+      "sha256": "6fd2374ef054b2d0c4615dbf59a1a9f8a189ac4f0565c1da65c09f1cc2ab32d5",
+      "bytes": 13063
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/request.json",
+      "sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+      "bytes": 1048864
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows.json",
+      "sha256": "47abf47504805131060db5b11a8a9754e8d5e4ba1e3f04b0a1f46e76eda0be4d",
+      "bytes": 6784
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/selected-makefile-builds-original614c.json",
+      "sha256": "383384caf469fb6f7bc8566fe66ad3331fb9feada85d8a5ec1f3c05302d31295",
+      "bytes": 44246
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/8.4.20/Tcl_ResetResult.c",
+      "sha256": "8199b4f1feb3f7cbf6c1ddde58cf74c163eba23e3b58bb06b84495abd0149a6a",
+      "bytes": 502
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/8.4.20/ResetObjResult.c",
+      "sha256": "e542ec39d7a9a480ce555ae6ec80fb8c21012432f72bdd833c20843e9bc8426f",
+      "bytes": 787
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/8.5.19/Tcl_ResetResult.c",
+      "sha256": "df05c1e9f61e9150fb3a6010117555156b7114c9e38530a60d614b9bd3819218",
+      "bytes": 1122
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/8.5.19/ResetObjResult.c",
+      "sha256": "feed8d109d1e069fa84773d574d1385f58adcdf7d96b27114471d206c0e15c3e",
+      "bytes": 634
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/8.6.18/Tcl_ResetResult.c",
+      "sha256": "440321d5a507e5679703d0e05a05f5a6afcd980a1adaa4f7d48e3badb57568c1",
+      "bytes": 1134
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/8.6.18/ResetObjResult.c",
+      "sha256": "a06d6032f455f2281260e2c1d1a27e0d8a3debd5fd5ea0d01fb2b3fd1eec1891",
+      "bytes": 577
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/9.0.4/Tcl_ResetResult.c",
+      "sha256": "4097cc4f75a9bb24fc5ae9f3b376118a3204fd30a9b0e28595bc73ffea4e6306",
+      "bytes": 892
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/9.0.4/ResetObjResult.c",
+      "sha256": "b7358ed71467cd9ee344373d3b33fcbfba56d5b47a2684bc11e5d05bbbdd0bd0",
+      "bytes": 580
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/9.1.0/Tcl_ResetResult.c",
+      "sha256": "4097cc4f75a9bb24fc5ae9f3b376118a3204fd30a9b0e28595bc73ffea4e6306",
+      "bytes": 892
+    },
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/source-windows/9.1.0/ResetObjResult.c",
+      "sha256": "b7358ed71467cd9ee344373d3b33fcbfba56d5b47a2684bc11e5d05bbbdd0bd0",
+      "bytes": 580
+    }
+  ],
+  "old_setter_executables_reused": false,
+  "SDK_configure_build_replay_available": false,
+  "Jim_or_BIGIP_execution_claim": false
+}

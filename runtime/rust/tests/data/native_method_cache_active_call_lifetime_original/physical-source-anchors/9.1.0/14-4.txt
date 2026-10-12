@@ -1,0 +1,98 @@
+
+/*
+ * The cacheable part of a call context.
+ */
+struct CallChain {
+    Tcl_Size objectCreationEpoch;/* The object's creation epoch. Note that the
+				 * object reference is not stored in the call
+				 * chain; it is in the call context. */
+    Tcl_Size objectEpoch;	/* Local (object structure) epoch counter
+				 * snapshot. */
+    Tcl_Size epoch;		/* Global (class structure) epoch counter
+				 * snapshot. */
+    int flags;			/* Assorted flags, see below. */
+    Tcl_Size refCount;		/* Reference count. */
+    Tcl_Size numChain;		/* Size of the call chain. */
+    MInvoke *chain;		/* Array of call chain entries. May point to
+				 * staticChain if the number of entries is
+				 * small. */
+    MInvoke staticChain[CALL_CHAIN_STATIC_SIZE];
+};
+
+/*
+ * A call context structure is built when a method is called. It contains the
+ * chain of method implementations that are to be invoked by a particular
+ * call, and the process of calling walks the chain, with the [next] command
+ * proceeding to the next entry in the chain.
+ */
+struct CallContext {
+    Object *oPtr;		/* The object associated with this call. */
+    Tcl_Size index;		/* Index into the call chain of the currently
+				 * executing method implementation. */
+    Tcl_Size skip;		/* Current number of arguments to skip; can
+				 * vary depending on whether it is a direct
+				 * method call or a continuation via the
+				 * [next] command. */
+    CallChain *callPtr;		/* The actual call chain. */
+};
+
+/*
+ * Bits for the 'flags' field of the call chain.
+ */
+enum TclOOCallChainFlags {
+    PUBLIC_METHOD = 0x01,	/* This is a public (exported) method. */
+    PRIVATE_METHOD = 0x02,	/* This is a private (class's direct instances
+				 * only) method. Supports itcl. */
+    OO_UNKNOWN_METHOD = 0x04,	/* This is an unknown method. */
+    CONSTRUCTOR = 0x08,		/* This is a constructor. */
+    DESTRUCTOR = 0x10,		/* This is a destructor. */
+    TRUE_PRIVATE_METHOD = 0x20	/* This is a private method only accessible
+				 * from other methods defined on this class
+				 * or instance. [TIP #500] */
+};
+#define SCOPE_FLAGS (PUBLIC_METHOD | PRIVATE_METHOD | TRUE_PRIVATE_METHOD)
+
+/*
+ * Structure containing definition information about basic class methods.
+ */
+struct DeclaredClassMethod {
+    const char *name;		/* Name of the method in question. */
+    bool isPublic;		/* Whether the method is public by default. */
+    Tcl_MethodType2 definition;	/* How to call the method. */
+};
+
+/*
+ *----------------------------------------------------------------
+ * Commands relating to OO support.
+ *----------------------------------------------------------------
+ */
+
+MODULE_SCOPE int		TclOOInit(Tcl_Interp *interp);
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOObjDefObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineClassMethodObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineConstructorObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineDefnNsObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineDeleteMethodObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineDestructorObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineExportObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineForwardObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineInitialiseObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineMethodObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineRenameMethodObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineUnexportObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineClassObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineSelfObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefineObjSelfObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefinePrivateObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODefinePropertyCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOUnknownDefinition;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOCallbackObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOClassVariableObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOCopyObjectCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOODelegateNameObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOLinkObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOONextObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOONextToObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOSelfObjCmd;
+MODULE_SCOPE Tcl_ObjCmdProc2	TclOOInfoObjectPropCmd;

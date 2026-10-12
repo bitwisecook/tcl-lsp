@@ -1,0 +1,2896 @@
+Archive member included to satisfy reference by file (symbol)
+
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+                              /tmp/ccEEdJfr.o (Tcl_DeleteInterp)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_BinaryObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+                              /tmp/ccEEdJfr.o (Tcl_Alloc)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_ClockObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_BreakObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_IfObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_PwdObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (TclCompileBreakCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o) (TclFindCompiledLocal)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o) (TclGetDate)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o) (Tcl_FreeEncoding)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (TclSetupEnv)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o) (TclSetLibraryPath)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (TclCreateExecEnv)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o) (TclFileRenameCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o) (tclPlatform)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o) (Tcl_GetDouble)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_InitHashTable)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o) (Tcl_GetIndexFromObjStruct)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (TclInterpInit)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclInitIOSubsystem)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_PutsObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o) (TclSockGetPort)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclFinalizeFilesystem)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (tclListType)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (TclInitLiteralTable)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_LoadObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclInitNamespaceSubsystem)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclInitNotifier)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclFinalizeObjects)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (Tcl_SetPanicProc)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (TclParseBackslash)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o) (Tcl_OpenCommandChannel)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_PkgProvideEx)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o) (Tcl_ErrnoId)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclFinalizePreserve)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o) (tclProcBodyType)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o) (Tcl_RegExpGetInfo)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o) (Tcl_SaveResult)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_ScanObjCmd)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o) (tclStringType)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_GetThreadData)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o) (TclpAlloc)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (tclStubs)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o) (Tcl_InitStubs)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o) (Tcl_CreateTimerHandler)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o) (Tcl_UniCharToUtf)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o) (tclEndOffsetType)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o) (tclArraySearchType)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o) (TclpOpenFileChannel)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (Tcl_Sleep)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o) (TclpObjRenameFile)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o) (TclpMatchInDirectory)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o) (TclpMakeFile)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o) (Tcl_GetHostName)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o) (TclpGetSeconds)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (TclSetPreInitScript)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o) (TclpFreeAllocCache)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o) (TclpGetPwNam)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (Tcl_InitNotifier)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o) (TclpDlopen)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o) (TclReComp)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o) (TclReExec)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o) (TclReFree)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o) (TclReError)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o) (TclFinalizeAsync)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o) (TclCompileExpr)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (Tcl_RecordAndEvalObj)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (TclChannelTransform)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (Tcl_LinkVar)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (TclSetStartupScriptPath)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o) (TclParseInteger)
+/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+                              /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o) (Tcl_AddInterpResolvers)
+
+Merging program properties
+
+Removed property 0xc0000002 to merge /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o (not found) and /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o (0x3)
+Removed property 0xc0000002 to merge /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o (not found) and /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o (0x3)
+
+As-needed library included to satisfy reference by file (symbol)
+
+libm.so.6                     /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o) (exp@@GLIBC_2.29)
+libc.so.6                     /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o) (pthread_attr_setscope@@GLIBC_2.2.5)
+
+Discarded input sections
+
+ .note.gnu.property
+                0x0000000000000000       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .note.gnu.property
+                0x0000000000000000       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+LOAD /tmp/ccEEdJfr.o
+LOAD /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so
+START GROUP
+LOAD /lib/x86_64-linux-gnu/libm.so.6
+LOAD /lib/x86_64-linux-gnu/libmvec.so.1
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+START GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so
+START GROUP
+LOAD /lib/x86_64-linux-gnu/libc.so.6
+LOAD /usr/lib/x86_64-linux-gnu/libc_nonshared.a
+LOAD /lib64/ld-linux-x86-64.so.2
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+START GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+                [!provide]                        PROVIDE (__executable_start = SEGMENT_START ("text-segment", 0x0))
+                0x0000000000000350                . = (SEGMENT_START ("text-segment", 0x0) + SIZEOF_HEADERS)
+
+.note.gnu.property
+                0x0000000000000350       0x20
+ .note.gnu.property
+                0x0000000000000350       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.note.gnu.build-id
+                0x0000000000000370       0x24
+ *(.note.gnu.build-id)
+ .note.gnu.build-id
+                0x0000000000000370       0x24 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.interp         0x0000000000000394       0x1c
+ *(.interp)
+ .interp        0x0000000000000394       0x1c /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.hash
+ *(.hash)
+
+.gnu.hash       0x00000000000003b0       0x38
+ *(.gnu.hash)
+ .gnu.hash      0x00000000000003b0       0x38 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.dynsym         0x00000000000003e8     0x1098
+ *(.dynsym)
+ .dynsym        0x00000000000003e8     0x1098 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.dynstr         0x0000000000001480      0x6d9
+ *(.dynstr)
+ .dynstr        0x0000000000001480      0x6d9 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.gnu.version    0x0000000000001b5a      0x162
+ *(.gnu.version)
+ .gnu.version   0x0000000000001b5a      0x162 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.gnu.version_d  0x0000000000001cc0        0x0
+ *(.gnu.version_d)
+ .gnu.version_d
+                0x0000000000001cc0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.gnu.version_r  0x0000000000001cc0       0xd0
+ *(.gnu.version_r)
+ .gnu.version_r
+                0x0000000000001cc0       0xd0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.rela.dyn       0x0000000000001d90     0xb988
+ *(.rela.init)
+ *(.rela.text .rela.text.* .rela.gnu.linkonce.t.*)
+ *(.rela.fini)
+ *(.rela.rodata .rela.rodata.* .rela.gnu.linkonce.r.*)
+ *(.rela.data .rela.data.* .rela.gnu.linkonce.d.*)
+ .rela.data.rel.ro
+                0x0000000000001d90     0x1080 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.data.rel.local
+                0x0000000000002e10     0x38d0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.data.rel.ro.local
+                0x00000000000066e0     0x2700 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.data.rel
+                0x0000000000008de0     0x46e0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.tdata .rela.tdata.* .rela.gnu.linkonce.td.*)
+ *(.rela.tbss .rela.tbss.* .rela.gnu.linkonce.tb.*)
+ *(.rela.ctors)
+ *(.rela.dtors)
+ *(.rela.got)
+ .rela.got      0x000000000000d4c0      0x228 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.bss .rela.bss.* .rela.gnu.linkonce.b.*)
+ .rela.bss      0x000000000000d6e8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.ldata .rela.ldata.* .rela.gnu.linkonce.l.*)
+ *(.rela.lbss .rela.lbss.* .rela.gnu.linkonce.lb.*)
+ *(.rela.lrodata .rela.lrodata.* .rela.gnu.linkonce.lr.*)
+ *(.rela.ifunc)
+ .rela.ifunc    0x000000000000d6e8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.fini_array
+                0x000000000000d6e8       0x18 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.init_array
+                0x000000000000d700       0x18 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.rela.plt       0x000000000000d718      0xd80
+ *(.rela.plt)
+ .rela.plt      0x000000000000d718      0xd80 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.iplt)
+
+.relr.dyn
+ *(.relr.dyn)
+                0x000000000000f000                . = ALIGN (CONSTANT (MAXPAGESIZE))
+
+.init           0x000000000000f000       0x17
+ *(SORT_NONE(.init))
+ .init          0x000000000000f000       0x12 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+                0x000000000000f000                _init
+ .init          0x000000000000f012        0x5 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+
+.plt            0x000000000000f020      0x910
+ *(.plt)
+ .plt           0x000000000000f020      0x910 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000000f030                chmod@@GLIBC_2.2.5
+                0x000000000000f040                symlink@@GLIBC_2.2.5
+                0x000000000000f050                tcsetattr@@GLIBC_2.2.5
+                0x000000000000f060                chdir@@GLIBC_2.2.5
+                0x000000000000f070                pthread_join@@GLIBC_2.34
+                0x000000000000f080                dup2@@GLIBC_2.2.5
+                0x000000000000f090                pthread_cond_destroy@@GLIBC_2.3.2
+                0x000000000000f0a0                printf@@GLIBC_2.2.5
+                0x000000000000f0b0                dlerror@@GLIBC_2.34
+                0x000000000000f0c0                memset@@GLIBC_2.2.5
+                0x000000000000f0d0                snprintf@@GLIBC_2.2.5
+                0x000000000000f0e0                close@@GLIBC_2.2.5
+                0x000000000000f0f0                getgrgid_r@@GLIBC_2.2.5
+                0x000000000000f100                utime@@GLIBC_2.2.5
+                0x000000000000f110                ioctl@@GLIBC_2.2.5
+                0x000000000000f120                abort@@GLIBC_2.2.5
+                0x000000000000f130                pthread_setspecific@@GLIBC_2.34
+                0x000000000000f140                __h_errno_location@@GLIBC_2.2.5
+                0x000000000000f150                stpcpy@@GLIBC_2.2.5
+                0x000000000000f160                nl_langinfo@@GLIBC_2.2.5
+                0x000000000000f170                isatty@@GLIBC_2.2.5
+                0x000000000000f180                fts_open@@GLIBC_2.2.5
+                0x000000000000f190                puts@@GLIBC_2.2.5
+                0x000000000000f1a0                uname@@GLIBC_2.2.5
+                0x000000000000f1b0                __isoc99_sscanf@@GLIBC_2.7
+                0x000000000000f1c0                select@@GLIBC_2.2.5
+                0x000000000000f1d0                execvp@@GLIBC_2.2.5
+                0x000000000000f1e0                getpeername@@GLIBC_2.2.5
+                0x000000000000f1f0                exit@@GLIBC_2.2.5
+                0x000000000000f200                strcasecmp@@GLIBC_2.2.5
+                0x000000000000f210                gettimeofday@@GLIBC_2.2.5
+                0x000000000000f220                strpbrk@@GLIBC_2.2.5
+                0x000000000000f230                read@@GLIBC_2.2.5
+                0x000000000000f240                strncmp@@GLIBC_2.2.5
+                0x000000000000f250                malloc@@GLIBC_2.2.5
+                0x000000000000f260                recv@@GLIBC_2.2.5
+                0x000000000000f270                unlink@@GLIBC_2.2.5
+                0x000000000000f280                rmdir@@GLIBC_2.2.5
+                0x000000000000f290                _exit@@GLIBC_2.2.5
+                0x000000000000f2a0                pthread_cond_timedwait@@GLIBC_2.3.2
+                0x000000000000f2b0                setsockopt@@GLIBC_2.2.5
+                0x000000000000f2c0                getpid@@GLIBC_2.2.5
+                0x000000000000f2d0                pthread_mutex_init@@GLIBC_2.2.5
+                0x000000000000f2e0                tzset@@GLIBC_2.2.5
+                0x000000000000f2f0                pthread_attr_destroy@@GLIBC_2.2.5
+                0x000000000000f300                gethostbyaddr_r@@GLIBC_2.2.5
+                0x000000000000f310                geteuid@@GLIBC_2.2.5
+                0x000000000000f320                pthread_create@@GLIBC_2.34
+                0x000000000000f330                fputc@@GLIBC_2.2.5
+                0x000000000000f340                free@@GLIBC_2.2.5
+                0x000000000000f350                opendir@@GLIBC_2.2.5
+                0x000000000000f360                pthread_cond_init@@GLIBC_2.3.2
+                0x000000000000f370                listen@@GLIBC_2.2.5
+                0x000000000000f380                __ctype_b_loc@@GLIBC_2.3
+                0x000000000000f390                cfsetospeed@@GLIBC_2.2.5
+                0x000000000000f3a0                realpath@@GLIBC_2.3
+                0x000000000000f3b0                readdir@@GLIBC_2.2.5
+                0x000000000000f3c0                link@@GLIBC_2.2.5
+                0x000000000000f3d0                sprintf@@GLIBC_2.2.5
+                0x000000000000f3e0                pthread_key_create@@GLIBC_2.34
+                0x000000000000f3f0                fdopen@@GLIBC_2.2.5
+                0x000000000000f400                strrchr@@GLIBC_2.2.5
+                0x000000000000f410                pipe@@GLIBC_2.2.5
+                0x000000000000f420                pthread_self@@GLIBC_2.2.5
+                0x000000000000f430                gmtime_r@@GLIBC_2.2.5
+                0x000000000000f440                strerror@@GLIBC_2.2.5
+                0x000000000000f450                strstr@@GLIBC_2.2.5
+                0x000000000000f460                mknod@@GLIBC_2.33
+                0x000000000000f470                pthread_exit@@GLIBC_2.2.5
+                0x000000000000f480                getsockopt@@GLIBC_2.2.5
+                0x000000000000f490                dlopen@@GLIBC_2.34
+                0x000000000000f4a0                lseek@@GLIBC_2.2.5
+                0x000000000000f4b0                readlink@@GLIBC_2.2.5
+                0x000000000000f4c0                getsockname@@GLIBC_2.2.5
+                0x000000000000f4d0                connect@@GLIBC_2.2.5
+                0x000000000000f4e0                gethostbyname_r@@GLIBC_2.2.5
+                0x000000000000f4f0                endpwent@@GLIBC_2.2.5
+                0x000000000000f500                tcgetattr@@GLIBC_2.2.5
+                0x000000000000f510                pthread_attr_setstacksize@@GLIBC_2.34
+                0x000000000000f520                signal@@GLIBC_2.2.5
+                0x000000000000f530                memmove@@GLIBC_2.2.5
+                0x000000000000f540                strchr@@GLIBC_2.2.5
+                0x000000000000f550                waitpid@@GLIBC_2.2.5
+                0x000000000000f560                socket@@GLIBC_2.2.5
+                0x000000000000f570                getenv@@GLIBC_2.2.5
+                0x000000000000f580                cfgetospeed@@GLIBC_2.2.5
+                0x000000000000f590                __errno_location@@GLIBC_2.2.5
+                0x000000000000f5a0                fts_read@@GLIBC_2.2.5
+                0x000000000000f5b0                mkstemp@@GLIBC_2.2.5
+                0x000000000000f5c0                strncasecmp@@GLIBC_2.2.5
+                0x000000000000f5d0                strcmp@@GLIBC_2.2.5
+                0x000000000000f5e0                cfsetispeed@@GLIBC_2.2.5
+                0x000000000000f5f0                pthread_key_delete@@GLIBC_2.34
+                0x000000000000f600                getcwd@@GLIBC_2.2.5
+                0x000000000000f610                send@@GLIBC_2.2.5
+                0x000000000000f620                strcpy@@GLIBC_2.2.5
+                0x000000000000f630                chown@@GLIBC_2.2.5
+                0x000000000000f640                pthread_attr_setscope@@GLIBC_2.2.5
+                0x000000000000f650                pthread_getspecific@@GLIBC_2.34
+                0x000000000000f660                pthread_cond_wait@@GLIBC_2.3.2
+                0x000000000000f670                fts_close@@GLIBC_2.2.5
+                0x000000000000f680                endgrent@@GLIBC_2.2.5
+                0x000000000000f690                __ctype_tolower_loc@@GLIBC_2.3
+                0x000000000000f6a0                calloc@@GLIBC_2.2.5
+                0x000000000000f6b0                getpwnam_r@@GLIBC_2.2.5
+                0x000000000000f6c0                strncpy@@GLIBC_2.2.5
+                0x000000000000f6d0                pthread_attr_init@@GLIBC_2.2.5
+                0x000000000000f6e0                localtime_r@@GLIBC_2.2.5
+                0x000000000000f6f0                closedir@@GLIBC_2.2.5
+                0x000000000000f700                mkfifo@@GLIBC_2.2.5
+                0x000000000000f710                access@@GLIBC_2.2.5
+                0x000000000000f720                fork@@GLIBC_2.2.5
+                0x000000000000f730                modf@@GLIBC_2.2.5
+                0x000000000000f740                dlsym@@GLIBC_2.34
+                0x000000000000f750                bind@@GLIBC_2.2.5
+                0x000000000000f760                fwrite@@GLIBC_2.2.5
+                0x000000000000f770                pthread_mutex_lock@@GLIBC_2.2.5
+                0x000000000000f780                realloc@@GLIBC_2.2.5
+                0x000000000000f790                getpwuid_r@@GLIBC_2.2.5
+                0x000000000000f7a0                lstat@@GLIBC_2.33
+                0x000000000000f7b0                setlocale@@GLIBC_2.2.5
+                0x000000000000f7c0                fprintf@@GLIBC_2.2.5
+                0x000000000000f7d0                pthread_mutex_destroy@@GLIBC_2.2.5
+                0x000000000000f7e0                write@@GLIBC_2.2.5
+                0x000000000000f7f0                pthread_cond_broadcast@@GLIBC_2.3.2
+                0x000000000000f800                strftime@@GLIBC_2.2.5
+                0x000000000000f810                stat@@GLIBC_2.33
+                0x000000000000f820                accept@@GLIBC_2.2.5
+                0x000000000000f830                pthread_mutex_unlock@@GLIBC_2.2.5
+                0x000000000000f840                umask@@GLIBC_2.2.5
+                0x000000000000f850                memcpy@@GLIBC_2.14
+                0x000000000000f860                fcntl@@GLIBC_2.2.5
+                0x000000000000f870                open@@GLIBC_2.2.5
+                0x000000000000f880                getpwnam@@GLIBC_2.2.5
+                0x000000000000f890                rename@@GLIBC_2.2.5
+                0x000000000000f8a0                strtod@@GLIBC_2.2.5
+                0x000000000000f8b0                mkdir@@GLIBC_2.2.5
+                0x000000000000f8c0                time@@GLIBC_2.2.5
+                0x000000000000f8d0                getgrnam_r@@GLIBC_2.2.5
+                0x000000000000f8e0                fflush@@GLIBC_2.2.5
+                0x000000000000f8f0                inet_addr@@GLIBC_2.2.5
+                0x000000000000f900                dlclose@@GLIBC_2.34
+                0x000000000000f910                pthread_attr_setdetachstate@@GLIBC_2.2.5
+                0x000000000000f920                getservbyname@@GLIBC_2.2.5
+ *(.iplt)
+
+.plt.got        0x000000000000f930       0x28
+ *(.plt.got)
+ .plt.got       0x000000000000f930       0x28 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000000f930                strlen@@GLIBC_2.2.5
+                0x000000000000f938                __cxa_finalize@@GLIBC_2.2.5
+                0x000000000000f940                strtol@@GLIBC_2.2.5
+                0x000000000000f948                memcmp@@GLIBC_2.2.5
+                0x000000000000f950                strtoul@@GLIBC_2.2.5
+
+.plt.sec
+ *(.plt.sec)
+
+.text           0x000000000000f980    0x7f52e
+ *(.text.unlikely .text.*_unlikely .text.unlikely.*)
+ .text.unlikely
+                0x000000000000f980        0xa /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .text.unlikely
+                0x000000000000f98a       0x25 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ *(.text.exit .text.exit.*)
+ *(.text.startup .text.startup.*)
+ *(.text.hot .text.hot.*)
+ *(SORT_BY_NAME(.text.sorted.*))
+ *(.text .stub .text.* .gnu.linkonce.t.*)
+ *fill*         0x000000000000f9af        0x1 
+ .text          0x000000000000f9b0       0x22 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000000f9b0                _start
+ .text          0x000000000000f9d2        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ *fill*         0x000000000000f9d2        0xe 
+ .text          0x000000000000f9e0       0xb9 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .text          0x000000000000fa99      0xb87 /tmp/ccEEdJfr.o
+                0x0000000000010384                main
+ .text          0x0000000000010620     0x4b5d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+                0x0000000000010630                TclInvokeStringCommand
+                0x00000000000107f0                TclInvokeObjectCommand
+                0x0000000000010a70                Tcl_CallWhenDeleted
+                0x0000000000010b30                Tcl_DontCallWhenDeleted
+                0x0000000000010bb0                Tcl_SetAssocData
+                0x0000000000010c40                Tcl_DeleteAssocData
+                0x0000000000010ca0                Tcl_GetAssocData
+                0x0000000000010ce0                Tcl_InterpDeleted
+                0x0000000000010cf0                Tcl_DeleteInterp
+                0x0000000000010d20                Tcl_HideCommand
+                0x0000000000010e90                TclHideUnsafeCommands
+                0x0000000000010f00                Tcl_ExposeCommand
+                0x0000000000011080                Tcl_SetCommandInfoFromToken
+                0x00000000000110e0                Tcl_SetCommandInfo
+                0x0000000000011100                Tcl_GetCommandInfoFromToken
+                0x0000000000011170                Tcl_GetCommandInfo
+                0x0000000000011190                Tcl_GetCommandName
+                0x00000000000111c0                Tcl_GetCommandFullName
+                0x0000000000011490                TclCleanupCommand
+                0x00000000000114b0                Tcl_DeleteCommandFromToken
+                0x00000000000115a0                Tcl_CreateCommand
+                0x0000000000011770                Tcl_CreateObjCommand
+                0x0000000000011990                Tcl_DeleteCommand
+                0x00000000000119c0                TclRenameCommand
+                0x0000000000011cd0                Tcl_CreateMathFunc
+                0x0000000000011da0                Tcl_CreateInterp
+                0x0000000000012240                Tcl_GetMathFuncInfo
+                0x0000000000012320                Tcl_ListMathFuncs
+                0x00000000000123f0                TclInterpReady
+                0x00000000000124b0                TclEvalObjvInternal
+                0x0000000000012950                Tcl_ExprLong
+                0x0000000000012ab0                Tcl_ExprDouble
+                0x0000000000012c10                Tcl_ExprBoolean
+                0x0000000000012d90                Tcl_ExprLongObj
+                0x0000000000012e30                Tcl_ExprDoubleObj
+                0x0000000000012ed0                Tcl_ExprBooleanObj
+                0x0000000000012f70                Tcl_ExprString
+                0x0000000000013180                Tcl_CreateObjTrace
+                0x0000000000013210                Tcl_CreateTrace
+                0x0000000000013260                Tcl_DeleteTrace
+                0x0000000000013620                Tcl_AddObjErrorInfo
+                0x0000000000013790                Tcl_LogCommandInfo
+                0x00000000000138c0                Tcl_EvalObjv
+                0x0000000000013ab0                Tcl_EvalEx
+                0x0000000000014260                Tcl_EvalTokensStandard
+                0x0000000000014610                Tcl_EvalTokens
+                0x0000000000014650                Tcl_Eval
+                0x00000000000146c0                Tcl_EvalObjEx
+                0x00000000000149b0                Tcl_EvalObj
+                0x00000000000149c0                Tcl_GlobalEvalObj
+                0x00000000000149d0                TclObjInvoke
+                0x0000000000014de0                TclInvoke
+                0x0000000000014f50                TclGlobalInvoke
+                0x0000000000014f80                TclObjInvokeGlobal
+                0x0000000000014fb0                Tcl_AddErrorInfo
+                0x0000000000014fc0                Tcl_VarEvalVA
+                0x0000000000015050                Tcl_VarEval
+                0x00000000000150f0                Tcl_GlobalEval
+                0x0000000000015120                Tcl_SetRecursionLimit
+                0x0000000000015140                Tcl_AllowExceptions
+                0x0000000000015150                Tcl_GetVersion
+ *fill*         0x000000000001517d        0x3 
+ .text          0x0000000000015180     0x1f11 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+                0x00000000000156d0                Tcl_SetByteArrayObj
+                0x0000000000015760                Tcl_NewByteArrayObj
+                0x00000000000157b0                Tcl_DbNewByteArrayObj
+                0x00000000000157c0                Tcl_GetByteArrayFromObj
+                0x00000000000157f0                Tcl_SetByteArrayLength
+                0x0000000000015890                Tcl_BinaryObjCmd
+ *fill*         0x0000000000017091        0xf 
+ .text          0x00000000000170a0      0x221 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+                0x00000000000170a0                Tcl_Alloc
+                0x00000000000170f0                Tcl_DbCkalloc
+                0x0000000000017160                Tcl_AttemptAlloc
+                0x0000000000017170                Tcl_AttemptDbCkalloc
+                0x0000000000017180                Tcl_Realloc
+                0x00000000000171d0                Tcl_DbCkrealloc
+                0x0000000000017240                Tcl_AttemptRealloc
+                0x0000000000017250                Tcl_AttemptDbCkrealloc
+                0x0000000000017260                Tcl_Free
+                0x0000000000017270                Tcl_DbCkfree
+                0x0000000000017280                Tcl_InitMemory
+                0x0000000000017290                Tcl_DumpActiveMemory
+                0x00000000000172a0                Tcl_ValidateAllMemory
+                0x00000000000172b0                TclDumpMemoryInfo
+                0x00000000000172c0                TclFinalizeMemorySubsystem
+ *fill*         0x00000000000172c1        0xf 
+ .text          0x00000000000172d0      0x76b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+                0x00000000000172d0                Tcl_ClockObjCmd
+ *fill*         0x0000000000017a3b        0x5 
+ .text          0x0000000000017a40     0x362f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+                0x0000000000017f20                Tcl_BreakObjCmd
+                0x0000000000017f50                Tcl_CaseObjCmd
+                0x0000000000018210                Tcl_CatchObjCmd
+                0x00000000000182e0                Tcl_CdObjCmd
+                0x0000000000018440                Tcl_ConcatObjCmd
+                0x0000000000018470                Tcl_ContinueObjCmd
+                0x00000000000184a0                Tcl_EncodingObjCmd
+                0x0000000000018700                Tcl_ErrorObjCmd
+                0x00000000000187c0                Tcl_EvalObjCmd
+                0x0000000000018890                Tcl_ExitObjCmd
+                0x0000000000018900                Tcl_ExprObjCmd
+                0x0000000000018a80                Tcl_FileObjCmd
+                0x00000000000198e0                Tcl_ForObjCmd
+                0x0000000000019a30                Tcl_ForeachObjCmd
+                0x000000000001a250                Tcl_FormatObjCmd
+ *fill*         0x000000000001b06f       0x11 
+ .text          0x000000000001b080     0x39a0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+                0x000000000001b8c0                Tcl_IfObjCmd
+                0x000000000001bae0                Tcl_IncrObjCmd
+                0x000000000001bc00                Tcl_InfoObjCmd
+                0x000000000001cee0                Tcl_JoinObjCmd
+                0x000000000001cff0                TclLindexFlat
+                0x000000000001d170                TclLindexList
+                0x000000000001d390                Tcl_LindexObjCmd
+                0x000000000001d440                Tcl_LinsertObjCmd
+                0x000000000001d5a0                Tcl_ListObjCmd
+                0x000000000001d5e0                Tcl_LlengthObjCmd
+                0x000000000001d660                Tcl_LrangeObjCmd
+                0x000000000001d7c0                Tcl_LreplaceObjCmd
+                0x000000000001d990                Tcl_LsearchObjCmd
+                0x000000000001e3a0                Tcl_LsetObjCmd
+                0x000000000001e490                Tcl_LsortObjCmd
+ .text          0x000000000001ea20     0x6947 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+                0x000000000001ed40                TclTraceVariableObjCmd
+                0x000000000001f780                Tcl_PwdObjCmd
+                0x000000000001f7f0                Tcl_RegexpObjCmd
+                0x000000000001fe60                Tcl_RegsubObjCmd
+                0x00000000000207d0                Tcl_RenameObjCmd
+                0x0000000000020840                Tcl_ReturnObjCmd
+                0x0000000000020b70                Tcl_SourceObjCmd
+                0x0000000000020bb0                Tcl_SplitObjCmd
+                0x0000000000020eb0                Tcl_StringObjCmd
+                0x00000000000230d0                Tcl_SubstObj
+                0x00000000000233f0                Tcl_SubstObjCmd
+                0x0000000000023530                Tcl_SwitchObjCmd
+                0x0000000000023930                Tcl_TimeObjCmd
+                0x0000000000023ac0                Tcl_TraceObjCmd
+                0x0000000000023e90                Tcl_CommandTraceInfo
+                0x0000000000023f00                Tcl_TraceCommand
+                0x0000000000023f90                Tcl_UntraceCommand
+                0x00000000000240c0                TclTraceExecutionObjCmd
+                0x0000000000024900                TclTraceCommandObjCmd
+                0x0000000000024d70                TclCheckExecutionTraces
+                0x0000000000024fb0                TclCheckInterpTraces
+                0x0000000000025290                Tcl_WhileObjCmd
+ *fill*         0x0000000000025367       0x19 
+ .text          0x0000000000025380     0x7d4f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+                0x0000000000025cf0                TclCompileBreakCmd
+                0x0000000000025dc0                TclCompileCatchCmd
+                0x00000000000266e0                TclCompileContinueCmd
+                0x00000000000267b0                TclCompileExprCmd
+                0x0000000000026810                TclCompileForCmd
+                0x0000000000026f70                TclCompileForeachCmd
+                0x0000000000027cd0                TclCompileIfCmd
+                0x0000000000028540                TclCompileIncrCmd
+                0x0000000000028c90                TclCompileLappendCmd
+                0x00000000000291a0                TclCompileLindexCmd
+                0x00000000000294b0                TclCompileListCmd
+                0x0000000000029880                TclCompileLlengthCmd
+                0x0000000000029aa0                TclCompileLsetCmd
+                0x000000000002a660                TclCompileRegexpCmd
+                0x000000000002afd0                TclCompileReturnCmd
+                0x000000000002b250                TclCompileSetCmd
+                0x000000000002b910                TclCompileAppendCmd
+                0x000000000002be30                TclCompileStringCmd
+                0x000000000002c8f0                TclCompileVariableCmd
+                0x000000000002c9d0                TclCompileWhileCmd
+ *fill*         0x000000000002d0cf       0x31 
+ .text          0x000000000002d100     0x3afa /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+                0x000000000002d110                TclCleanupByteCode
+                0x000000000002d230                TclInitCompileEnv
+                0x000000000002d320                TclFreeCompileEnv
+                0x000000000002d470                TclInitByteCodeObj
+                0x000000000002dab0                TclFindCompiledLocal
+                0x000000000002dc10                TclInitCompiledLocals
+                0x000000000002ddd0                TclExpandCodeArray
+                0x000000000002de60                TclCompileTokens
+                0x000000000002ebd0                TclCompileScript
+                0x000000000002f870                TclSetByteCodeFromAny
+                0x000000000002f9e0                TclCompileCmdWord
+                0x000000000002faa0                TclCompileExprWords
+                0x000000000002fe60                TclCreateExceptRange
+                0x000000000002ff50                TclCreateAuxData
+                0x0000000000030020                TclInitJumpFixupArray
+                0x0000000000030040                TclExpandJumpFixupArray
+                0x00000000000300b0                TclFreeJumpFixupArray
+                0x00000000000300d0                TclEmitForwardJump
+                0x0000000000030210                TclFixupForwardJump
+                0x0000000000030410                TclGetInstructionTable
+                0x0000000000030420                TclInitAuxDataTypeTable
+                0x0000000000030450                TclRegisterAuxDataType
+                0x00000000000304d0                TclGetAuxDataType
+                0x0000000000030530                TclFinalizeAuxDataTypeTable
+                0x0000000000030580                TclPrintSource
+                0x0000000000030720                TclPrintObject
+                0x0000000000030760                TclPrintInstruction
+ *fill*         0x0000000000030bfa        0x6 
+ .text          0x0000000000030c00     0x1a4c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+                0x00000000000314a0                TclDateparse
+                0x00000000000320d0                TclGetDate
+ *fill*         0x000000000003264c       0x34 
+ .text          0x0000000000032680     0x3277 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+                0x00000000000330a0                TclFinalizeEncodingSubsystem
+                0x0000000000033130                Tcl_GetDefaultEncodingDir
+                0x0000000000033140                Tcl_SetDefaultEncodingDir
+                0x0000000000033170                Tcl_FreeEncoding
+                0x00000000000331b0                Tcl_GetEncodingName
+                0x00000000000331c0                Tcl_GetEncodingNames
+                0x00000000000334c0                Tcl_CreateEncoding
+                0x0000000000034440                Tcl_GetEncoding
+                0x00000000000344d0                TclGetEncodingFromObj
+                0x0000000000034580                Tcl_SetSystemEncoding
+                0x00000000000350e0                TclInitEncodingSubsystem
+                0x0000000000035210                Tcl_ExternalToUtfDString
+                0x0000000000035370                Tcl_ExternalToUtf
+                0x0000000000035460                Tcl_UtfToExternalDString
+                0x00000000000356d0                Tcl_UtfToExternal
+                0x00000000000357e0                Tcl_FindExecutable
+ *fill*         0x00000000000358f7        0x9 
+ .text          0x0000000000035900      0x801 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+                0x0000000000035a50                TclSetupEnv
+                0x0000000000035ba0                TclSetEnv
+                0x0000000000035e30                Tcl_PutEnv
+                0x0000000000035ea0                TclUnsetEnv
+                0x0000000000035f30                TclGetEnv
+                0x00000000000360c0                TclFinalizeEnvironment
+ *fill*         0x0000000000036101       0x1f 
+ .text          0x0000000000036120      0xeb6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+                0x0000000000036510                Tcl_BackgroundError
+                0x00000000000366b0                Tcl_CreateExitHandler
+                0x0000000000036700                TclCreateLateExitHandler
+                0x0000000000036750                Tcl_DeleteExitHandler
+                0x00000000000367d0                TclDeleteLateExitHandler
+                0x0000000000036850                Tcl_CreateThreadExitHandler
+                0x0000000000036890                Tcl_DeleteThreadExitHandler
+                0x0000000000036910                TclSetLibraryPath
+                0x00000000000369b0                TclGetLibraryPath
+                0x00000000000369f0                TclInitSubsystems
+                0x0000000000036ab0                Tcl_FinalizeThread
+                0x0000000000036b50                Tcl_Finalize
+                0x0000000000036d20                Tcl_Exit
+                0x0000000000036d30                TclInExit
+                0x0000000000036d40                TclInThreadExit
+                0x0000000000036d70                Tcl_VwaitObjCmd
+                0x0000000000036ea0                Tcl_UpdateObjCmd
+                0x0000000000036f90                Tcl_CreateThread
+ *fill*         0x0000000000036fd6       0x2a 
+ .text          0x0000000000037000     0x79d7 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+                0x0000000000037c30                TclCreateExecEnv
+                0x0000000000037ce0                TclDeleteExecEnv
+                0x0000000000037de0                TclFinalizeExecution
+                0x0000000000037e10                TclExprFloatError
+                0x000000000003e2e0                Tcl_ExprObj
+                0x000000000003e7b0                TclCompEvalObj
+ *fill*         0x000000000003e9d7        0x9 
+ .text          0x000000000003e9e0     0x16e4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+                0x000000000003f710                TclFileRenameCmd
+                0x000000000003f720                TclFileCopyCmd
+                0x000000000003f730                TclFileMakeDirsCmd
+                0x000000000003fa00                TclFileDeleteCmd
+                0x000000000003fc40                TclFileAttrsCmd
+ *fill*         0x00000000000400c4       0x1c 
+ .text          0x00000000000400e0     0x2b6a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+                0x0000000000040580                Tcl_GetPathType
+                0x00000000000405d0                TclpGetNativePathType
+                0x0000000000040710                TclpNativeSplitPath
+                0x00000000000409f0                Tcl_SplitPath
+                0x0000000000040bb0                Tcl_FSJoinToPath
+                0x0000000000040c60                TclpNativeJoinPath
+                0x0000000000040f30                Tcl_JoinPath
+                0x00000000000410e0                Tcl_TranslateFileName
+                0x00000000000411e0                TclGetExtension
+                0x0000000000041290                TclDoGlob
+                0x0000000000041a00                TclGlob
+                0x0000000000041de0                Tcl_GlobObjCmd
+                0x0000000000042b00                TclFileDirname
+                0x0000000000042c40                Tcl_AllocStatBuf
+ *fill*         0x0000000000042c4a       0x36 
+ .text          0x0000000000042c80      0x59a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+                0x0000000000042c80                Tcl_GetInt
+                0x0000000000042dc0                TclGetLong
+                0x0000000000042ee0                Tcl_GetDouble
+                0x0000000000043020                Tcl_GetBoolean
+ *fill*         0x000000000004321a        0x6 
+ .text          0x0000000000043220      0xadf /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+                0x0000000000043800                Tcl_InitCustomHashTable
+                0x0000000000043870                Tcl_InitHashTable
+                0x0000000000043880                Tcl_FindHashEntry
+                0x0000000000043890                Tcl_CreateHashEntry
+                0x00000000000438a0                Tcl_DeleteHashEntry
+                0x00000000000439f0                Tcl_DeleteHashTable
+                0x0000000000043ae0                Tcl_NextHashEntry
+                0x0000000000043b40                Tcl_FirstHashEntry
+                0x0000000000043b60                Tcl_HashStats
+ *fill*         0x0000000000043cff        0x1 
+ .text          0x0000000000043d00      0x5aa /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+                0x0000000000043df0                Tcl_GetIndexFromObjStruct
+                0x0000000000044120                Tcl_GetIndexFromObj
+                0x0000000000044170                Tcl_WrongNumArgs
+ *fill*         0x00000000000442aa       0x16 
+ .text          0x00000000000442c0     0x273b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+                0x00000000000449c0                TclInterpInit
+                0x0000000000044a60                Tcl_GetAlias
+                0x0000000000044b60                Tcl_GetAliasObj
+                0x0000000000044c20                TclPreventAliasLoop
+                0x0000000000045010                Tcl_CreateAlias
+                0x00000000000451e0                Tcl_CreateAliasObj
+                0x0000000000045290                Tcl_GetSlave
+                0x00000000000452f0                Tcl_GetMaster
+                0x0000000000045310                Tcl_GetInterpPath
+                0x0000000000045390                Tcl_IsSafe
+                0x0000000000045b30                Tcl_MakeSafe
+                0x0000000000045e80                Tcl_InterpObjCmd
+                0x00000000000469a0                Tcl_CreateSlave
+ *fill*         0x00000000000469fb        0x5 
+ .text          0x0000000000046a00     0x8204 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+                0x0000000000048390                TclInitIOSubsystem
+                0x00000000000483b0                Tcl_SetStdChannel
+                0x0000000000048420                Tcl_CreateCloseHandler
+                0x0000000000048460                Tcl_DeleteCloseHandler
+                0x00000000000484c0                Tcl_IsStandardChannel
+                0x0000000000048500                Tcl_RegisterChannel
+                0x00000000000485b0                Tcl_GetStdChannel
+                0x0000000000048760                Tcl_GetChannel
+                0x00000000000488b0                Tcl_GetStackedChannel
+                0x00000000000488c0                Tcl_GetTopChannel
+                0x00000000000488d0                Tcl_GetChannelInstanceData
+                0x00000000000488e0                Tcl_GetChannelThread
+                0x00000000000488f0                Tcl_GetChannelType
+                0x0000000000048900                Tcl_GetChannelMode
+                0x0000000000048910                Tcl_GetChannelName
+                0x0000000000048920                Tcl_GetChannelHandle
+                0x0000000000048960                Tcl_WriteRaw
+                0x0000000000048a00                Tcl_Read
+                0x0000000000048a80                Tcl_ReadRaw
+                0x0000000000048c40                Tcl_ReadChars
+                0x0000000000048ce0                Tcl_Ungets
+                0x0000000000048e00                Tcl_InputBlocked
+                0x0000000000048e10                Tcl_InputBuffered
+                0x0000000000048e60                Tcl_Eof
+                0x0000000000048ea0                Tcl_OutputBuffered
+                0x0000000000048ee0                Tcl_ChannelBuffered
+                0x0000000000048f10                Tcl_SetChannelBufferSize
+                0x0000000000048f70                Tcl_GetChannelBufferSize
+                0x0000000000048f80                Tcl_BadChannelOption
+                0x0000000000049110                Tcl_GetChannelOption
+                0x0000000000049ec0                Tcl_CreateChannelHandler
+                0x0000000000049fb0                Tcl_DeleteChannelHandler
+                0x000000000004a1f0                Tcl_DetachChannel
+                0x000000000004a2d0                TclChannelEventScriptInvoker
+                0x000000000004a350                Tcl_FileEventObjCmd
+                0x000000000004a5a0                Tcl_GetChannelNamesEx
+                0x000000000004a6e0                Tcl_GetChannelNames
+                0x000000000004a6f0                Tcl_IsChannelRegistered
+                0x000000000004a750                Tcl_IsChannelShared
+                0x000000000004a760                Tcl_IsChannelExisting
+                0x000000000004a850                Tcl_ChannelName
+                0x000000000004a860                Tcl_ChannelVersion
+                0x000000000004a880                Tcl_Tell
+                0x000000000004a990                Tcl_TellOld
+                0x000000000004a9a0                Tcl_ChannelBlockModeProc
+                0x000000000004aaa0                Tcl_GetsObj
+                0x000000000004b200                Tcl_Gets
+                0x000000000004b400                Tcl_ClearChannelHandlers
+                0x000000000004b520                Tcl_ChannelCloseProc
+                0x000000000004b530                Tcl_ChannelClose2Proc
+                0x000000000004b540                Tcl_ChannelInputProc
+                0x000000000004b550                Tcl_ChannelOutputProc
+                0x000000000004b560                Tcl_ChannelSeekProc
+                0x000000000004b570                Tcl_ChannelSetOptionProc
+                0x000000000004b580                Tcl_ChannelGetOptionProc
+                0x000000000004b590                Tcl_ChannelWatchProc
+                0x000000000004b5a0                Tcl_ChannelGetHandleProc
+                0x000000000004b5b0                Tcl_ChannelFlushProc
+                0x000000000004b5d0                Tcl_ChannelHandlerProc
+                0x000000000004b5f0                Tcl_ChannelWideSeekProc
+                0x000000000004b610                Tcl_ChannelThreadActionProc
+                0x000000000004b630                Tcl_CutChannel
+                0x000000000004bfc0                Tcl_SetChannelOption
+                0x000000000004cb70                Tcl_WriteObj
+                0x000000000004ccd0                Tcl_WriteChars
+                0x000000000004cd40                Tcl_Close
+                0x000000000004d050                Tcl_UnregisterChannel
+                0x000000000004dbc0                TclCopyChannel
+                0x000000000004de20                Tcl_Write
+                0x000000000004dec0                Tcl_Flush
+                0x000000000004df50                TclFinalizeIOSubsystem
+                0x000000000004e060                Tcl_StackChannel
+                0x000000000004e280                Tcl_UnstackChannel
+                0x000000000004e4e0                Tcl_Seek
+                0x000000000004e750                Tcl_SeekOld
+                0x000000000004e770                Tcl_NotifyChannel
+                0x000000000004e930                Tcl_SpliceChannel
+                0x000000000004e9c0                Tcl_CreateChannel
+ *fill*         0x000000000004ec04        0xc 
+ .text          0x000000000004ec10     0x19db /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+                0x000000000004eda0                Tcl_PutsObjCmd
+                0x000000000004f010                Tcl_FlushObjCmd
+                0x000000000004f0e0                Tcl_GetsObjCmd
+                0x000000000004f290                Tcl_ReadObjCmd
+                0x000000000004f550                Tcl_SeekObjCmd
+                0x000000000004f680                Tcl_TellObjCmd
+                0x000000000004f700                Tcl_CloseObjCmd
+                0x000000000004f7a0                Tcl_FconfigureObjCmd
+                0x000000000004f8f0                Tcl_EofObjCmd
+                0x000000000004f970                Tcl_ExecObjCmd
+                0x000000000004fca0                Tcl_FblockedObjCmd
+                0x000000000004fd60                Tcl_OpenObjCmd
+                0x000000000004ff00                Tcl_SocketObjCmd
+                0x00000000000503e0                Tcl_FcopyObjCmd
+ *fill*         0x00000000000505eb        0x5 
+ .text          0x00000000000505f0      0x19f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+                0x00000000000505f0                TclSockGetPort
+                0x00000000000506c0                TclSockMinimumBuffers
+ *fill*         0x000000000005078f       0x31 
+ .text          0x00000000000507c0     0x4fee /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+                0x00000000000511a0                TclpNativeToNormalized
+                0x00000000000511e0                TclNativeDupInternalRep
+                0x0000000000051610                TclFSCwdPointerEquals
+                0x0000000000051710                TclFinalizeFilesystem
+                0x00000000000517c0                TclResetFilesystem
+                0x00000000000517d0                Tcl_FSRegister
+                0x0000000000051850                Tcl_FSUnregister
+                0x0000000000051930                Tcl_FSMountsChanged
+                0x0000000000051960                Tcl_FSData
+                0x00000000000519b0                TclFSNormalizeToUniquePath
+                0x0000000000051a50                TclGetOpenMode
+                0x0000000000051e10                Tcl_GetErrno
+                0x0000000000051e20                Tcl_SetErrno
+                0x0000000000051e30                Tcl_PosixError
+                0x0000000000051e80                TclpLoadFile
+                0x0000000000051f10                Tcl_FSListVolumes
+                0x0000000000051f90                TclFSInternalToNormalized
+                0x0000000000051fe0                TclStatInsertProc
+                0x0000000000052050                TclStatDeleteProc
+                0x00000000000520d0                TclAccessInsertProc
+                0x0000000000052140                TclAccessDeleteProc
+                0x00000000000521d0                TclOpenFileChannelInsertProc
+                0x0000000000052240                TclOpenFileChannelDeleteProc
+                0x00000000000522d0                Tcl_FSConvertToPathType
+                0x00000000000523b0                Tcl_FSSplitPath
+                0x0000000000052550                Tcl_FSGetPathType
+                0x0000000000052560                TclNewFSPathObj
+                0x0000000000052720                Tcl_FSJoinPath
+                0x0000000000052c70                TclFSMakePathRelative
+                0x0000000000052e30                TclFSMakePathFromNormalized
+                0x0000000000053090                Tcl_FSNewNativePath
+                0x0000000000053160                Tcl_FSGetTranslatedPath
+                0x0000000000053210                Tcl_FSGetTranslatedStringPath
+                0x0000000000053290                TclFSSetPathDetails
+                0x00000000000532d0                Tcl_FSEqualPaths
+                0x0000000000053650                Tcl_FSGetCwd
+                0x0000000000053800                Tcl_GetCwd
+                0x0000000000053860                Tcl_FSGetNormalizedPath
+                0x0000000000053df0                TclFSEnsureEpochOk
+                0x0000000000053e90                Tcl_FSGetFileSystemForPath
+                0x0000000000053f60                Tcl_FSStat
+                0x0000000000054100                Tcl_Stat
+                0x00000000000541b0                Tcl_FSLstat
+                0x0000000000054220                Tcl_FSAccess
+                0x0000000000054370                Tcl_Access
+                0x00000000000543c0                Tcl_FSUtime
+                0x0000000000054400                Tcl_FSFileAttrStrings
+                0x0000000000054450                Tcl_FSFileAttrsGet
+                0x00000000000544c0                Tcl_FSFileAttrsSet
+                0x0000000000054530                Tcl_FSLink
+                0x0000000000054580                Tcl_FSRenameFile
+                0x00000000000545e0                Tcl_FSCopyFile
+                0x0000000000054640                Tcl_FSDeleteFile
+                0x0000000000054680                Tcl_FSCreateDirectory
+                0x00000000000546c0                Tcl_FSCopyDirectory
+                0x0000000000054730                Tcl_FSFileSystemInfo
+                0x00000000000547b0                Tcl_FSPathSeparator
+                0x00000000000547e0                Tcl_FSGetInternalRep
+                0x0000000000054880                Tcl_FSGetNativePath
+                0x0000000000054890                Tcl_FSOpenFileChannel
+                0x0000000000054b10                Tcl_OpenFileChannel
+                0x0000000000054b80                TclCrossFilesystemCopy
+                0x0000000000054cb0                Tcl_FSLoadFile
+                0x00000000000552b0                Tcl_FSEvalFile
+                0x00000000000552f0                Tcl_EvalFile
+                0x0000000000055350                Tcl_FSChdir
+                0x0000000000055410                Tcl_Chdir
+                0x0000000000055460                Tcl_FSMatchInDirectory
+                0x0000000000055690                Tcl_FSRemoveDirectory
+ *fill*         0x00000000000557ae       0x12 
+ .text          0x00000000000557c0     0x1435 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+                0x0000000000055d70                Tcl_NewListObj
+                0x0000000000055e60                Tcl_DbNewListObj
+                0x0000000000055e70                Tcl_SetListObj
+                0x0000000000055f80                Tcl_ListObjGetElements
+                0x0000000000055fc0                Tcl_ListObjAppendElement
+                0x00000000000560a0                Tcl_ListObjIndex
+                0x0000000000056100                Tcl_ListObjLength
+                0x0000000000056140                Tcl_ListObjReplace
+                0x0000000000056580                Tcl_ListObjAppendList
+                0x0000000000056620                TclListObjSetElement
+                0x00000000000566f0                TclLsetFlat
+                0x0000000000056940                TclLsetList
+ *fill*         0x0000000000056bf5        0xb 
+ .text          0x0000000000056c00      0xa84 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+                0x0000000000056d10                TclInitLiteralTable
+                0x0000000000056d50                TclLookupLiteralEntry
+                0x0000000000056dd0                TclAddLiteralObj
+                0x0000000000056ff0                TclRegisterLiteral
+                0x00000000000573b0                TclReleaseLiteral
+                0x0000000000057520                TclDeleteLiteralTable
+                0x00000000000575b0                TclHideLiteral
+ *fill*         0x0000000000057684        0xc 
+ .text          0x0000000000057690      0xb52 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+                0x00000000000576c0                Tcl_LoadObjCmd
+                0x0000000000057ef0                Tcl_StaticPackage
+                0x0000000000058070                TclGetLoadedPackages
+                0x00000000000581a0                TclFinalizeLoad
+ *fill*         0x00000000000581e2       0x1e 
+ .text          0x0000000000058200     0x2fd7 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+                0x00000000000583c0                TclInitNamespaceSubsystem
+                0x00000000000583d0                Tcl_GetCurrentNamespace
+                0x00000000000584e0                Tcl_GetGlobalNamespace
+                0x00000000000584f0                Tcl_PushCallFrame
+                0x00000000000585e0                TclTeardownNamespace
+                0x00000000000588a0                Tcl_DeleteNamespace
+                0x0000000000058990                Tcl_PopCallFrame
+                0x0000000000058c40                Tcl_AppendExportList
+                0x0000000000058cd0                TclGetOriginalCommand
+                0x0000000000058d00                TclGetNamespaceForQualName
+                0x0000000000059210                Tcl_CreateNamespace
+                0x0000000000059680                Tcl_Export
+                0x0000000000059890                Tcl_ForgetImport
+                0x0000000000059a80                Tcl_FindNamespace
+                0x0000000000059b20                Tcl_FindCommand
+                0x0000000000059d20                Tcl_Import
+                0x000000000005a210                Tcl_FindNamespaceVar
+                0x000000000005a410                TclResetShadowedCmdRefs
+                0x000000000005a5b0                Tcl_NamespaceObjCmd
+ *fill*         0x000000000005b1d7        0x9 
+ .text          0x000000000005b1e0      0xa86 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+                0x000000000005b2a0                TclInitNotifier
+                0x000000000005b310                TclFinalizeNotifier
+                0x000000000005b3f0                Tcl_SetNotifier
+                0x000000000005b450                Tcl_CreateEventSource
+                0x000000000005b4b0                Tcl_DeleteEventSource
+                0x000000000005b540                Tcl_QueueEvent
+                0x000000000005b570                Tcl_ThreadQueueEvent
+                0x000000000005b5e0                Tcl_DeleteEvents
+                0x000000000005b6c0                Tcl_ServiceEvent
+                0x000000000005b830                Tcl_GetServiceMode
+                0x000000000005b850                Tcl_SetServiceMode
+                0x000000000005b890                Tcl_SetMaxBlockTime
+                0x000000000005b8f0                Tcl_DoOneEvent
+                0x000000000005bae0                Tcl_ServiceAll
+                0x000000000005bc00                Tcl_ThreadAlert
+ *fill*         0x000000000005bc66       0x1a 
+ .text          0x000000000005bc80     0x18ce /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+                0x000000000005bdc0                TclFinalizeObjects
+                0x000000000005be30                Tcl_RegisterObjType
+                0x000000000005be70                TclInitObjSubsystem
+                0x000000000005bf50                Tcl_AppendAllObjTypes
+                0x000000000005c010                Tcl_GetObjType
+                0x000000000005c060                Tcl_ConvertToType
+                0x000000000005c080                Tcl_NewObj
+                0x000000000005c0c0                Tcl_DbNewObj
+                0x000000000005c0d0                TclAllocateFreeObjects
+                0x000000000005c150                Tcl_DuplicateObj
+                0x000000000005c220                Tcl_GetString
+                0x000000000005c490                Tcl_GetStringFromObj
+                0x000000000005cdf0                Tcl_InvalidateStringRep
+                0x000000000005ce20                TclFreeObj
+                0x000000000005ce80                Tcl_NewBooleanObj
+                0x000000000005cec0                Tcl_DbNewBooleanObj
+                0x000000000005ced0                Tcl_SetBooleanObj
+                0x000000000005cf30                Tcl_GetBooleanFromObj
+                0x000000000005cf70                Tcl_NewDoubleObj
+                0x000000000005cfb0                Tcl_DbNewDoubleObj
+                0x000000000005cfc0                Tcl_SetDoubleObj
+                0x000000000005d030                Tcl_GetDoubleFromObj
+                0x000000000005d070                Tcl_NewIntObj
+                0x000000000005d0a0                Tcl_SetIntObj
+                0x000000000005d0f0                Tcl_GetIntFromObj
+                0x000000000005d180                Tcl_NewLongObj
+                0x000000000005d1b0                Tcl_DbNewLongObj
+                0x000000000005d1c0                Tcl_SetLongObj
+                0x000000000005d210                Tcl_GetLongFromObj
+                0x000000000005d250                Tcl_NewWideIntObj
+                0x000000000005d280                Tcl_DbNewWideIntObj
+                0x000000000005d290                Tcl_SetWideIntObj
+                0x000000000005d2e0                Tcl_GetWideIntFromObj
+                0x000000000005d320                Tcl_DbIncrRefCount
+                0x000000000005d330                Tcl_DbDecrRefCount
+                0x000000000005d350                Tcl_DbIsShared
+                0x000000000005d360                Tcl_InitObjHashTable
+                0x000000000005d380                Tcl_GetCommandFromObj
+                0x000000000005d4a0                TclSetCmdNameObj
+ *fill*         0x000000000005d54e        0x2 
+ .text          0x000000000005d550      0x234 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+                0x000000000005d550                Tcl_SetPanicProc
+                0x000000000005d560                Tcl_PanicVA
+                0x000000000005d6f0                Tcl_Panic
+ *fill*         0x000000000005d784       0x1c 
+ .text          0x000000000005d7a0     0x1905 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+                0x000000000005d7a0                TclParseWhiteSpace
+                0x000000000005d820                TclParseHex
+                0x000000000005d8b0                TclParseBackslash
+                0x000000000005dc30                Tcl_FreeParse
+                0x000000000005dc60                TclExpandTokenArray
+                0x000000000005dce0                Tcl_ParseBraces
+                0x000000000005e0f0                Tcl_ParseQuotedString
+                0x000000000005e200                Tcl_ParseCommand
+                0x000000000005ead0                Tcl_ParseVarName
+                0x000000000005eed0                Tcl_ParseVar
+                0x000000000005f000                Tcl_CommandComplete
+                0x000000000005f020                TclObjCommandComplete
+                0x000000000005f040                TclIsLocalScalar
+ *fill*         0x000000000005f0a5       0x1b 
+ .text          0x000000000005f0c0     0x1913 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+                0x000000000005f2c0                Tcl_DetachPids
+                0x000000000005f330                Tcl_ReapDetachedProcs
+                0x000000000005f3e0                TclCleanupChildren
+                0x000000000005f780                TclCreatePipeline
+                0x0000000000060850                Tcl_OpenCommandChannel
+ *fill*         0x00000000000609d3        0xd 
+ .text          0x00000000000609e0     0x141f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+                0x0000000000060c10                Tcl_PkgProvideEx
+                0x0000000000060cd0                Tcl_PkgProvide
+                0x0000000000060ce0                Tcl_PkgRequireProc
+                0x0000000000060cf0                Tcl_PkgRequireEx
+                0x0000000000061330                Tcl_PkgRequire
+                0x0000000000061340                Tcl_PkgPresentEx
+                0x0000000000061400                Tcl_PkgPresent
+                0x0000000000061410                Tcl_PackageObjCmd
+                0x0000000000061d50                TclFreePackageInfo
+ *fill*         0x0000000000061dff        0x1 
+ .text          0x0000000000061e00      0xd68 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+                0x0000000000061e00                Tcl_ErrnoId
+                0x0000000000062380                Tcl_ErrnoMsg
+                0x0000000000062750                Tcl_SignalId
+                0x0000000000062960                Tcl_SignalMsg
+ *fill*         0x0000000000062b68        0x8 
+ .text          0x0000000000062b70      0x3a5 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+                0x0000000000062b70                TclFinalizePreserve
+                0x0000000000062bd0                Tcl_Preserve
+                0x0000000000062d10                Tcl_Release
+                0x0000000000062df0                Tcl_EventuallyFree
+                0x0000000000062eb0                TclHandleCreate
+                0x0000000000062ed0                TclHandleFree
+                0x0000000000062ef0                TclHandlePreserve
+                0x0000000000062f00                TclHandleRelease
+ *fill*         0x0000000000062f15        0xb 
+ .text          0x0000000000062f20     0x1bdb /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+                0x00000000000635b0                TclCreateProc
+                0x0000000000063c70                Tcl_ProcObjCmd
+                0x0000000000063f70                TclGetFrame
+                0x0000000000064090                Tcl_UplevelObjCmd
+                0x00000000000641c0                TclFindProc
+                0x0000000000064200                TclIsProc
+                0x0000000000064230                TclProcCompileProc
+                0x0000000000064240                TclProcCleanupProc
+                0x0000000000064310                TclProcDeleteProc
+                0x0000000000064330                TclUpdateReturnInfo
+                0x0000000000064430                TclObjInterpProc
+                0x0000000000064900                TclProcInterpProc
+                0x0000000000064aa0                TclGetInterpProc
+                0x0000000000064ab0                TclGetObjInterpProc
+                0x0000000000064ac0                TclNewProcBodyObj
+ *fill*         0x0000000000064afb        0x5 
+ .text          0x0000000000064b00      0xa5c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+                0x0000000000064c00                Tcl_RegExpRange
+                0x0000000000064ca0                TclRegExpRangeUniChar
+                0x0000000000064cf0                Tcl_RegExpGetInfo
+                0x0000000000064d10                TclRegAbout
+                0x0000000000064e80                TclRegError
+                0x0000000000065240                Tcl_RegExpCompile
+                0x0000000000065270                Tcl_GetRegExpFromObj
+                0x0000000000065350                Tcl_RegExpExecObj
+                0x0000000000065410                Tcl_RegExpMatchObj
+                0x0000000000065460                Tcl_RegExpExec
+                0x0000000000065520                Tcl_RegExpMatch
+ *fill*         0x000000000006555c        0x4 
+ .text          0x0000000000065560      0xd21 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+                0x0000000000065620                Tcl_SaveResult
+                0x00000000000656f0                Tcl_DiscardResult
+                0x0000000000065780                Tcl_SetResult
+                0x0000000000065850                Tcl_SetObjResult
+                0x0000000000065900                Tcl_GetObjResult
+                0x00000000000659d0                Tcl_GetStringResult
+                0x0000000000065a30                Tcl_FreeResult
+                0x0000000000065ba0                Tcl_AppendResultVA
+                0x0000000000065da0                Tcl_AppendResult
+                0x0000000000065e40                Tcl_AppendElement
+                0x0000000000065f30                Tcl_ResetResult
+                0x0000000000065f80                Tcl_RestoreResult
+                0x0000000000066040                Tcl_SetErrorCodeVA
+                0x00000000000660c0                Tcl_SetErrorCode
+                0x0000000000066160                Tcl_SetObjErrorCode
+                0x0000000000066190                TclTransferResult
+ *fill*         0x0000000000066281       0x1f 
+ .text          0x00000000000662a0     0x19e7 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+                0x00000000000662a0                Tcl_ScanObjCmd
+ *fill*         0x0000000000067c87       0x19 
+ .text          0x0000000000067ca0     0x15e4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+                0x0000000000068420                Tcl_NewStringObj
+                0x00000000000684f0                Tcl_DbNewStringObj
+                0x0000000000068500                Tcl_NewUnicodeObj
+                0x0000000000068550                Tcl_GetCharLength
+                0x00000000000685f0                Tcl_GetUniChar
+                0x0000000000068650                Tcl_GetUnicode
+                0x0000000000068680                Tcl_GetUnicodeFromObj
+                0x00000000000686d0                Tcl_GetRange
+                0x0000000000068760                Tcl_SetStringObj
+                0x0000000000068820                Tcl_SetObjLength
+                0x00000000000689c0                Tcl_AttemptSetObjLength
+                0x0000000000068ce0                Tcl_SetUnicodeObj
+                0x0000000000068d40                Tcl_AppendToObj
+                0x0000000000068dc0                Tcl_AppendUnicodeToObj
+                0x0000000000068ed0                Tcl_AppendObjToObj
+                0x0000000000068fe0                Tcl_AppendStringsToObjVA
+                0x00000000000691f0                Tcl_AppendStringsToObj
+ *fill*         0x0000000000069284       0x3c 
+ .text          0x00000000000692c0      0x430 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+                0x00000000000693d0                Tcl_GetThreadData
+                0x0000000000069440                TclThreadDataKeyGet
+                0x0000000000069450                TclThreadDataKeySet
+                0x0000000000069490                TclRememberMutex
+                0x00000000000694a0                Tcl_MutexFinalize
+                0x00000000000694f0                TclRememberDataKey
+                0x0000000000069500                TclRememberCondition
+                0x0000000000069510                Tcl_ConditionFinalize
+                0x0000000000069560                TclFinalizeThreadData
+                0x00000000000695b0                TclFinalizeSynchronization
+                0x00000000000696e0                Tcl_ExitThread
+ *fill*         0x00000000000696f0       0x10 
+ .text          0x0000000000069700      0xcf4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+                0x0000000000069940                TclFreeAllocCache
+                0x0000000000069a50                TclpAlloc
+                0x0000000000069d60                TclpFree
+                0x0000000000069e80                TclpRealloc
+                0x000000000006a020                TclThreadAllocObj
+                0x000000000006a180                TclThreadFreeObj
+                0x000000000006a240                Tcl_GetMemoryInfo
+                0x000000000006a380                TclFinalizeThreadAlloc
+ *fill*         0x000000000006a3f4        0xc 
+ .text          0x000000000006a400        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+                0x000000000006a400                TclSockMinimumBuffersOld
+ *fill*         0x000000000006a408       0x18 
+ .text          0x000000000006a420      0x1c9 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+                0x000000000006a420                Tcl_InitStubs
+ *fill*         0x000000000006a5e9        0x7 
+ .text          0x000000000006a5f0     0x10a4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+                0x000000000006aae0                Tcl_CreateTimerHandler
+                0x000000000006ac50                Tcl_DeleteTimerHandler
+                0x000000000006ad00                Tcl_DoWhenIdle
+                0x000000000006adc0                Tcl_CancelIdleCall
+                0x000000000006af10                TclServiceIdle
+                0x000000000006b000                Tcl_AfterObjCmd
+ *fill*         0x000000000006b694       0x2c 
+ .text          0x000000000006b6c0     0x17b6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+                0x000000000006b6c0                Tcl_UniCharToUtf
+                0x000000000006b750                Tcl_UniCharToUtfDString
+                0x000000000006b7e0                Tcl_UtfToUniChar
+                0x000000000006b890                Tcl_UtfToUniCharDString
+                0x000000000006b950                Tcl_UtfCharComplete
+                0x000000000006b970                Tcl_NumUtfChars
+                0x000000000006ba30                Tcl_UtfFindFirst
+                0x000000000006bab0                Tcl_UtfFindLast
+                0x000000000006bb60                Tcl_UtfNext
+                0x000000000006bba0                Tcl_UtfPrev
+                0x000000000006bbf0                Tcl_UniCharAtIndex
+                0x000000000006bc60                Tcl_UtfAtIndex
+                0x000000000006bcc0                Tcl_UtfBackslash
+                0x000000000006bd30                TclpUtfNcmp2
+                0x000000000006bda0                Tcl_UtfNcmp
+                0x000000000006be50                Tcl_UniCharToUpper
+                0x000000000006bea0                Tcl_UtfToUpper
+                0x000000000006bfb0                Tcl_UniCharToLower
+                0x000000000006c000                Tcl_UtfToLower
+                0x000000000006c110                Tcl_UtfNcasecmp
+                0x000000000006c200                Tcl_UniCharToTitle
+                0x000000000006c270                Tcl_UtfToTitle
+                0x000000000006c430                Tcl_UniCharLen
+                0x000000000006c460                Tcl_UniCharNcmp
+                0x000000000006c4b0                Tcl_UniCharNcasecmp
+                0x000000000006c530                Tcl_UniCharIsAlnum
+                0x000000000006c570                Tcl_UniCharIsAlpha
+                0x000000000006c5b0                Tcl_UniCharIsControl
+                0x000000000006c5f0                Tcl_UniCharIsDigit
+                0x000000000006c630                Tcl_UniCharIsGraph
+                0x000000000006c670                Tcl_UniCharIsLower
+                0x000000000006c6b0                Tcl_UniCharIsPrint
+                0x000000000006c6f0                Tcl_UniCharIsPunct
+                0x000000000006c730                Tcl_UniCharIsSpace
+                0x000000000006c7a0                Tcl_UniCharIsUpper
+                0x000000000006c7e0                Tcl_UniCharIsWordChar
+                0x000000000006c820                Tcl_UniCharCaseMatch
+                0x000000000006cb30                TclUniCharMatch
+ *fill*         0x000000000006ce76        0xa 
+ .text          0x000000000006ce80     0x2615 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+                0x000000000006d220                TclPrecTraceProc
+                0x000000000006d440                TclFindElement
+                0x000000000006d8e0                TclCopyAndCollapse
+                0x000000000006d990                Tcl_SplitList
+                0x000000000006dc20                Tcl_ScanCountedElement
+                0x000000000006dda0                Tcl_ScanElement
+                0x000000000006ddb0                Tcl_ConvertCountedElement
+                0x000000000006dfd0                Tcl_ConvertElement
+                0x000000000006dfe0                Tcl_Merge
+                0x000000000006e0f0                Tcl_Backslash
+                0x000000000006e130                Tcl_Concat
+                0x000000000006e290                Tcl_ConcatObj
+                0x000000000006e580                Tcl_StringCaseMatch
+                0x000000000006eae0                Tcl_StringMatch
+                0x000000000006eaf0                TclMatchIsTrivial
+                0x000000000006eb20                Tcl_DStringInit
+                0x000000000006eb40                Tcl_DStringAppend
+                0x000000000006ebf0                Tcl_DStringSetLength
+                0x000000000006ec70                Tcl_DStringFree
+                0x000000000006ecb0                Tcl_DStringResult
+                0x000000000006ed30                Tcl_DStringGetResult
+                0x000000000006ee60                Tcl_DStringEndSublist
+                0x000000000006ee80                Tcl_PrintDouble
+                0x000000000006ef40                TclNeedSpace
+                0x000000000006efb0                Tcl_DStringAppendElement
+                0x000000000006f080                Tcl_DStringStartSublist
+                0x000000000006f0c0                TclFormatInt
+                0x000000000006f200                TclLooksLikeInt
+                0x000000000006f2b0                TclCheckBadOctal
+                0x000000000006f3c0                TclGetIntForIndex
+                0x000000000006f480                Tcl_GetNameOfExecutable
+                0x000000000006f490                TclpGetTime
+ *fill*         0x000000000006f495        0xb 
+ .text          0x000000000006f4a0     0x50c1 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+                0x0000000000070510                TclLookupSimpleVar
+                0x00000000000709f0                TclLookupArrayElement
+                0x0000000000070bc0                TclLookupVar
+                0x0000000000070dd0                TclObjLookupVar
+                0x0000000000071520                TclPtrGetVar
+                0x0000000000071640                Tcl_GetVar2Ex
+                0x00000000000716a0                Tcl_GetVar2
+                0x00000000000716e0                Tcl_GetVar
+                0x00000000000716f0                Tcl_ObjGetVar2
+                0x0000000000071780                TclPtrSetVar
+                0x0000000000071c30                Tcl_SetVar2Ex
+                0x0000000000071cb0                Tcl_SetVar2
+                0x0000000000071d40                Tcl_SetVar
+                0x0000000000071d50                Tcl_ObjSetVar2
+                0x0000000000071e00                Tcl_SetObjCmd
+                0x0000000000071e80                TclPtrIncrVar
+                0x0000000000071ff0                TclIncrVar2
+                0x00000000000720e0                TclObjUnsetVar2
+                0x0000000000072220                Tcl_UnsetVar2
+                0x00000000000722c0                Tcl_UnsetVar
+                0x00000000000722d0                Tcl_TraceVar2
+                0x0000000000072370                Tcl_TraceVar
+                0x0000000000072380                Tcl_UntraceVar2
+                0x0000000000072470                Tcl_UntraceVar
+                0x0000000000072480                Tcl_VarTraceInfo2
+                0x0000000000072500                Tcl_VarTraceInfo
+                0x0000000000072510                Tcl_UnsetObjCmd
+                0x0000000000072690                Tcl_AppendObjCmd
+                0x00000000000727d0                Tcl_LappendObjCmd
+                0x0000000000072b30                TclArraySet
+                0x0000000000072dc0                Tcl_ArrayObjCmd
+                0x00000000000738e0                Tcl_UpVar2
+                0x00000000000739b0                Tcl_UpVar
+                0x00000000000739c0                Tcl_GetVariableFullName
+                0x0000000000073a70                Tcl_GlobalObjCmd
+                0x0000000000073ba0                Tcl_VariableObjCmd
+                0x0000000000073de0                Tcl_UpvarObjCmd
+                0x0000000000073ee0                TclDeleteNamespaceVars
+                0x0000000000074020                TclDeleteVars
+                0x00000000000742f0                TclDeleteCompiledLocalVars
+                0x00000000000744d0                TclVarTraceExists
+ *fill*         0x0000000000074561       0x1f 
+ .text          0x0000000000074580     0x2701 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+                0x0000000000075fb0                TclpOpenFileChannel
+                0x0000000000076250                Tcl_MakeFileChannel
+                0x0000000000076360                Tcl_OpenTcpClient
+                0x0000000000076410                Tcl_MakeTcpClientChannel
+                0x0000000000076420                Tcl_OpenTcpServer
+                0x00000000000764b0                TclpGetDefaultStdChannel
+                0x0000000000076620                Tcl_GetOpenFile
+                0x00000000000767e0                TclUnixWaitForFile
+ *fill*         0x0000000000076c81        0xf 
+ .text          0x0000000000076c90       0xd7 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+                0x0000000000076c90                Tcl_Sleep
+ *fill*         0x0000000000076d67        0x9 
+ .text          0x0000000000076d70     0x18de /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+                0x0000000000078060                TclpObjRenameFile
+                0x0000000000078090                TclpObjCopyFile
+                0x00000000000780e0                TclpDeleteFile
+                0x0000000000078100                TclpObjDeleteFile
+                0x0000000000078190                TclpObjCreateDirectory
+                0x00000000000781d0                TclpObjCopyDirectory
+                0x0000000000078350                TclpObjRemoveDirectory
+                0x0000000000078430                TclpObjListVolumes
+                0x0000000000078450                TclpObjNormalizePath
+ *fill*         0x000000000007864e       0x12 
+ .text          0x0000000000078660      0xd05 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+                0x0000000000078870                TclpMatchInDirectory
+                0x0000000000078c00                TclpGetUserHome
+                0x0000000000078c70                TclpObjAccess
+                0x0000000000078ca0                TclpObjChdir
+                0x0000000000078cd0                TclpObjLstat
+                0x0000000000078cf0                TclpGetCwd
+                0x0000000000078d70                TclpFindExecutable
+                0x00000000000790c0                TclpObjGetCwd
+                0x0000000000079110                TclpReadlink
+                0x0000000000079180                TclpObjStat
+                0x00000000000791b0                TclpObjLink
+                0x0000000000079340                TclpFilesystemPathType
+                0x0000000000079350                TclpUtime
+ *fill*         0x0000000000079365        0xb 
+ .text          0x0000000000079370      0xee1 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+                0x00000000000796a0                TclpMakeFile
+                0x0000000000079770                TclpOpenFile
+                0x00000000000797f0                TclpCreateTempFile
+                0x00000000000798f0                TclpTempFileName
+                0x00000000000799a0                TclpCreatePipe
+                0x0000000000079a10                TclpCloseFile
+                0x0000000000079b20                TclpCreateCommandChannel
+                0x0000000000079bf0                TclGetAndDetachPids
+                0x0000000000079cb0                Tcl_WaitPid
+                0x0000000000079d00                TclpCreateProcess
+                0x000000000007a170                Tcl_PidObjCmd
+                0x000000000007a250                TclpFinalizePipes
+ *fill*         0x000000000007a251        0xf 
+ .text          0x000000000007a260      0x171 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+                0x000000000007a260                Tcl_GetHostName
+                0x000000000007a3c0                TclpHasSockets
+                0x000000000007a3d0                TclpFinalizeSockets
+ *fill*         0x000000000007a3d1        0xf 
+ .text          0x000000000007a3e0      0x2d5 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+                0x000000000007a3f0                TclpGetSeconds
+                0x000000000007a400                TclpGetClicks
+                0x000000000007a420                Tcl_GetTime
+                0x000000000007a440                TclpStrftime
+                0x000000000007a530                TclpGmtime
+                0x000000000007a570                TclpLocaltime
+                0x000000000007a650                TclpGetTimeZone
+                0x000000000007a6a0                TclpGetDate
+ *fill*         0x000000000007a6b5        0xb 
+ .text          0x000000000007a6c0      0xf36 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+                0x000000000007a6c0                TclSetPreInitScript
+                0x000000000007a6d0                TclpInitPlatform
+                0x000000000007a7b0                TclpInitLibraryPath
+                0x000000000007ace0                TclpSetInitialEncodings
+                0x000000000007b120                TclpSetVariables
+                0x000000000007b3a0                TclpFindVariable
+                0x000000000007b470                Tcl_Init
+                0x000000000007b510                Tcl_SourceRCFile
+                0x000000000007b5f0                TclpCheckStackSpace
+ *fill*         0x000000000007b5f6        0xa 
+ .text          0x000000000007b600      0x61e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+                0x000000000007b600                TclpFreeAllocCache
+                0x000000000007b640                TclpThreadCreate
+                0x000000000007b700                Tcl_JoinThread
+                0x000000000007b730                TclpThreadExit
+                0x000000000007b740                Tcl_GetCurrentThread
+                0x000000000007b750                TclpInitLock
+                0x000000000007b760                TclFinalizeLock
+                0x000000000007b770                TclpInitUnlock
+                0x000000000007b780                TclpMasterLock
+                0x000000000007b790                TclpMasterUnlock
+                0x000000000007b7a0                Tcl_GetAllocMutex
+                0x000000000007b7b0                Tcl_MutexLock
+                0x000000000007b830                Tcl_MutexUnlock
+                0x000000000007b840                TclpFinalizeMutex
+                0x000000000007b870                TclpThreadDataKeyInit
+                0x000000000007b8d0                TclpThreadDataKeyGet
+                0x000000000007b8f0                TclpThreadDataKeySet
+                0x000000000007b900                TclpFinalizeThreadData
+                0x000000000007b940                TclpFinalizeThreadDataKey
+                0x000000000007b970                Tcl_ConditionWait
+                0x000000000007ba80                Tcl_ConditionNotify
+                0x000000000007baa0                TclpFinalizeCondition
+                0x000000000007bad0                TclpReaddir
+                0x000000000007bae0                TclpInetNtoa
+                0x000000000007bb30                TclpNewAllocMutex
+                0x000000000007bb70                TclpFreeAllocMutex
+                0x000000000007bba0                TclpGetAllocCache
+                0x000000000007bc10                TclpSetAllocCache
+ *fill*         0x000000000007bc1e        0x2 
+ .text          0x000000000007bc20      0x2bf /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+                0x000000000007bc20                TclpGetPwNam
+                0x000000000007bc90                TclpGetPwUid
+                0x000000000007bd00                TclpGetGrNam
+                0x000000000007bd70                TclpGetGrGid
+                0x000000000007bde0                TclpGetHostByName
+                0x000000000007be40                TclpGetHostByAddr
+                0x000000000007bec0                TclWinCPUID
+ *fill*         0x000000000007bedf        0x1 
+ .text          0x000000000007bee0      0xe20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+                0x000000000007c3c0                Tcl_InitNotifier
+                0x000000000007c490                Tcl_FinalizeNotifier
+                0x000000000007c590                Tcl_AlertNotifier
+                0x000000000007c5d0                Tcl_SetTimer
+                0x000000000007c600                Tcl_ServiceModeHook
+                0x000000000007c610                Tcl_CreateFileHandler
+                0x000000000007c760                Tcl_DeleteFileHandler
+                0x000000000007c8f0                Tcl_WaitForEvent
+ .text          0x000000000007cd00      0x1a3 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+                0x000000000007cd00                TclpUnloadFile
+                0x000000000007cd10                TclpDlopen
+                0x000000000007cdf0                TclpFindSymbol
+                0x000000000007cea0                TclGuessPackageName
+ *fill*         0x000000000007cea3       0x1d 
+ .text          0x000000000007cec0     0x9c39 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+                0x0000000000085f80                TclReComp
+ *fill*         0x0000000000086af9        0x7 
+ .text          0x0000000000086b00     0x27c1 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+                0x0000000000088850                TclReExec
+ *fill*         0x00000000000892c1        0xf 
+ .text          0x00000000000892d0       0x11 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+                0x00000000000892d0                TclReFree
+ *fill*         0x00000000000892e1        0xf 
+ .text          0x00000000000892f0      0x19e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+                0x00000000000892f0                TclReError
+ *fill*         0x000000000008948e       0x12 
+ .text          0x00000000000894a0      0x2fd /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+                0x00000000000894a0                TclFinalizeAsync
+                0x00000000000894e0                Tcl_AsyncCreate
+                0x0000000000089580                Tcl_AsyncMark
+                0x00000000000895d0                Tcl_AsyncInvoke
+                0x0000000000089690                Tcl_AsyncDelete
+                0x0000000000089780                Tcl_AsyncReady
+ *fill*         0x000000000008979d        0x3 
+ .text          0x00000000000897a0     0x1457 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+                0x000000000008a9a0                TclCompileExpr
+                0x000000000008abb0                TclFinalizeCompilation
+ *fill*         0x000000000008abf7        0x9 
+ .text          0x000000000008ac00      0x180 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+                0x000000000008ac00                Tcl_RecordAndEvalObj
+                0x000000000008acc0                Tcl_RecordAndEval
+ .text          0x000000000008ad80      0xe87 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+                0x000000000008b9e0                TclChannelTransform
+ *fill*         0x000000000008bc07        0x9 
+ .text          0x000000000008bc10      0x7da /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+                0x000000000008c180                Tcl_LinkVar
+                0x000000000008c2b0                Tcl_UnlinkVar
+                0x000000000008c330                Tcl_UpdateLinkedVar
+ *fill*         0x000000000008c3ea        0x6 
+ .text          0x000000000008c3f0      0xc08 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+                0x000000000008c780                TclSetStartupScriptPath
+                0x000000000008c7c0                TclGetStartupScriptPath
+                0x000000000008c7d0                TclSetStartupScriptFileName
+                0x000000000008c7f0                TclGetStartupScriptFileName
+                0x000000000008c820                Tcl_Main
+                0x000000000008cff0                Tcl_SetMainLoop
+ *fill*         0x000000000008cff8        0x8 
+ .text          0x000000000008d000     0x1948 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+                0x000000000008d170                TclParseInteger
+                0x000000000008e810                Tcl_ParseExpr
+ *fill*         0x000000000008e948       0x18 
+ .text          0x000000000008e960      0x54e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+                0x000000000008eb80                Tcl_AddInterpResolvers
+                0x000000000008eca0                Tcl_GetInterpResolvers
+                0x000000000008ed40                Tcl_RemoveInterpResolvers
+                0x000000000008ee30                Tcl_SetNamespaceResolvers
+                0x000000000008ee70                Tcl_GetNamespaceResolvers
+ .text          0x000000000008eeae        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .text          0x000000000008eeae        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+ *(.gnu.warning)
+
+.fini           0x000000000008eeb0        0x9
+ *(SORT_NONE(.fini))
+ .fini          0x000000000008eeb0        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+                0x000000000008eeb0                _fini
+ .fini          0x000000000008eeb4        0x5 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+                [!provide]                        PROVIDE (__etext = .)
+                [!provide]                        PROVIDE (_etext = .)
+                [!provide]                        PROVIDE (etext = .)
+                0x000000000008f000                . = ALIGN (CONSTANT (MAXPAGESIZE))
+                0x000000000008f000                . = SEGMENT_START ("rodata-segment", (ALIGN (CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 0x1))))
+
+.rodata         0x000000000008f000    0x11ccc
+ *(.rodata .rodata.* .gnu.linkonce.r.*)
+ .rodata.cst4   0x000000000008f000        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000008f000                _IO_stdin_used
+ *fill*         0x000000000008f004        0x4 
+ .rodata        0x000000000008f008      0x545 /tmp/ccEEdJfr.o
+ *fill*         0x000000000008f54d        0x3 
+ .rodata.str1.8
+                0x000000000008f550     0x4e7a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+                                        0x388 (size before relaxing)
+ .rodata.str1.1
+                0x00000000000943ca     0x475d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+                                        0x460 (size before relaxing)
+ *fill*         0x0000000000098b27        0x1 
+ .rodata.cst8   0x0000000000098b28       0xd0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+                                         0x10 (size before relaxing)
+ *fill*         0x0000000000098bf8        0x8 
+ .rodata        0x0000000000098c00      0x321 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .rodata.str1.8
+                0x0000000000098f21      0x141 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .rodata.str1.1
+                0x0000000000098f21       0x9e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ *fill*         0x0000000000098f21        0xf 
+ .rodata.cst16  0x0000000000098f30       0x50 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+                                         0x10 (size before relaxing)
+ .rodata.cst8   0x0000000000098f80        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .rodata.str1.1
+                0x0000000000098f80       0x34 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+ .rodata.str1.8
+                0x0000000000098f80       0x4f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+ .rodata.str1.1
+                0x0000000000098f80       0xb9 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ .rodata.str1.8
+                0x0000000000098f80       0x85 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ .rodata.str1.1
+                0x0000000000098f80      0x496 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .rodata.str1.8
+                0x0000000000098f80      0x29f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .rodata        0x0000000000098f80       0xdc /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .rodata.str1.1
+                0x000000000009905c      0x33c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .rodata.str1.8
+                0x000000000009905c      0x257 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .rodata        0x000000000009905c       0xb0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .rodata.str1.8
+                0x000000000009910c      0x5dc /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .rodata.str1.1
+                0x000000000009910c      0x5af /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .rodata        0x000000000009910c       0xe8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .rodata.cst8   0x00000000000991f4        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .rodata.str1.1
+                0x00000000000991f4      0x1a6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ .rodata.str1.8
+                0x00000000000991f4      0x46f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ .rodata        0x00000000000991f4       0x54 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ .rodata.str1.8
+                0x0000000000099248      0x301 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ .rodata.str1.1
+                0x0000000000099248      0x441 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ .rodata        0x0000000000099248       0x68 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ .rodata.cst8   0x00000000000992b0       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ .rodata.str1.1
+                0x00000000000992b0      0x269 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+ *fill*         0x00000000000992b0       0x10 
+ .rodata        0x00000000000992c0      0xb38 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+ .rodata.str1.8
+                0x0000000000099df8       0x4b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ .rodata.str1.1
+                0x0000000000099df8       0x87 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ *fill*         0x0000000000099df8        0x8 
+ .rodata        0x0000000000099e00      0x100 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ .rodata.str1.1
+                0x0000000000099f00       0x1a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+ .rodata.str1.1
+                0x0000000000099f00       0xa9 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ .rodata.str1.8
+                0x0000000000099f00       0x94 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ .rodata.str1.8
+                0x0000000000099f00      0x3c4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .rodata.str1.1
+                0x0000000000099f00      0x20f /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .rodata        0x0000000000099f00      0x228 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .rodata.cst8   0x000000000009a128       0x58 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .rodata.cst16  0x000000000009a128       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .rodata.str1.1
+                0x000000000009a128      0x1f3 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+ .rodata.str1.8
+                0x000000000009a128       0xb4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+ .rodata.str1.1
+                0x000000000009a128      0x154 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ .rodata.str1.8
+                0x000000000009a128      0x174 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ .rodata        0x000000000009a128       0x78 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ .rodata.str1.1
+                0x000000000009a1a0       0x46 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .rodata.str1.8
+                0x000000000009a1a0       0x79 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .rodata.cst8   0x000000000009a1a0       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .rodata.str1.8
+                0x000000000009a1a0      0x138 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .rodata.cst16  0x000000000009a1a0       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .rodata.cst8   0x000000000009a1a0       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .rodata.str1.8
+                0x000000000009a1a0       0x40 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+ .rodata.str1.1
+                0x000000000009a1a0       0x51 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+ .rodata.str1.8
+                0x000000000009a1a0      0x2e7 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ .rodata.str1.1
+                0x000000000009a1a0      0x2f4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ .rodata        0x000000000009a1a0       0x6c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ .rodata.str1.8
+                0x000000000009a20c      0x42d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .rodata.str1.1
+                0x000000000009a20c      0x22c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ *fill*         0x000000000009a20c        0x4 
+ .rodata        0x000000000009a210        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .rodata.cst8   0x000000000009a218       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .rodata.str1.1
+                0x000000000009a218      0x1dc /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .rodata.str1.8
+                0x000000000009a218      0x2b6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .rodata        0x000000000009a218       0x1c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .rodata.str1.8
+                0x000000000009a234       0x2b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+ .rodata.str1.1
+                0x000000000009a234      0x17e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+ .rodata.str1.8
+                0x000000000009a234      0x1a6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+ .rodata.str1.8
+                0x000000000009a234      0x158 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+ .rodata.str1.1
+                0x000000000009a234       0x1d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+ .rodata.cst16  0x000000000009a234       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+ .rodata.str1.8
+                0x000000000009a234       0xca /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+ .rodata.str1.1
+                0x000000000009a234       0x7d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+ .rodata.str1.8
+                0x000000000009a234      0x298 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .rodata.str1.1
+                0x000000000009a234      0x265 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .rodata        0x000000000009a234       0x3c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .rodata.cst8   0x000000000009a270        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .rodata.str1.8
+                0x000000000009a270      0x204 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+ .rodata.str1.1
+                0x000000000009a270       0x4c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+ *fill*         0x000000000009a270       0x10 
+ .rodata        0x000000000009a280      0x1e0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .rodata.str1.8
+                0x000000000009a460       0xfe /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .rodata.str1.1
+                0x000000000009a460       0x5b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .rodata.cst8   0x000000000009a460        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .rodata.str1.1
+                0x000000000009a460      0x103 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+ .rodata.str1.8
+                0x000000000009a460      0x23e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+ .rodata.str1.1
+                0x000000000009a460      0x20d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .rodata.str1.8
+                0x000000000009a460      0x14a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .rodata        0x000000000009a460       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .rodata.str1.1
+                0x000000000009a488      0xe93 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .rodata        0x000000000009a488      0x4d8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .rodata.str1.8
+                0x000000000009a960      0x308 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .rodata.str1.8
+                0x000000000009a960       0x5a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+ .rodata.str1.1
+                0x000000000009a960      0x1a6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+ .rodata.str1.8
+                0x000000000009a960      0x272 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+ .rodata.str1.1
+                0x000000000009a960       0xd4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ .rodata.str1.8
+                0x000000000009a960       0x5a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ .rodata.str1.1
+                0x000000000009a960       0x15 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+ .rodata.str1.8
+                0x000000000009a960      0x1b1 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .rodata.str1.1
+                0x000000000009a960       0x47 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .rodata        0x000000000009a960      0x280 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .rodata.str1.8
+                0x000000000009abe0      0x1e1 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+ .rodata.str1.1
+                0x000000000009abe0       0x36 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+ .rodata.str1.8
+                0x000000000009abe0       0x79 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+ .rodata.str1.1
+                0x000000000009abe0       0x2c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+ .rodata.str1.8
+                0x000000000009abe0       0x31 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+ .rodata.str1.1
+                0x000000000009abe0        0x4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+ .rodata.str1.1
+                0x000000000009abe0       0xad /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .rodata.str1.8
+                0x000000000009abe0       0x66 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .rodata        0x000000000009abe0     0x3ba0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+ .rodata.str1.1
+                0x000000000009e780       0xb6 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .rodata.str1.8
+                0x000000000009e780      0x163 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .rodata.cst2   0x000000000009e780        0xa /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .rodata.cst8   0x000000000009e78a        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .rodata.str1.1
+                0x000000000009e78a      0x324 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ .rodata.str1.8
+                0x000000000009e78a      0x27a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ *fill*         0x000000000009e78a        0x2 
+ .rodata        0x000000000009e78c       0x2c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ .rodata.str1.1
+                0x000000000009e7b8      0x2a2 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ .rodata.str1.8
+                0x000000000009e7b8      0x213 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ *fill*         0x000000000009e7b8        0x8 
+ .rodata        0x000000000009e7c0      0x170 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ .rodata.str1.1
+                0x000000000009e930       0x61 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .rodata.str1.8
+                0x000000000009e930       0x8d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .rodata        0x000000000009e930       0xb4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .rodata.str1.1
+                0x000000000009e9e4       0x39 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+ .rodata.str1.8
+                0x000000000009e9e4       0x27 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+ .rodata.str1.1
+                0x000000000009e9e4       0x77 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ .rodata.str1.8
+                0x000000000009e9e4       0x30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ *fill*         0x000000000009e9e4        0xc 
+ .rodata        0x000000000009e9f0       0x3c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ .rodata.str1.1
+                0x000000000009ea2c       0x1a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+ .rodata.str1.1
+                0x000000000009ea2c      0x27a /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+ .rodata.str1.1
+                0x000000000009ea2c       0x24 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+ .rodata.str1.8
+                0x000000000009ea2c      0x15d /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+ .rodata.str1.1
+                0x000000000009ea2c        0x3 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+ .rodata.str1.1
+                0x000000000009ea2c       0x1b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+ *fill*         0x000000000009ea2c       0x14 
+ .rodata        0x000000000009ea40     0x1f86 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .rodata.str1.1
+                0x00000000000a09c6      0x432 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .rodata.str1.8
+                0x00000000000a09c6       0x70 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .rodata.cst16  0x00000000000a09c6       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .rodata.cst8   0x00000000000a09c6       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .rodata.str1.1
+                0x00000000000a09c6      0x264 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ .rodata.str1.8
+                0x00000000000a09c6       0xa4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ *fill*         0x00000000000a09c6       0x1a 
+ .rodata        0x00000000000a09e0       0x26 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ .rodata.str1.8
+                0x00000000000a0a06       0x6b /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+ .rodata.cst8   0x00000000000a0a06        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+ .rodata.str1.8
+                0x00000000000a0a06      0x152 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .rodata.str1.1
+                0x00000000000a0a06       0x57 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ *fill*         0x00000000000a0a06        0x2 
+ .rodata        0x00000000000a0a08       0x84 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .rodata.str1.1
+                0x00000000000a0a8c        0xc /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+ .rodata.str1.1
+                0x00000000000a0a8c       0x9e /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+ .rodata.str1.1
+                0x00000000000a0a8c       0x43 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ .rodata        0x00000000000a0a8c       0x48 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ .rodata.str1.8
+                0x00000000000a0ad4       0xb1 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ .rodata.str1.1
+                0x00000000000a0ad4       0x54 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+ .rodata.str1.8
+                0x00000000000a0ad4       0x55 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+ .rodata.str1.8
+                0x00000000000a0ad4      0x212 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .rodata.str1.1
+                0x00000000000a0ad4       0xf9 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .rodata        0x00000000000a0ad4      0x1f8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .rodata.cst8   0x00000000000a0ccc        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .rodata.cst8   0x00000000000a0ccc        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+
+.rodata1
+ *(.rodata1)
+
+.eh_frame_hdr   0x00000000000a0ccc     0x29d4
+ *(.eh_frame_hdr)
+ .eh_frame_hdr  0x00000000000a0ccc     0x29d4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x00000000000a0ccc                __GNU_EH_FRAME_HDR
+ *(.eh_frame_entry .eh_frame_entry.*)
+
+.eh_frame       0x00000000000a36a0    0x12f10
+ *(.eh_frame)
+ .eh_frame      0x00000000000a36a0       0x30 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                                         0x2c (size before relaxing)
+ *fill*         0x00000000000a36d0        0x0 
+ .eh_frame      0x00000000000a36d0       0x40 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .eh_frame      0x00000000000a3710       0x18 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                                         0x30 (size before relaxing)
+ .eh_frame      0x00000000000a3728      0x168 /tmp/ccEEdJfr.o
+                                        0x180 (size before relaxing)
+ .eh_frame      0x00000000000a3890      0xec0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+                                        0xed8 (size before relaxing)
+ .eh_frame      0x00000000000a4750      0x398 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+                                        0x3b0 (size before relaxing)
+ .eh_frame      0x00000000000a4ae8      0x1e0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+                                        0x1f8 (size before relaxing)
+ .eh_frame      0x00000000000a4cc8       0x80 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+                                         0x98 (size before relaxing)
+ .eh_frame      0x00000000000a4d48      0x470 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+                                        0x488 (size before relaxing)
+ .eh_frame      0x00000000000a51b8      0x628 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+                                        0x640 (size before relaxing)
+ .eh_frame      0x00000000000a57e0      0x820 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+                                        0x838 (size before relaxing)
+ .eh_frame      0x00000000000a6000      0x6e0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+                                        0x6f8 (size before relaxing)
+ .eh_frame      0x00000000000a66e0      0x688 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+                                        0x6a0 (size before relaxing)
+ .eh_frame      0x00000000000a6d68      0x180 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+                                        0x198 (size before relaxing)
+ .eh_frame      0x00000000000a6ee8      0x7d0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+                                        0x7e8 (size before relaxing)
+ .eh_frame      0x00000000000a76b8      0x208 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+                                        0x220 (size before relaxing)
+ .eh_frame      0x00000000000a78c0      0x408 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+                                        0x420 (size before relaxing)
+ .eh_frame      0x00000000000a7cc8      0x6d0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+                                        0x6e8 (size before relaxing)
+ .eh_frame      0x00000000000a8398      0x280 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+                                        0x298 (size before relaxing)
+ .eh_frame      0x00000000000a8618      0x468 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+                                        0x480 (size before relaxing)
+ .eh_frame      0x00000000000a8a80      0x168 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+                                        0x180 (size before relaxing)
+ .eh_frame      0x00000000000a8be8      0x2b0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+                                        0x2c8 (size before relaxing)
+ .eh_frame      0x00000000000a8e98      0x150 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+                                        0x168 (size before relaxing)
+ .eh_frame      0x00000000000a8fe8      0x828 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+                                        0x840 (size before relaxing)
+ .eh_frame      0x00000000000a9810     0x1610 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+                                       0x1628 (size before relaxing)
+ .eh_frame      0x00000000000aae20      0x4b8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+                                        0x4d0 (size before relaxing)
+ .eh_frame      0x00000000000ab2d8       0x98 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+                                         0xb0 (size before relaxing)
+ .eh_frame      0x00000000000ab370     0x12b8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+                                       0x12d0 (size before relaxing)
+ .eh_frame      0x00000000000ac628      0x480 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+                                        0x498 (size before relaxing)
+ .eh_frame      0x00000000000acaa8      0x248 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+                                        0x260 (size before relaxing)
+ .eh_frame      0x00000000000accf0      0x150 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+                                        0x168 (size before relaxing)
+ .eh_frame      0x00000000000ace40      0x798 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+                                        0x7b0 (size before relaxing)
+ .eh_frame      0x00000000000ad5d8      0x338 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+                                        0x350 (size before relaxing)
+ .eh_frame      0x00000000000ad910      0x840 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+                                        0x858 (size before relaxing)
+ .eh_frame      0x00000000000ae150       0x80 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+                                         0x98 (size before relaxing)
+ .eh_frame      0x00000000000ae1d0      0x388 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+                                        0x3a0 (size before relaxing)
+ .eh_frame      0x00000000000ae558      0x220 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+                                        0x238 (size before relaxing)
+ .eh_frame      0x00000000000ae778      0x2d8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+                                        0x2f0 (size before relaxing)
+ .eh_frame      0x00000000000aea50       0x58 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+                                         0x70 (size before relaxing)
+ .eh_frame      0x00000000000aeaa8      0x158 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+                                        0x170 (size before relaxing)
+ .eh_frame      0x00000000000aec00      0x448 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+                                        0x460 (size before relaxing)
+ .eh_frame      0x00000000000af048      0x350 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+                                        0x368 (size before relaxing)
+ .eh_frame      0x00000000000af398      0x330 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+                                        0x348 (size before relaxing)
+ .eh_frame      0x00000000000af6c8       0x50 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+                                         0x68 (size before relaxing)
+ .eh_frame      0x00000000000af718      0x698 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+                                        0x6b0 (size before relaxing)
+ .eh_frame      0x00000000000afdb0      0x198 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+                                        0x1b0 (size before relaxing)
+ .eh_frame      0x00000000000aff48      0x2b8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+                                        0x2d0 (size before relaxing)
+ .eh_frame      0x00000000000b0200       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+                                         0x30 (size before relaxing)
+ .eh_frame      0x00000000000b0218       0x58 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+                                         0x70 (size before relaxing)
+ .eh_frame      0x00000000000b0270      0x328 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+                                        0x340 (size before relaxing)
+ .eh_frame      0x00000000000b0598      0x698 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+                                        0x6b0 (size before relaxing)
+ .eh_frame      0x00000000000b0c30      0x860 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+                                        0x878 (size before relaxing)
+ .eh_frame      0x00000000000b1490     0x1100 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+                                       0x1118 (size before relaxing)
+ .eh_frame      0x00000000000b2590      0x708 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+                                        0x720 (size before relaxing)
+ .eh_frame      0x00000000000b2c98       0x38 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+                                         0x50 (size before relaxing)
+ .eh_frame      0x00000000000b2cd0      0x588 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+                                        0x5a0 (size before relaxing)
+ .eh_frame      0x00000000000b3258      0x2c8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+                                        0x2e0 (size before relaxing)
+ .eh_frame      0x00000000000b3520      0x410 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+                                        0x428 (size before relaxing)
+ .eh_frame      0x00000000000b3930       0x80 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+                                         0x98 (size before relaxing)
+ .eh_frame      0x00000000000b39b0      0x150 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+                                        0x168 (size before relaxing)
+ .eh_frame      0x00000000000b3b00      0x1e0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+                                        0x1f8 (size before relaxing)
+ .eh_frame      0x00000000000b3ce0      0x378 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+                                        0x390 (size before relaxing)
+ .eh_frame      0x00000000000b4058      0x158 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+                                        0x170 (size before relaxing)
+ .eh_frame      0x00000000000b41b0      0x1f0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+                                        0x208 (size before relaxing)
+ .eh_frame      0x00000000000b43a0       0xb8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+                                         0xd0 (size before relaxing)
+ .eh_frame      0x00000000000b4458      0xd90 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+                                        0xda8 (size before relaxing)
+ .eh_frame      0x00000000000b51e8      0x430 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+                                        0x448 (size before relaxing)
+ .eh_frame      0x00000000000b5618       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+                                         0x30 (size before relaxing)
+ .eh_frame      0x00000000000b5630       0x50 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+                                         0x68 (size before relaxing)
+ .eh_frame      0x00000000000b5680      0x110 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+                                        0x128 (size before relaxing)
+ .eh_frame      0x00000000000b5790       0xc0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+                                         0xd8 (size before relaxing)
+ .eh_frame      0x00000000000b5850       0x98 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+                                         0xb0 (size before relaxing)
+ .eh_frame      0x00000000000b58e8      0x438 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+                                        0x450 (size before relaxing)
+ .eh_frame      0x00000000000b5d20      0x138 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+                                        0x150 (size before relaxing)
+ .eh_frame      0x00000000000b5e58      0x170 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+                                        0x188 (size before relaxing)
+ .eh_frame      0x00000000000b5fc8      0x468 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+                                        0x480 (size before relaxing)
+ .eh_frame      0x00000000000b6430      0x17c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+                                        0x198 (size before relaxing)
+ .eh_frame      0x00000000000b65ac        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ *(.eh_frame.*)
+
+.sframe         0x00000000000b65b0        0x0
+ *(.sframe)
+ .sframe        0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .sframe        0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.sframe.*)
+
+.gcc_except_table
+ *(.gcc_except_table .gcc_except_table.*)
+
+.gnu_extab
+ *(.gnu_extab*)
+
+.exception_ranges
+ *(.exception_ranges*)
+
+.note.build-id
+ *(.note.build-id)
+
+.note.GNU-stack
+                0x00000000000b65b0        0x0
+ *(.note.GNU-stack)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /tmp/ccEEdJfr.o
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .note.GNU-stack
+                0x00000000000b65b0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+
+.note.gnu-property
+ *(.note.gnu-property)
+
+.note.ABI-tag   0x00000000000b65b0       0x20
+ *(.note.ABI-tag)
+ .note.ABI-tag  0x00000000000b65b0       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.note.package
+ *(.note.package)
+
+.note.dlopen
+ *(.note.dlopen)
+
+.note.netbsd.ident
+ *(.note.netbsd.ident)
+
+.note.openbsd.ident
+ *(.note.openbsd.ident)
+                0x00000000000b7690                . = DATA_SEGMENT_ALIGN (CONSTANT (MAXPAGESIZE), CONSTANT (COMMONPAGESIZE))
+
+.eh_frame
+ *(.eh_frame)
+ *(.eh_frame.*)
+
+.sframe
+ *(.sframe)
+ *(.sframe.*)
+
+.gnu_extab
+ *(.gnu_extab)
+
+.gcc_except_table
+ *(.gcc_except_table .gcc_except_table.*)
+
+.exception_ranges
+ *(.exception_ranges*)
+
+.tdata          0x00000000000b7690        0x0
+                [!provide]                        PROVIDE (__tdata_start = .)
+ *(.tdata .tdata.* .gnu.linkonce.td.*)
+
+.tbss
+ *(.tbss .tbss.* .gnu.linkonce.tb.*)
+ *(.tcommon)
+
+.preinit_array  0x00000000000b7690        0x0
+                [!provide]                        PROVIDE (__preinit_array_start = .)
+ *(.preinit_array)
+                [!provide]                        PROVIDE (__preinit_array_end = .)
+
+.init_array     0x00000000000b7690        0x8
+                [!provide]                        PROVIDE (__init_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
+ *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
+ .init_array    0x00000000000b7690        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                [!provide]                        PROVIDE (__init_array_end = .)
+
+.fini_array     0x00000000000b7698        0x8
+                [!provide]                        PROVIDE (__fini_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
+ *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
+ .fini_array    0x00000000000b7698        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                [!provide]                        PROVIDE (__fini_array_end = .)
+
+.ctors
+ *crtbegin.o(.ctors)
+ *crtbegin?.o(.ctors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .ctors)
+ *(SORT_BY_NAME(.ctors.*))
+ *(.ctors)
+
+.dtors
+ *crtbegin.o(.dtors)
+ *crtbegin?.o(.dtors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .dtors)
+ *(SORT_BY_NAME(.dtors.*))
+ *(.dtors)
+
+.jcr
+ *(.jcr)
+
+.data.rel.ro    0x00000000000b76a0     0x2688
+ *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*)
+ .data.rel.ro.local
+                0x00000000000b76a0       0x28 /tmp/ccEEdJfr.o
+ *fill*         0x00000000000b76c8       0x18 
+ .data.rel.ro.local
+                0x00000000000b76e0      0xd18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+ .data.rel.ro.local
+                0x00000000000b83f8       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ *fill*         0x00000000000b8418        0x8 
+ .data.rel.ro.local
+                0x00000000000b8420      0x110 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .data.rel.ro.local
+                0x00000000000b8530       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .data.rel.ro.local
+                0x00000000000b8540       0x30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+                0x00000000000b8540                tclpFileAttrProcs
+ *fill*         0x00000000000b8570       0x10 
+ .data.rel.ro.local
+                0x00000000000b8580      0x220 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+ .data.rel.ro.local
+                0x00000000000b87a0      0x688 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ *fill*         0x00000000000b8e28       0x18 
+ .data.rel.ro.local
+                0x00000000000b8e40      0x180 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .data.rel.ro.local
+                0x00000000000b8fc0      0x120 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*)
+ .data.rel.ro   0x00000000000b90e0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .data.rel.ro   0x00000000000b90e0      0xc30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+ .data.rel.ro   0x00000000000b9d10       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+
+.dynamic        0x00000000000b9d28      0x1f0
+ *(.dynamic)
+ .dynamic       0x00000000000b9d28      0x1f0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x00000000000b9d28                _DYNAMIC
+
+.got            0x00000000000b9f18       0xb8
+ *(.got)
+ .got           0x00000000000b9f18       0xb8 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.igot)
+                0x00000000000b9fe8                . = DATA_SEGMENT_RELRO_END (., (SIZEOF (.got.plt) >= 0x18)?0x18:0x0)
+
+.got.plt        0x00000000000b9fe8      0x498
+ *(.got.plt)
+ .got.plt       0x00000000000b9fe8      0x498 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x00000000000b9fe8                _GLOBAL_OFFSET_TABLE_
+ *(.igot.plt)
+
+.data           0x00000000000ba480     0x4f00
+ *(.data .data.* .gnu.linkonce.d.*)
+ .data          0x00000000000ba480        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x00000000000ba480                data_start
+                0x00000000000ba480                __data_start
+ .data          0x00000000000ba484        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ .data          0x00000000000ba484        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ *fill*         0x00000000000ba484        0x4 
+ .data.rel.local
+                0x00000000000ba488        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                0x00000000000ba488                __dso_handle
+ .data          0x00000000000ba490        0x0 /tmp/ccEEdJfr.o
+ *fill*         0x00000000000ba490       0x10 
+ .data.rel.local
+                0x00000000000ba4a0       0x60 /tmp/ccEEdJfr.o
+ .data          0x00000000000ba500        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+ .data          0x00000000000ba500        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .data.rel.local
+                0x00000000000ba500       0x48 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+                0x00000000000ba520                tclByteArrayType
+ .data          0x00000000000ba548        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+ .data          0x00000000000ba548        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ *fill*         0x00000000000ba548       0x18 
+ .data.rel.local
+                0x00000000000ba560       0x68 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ .data          0x00000000000ba5c8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ *fill*         0x00000000000ba5c8       0x18 
+ .data.rel.local
+                0x00000000000ba5e0      0x168 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .data          0x00000000000ba748        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ *fill*         0x00000000000ba748       0x18 
+ .data.rel.local
+                0x00000000000ba760      0x190 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .data          0x00000000000ba8f0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ *fill*         0x00000000000ba8f0       0x10 
+ .data.rel.local
+                0x00000000000ba900      0x380 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .data          0x00000000000bac80        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ .data.rel.local
+                0x00000000000bac80       0xc8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+                0x00000000000bad30                tclForeachInfoType
+ .data          0x00000000000bad48        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ *fill*         0x00000000000bad48       0x18 
+ .data.rel.local
+                0x00000000000bad60      0xca0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+                0x00000000000bad60                tclByteCodeType
+                0x00000000000bada0                tclInstructionTable
+ .data          0x00000000000bba00       0x34 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+ *fill*         0x00000000000bba34        0x4 
+ .data.rel      0x00000000000bba38       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+                0x00000000000bba38                TclDatev
+                0x00000000000bba40                TclDates
+ .data          0x00000000000bba48        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ *fill*         0x00000000000bba48       0x18 
+ .data.rel.local
+                0x00000000000bba60       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ .data          0x00000000000bba88        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+ .data          0x00000000000bba88        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ *fill*         0x00000000000bba88        0x8 
+ .data.rel.local
+                0x00000000000bba90       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ .data          0x00000000000bbaa0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .data.rel      0x00000000000bbaa0      0x510 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+                0x00000000000bbaa0                tclBuiltinFuncTable
+ *fill*         0x00000000000bbfb0       0x10 
+ .data.rel.local
+                0x00000000000bbfc0       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .data          0x00000000000bbfe8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+ .data          0x00000000000bbfe8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ *fill*         0x00000000000bbfe8       0x18 
+ .data.rel.local
+                0x00000000000bc000       0x40 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ .data          0x00000000000bc040        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .data          0x00000000000bc040       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+                0x00000000000bc040                tclOneWordHashKeyType
+ *fill*         0x00000000000bc068       0x18 
+ .data.rel.local
+                0x00000000000bc080       0x68 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+                0x00000000000bc080                tclStringHashKeyType
+                0x00000000000bc0c0                tclArrayHashKeyType
+ .data          0x00000000000bc0e8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+ *fill*         0x00000000000bc0e8       0x18 
+ .data.rel.local
+                0x00000000000bc100       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+                0x00000000000bc100                tclIndexType
+ .data          0x00000000000bc128        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ *fill*         0x00000000000bc128       0x18 
+ .data.rel.local
+                0x00000000000bc140      0x150 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ .data          0x00000000000bc290        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .data.rel.local
+                0x00000000000bc290       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .data          0x00000000000bc2a8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ *fill*         0x00000000000bc2a8       0x18 
+ .data.rel.local
+                0x00000000000bc2c0       0xa0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .data          0x00000000000bc360        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+ .data          0x00000000000bc360        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+ .data.rel.local
+                0x00000000000bc360       0x30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+ *fill*         0x00000000000bc390       0x10 
+ .data.rel      0x00000000000bc3a0      0x138 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+                0x00000000000bc3e0                tclNativeFilesystem
+ .data          0x00000000000bc4d8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+ *fill*         0x00000000000bc4d8        0x8 
+ .data.rel.local
+                0x00000000000bc4e0       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+                0x00000000000bc4e0                tclListType
+ .data          0x00000000000bc508        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+ .data          0x00000000000bc508        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+ .data          0x00000000000bc508        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ *fill*         0x00000000000bc508       0x18 
+ .data.rel.local
+                0x00000000000bc520       0xa8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+                0x00000000000bc5a0                tclNsNameType
+ .data          0x00000000000bc5c8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+ .data          0x00000000000bc5c8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+ *fill*         0x00000000000bc5c8       0x18 
+ .data.rel.local
+                0x00000000000bc5e0      0x168 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+                0x00000000000bc620                tclObjHashKeyType
+                0x00000000000bc660                tclWideIntType
+                0x00000000000bc6a0                tclIntType
+                0x00000000000bc6e0                tclDoubleType
+                0x00000000000bc720                tclBooleanType
+ .data.rel      0x00000000000bc748        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+                0x00000000000bc748                tclEmptyStringRep
+ .data          0x00000000000bc750        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+ .data          0x00000000000bc750        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .data          0x00000000000bc750        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+ .data          0x00000000000bc750        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ *fill*         0x00000000000bc750       0x10 
+ .data.rel.local
+                0x00000000000bc760       0x58 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .data          0x00000000000bc7b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .data          0x00000000000bc7b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+ .data          0x00000000000bc7b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+ *fill*         0x00000000000bc7b8        0x8 
+ .data.rel.local
+                0x00000000000bc7c0       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+                0x00000000000bc7c0                tclProcBodyType
+ .data          0x00000000000bc7e8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ *fill*         0x00000000000bc7e8       0x18 
+ .data.rel.local
+                0x00000000000bc800      0x128 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ .data          0x00000000000bc928        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+ .data          0x00000000000bc928        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .data          0x00000000000bc928        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+ *fill*         0x00000000000bc928       0x18 
+ .data.rel.local
+                0x00000000000bc940       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+                0x00000000000bc940                tclStringType
+ .data          0x00000000000bc968        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+ .data          0x00000000000bc968        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+ .data.rel.local
+                0x00000000000bc968        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+ .data          0x00000000000bc970       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+                0x00000000000bc970                tclPlatStubs
+ .data.rel      0x00000000000bc980     0x1d20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+                0x00000000000bc980                tclStubs
+                0x00000000000bdd80                tclIntPlatStubs
+                0x00000000000bde80                tclIntStubs
+                0x00000000000be660                tclOriginalNotifier
+ .data          0x00000000000be6a0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+ .data          0x00000000000be6a0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .data.rel.local
+                0x00000000000be6a0       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .data          0x00000000000be6c0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+ .data          0x00000000000be6c0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .data.rel.local
+                0x00000000000be6c0       0x68 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+                0x00000000000be6c0                tclEndOffsetType
+ .data          0x00000000000be728        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ *fill*         0x00000000000be728       0x18 
+ .data.rel.local
+                0x00000000000be740      0x168 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+                0x00000000000be7c0                tclArraySearchType
+ .data          0x00000000000be8a8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ *fill*         0x00000000000be8a8       0x18 
+ .data.rel.local
+                0x00000000000be8c0      0x180 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ .data          0x00000000000bea40        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+ .data          0x00000000000bea40        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .data.rel.local
+                0x00000000000bea40       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+                0x00000000000bea40                tclpFileAttrStrings
+ .data          0x00000000000bea60        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+ .data          0x00000000000bea60        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ .data.rel.local
+                0x00000000000bea60       0x80 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ .data          0x00000000000beae0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+ .data          0x00000000000beae0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+ .data          0x00000000000beae0      0x5fe /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+ .data          0x00000000000bf0de        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+ *fill*         0x00000000000bf0de        0x2 
+ .data.rel.local
+                0x00000000000bf0e0        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+ .data          0x00000000000bf0e8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+ .data          0x00000000000bf0e8        0x4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+ .data          0x00000000000bf0ec        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+ .data          0x00000000000bf0ec        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ *fill*         0x00000000000bf0ec        0x4 
+ .data.rel.local
+                0x00000000000bf0f0        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .data          0x00000000000bf0f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+ .data          0x00000000000bf0f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+ .data          0x00000000000bf0f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ *fill*         0x00000000000bf0f8        0x8 
+ .data.rel.local
+                0x00000000000bf100      0x1f8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ .data          0x00000000000bf2f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+ .data          0x00000000000bf2f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .data          0x00000000000bf2f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+ .data          0x00000000000bf2f8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+ *fill*         0x00000000000bf2f8        0x8 
+ .data.rel.local
+                0x00000000000bf300       0x80 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+ .data          0x00000000000bf380        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ .data          0x00000000000bf380        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+ .data          0x00000000000bf380        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .data          0x00000000000bf380        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+ .data          0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .data          0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+
+.tm_clone_table
+                0x00000000000bf380        0x0
+ .tm_clone_table
+                0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .tm_clone_table
+                0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+
+.data1
+ *(.data1)
+                0x00000000000bf380                _edata = .
+                [!provide]                        PROVIDE (edata = .)
+                0x00000000000bf380                . = ALIGN (ALIGNOF (NEXT_SECTION))
+                0x00000000000bf380                __bss_start = .
+
+.bss            0x00000000000bf380     0x1498
+ *(.dynbss)
+ .dynbss        0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.bss .bss.* .gnu.linkonce.b.*)
+ .bss           0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .bss           0x00000000000bf380        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ .bss           0x00000000000bf380        0x1 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ *fill*         0x00000000000bf381        0x7 
+ .bss           0x00000000000bf388       0x1c /tmp/ccEEdJfr.o
+ *fill*         0x00000000000bf3a4        0x4 
+ .bss           0x00000000000bf3a8        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+ .bss           0x00000000000bf3b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .bss           0x00000000000bf3b0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+ .bss           0x00000000000bf3b0        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ .bss           0x00000000000bf3b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .bss           0x00000000000bf3b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .bss           0x00000000000bf3b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .bss           0x00000000000bf3b8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ *fill*         0x00000000000bf3b8        0x8 
+ .bss           0x00000000000bf3c0       0x78 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ *fill*         0x00000000000bf438        0x8 
+ .bss           0x00000000000bf440      0x808 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+                0x00000000000bf440                TclDatechar
+                0x00000000000bf444                TclDateerrflag
+                0x00000000000bf448                TclDatenerrs
+                0x00000000000bf44c                TclDatetmp
+                0x00000000000bf450                TclDatestate
+                0x00000000000bf458                TclDateps
+                0x00000000000bf460                TclDatepv
+                0x00000000000bf468                TclDatedebug
+                0x00000000000bf480                TclDate_TclDatev
+                0x00000000000bf940                TclDate_TclDates
+                0x00000000000bfb98                TclDateval
+                0x00000000000bfba0                TclDatelval
+ *fill*         0x00000000000bfc48       0x18 
+ .bss           0x00000000000bfc60      0x29c /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+                0x00000000000bfc60                tclDefaultEncodingDir
+ *fill*         0x00000000000bfefc        0x4 
+ .bss           0x00000000000bff00       0x28 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+ .bss           0x00000000000bff28       0x30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ .bss           0x00000000000bff58        0xc /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .bss           0x00000000000bff64        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+ .bss           0x00000000000bff64        0x4 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+                0x00000000000bff64                tclPlatform
+ .bss           0x00000000000bff68        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .bss           0x00000000000bff68        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .bss           0x00000000000bff68        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+ .bss           0x00000000000bff68        0xc /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ *fill*         0x00000000000bff74        0x4 
+ .bss           0x00000000000bff78        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .bss           0x00000000000bff80        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .bss           0x00000000000bff80        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+ .bss           0x00000000000bff80       0x50 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+                0x00000000000bff80                theFilesystemEpoch
+ .bss           0x00000000000bffd0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+ .bss           0x00000000000bffd0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+ .bss           0x00000000000bffd0       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+ .bss           0x00000000000bffe0       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .bss           0x00000000000bfff0       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+ *fill*         0x00000000000c0008       0x18 
+ .bss           0x00000000000c0020       0x98 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+                0x00000000000c0020                tclEmptyString
+                0x00000000000c0028                tclObjMutex
+                0x00000000000c0030                tclFreeObjList
+ .bss           0x00000000000c00b8        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+ .bss           0x00000000000c00c0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .bss           0x00000000000c00c0       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+ .bss           0x00000000000c00d0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .bss           0x00000000000c00d0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .bss           0x00000000000c00d0       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+ .bss           0x00000000000c00e8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+ .bss           0x00000000000c00e8        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ .bss           0x00000000000c00f0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+ .bss           0x00000000000c00f0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .bss           0x00000000000c00f0        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+ .bss           0x00000000000c00f0       0x30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+ .bss           0x00000000000c0120      0x3b8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+                0x00000000000c0120                binfo
+ .bss           0x00000000000c04d8        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+ .bss           0x00000000000c04d8       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+                0x00000000000c04d8                tclIntPlatStubsPtr
+                0x00000000000c04e0                tclIntStubsPtr
+                0x00000000000c04e8                tclPlatStubsPtr
+                0x00000000000c04f0                tclStubsPtr
+ .bss           0x00000000000c04f8        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .bss           0x00000000000c0500        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+ .bss           0x00000000000c0500       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+                0x00000000000c0500                tclNativeExecutableName
+                0x00000000000c0508                tclExecutableName
+ .bss           0x00000000000c0510        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ .bss           0x00000000000c0510        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ .bss           0x00000000000c0510        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+ .bss           0x00000000000c0510        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .bss           0x00000000000c0510        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+ .bss           0x00000000000c0510        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ *fill*         0x00000000000c0510       0x10 
+ .bss           0x00000000000c0520      0x121 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+ *fill*         0x00000000000c0641        0x7 
+ .bss           0x00000000000c0648       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+ .bss           0x00000000000c0660       0x18 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+ *fill*         0x00000000000c0678        0x8 
+ .bss           0x00000000000c0680       0xd0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+ .bss           0x00000000000c0750        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+ .bss           0x00000000000c0758       0x30 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+ .bss           0x00000000000c0788        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+ .bss           0x00000000000c0788        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .bss           0x00000000000c0788        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+ .bss           0x00000000000c0788        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+ .bss           0x00000000000c0788        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ .bss           0x00000000000c0788        0x8 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+ *fill*         0x00000000000c0790       0x10 
+ .bss           0x00000000000c07a0       0x64 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .bss           0x00000000000c0804        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+ .bss           0x00000000000c0804        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+ .bss           0x00000000000c0804        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ *fill*         0x00000000000c0804        0x4 
+ .bss           0x00000000000c0808       0x10 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+ .bss           0x00000000000c0818        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .bss           0x00000000000c0818        0x0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+ .bss           0x00000000000c0818        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .bss           0x00000000000c0818        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+ *(COMMON)
+                0x00000000000c0818                . = ALIGN ((. != 0x0)?0x8:0x1)
+
+.lbss
+ *(.dynlbss)
+ *(.lbss .lbss.* .gnu.linkonce.lb.*)
+ *(LARGE_COMMON)
+                0x00000000000c0818                . = ALIGN (0x8)
+                0x00000000000c0818                . = SEGMENT_START ("ldata-segment", .)
+
+.lrodata
+ *(.lrodata .lrodata.* .gnu.linkonce.lr.*)
+
+.ldata          0x00000000000c2818        0x0
+ *(.ldata .ldata.* .gnu.linkonce.l.*)
+                0x00000000000c2818                . = ALIGN ((. != 0x0)?0x8:0x1)
+                0x00000000000c2818                . = ALIGN (0x8)
+                0x00000000000c0818                _end = .
+                [!provide]                        PROVIDE (end = .)
+                0x00000000000c2818                . = DATA_SEGMENT_END (.)
+
+.stab
+ *(.stab)
+
+.stabstr
+ *(.stabstr)
+
+.stab.excl
+ *(.stab.excl)
+
+.stab.exclstr
+ *(.stab.exclstr)
+
+.stab.index
+ *(.stab.index)
+
+.stab.indexstr
+ *(.stab.indexstr)
+
+.comment        0x0000000000000000       0x1f
+ *(.comment)
+ .comment       0x0000000000000000       0x1f /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                                         0x20 (size before relaxing)
+ .comment       0x000000000000001f       0x20 /tmp/ccEEdJfr.o
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBasic.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclBinary.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCkalloc.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclClock.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdAH.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdIL.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCmdMZ.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompCmds.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompile.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclDate.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEncoding.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEnv.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclEvent.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclExecute.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFCmd.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclFileName.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclGet.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHash.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIndexObj.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclInterp.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIO.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOCmd.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOSock.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOUtil.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclListObj.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLiteral.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoad.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNamesp.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclNotify.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclObj.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPanic.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParse.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPipe.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPkg.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPosixStr.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclPreserve.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclProc.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclRegexp.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResult.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclScan.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStringObj.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThread.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclThreadAlloc.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubInit.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclStubLib.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclTimer.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtf.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUtil.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclVar.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixChan.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixEvent.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFCmd.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixFile.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixPipe.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixSock.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixTime.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixInit.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixThrd.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixCompat.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclUnixNotfy.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLoadDl.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regcomp.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regexec.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regfree.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(regerror.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclAsync.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclCompExpr.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclHistory.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclIOGT.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclLink.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclMain.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclParseExpr.o)
+ .comment       0x000000000000001f       0x20 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a(tclResolve.o)
+ .comment       0x000000000000001f       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+
+.gnu.build.attributes
+ *(.gnu.build.attributes .gnu.build.attributes.*)
+
+.debug
+ *(.debug)
+
+.line
+ *(.line)
+
+.debug_srcinfo
+ *(.debug_srcinfo)
+
+.debug_sfnames
+ *(.debug_sfnames)
+
+.debug_aranges
+ *(.debug_aranges)
+
+.debug_pubnames
+ *(.debug_pubnames)
+
+.debug_info
+ *(.debug_info .gnu.linkonce.wi.*)
+
+.debug_abbrev
+ *(.debug_abbrev)
+
+.debug_line
+ *(.debug_line .debug_line.* .debug_line_end)
+
+.debug_frame
+ *(.debug_frame)
+
+.debug_str
+ *(.debug_str)
+
+.debug_loc
+ *(.debug_loc)
+
+.debug_macinfo
+ *(.debug_macinfo)
+
+.debug_weaknames
+ *(.debug_weaknames)
+
+.debug_funcnames
+ *(.debug_funcnames)
+
+.debug_typenames
+ *(.debug_typenames)
+
+.debug_varnames
+ *(.debug_varnames)
+
+.debug_pubtypes
+ *(.debug_pubtypes)
+
+.debug_ranges
+ *(.debug_ranges)
+
+.debug_addr
+ *(.debug_addr)
+
+.debug_line_str
+ *(.debug_line_str)
+
+.debug_loclists
+ *(.debug_loclists)
+
+.debug_macro
+ *(.debug_macro)
+
+.debug_names
+ *(.debug_names)
+
+.debug_rnglists
+ *(.debug_rnglists)
+
+.debug_str_offsets
+ *(.debug_str_offsets)
+
+.debug_sup
+ *(.debug_sup)
+
+.gnu.attributes
+ *(.gnu.attributes)
+
+/DISCARD/
+ *(.note.GNU-stack)
+ *(.gnu_debuglink)
+ *(.gnu.lto_*)
+ *(.gnu_object_only)
+OUTPUT(/workspace/.proofs/native-constant-captured-cell-order511/providers/8.4.20/probe.elf elf64-x86-64)

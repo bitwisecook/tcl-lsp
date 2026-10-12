@@ -1,0 +1,5 @@
+VERSION|0|382e342e3230
+INPUT|string-surrogate-pair|none|1|eda0bdedb880
+RETURN|0|bytearray|0
+INPUT_AFTER|none|1
+RAW|6|eda0bdedb880

@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-vm195.elf",
+  "sha256": "cf9d29ea2848687e55abdc21c8f6cab2d18ead43413dafc5a60987d34f5d3335",
+  "build_receipt": "/workspace/.proofs/recovery-vm-build195.json",
+  "build_receipt_sha256": "80b8b531183fed61c117c9312ce3218876680eff45831514ba28874103357e2b",
+  "source_snapshot_sha256": "02b8d1b9af86b9cbd100bf7a99aeb4b9b964af030d6cda022f2c7154e702b05f"
+}

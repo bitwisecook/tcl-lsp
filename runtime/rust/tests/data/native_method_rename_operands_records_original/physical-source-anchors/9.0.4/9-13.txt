@@ -1,0 +1,111 @@
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (!isInstanceForward && !oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return TCL_ERROR;
+    }
+    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)
+	    ? PUBLIC_METHOD : 0;
+    if (IsPrivateDefine(interp)) {
+	isPublic = TRUE_PRIVATE_METHOD;
+    }
+
+    /*
+     * Create the method structure.
+     */
+
+    prefixObj = Tcl_NewListObj(objc - 2, objv + 2);
+    if (isInstanceForward) {
+	mPtr = TclOONewForwardInstanceMethod(interp, oPtr, isPublic, objv[1],
+		prefixObj);
+    } else {
+	mPtr = TclOONewForwardMethod(interp, oPtr->classPtr, isPublic,
+		objv[1], prefixObj);
+    }
+    if (mPtr == NULL) {
+	Tcl_DecrRefCount(prefixObj);
+	return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineInitialiseObjCmd --
+ *
+ *	Implementation of the "initialise" subcommand of the "oo::define"
+ *	command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineInitialiseObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Tcl_Object object;
+    Tcl_Obj *lambdaWords[3], *applyArgs[2];
+    int result;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "body");
+	return TCL_ERROR;
+    }
+
+    /* Build the lambda */
+    object = TclOOGetDefineCmdContext(interp);
+    if (object == NULL) {
+	return TCL_ERROR;
+    }
+    lambdaWords[0] = Tcl_NewObj();
+    lambdaWords[1] = objv[1];
+    lambdaWords[2] = TclNewNamespaceObj(Tcl_GetObjectNamespace(object));
+
+    /* Delegate to [apply] to run it */
+    applyArgs[0] = Tcl_NewStringObj("apply", -1);
+    applyArgs[1] = Tcl_NewListObj(3, lambdaWords);
+    Tcl_IncrRefCount(applyArgs[0]);
+    Tcl_IncrRefCount(applyArgs[1]);
+    result = Tcl_ApplyObjCmd(NULL, interp, 2, applyArgs);
+    Tcl_DecrRefCount(applyArgs[0]);
+    Tcl_DecrRefCount(applyArgs[1]);
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineMethodObjCmd --
+ *
+ *	Implementation of the "method" subcommand of the "oo::define" and
+ *	"oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineMethodObjCmd(
+    void *clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    /*
+     * Table of export modes for methods and their corresponding enum.
+     */
+
+    static const char *const exportModes[] = {
+	"-export",
+	"-private",
+	"-unexport",

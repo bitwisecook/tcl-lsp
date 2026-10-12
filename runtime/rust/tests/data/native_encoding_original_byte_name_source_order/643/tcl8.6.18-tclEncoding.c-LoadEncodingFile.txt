@@ -1,0 +1,51 @@
+LoadEncodingFile(
+    Tcl_Interp *interp,		/* Interp for error reporting, if not NULL. */
+    const char *name)		/* The name of both the encoding file
+				 * and the new encoding. */
+{
+    Tcl_Channel chan = NULL;
+    Tcl_Encoding encoding = NULL;
+    int ch;
+
+    chan = OpenEncodingFileChannel(interp, name);
+    if (chan == NULL) {
+	return NULL;
+    }
+
+    Tcl_SetChannelOption(NULL, chan, "-encoding", "utf-8");
+
+    while (1) {
+	Tcl_DString ds;
+
+	Tcl_DStringInit(&ds);
+	Tcl_Gets(chan, &ds);
+	ch = Tcl_DStringValue(&ds)[0];
+	Tcl_DStringFree(&ds);
+	if (ch != '#') {
+	    break;
+	}
+    }
+
+    switch (ch) {
+    case 'S':
+	encoding = LoadTableEncoding(name, ENCODING_SINGLEBYTE, chan);
+	break;
+    case 'D':
+	encoding = LoadTableEncoding(name, ENCODING_DOUBLEBYTE, chan);
+	break;
+    case 'M':
+	encoding = LoadTableEncoding(name, ENCODING_MULTIBYTE, chan);
+	break;
+    case 'E':
+	encoding = LoadEscapeEncoding(name, chan);
+	break;
+    }
+    if ((encoding == NULL) && (interp != NULL)) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"invalid encoding file \"%s\"", name));
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "ENCODING", name, (char *)NULL);
+    }
+    Tcl_Close(NULL, chan);
+
+    return encoding;
+}

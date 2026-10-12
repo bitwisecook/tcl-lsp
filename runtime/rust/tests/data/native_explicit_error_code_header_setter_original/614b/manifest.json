@@ -1,0 +1,13 @@
+{
+  "request": "/workspace/.proofs/native-explicit-error-code-header-setter614b/request.json",
+  "request_sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821",
+  "probe_sha256": "d85ae996cf65de3bf3dc7beeb522e588af03178c93e336ddfa9b6d0dcfa4c614",
+  "launcher_sha256": "68bf157a7761d6e96cea97ac6c2e2eb9dac9ce8a0e16e6f224ff9154c36506ca",
+  "required_pin_count": 6107,
+  "source_association_sha256": "2f71d4f3956c17fd094cd12ae802dc2323a4abf458bd6136d7d65f880a8c306c",
+  "compat_regular_input_count": 874,
+  "source_only_preparation": true,
+  "compiler_native_or_assertion_launches": 0,
+  "independent_review_required_before_Root_launch": true,
+  "original_614_bytes_unchanged": true
+}

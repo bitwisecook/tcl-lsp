@@ -67,6 +67,12 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Universal core Tcl 8.4-9.1 (present, with an unchanged basic shape,
         // on every fetched manpage). F5 iRules drops it under the K36322151
         // bans (no dynamic-linking surface in the TMM data-plane sandbox):

@@ -1,0 +1,6 @@
+
+running 1 test
+test lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8173 filtered out; finished in 28.20s
+

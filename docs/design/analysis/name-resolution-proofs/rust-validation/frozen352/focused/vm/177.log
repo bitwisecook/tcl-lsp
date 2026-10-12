@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::family_b_tests::invokehidden_temporarily_restores_imported_command_provenance ... 
+thread 'interp::family_b_tests::invokehidden_temporarily_restores_imported_command_provenance' (1359909) panicked at rust/tcl-vm/src/interp.rs:10377:14:
+a registered command has an exact native display name
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::invokehidden_temporarily_restores_imported_command_provenance
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.70s
+

@@ -1,0 +1,17 @@
+{
+  "question": "With the pinned fully initialized C Tcl 8.4\u20139.1/Jim process using its actual supported child API, which of the eight queried extension/core commands occur in the child and which six explicitly supplied parent variables are copied?",
+  "input_channel": "ASCII LF source, explicit C interp create versus Jim interp handle API. No private allocation/full-roster claim from queried public presence.",
+  "probe_sha256": "aa2237fd1d82c4c71ebd741ead6808a1b736ebc082ce53603b729d640bb5fa9f",
+  "source_anchors": {
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979"
+  },
+  "purpose": "Identify actual Jim child extension initialization and counted-copy source policy; preserve C/Jim independently selected bootstrap purposes. Queried eight rows cannot establish exhaustive command inventory or supported backend handler semantics.",
+  "cases": [
+    {
+      "id": "original-child-bootstrap-context",
+      "source_file": "probe.tcl",
+      "source_sha256": "aa2237fd1d82c4c71ebd741ead6808a1b736ebc082ce53603b729d640bb5fa9f"
+    }
+  ]
+}

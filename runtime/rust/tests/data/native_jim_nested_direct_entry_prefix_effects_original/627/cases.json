@@ -1,0 +1,44 @@
+[
+  {
+    "label": "terminal_child",
+    "source": "set before 1; set sink [list {a}b]; set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b205b6c697374207b617d625d3b207365742061667465722032",
+    "source_sha256": "e46e7cc52b94098eb6df9999386a01e6a9cb960546ad2bad426d210d42d97daa"
+  },
+  {
+    "label": "terminal_child_prefix",
+    "source": "set before 1; set sink [set inner 1; list {a}b]; set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b205b73657420696e6e657220313b206c697374207b617d625d3b207365742061667465722032",
+    "source_sha256": "0fa8ddfb1c9549bc762c9231d4ad2ddedf76cd3ff197fd4c0e3a8444fbb56059"
+  },
+  {
+    "label": "terminal_quoted_child",
+    "source": "set before 1; set sink \"[list {a}b]\"; set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b20225b6c697374207b617d625d223b207365742061667465722032",
+    "source_sha256": "bbcafa5eeecfd0e30f767de98ca8fc6328d18efdb4e0d6d63cb3cf1e14129ec5"
+  },
+  {
+    "label": "terminal_index_child",
+    "source": "set before 1; set sink $arr([list {a}b]); set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b2024617272285b6c697374207b617d625d293b207365742061667465722032",
+    "source_sha256": "11725f0b280d750657c186a617623de91a8a06d5488aee7621ea79771b05ae68"
+  },
+  {
+    "label": "missing_child_brace",
+    "source": "set before 1; set sink [list {a]; set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b205b6c697374207b615d3b207365742061667465722032",
+    "source_sha256": "67a83bde49230cbbf43b5c76d6456bd2baab6b1647e93f4c705aee60ac7aa46d"
+  },
+  {
+    "label": "missing_child_variable_brace",
+    "source": "set before 1; set sink [list ${a]; set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b205b6c69737420247b615d3b207365742061667465722032",
+    "source_sha256": "45a1d26f3bcf38cbe4fa659a76b839a2deea014ed23f79ee268c62532f3b4907"
+  },
+  {
+    "label": "bare_child_open_brace",
+    "source": "set before 1; set sink [list x{]; set after 2",
+    "source_hex": "736574206265666f726520313b207365742073696e6b205b6c69737420787b5d3b207365742061667465722032",
+    "source_sha256": "48c116539c7899c4354eda5d7a16e1ef656b860d41e79c1041a2118e7a1292dd"
+  }
+]

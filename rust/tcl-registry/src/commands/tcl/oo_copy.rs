@@ -71,6 +71,7 @@ const COPY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const COPY_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(copy_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[
@@ -94,9 +95,7 @@ const COPY_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
 fn copy_target(subject: Option<TransitionSubject>) -> ObjectDispatchTarget {
     match subject {
         None => ObjectDispatchTarget::Fresh,
-        Some(TransitionSubject::Literal(ref name)) if name.is_empty() => {
-            ObjectDispatchTarget::Fresh
-        }
+        Some(ref subject) if subject.literal() == Some("") => ObjectDispatchTarget::Fresh,
         Some(subject) => ObjectDispatchTarget::Named(subject),
     }
 }
@@ -104,9 +103,7 @@ fn copy_target(subject: Option<TransitionSubject>) -> ObjectDispatchTarget {
 fn copy_private_namespace(subject: Option<TransitionSubject>) -> ObjectPrivateNamespace {
     match subject {
         None => ObjectPrivateNamespace::Fresh,
-        Some(TransitionSubject::Literal(ref name)) if name.is_empty() => {
-            ObjectPrivateNamespace::Fresh
-        }
+        Some(ref subject) if subject.literal() == Some("") => ObjectPrivateNamespace::Fresh,
         Some(subject) => ObjectPrivateNamespace::Named(subject),
     }
 }
@@ -117,7 +114,7 @@ fn copy_state_transitions(arguments: InvocationArguments<'_>) -> StateTransition
         return transitions;
     };
     let target_subject = TransitionSubject::from_argument(arguments, 1);
-    if let Some(target @ TransitionSubject::Literal(_)) = target_subject.as_ref()
+    if let Some(target) = target_subject.as_ref()
         && target.literal().is_some_and(|name| !name.is_empty())
     {
         transitions.push(StateTransition::CommandBinding(
@@ -169,6 +166,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::copy",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::copy"),
         surface: Some(SpecSurface::TCL86_PLUS),
         // Three positional arguments total (sourceObject required,

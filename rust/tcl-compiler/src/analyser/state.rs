@@ -132,44 +132,21 @@ pub(super) struct ObjdefineAbortCandidate {
     pub prior_state_conditional: bool,
 }
 
-/// The recorded state of one child interpreter:
-/// safe flag plus the explicit hide / expose deltas layered over the
-/// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
+/// Child source declaration and scoped visibility advice, independently of
+/// actual entered interpreter state or native hidden allocations.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(super) struct InterpState {
     /// Created with `-safe`.
     pub safe: bool,
-    /// Commands explicitly `interp hide`-den in this interpreter.
-    pub hidden: HashSet<String>,
-    /// Names callable regardless of the safe-hidden base set: explicit
-    /// `interp expose` targets, **and** names the interpreter has locally
-    /// (re)defined (e.g. `proc source {} {…}` inside its body) — C creates
-    /// those in the ordinary command table, entirely independent of the
-    /// separate hidden-command table, so a hidden built-in's name becomes
-    /// callable the moment the child defines its own command by that name
-    /// (tclsh 9.0.4-verified).
-    pub exposed: HashSet<String>,
-    /// A hide / expose operation on this interpreter used a dynamic
-    /// command operand — its visible command set is unknowable, so the
-    /// safe-context gate abstains entirely for its evaluation bodies.
+    /// Original scoped source visibility, independent of current callability.
+    pub visibility: Option<super::SourceInterpreterVisibilitySnapshot>,
+    /// An original visibility operation could not retain its source operands.
+    /// Its evaluation bodies cannot reuse the withdrawn source snapshot.
     pub tainted: bool,
 }
 
-/// One child-interpreter evaluation context on the walk stack — the
-/// effective command-visibility state for the `interp eval` body being
-/// walked.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(super) struct SafeInterpCtx {
-    /// The registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base
-    /// set applies (the interpreter was created `-safe`).  A normal
-    /// interpreter with explicit `interp hide`s carries `false` — only
-    /// its own hidden set applies.
-    pub base_hidden: bool,
-    /// Commands explicitly hidden in this interpreter.
-    pub hidden_extra: HashSet<String>,
-    /// Commands re-exposed over the base set.
-    pub exposed: HashSet<String>,
-}
+/// Source-only child visibility snapshots retain complete original inputs.
+pub(super) type SafeInterpCtx = super::SourceInterpreterVisibilitySnapshot;
 
 /// One `interp eval` body on the walk stack — the interpreter-domain
 /// identity of the script currently being analysed.
@@ -211,11 +188,9 @@ pub enum DispatchReceiver {
     /// handle.  A `$var` can hold anything at run time, so its class
     /// evidence comes from the SSA type lattice / constructor harvest only.
     Variable,
-    /// `objcmd method` — a bareword *named* instance command bound by
-    /// `CLASS create NAME`.  Its class comes from
-    /// `AnalysisResult::instance_classes` gated on
-    /// `AnalysisResult::created_instance_commands` — the same contract the
-    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
+    /// `objcmd method` — a named receiver retained by the genuine original
+    /// source-instance issuer. The carrier supplies conditional class metadata;
+    /// actual Native dispatch and object lifetime require their own proofs.
     InstanceCommand,
     /// `my method` — a bareword head the registry declares a **self-dispatch
     /// keyword** (`CommandRegistry::method_dispatch_keyword` answering
@@ -308,6 +283,8 @@ impl VarCommandSite {
 pub struct CmdCommandSite {
     /// Text of the bracketed command substitution (no brackets).
     pub cmd_text: String,
+    /// Original nested invocation carriers stamped by the source owner.
+    pub commands: Vec<crate::ir::CommandTokens>,
     /// Optional method name.
     pub method_name: Option<String>,
     /// Content span of the method-name word (delimiters trimmed), when
@@ -334,6 +311,9 @@ impl CmdCommandSite {
     /// [`VarCommandSite::rebase`] for why this is a method rather than a
     /// per-field loop at the call site.
     pub(crate) fn rebase(&mut self, delta: u32) {
+        for tokens in &mut self.commands {
+            crate::lattice_rebase::rebase_command_tokens(tokens, i64::from(delta));
+        }
         self.cmd_span = shift_span(self.cmd_span, delta);
         self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
     }
@@ -345,16 +325,12 @@ fn shift_span(span: Span, delta: u32) -> Span {
     Span::new(span.start() + delta, span.end() + delta)
 }
 
-/// Single-pass Tcl analyser.
-///
-/// Constructed once per document, walked end-to-end, then dropped.
-// False positive: a flat accumulator whose bools are independent pass
-// flags / config toggles (`structure_only`, `defer_proc_bodies`,
-// `deep_param_traits`, `took_fast_path`, the two `probe_skip_*` test hooks,
-// …) that combine freely — not a state machine, so no natural enum.
+/// Tcl analysis state and the retained inputs for successive document walks.
+// False positive: independent pass flags, not mutually exclusive states.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct Analyser {
+    pub(super) resolved_input: Option<super::input::ResolvedAnalysisInput>,
     /// Public accumulator returned by [`Analyser::analyse`].
     pub result: AnalysisResult,
     /// Path through ``result.global_scope`` to the currently-active
@@ -369,6 +345,10 @@ pub struct Analyser {
     /// entries) and read by handlers that need to re-slice the outer
     /// source — recovery and CFG/SSA diagnostic emission.
     pub source: String,
+    /// Static original words from this walk's genuine complete command
+    /// vectors. Missing or conflicting producers never use a display name.
+    pub(super) original_static_source_names:
+        HashMap<Span, Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence>>,
     /// The resolved dialect profile — the ingest identity
     /// (dialect-profile-model.md §2.4). Set once at the top of
     /// [`Self::analyse`] from the caller's dialect string via
@@ -645,6 +625,10 @@ pub struct Analyser {
     /// (reset) at the top of `process_command`, so recursion *below* the
     /// built command — a literal body among its words — behaves normally.
     pub presubstituted_args: bool,
+    /// Exact evaluated-body entry for a reanchored single-command list script.
+    /// The display span remains authored; semantic origin and phase belong to
+    /// the retained body invocation, rather than the list construction site.
+    pub evaluated_body_invocation: Option<(u32, crate::command_binding::SourceInvocationBinding)>,
     /// Whether **E207** (nesting depth exceeds the analysis limit — see
     /// `commands::MAX_BODY_DEPTH`) has already been emitted for this walk.
     /// The depth cap trips once per nested body past the limit — on
@@ -709,7 +693,7 @@ pub struct Analyser {
     ///
     /// Populated once by [`Self::finalise_invocation_resolutions`] from the
     /// already-settled `command_invocations`, and consulted by
-    /// [`Self::fact_live_for_call`] when the call site under test is itself
+    /// [`crate::command_binding::SourceInvocationBinding::selected_slot_presence`] when the call site under test is itself
     /// nested inside a body: a proven invocation of the *enclosing*
     /// definition that ran before a later unconditional deletion means that
     /// invocation's own nested calls already resolved (`proc helper {}`,
@@ -772,6 +756,7 @@ pub struct Analyser {
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
     pub(super) seed_namespace_key: Option<String>,
+    path_constant_source_namespace: Option<String>,
     /// Scope path of the innermost seeded namespace scope (empty when not
     /// seeded) — the base path for the top-level walk.
     pub(super) seed_scope_path: Vec<usize>,
@@ -1115,19 +1100,6 @@ pub struct Analyser {
     /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
     /// each analysed in a second pass that fills its already-created scope.
     pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
-    /// Deferred W103 / W300 dynamic-argument sites from an **isolated
-    /// proc-body** pass (`(code, command name, argument token)`).  Their
-    /// `$var` classification resolves the variable against the most recent
-    /// literal `set` in the *whole file*
-    /// ([`super::diagnostics::validity::last_literal_set_value_for_var`]
-    /// scans `self.source`) — an isolated body's `self.source` is only the
-    /// body, so resolving there both misses enclosing-scope sets *and* sees
-    /// body-local sets the whole-file truncated-prefix scan cannot segment
-    /// (they sit inside an unclosed `proc`).  Captured on the per-item path
-    /// only and flushed by [`Self::flush_var_literal_checks`] in the tail,
-    /// where `self.source` is the full file — the same split
-    /// [`Self::pending_w304`] uses for the identical reason.
-    pub(super) pending_var_literal_checks: Vec<(DiagCode, String, tcl_lexer::Token)>,
     /// Every offset-keyed synthetic identity this run minted
     /// ([`Self::mint_synthetic_offset_name`]): `@dynns@<off>` /
     /// `@dynclass@<off>` / `@autoname@<off>`.  An isolated proc-body
@@ -1145,6 +1117,9 @@ pub struct Analyser {
     /// `None` for the whole-file `analyse` path (byte-identical: it builds
     /// the unit itself, exactly as before).
     pub(super) cu_override: Option<std::sync::Arc<crate::compilation_unit::CompilationUnit>>,
+    /// Driver-supplied execution entry shared by realm, lowering and diagnostics.
+    pub(super) source_analysis_entry:
+        Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>>,
     /// When `Some`, an isolated proc-body analysis (the per-item path) records
     /// every qualified (`::` / `static::`) variable read that fell through to
     /// the (empty) enclosing global scope here, instead of dropping it.  The
@@ -1198,16 +1173,9 @@ pub struct Analyser {
     /// qualified name (`result.package_requires`).
     /// [`Self::flush_w143_diagnostics`] applies both in the tail.
     pub(super) pending_w143: Vec<(String, String, bool, super::types::Diagnostic)>,
-    /// Deferred W304 (missing `--` option terminator) diagnostics whose
-    /// severity/message depend on resolving a `$var` against the **most recent
-    /// literal `set` in the whole file** ([`last_literal_set_value_for_var`],
-    /// which scans `self.source`).  An isolated body's `self.source` is only the
-    /// body, so an enclosing-scope `set` is invisible — the lone source-dependent
-    /// W304 branch (`Var`, dynamic, not option-looking).  On the per-item path
-    /// such sites are captured here (rebased token + label + body-local fix /
-    /// span) instead of emitted, and [`Self::flush_w304_diagnostics`] classifies
-    /// them in the tail where `self.source` is the full file.  Empty on the
-    /// whole-file path (emitted inline) — byte-identical.
+    /// Compatibility buffer for deferred W304 presentation. Original source
+    /// option advice emits at its authenticated invocation; the tail clears
+    /// this buffer without inferring a value from text or another scope.
     pub(super) pending_w304: Vec<(
         tcl_lexer::Token,
         String,
@@ -1240,18 +1208,11 @@ pub struct Analyser {
     /// plus every grafted body's (already rebased to absolute offsets),
     /// merged so the replay can run in one global source-order pass.
     pub(super) deferred_instance_replays: Vec<(u32, bool, String, Vec<String>, String)>,
-    /// Bareword `objcmd method` dispatch sites captured while
-    /// `pending_instances` is active — a `CLASS create NAME` creation earlier
-    /// in the same deferred pass has not resolved `instance_classes` yet (it
-    /// resolves only post-graft, in [`Self::replay_deferred_instances`]), so
-    /// the site is held here instead of going straight into
-    /// `var_command_sites`.  Finalised right after that replay: a candidate
-    /// whose name the replay actually bound in `instance_classes` becomes a
-    /// real `var_command_sites` entry; every other candidate (a coroutine /
-    /// `interp create` / registry-factory / external-class name that merely
-    /// *looked* like a pending class instance at record time) is dropped —
-    /// the same soundness bar the non-deferred `analyse` path applies
-    /// immediately.  `None` on the whole-file path (sites resolve inline).
+    /// Complete original bareword receiver sites retained during per-item scans.
+    /// Once canonical declarations join, the shared source-instance issuer
+    /// validates each site's ordered context and mutation blockers. Labels in
+    /// presentation maps never admit a receiver. Whole-document scans use the
+    /// same issuer inline.
     pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
     /// take the duplicate-definition fallback, to measure the residual
@@ -1294,7 +1255,7 @@ pub struct Analyser {
     /// true; the `static::` half needs no index.  Built lazily from
     /// [`Self::irules_event_bodies`] and cleared with it at the top of each
     /// analysis run.
-    pub(super) irules_debug_flags: Option<Vec<String>>,
+    pub(super) irules_debug_flags: Option<Vec<crate::connection_scope::EventCell>>,
     /// Creation calls the walk could not classify because their head was not
     /// yet known to be a class factory — replayed once the parameterised-class
     /// observation join has settled.
@@ -1354,6 +1315,25 @@ impl Analyser {
         self.ingress_grammar.unwrap_or(self.profile.grammar)
     }
 
+    /// Complete source invocation axes from the retained entry or actual
+    /// authoring environment. This supplies no entered handler or name lookup.
+    pub(super) fn original_source_invocation_dialect(
+        &self,
+    ) -> Option<tcl_registry::InvocationDialect> {
+        match self.source_analysis_entry.as_deref() {
+            Some(entry) => entry
+                .options()
+                .source_invocation_dialect(self.lexer_config()),
+            None => self.registry.as_deref().map(|registry| {
+                crate::environment_ingress::authoring_invocation_dialect(
+                    registry,
+                    None,
+                    self.lexer_config(),
+                )
+            }),
+        }
+    }
+
     /// The command surface this document analyses against: `registry` plus
     /// the document's own `# tcl-lsp: stub` declarations.
     ///
@@ -1377,7 +1357,10 @@ impl Analyser {
     /// grammar, never the default's. [`Self::file_lexer_config`] is the
     /// whole-file form.
     pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(self.grammar())
+        self.resolved_input.as_ref().map_or_else(
+            || tcl_lexer::LexerConfig::from_grammar(self.grammar()),
+            |input| input.config,
+        )
     }
 
     /// This document dialect's word-value rules: how a braced word's
@@ -1392,11 +1375,22 @@ impl Analyser {
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
     /// [`Self::analyse`] — the one place that stands where a Tcl runtime's
     /// `source` stands, and therefore the only place that may skip a leading
-    /// byte-order mark.  Whether it does is the dialect's
-    /// business: Tcl 9's `source` strips a leading U+FEFF, Tcl 8.x's does not
-    /// and genuinely fails on such a file.
+    /// byte-order mark. An independently supplied full input retains its
+    /// own BOM treatment. Default ingress uses the selected file grammar:
+    /// Tcl 9's `source` strips a leading U+FEFF; Tcl 8.x's does not.
     pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_file_grammar(self.grammar())
+        // Implementation contract: naming.consumer.original-ilx-method-source-candidates
+        // docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md
+        // A supplied whole configuration owns the document boundary as well
+        // as its retained body/Realm input. Only default ingress selects the
+        // profile's source-file BOM treatment.
+        self.resolved_input.as_ref().map_or_else(
+            || tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LexerConfig::for_file_grammar(self.grammar()).leading_bom,
+                ..self.lexer_config()
+            },
+            |input| input.config,
+        )
     }
 
     /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
@@ -1527,26 +1521,6 @@ impl Analyser {
         }
     }
 
-    /// `true` when `cmd_name`'s registry spec declares its pattern argument
-    /// as a regular expression ([`tcl_registry::PatternType::Regex`]) —
-    /// `regexp` / `regsub`.  The regex-specific analyses (W303 `ReDoS`, W306
-    /// literal-expected, regex-pattern capture) key off this query instead
-    /// of hardcoded command names, so a future regex-pattern command is
-    /// registry data only.  Falls back to the cached default registry when
-    /// the analyser has none loaded (direct handler calls in unit tests).
-    pub(super) fn command_takes_regex_pattern(&self, cmd_name: &str) -> bool {
-        let registry = self.registry.as_deref().map_or_else(
-            || {
-                tcl_registry::model::ingress::static_context_for("tcl8.6")
-                    .commands()
-                    .as_ref()
-            },
-            |r| r,
-        );
-        registry.get(cmd_name).and_then(|spec| spec.pattern_type)
-            == Some(tcl_registry::PatternType::Regex)
-    }
-
     /// Construct an analyser with a fixed set of diagnostic codes
     /// disabled (e.g. `"W210"`, `"W211"`).
     // One line per field of a struct with more than a hundred of them, which
@@ -1559,9 +1533,11 @@ impl Analyser {
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
             source: String::new(),
+            original_static_source_names: HashMap::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             ingress_grammar: None,
             unit_profile: None,
+            resolved_input: None,
             environment: None,
             context: None,
             pack_overlay: 0,
@@ -1600,6 +1576,7 @@ impl Analyser {
             irules_debug_gate_depth: 0,
             body_depth: 0,
             presubstituted_args: false,
+            evaluated_body_invocation: None,
             e207_emitted: false,
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
@@ -1613,6 +1590,7 @@ impl Analyser {
             pending_const_dispatches: Vec::new(),
             pending_instance_class_sites: Vec::new(),
             seed_namespace_key: None,
+            path_constant_source_namespace: None,
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
@@ -1656,12 +1634,12 @@ impl Analyser {
             deferred_bodies: Vec::new(),
             minted_synthetic_names: std::collections::HashSet::new(),
             cu_override: None,
+            source_analysis_entry: None,
             capture_global_reads: None,
             capture_global_defs: None,
             pending_disabled_commands: Vec::new(),
             pending_w143: Vec::new(),
             pending_w304: Vec::new(),
-            pending_var_literal_checks: Vec::new(),
             pending_instances: None,
             deferred_instance_replays: Vec::new(),
             pending_bareword_dispatch_sites: None,
@@ -1686,42 +1664,60 @@ impl Analyser {
     #[must_use]
     pub fn with_pack_overlay(mut self, key: u64) -> Self {
         self.pack_overlay = key;
+        if self.resolved_input.is_none() {
+            self.context = None;
+            self.registry = None;
+            self.result.analysis_context_unavailable = None;
+        }
         self
     }
 
-    /// The registry this analysis reads: the walk's generation's command
-    /// store, carrying [`Self::pack_overlay`]'s packs when that entry
-    /// exists.
-    ///
-    /// **Look-up only.** Building an overlay entry needs the pack
-    /// *contents*, which only the loader has, so a miss reads the
-    /// un-overlaid generation rather than caching a pack-less one under
-    /// the pack's key forever
-    /// ([`crate::environment_ingress::analysis_registry`]). An analysis
-    /// advises and runs again once the packs are installed, so that is the
-    /// honest answer for the window in between; code that compiles reads the
-    /// overlay through a door that reports the miss.
+    /// Current command store after a checked analysis ingress.
     #[must_use]
     pub fn profile_registry(&self) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
         std::sync::Arc::clone(self.analysis_context().commands())
     }
 
-    /// The registry generation this analysis answers under — the
-    /// [`tcl_registry::model::ContextRegistry`] stashed at the `analyse*`
-    /// ingress ([`Self::resolve_walk_environment`]), or — for a bare
-    /// harness driving handlers without an ingress — the generation of
-    /// the stashed profile's environment at this walk's overlay key.
-    /// Availability queries read `.context()`; raw spec content reads
-    /// `.commands()`.
-    #[must_use]
-    pub(crate) fn analysis_context(&self) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+    /// Resolve the actual generation without replacing an unavailable overlay.
+    pub(crate) fn try_analysis_context(
+        &self,
+    ) -> Result<
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        tcl_registry::model::OverlayMiss,
+    > {
+        if let Some(input) = &self.resolved_input {
+            return Ok(std::sync::Arc::clone(&input.context));
+        }
+        if let Some(miss) = &self.result.analysis_context_unavailable {
+            return Err(miss.clone());
+        }
         if let Some(context) = &self.context {
-            return std::sync::Arc::clone(context);
+            return Ok(std::sync::Arc::clone(context));
         }
         let environment = crate::environment_ingress::resolve_environment(self.profile.name);
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
         crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay)
+    }
+
+    /// Internal generation access after an entry has checked availability.
+    #[must_use]
+    pub(crate) fn analysis_context(&self) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+        self.try_analysis_context()
+            .expect("analysis consumers require a checked available ingress")
+    }
+
+    /// An unavailable generation is a typed incomplete analysis, not a clean
+    /// successful result. No source or declaration walk is performed.
+    pub(super) fn unavailable_analysis_result(&mut self, dialect: &str) -> Option<AnalysisResult> {
+        let miss = self.result.analysis_context_unavailable.clone()?;
+        let result = AnalysisResult {
+            dialect: dialect.to_owned(),
+            analysis_context_unavailable: Some(miss),
+            ..AnalysisResult::default()
+        };
+        self.result = result.clone();
+        Some(result)
     }
 
     /// Resolve `dialect` at a walk ingress: stash
@@ -1731,14 +1727,36 @@ impl Analyser {
     /// carried as a placement query on the walk's own context, not as an
     /// `availability_for_name` `TK`-bit union).
     pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
+        if let Some(input) = &self.resolved_input {
+            self.result.analysis_context_unavailable = None;
+            self.profile = input.profile;
+            self.ingress_grammar = Some(input.config.grammar_over(input.profile.grammar));
+            self.unit_profile = Some(input.unit_profile);
+            self.context = Some(std::sync::Arc::clone(&input.context));
+            self.environment = None;
+            return input.context.context().ambient_package("Tk");
+        }
         let environment = crate::environment_ingress::resolve_environment(dialect);
         self.profile = environment.analyser_profile();
         self.ingress_grammar = Some(environment.grammar());
         self.unit_profile = Some(environment.unit_profile());
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation =
-            crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay);
+        let generation = match crate::environment_ingress::analysis_registry(
+            &environment,
+            &keyed,
+            self.pack_overlay,
+        ) {
+            Ok(generation) => generation,
+            Err(miss) => {
+                self.context = None;
+                self.registry = None;
+                self.result.analysis_context_unavailable = Some(miss);
+                self.environment = Some(environment);
+                return false;
+            }
+        };
+        self.result.analysis_context_unavailable = None;
         let tk_ambient = generation.context().ambient_package("Tk");
         self.context = Some(generation);
         self.environment = Some(environment);
@@ -1974,6 +1992,96 @@ impl Analyser {
         self
     }
 
+    /// Retain the driver's actual command/package entry for every analysis phase.
+    /// Package advertisements and assistance declarations do not supply this proof.
+    #[must_use]
+    pub fn with_source_analysis_entry(
+        mut self,
+        entry: std::sync::Arc<crate::command_binding::SourceAnalysisEntry>,
+    ) -> Self {
+        self.source_analysis_entry = Some(entry);
+        self
+    }
+
+    /// Use the driver's retained editing inputs at every full, chunked and
+    /// per-item ingress. The dialect string passed to `analyse` remains a
+    /// presentation label. Reusing this analyser preserves the explicit input;
+    /// no display-name lookup replaces its grammar or command generation.
+    #[must_use]
+    pub fn with_resolved_input(mut self, input: super::input::ResolvedAnalysisInput) -> Self {
+        self.resolved_input = Some(input);
+        self
+    }
+
+    /// Resolve the driver's complete editing input without walking source.
+    /// An unavailable overlay is returned unchanged, without a donor generation.
+    ///
+    /// # Errors
+    /// Returns the selected overlay miss when its command store is unavailable.
+    pub fn prepare_analysis_input(
+        &mut self,
+        dialect: &str,
+    ) -> Result<super::input::ResolvedAnalysisInput, tcl_registry::model::OverlayMiss> {
+        self.resolve_walk_environment(dialect);
+        self.try_analysis_context()?;
+        Ok(self.resolved_analysis_input())
+    }
+
+    /// Retain the current whole-source editing generation and configuration.
+    /// Supplied inputs stay exact; default ingress records its file boundary.
+    /// Extracted bodies explicitly use the retained input's nested projection.
+    /// This does not retain the document's temporal execution world.
+    #[must_use]
+    pub fn resolved_analysis_input(&self) -> super::input::ResolvedAnalysisInput {
+        let input = super::input::ResolvedAnalysisInput::new(
+            self.profile,
+            self.unit_profile.unwrap_or(self.profile),
+            self.analysis_context(),
+            self.file_lexer_config(),
+        );
+        match self.vendor_source_name_policy() {
+            Some(policy) => input.with_vendor_source_policy(policy),
+            None => input,
+        }
+    }
+
+    /// Select the same source interpretation without walking diagnostics or
+    /// constructing an analysis projection. Its editing input is sealed once.
+    pub(crate) fn readonly_source_registry_realm(
+        source: &str,
+        input: super::input::ResolvedAnalysisInput,
+    ) -> (
+        crate::realm::CommandBindingRealm,
+        super::input::ResolvedAnalysisInput,
+    ) {
+        let profile = input.analyser_profile();
+        let mut analyser = Self::new().with_resolved_input(input);
+        analyser.resolve_walk_environment(profile.name);
+        analyser.registry = Some(analyser.profile_registry());
+        let realm = analyser.document_command_realm(source);
+        (realm, analyser.resolved_analysis_input())
+    }
+
+    pub(super) fn document_command_realm(&self, source: &str) -> crate::realm::CommandBindingRealm {
+        // naming.minifier.logical-source-header
+        // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let input = self.resolved_analysis_input();
+        let declarations = crate::command_binding::SourceDeclaredCommandContracts::for_document(
+            source,
+            self.file_path.as_deref(),
+            &input,
+            self.source_analysis_entry.as_deref(),
+        );
+        crate::realm::document_realm_with_declared_contracts(
+            source,
+            &input,
+            self.source_analysis_entry.as_deref(),
+            &declarations,
+        )
+    }
+
     /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
     /// CFG/SSA diagnostic tail, so [`Self::emit_cfg_ssa_diagnostics`] consumes
     /// it (once) instead of rebuilding the whole-file unit.  The supplied unit
@@ -2023,6 +2131,17 @@ impl Analyser {
         self.analyse(source, dialect)
     }
 
+    /// Test fixtures with private post-analysis queries retain the genuine result.
+    #[cfg(test)]
+    pub(crate) fn analyse_and_retain_result_for_test(
+        &mut self,
+        source: &str,
+        dialect: &str,
+    ) -> &AnalysisResult {
+        self.result = self.analyse(source, dialect);
+        &self.result
+    }
+
     /// `source` is consumed by reference so the analyser can hold
     /// per-walk references back into it; `dialect` is one of
     /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc. (kept in
@@ -2031,10 +2150,31 @@ impl Analyser {
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
         use std::collections::HashSet;
 
+        #[cfg(debug_assertions)]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(debug_assertions)]
+        let trace_phase = |stage: &str| {
+            if let Some(start) = phase_start {
+                eprintln!(
+                    "ANALYSER_PHASE bytes={} stage={stage} ms={}",
+                    source.len(),
+                    start.elapsed().as_millis()
+                );
+            }
+        };
+        #[cfg(debug_assertions)]
+        trace_phase("initial");
+        self.unresolved_commands_emitted = false;
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
+        self.original_static_source_names.clear();
         let tk_ambient = self.resolve_walk_environment(dialect);
+        if let Some(result) = self.unavailable_analysis_result(dialect) {
+            return result;
+        }
         // Tell pack hooks which dialect they are running under, for the
         // length of this walk. Deriving a hook's `ctx.dialect` from the call's
         // `TclVersion` instead can only spell a release — an iRules document
@@ -2044,6 +2184,9 @@ impl Analyser {
         // turn.
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.file_lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
@@ -2058,6 +2201,147 @@ impl Analyser {
         self.irules_file_profiles = None;
         self.irules_event_bodies = None;
         self.irules_debug_flags = None;
+        self.retain_walk_directives(source, dialect);
+
+        // Segment with re-segmentation recovery so an unclosed delimiter
+        // mid-file doesn't drop later top-level declarations.
+        // Build the dialect-aware registry once and stash on
+        // ``self`` so per-command handlers (registry-driven body
+        // iteration in ``process_command``) reuse it.
+        self.registry = Some(self.profile_registry());
+        #[cfg(debug_assertions)]
+        trace_phase("realm-start");
+        self.head_identities = self.document_command_realm(source);
+        #[cfg(debug_assertions)]
+        trace_phase("realm-complete");
+        self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
+        self.record_original_formal_variables();
+        #[cfg(debug_assertions)]
+        trace_phase("retained-inventory");
+        // Precompute the iRules file-profile stack (no-op off f5-irules) so
+        // the per-command IRULE1001 hint can consult it without recomputing.
+        self.compute_irules_file_profiles();
+        // Precompute newline offsets once for ``O(log N)``
+        // byte-offset → line-number lookup in
+        // ``apply_preceding_noqa`` (which runs per command and
+        // would otherwise be ``O(N)`` per call).
+        self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
+        // The recovery known-command universe (registry + this document's
+        // own procs/classes/aliases) — see `recovery_known_commands`. Stored
+        // on `self` so the per-command E100/E201/E202/E203 detectors below
+        // (and `apply_ghost_recovery`) consult the same set the segmenter
+        // scan-to-next recovery uses here.
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_deref().expect("registry just stashed"),
+            &self.extra_commands,
+            self.file_lexer_config(),
+        );
+        let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
+        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
+            source,
+            &known_commands,
+            self.file_lexer_config(),
+        );
+        drop(known_commands);
+
+        // Ghost-token recovery (see method doc).
+        let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
+        #[cfg(debug_assertions)]
+        trace_phase("segmented");
+
+        // Walk each command through the dispatcher.  The dispatcher
+        // wires ``recover_stray_close_bracket``,
+        // ``recover_missing_open_brace`` (for switch with a forgotten
+        // body brace), ``detect_stolen_close_brace`` (E103), and the
+        // generic E200 partial-command emitter.
+        // A seeded analysis (`analyse_with_source_namespace`) walks the
+        // whole file inside the source-site namespace, exactly as if wrapped
+        // in `namespace eval <ns> { ... }` — relative definitions re-home,
+        // absolute ones stay put, and call-site candidates gain the seeded
+        // tier, all through the ordinary scope machinery.
+        self.seed_walk_namespace(source);
+        let file_env_pushed = self.seed_file_scope_env(source);
+        #[cfg(debug_assertions)]
+        trace_phase("walk-start");
+        self.walk_commands_top_level(&commands, ghost_recovery_applied);
+        #[cfg(debug_assertions)]
+        trace_phase("walk-complete");
+        if file_env_pushed {
+            self.body_scope_stack.pop();
+        }
+
+        // Run the diagnostic-emission orchestrator and the post-pass
+        // filters:
+        //
+        // 1. ``emit_unresolved_command_diagnostics``.
+        // 2. ``emit_variable_usage_diagnostics``.
+        // 3. ``emit_cfg_ssa_diagnostics(source)``.
+        // 4. ``apply_disabled_diagnostics`` — filter codes the
+        //    caller asked to silence (also covers the
+        //    file-suppression directives merged at the top of
+        //    ``analyse``).
+        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
+        //    the line-based suppression pairs.
+        // Structure-only mode (item_tree extraction) skips the entire
+        // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
+        // emitters are the dominant cost and produce no structural facts.
+        // Record the classes a proc manufactures under a computed name whose
+        // value a literal call-site argument proves.  A
+        // *structural* fact, so it runs on the item-tree path too — that is
+        // the path the workspace class-factory index is computed from, and a
+        // metaclass missing there is invisible to every other document.
+        self.record_literal_parameter_definitions();
+        self.retain_original_callback_signature_lookups(source);
+        #[cfg(debug_assertions)]
+        trace_phase("parameter-definitions");
+        if !self.structure_only {
+            self.run_diagnostic_emitters(source);
+        }
+        #[cfg(debug_assertions)]
+        trace_phase("diagnostics-complete");
+
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        #[cfg(debug_assertions)]
+        trace_phase("complete");
+        result
+    }
+
+    fn seed_walk_namespace(&mut self, source: &str) {
+        if let Some(seed) = self.seed_namespace_key.take() {
+            self.path_constant_source_namespace = Some(seed.clone());
+            let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
+            let mut base: Vec<usize> = Vec::new();
+            for segment in crate::naming::key_segments(&seed) {
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
+                child.body_span = Some(tcl_lexer::Span::new(0, end));
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
+                    .expect("seed scope path is self-built");
+                parent.children.push(child);
+                base.push(parent.children.len() - 1);
+            }
+            self.seed_scope_path = base;
+        }
+    }
+
+    /// Next-line comment syntax is selected after retaining the actual
+    /// complete input, declared contracts and original source realm.
+    pub(super) fn retain_original_comment_suppressions(&mut self, source: &str) {
+        if let Some(lines) =
+            super::utils::parse_noqa_line_suppressions_from_analysis(source, &self.result)
+        {
+            merge_noqa_line_suppressions(&mut self.result.suppressed_lines, lines);
+        }
+    }
+
+    fn retain_walk_directives(&mut self, source: &str, dialect: &str) {
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -2084,16 +2368,6 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Pre-scan for next-line ``# noqa`` suppressions.  Handles
-        // orphaned noqa at the tail of a brace body and noqa
-        // before a comment line that itself generates a
-        // diagnostic.  Merges into ``suppressed_lines`` alongside
-        // the command-attached ``apply_preceding_noqa`` pass that
-        // runs per segmented command in the dispatch loop below.
-        merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
         // Inline ``# tcl-lsp: stub …`` block scan.  After
         // capturing the parsed records, build the per-document
         // overlay so analyser / compiler queries see the
@@ -2104,107 +2378,6 @@ impl Analyser {
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         self.result.stub_expr_defs = overlay_exprs;
-
-        // Segment with re-segmentation recovery so an unclosed delimiter
-        // mid-file doesn't drop later top-level declarations.
-        // Build the dialect-aware registry once and stash on
-        // ``self`` so per-command handlers (registry-driven body
-        // iteration in ``process_command``) reuse it.
-        self.registry = Some(self.profile_registry());
-        self.head_identities = crate::realm::document_realm_bindings_with_config(
-            source,
-            self.lexer_config(),
-            self.registry.as_deref().expect("registry just stashed"),
-        );
-        // Precompute the iRules file-profile stack (no-op off f5-irules) so
-        // the per-command IRULE1001 hint can consult it without recomputing.
-        self.compute_irules_file_profiles();
-        // Precompute newline offsets once for ``O(log N)``
-        // byte-offset → line-number lookup in
-        // ``apply_preceding_noqa`` (which runs per command and
-        // would otherwise be ``O(N)`` per call).
-        self.line_offsets = Some(compute_line_offsets(source));
-        self.cached_line_index = tcl_lexer::LineIndex::new(source);
-        self.cached_line_index_source_len = source.len();
-        // The recovery known-command universe (registry + this document's
-        // own procs/classes/aliases) — see `recovery_known_commands`. Stored
-        // on `self` so the per-command E100/E201/E202/E203 detectors below
-        // (and `apply_ghost_recovery`) consult the same set the segmenter
-        // scan-to-next recovery uses here.
-        self.recovery_known_commands = super::utils::recovery_known_commands(
-            source,
-            self.registry.as_deref().expect("registry just stashed"),
-            &self.extra_commands,
-        );
-        let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
-        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
-            source,
-            &known_commands,
-            self.file_lexer_config(),
-        );
-        drop(known_commands);
-
-        // Ghost-token recovery (see method doc).
-        let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
-
-        // Walk each command through the dispatcher.  The dispatcher
-        // wires ``recover_stray_close_bracket``,
-        // ``recover_missing_open_brace`` (for switch with a forgotten
-        // body brace), ``detect_stolen_close_brace`` (E103), and the
-        // generic E200 partial-command emitter.
-        // A seeded analysis (`analyse_with_source_namespace`) walks the
-        // whole file inside the source-site namespace, exactly as if wrapped
-        // in `namespace eval <ns> { ... }` — relative definitions re-home,
-        // absolute ones stay put, and call-site candidates gain the seeded
-        // tier, all through the ordinary scope machinery.
-        if let Some(seed) = self.seed_namespace_key.take() {
-            let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
-            let mut base: Vec<usize> = Vec::new();
-            for segment in crate::naming::key_segments(&seed) {
-                let mut child =
-                    super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
-                child.body_span = Some(tcl_lexer::Span::new(0, end));
-                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
-                    .expect("seed scope path is self-built");
-                parent.children.push(child);
-                base.push(parent.children.len() - 1);
-            }
-            self.seed_scope_path = base;
-        }
-        let file_env_pushed = self.seed_file_scope_env(source);
-        self.walk_commands_top_level(&commands, ghost_recovery_applied);
-        if file_env_pushed {
-            self.body_scope_stack.pop();
-        }
-
-        // Run the diagnostic-emission orchestrator and the post-pass
-        // filters:
-        //
-        // 1. ``emit_unresolved_command_diagnostics``.
-        // 2. ``emit_variable_usage_diagnostics``.
-        // 3. ``emit_cfg_ssa_diagnostics(source)``.
-        // 4. ``apply_disabled_diagnostics`` — filter codes the
-        //    caller asked to silence (also covers the
-        //    file-suppression directives merged at the top of
-        //    ``analyse``).
-        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
-        //    the line-based suppression pairs.
-        // Structure-only mode (item_tree extraction) skips the entire
-        // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
-        // emitters are the dominant cost and produce no structural facts.
-        // Record the classes a proc manufactures under a computed name whose
-        // value a literal call-site argument proves.  A
-        // *structural* fact, so it runs on the item-tree path too — that is
-        // the path the workspace class-factory index is computed from, and a
-        // metaclass missing there is invisible to every other document.
-        self.record_literal_parameter_definitions();
-        if !self.structure_only {
-            self.run_diagnostic_emitters(source);
-        }
-
-        let result = std::mem::take(&mut self.result);
-        self.clear_run_state();
-        result
     }
 
     /// Walk a top-level command stream through the dispatcher (the body of
@@ -2217,6 +2390,7 @@ impl Analyser {
         commands: &[crate::segmenter::SegmentedCommand],
         ghost_recovery_applied: bool,
     ) {
+        self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
         self.record_path_constant_candidates(commands);
         let total = commands.len();
         let mut cmd_idx: usize = 0;
@@ -2306,7 +2480,7 @@ impl Analyser {
         }
         let (clean, e201) = crate::segmenter::segment_with_recovery(
             source,
-            self.lexer_config(),
+            self.file_lexer_config(),
             &self.recovery_known_commands,
         );
         if e201.is_empty() {
@@ -2382,10 +2556,11 @@ impl Analyser {
     /// Convert the dialect-aware lexer's `LexWarning`s into recovery
     /// diagnostics.  E204 (extra characters after a close-brace), E205
     /// (after a close-quote) and E206 (missing close-brace for a
-    /// `${…}` variable name) map by message; the "missing closer"
-    /// messages that overlap E201 / E202 / E203 are skipped (the
+    /// `${…}` variable name) use the lexer's retained `ParseIssueKind`.
+    /// Missing delimiters that overlap E201 / E202 / E203 are skipped (the
     /// recovery detectors own those with better positions + fixes);
-    /// every *other* message maps to the catch-all E200.
+    /// every other typed issue maps to the catch-all E200. Messages remain
+    /// unchanged presentation.
     fn emit_lexer_warning_diagnostics(&mut self) {
         let lexer = tcl_lexer::Lexer::with_source_map(
             Self::source_map(
@@ -2393,19 +2568,21 @@ impl Analyser {
                 &self.cached_line_index,
                 self.cached_line_index_source_len,
             ),
-            self.lexer_config(),
+            self.file_lexer_config(),
         );
         let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
             return;
         };
         for w in warnings {
-            let code = match w.message.as_str() {
+            let code = match w.kind {
                 // Owned by the E201/E202/E203 recovery heuristics.
-                "missing close-bracket" | "missing \"" | "missing close-brace" => continue,
-                "extra characters after close-brace" => DiagCode::E204,
-                "extra characters after close-quote" => DiagCode::E205,
-                "missing close-brace for variable name" => DiagCode::E206,
-                // Any unexpected lexer warning → catch-all E200.
+                tcl_lexer::ParseIssueKind::MissingBracket
+                | tcl_lexer::ParseIssueKind::MissingQuote
+                | tcl_lexer::ParseIssueKind::MissingBrace => continue,
+                tcl_lexer::ParseIssueKind::ExtraAfterBrace => DiagCode::E204,
+                tcl_lexer::ParseIssueKind::ExtraAfterQuote => DiagCode::E205,
+                tcl_lexer::ParseIssueKind::MissingVariableBrace => DiagCode::E206,
+                // Any other typed lexer issue → catch-all E200.
                 _ => DiagCode::E200,
             };
             self.result
@@ -2443,11 +2620,18 @@ impl Analyser {
         dialect: &str,
     ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
         self.source = source.to_string();
+        self.original_static_source_names.clear();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
         self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
+        if let Some(result) = self.unavailable_analysis_result(dialect) {
+            return (result, Vec::new());
+        }
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.file_lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
@@ -2470,12 +2654,6 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Next-line ``# noqa`` pre-scan — see ``analyse`` for
-        // rationale.
-        merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
 
         // Build + stash the dialect-aware registry so
         // ``process_command`` 's body-iteration loop has access
@@ -2485,15 +2663,16 @@ impl Analyser {
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::realm::document_realm_bindings_with_config(
-            source,
-            self.lexer_config(),
-            self.registry.as_deref().expect("registry just stashed"),
-        );
+        self.head_identities = self.document_command_realm(source);
+        self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
+            self.file_lexer_config(),
         );
         self.line_offsets = Some(compute_line_offsets(source));
         self.cached_line_index = tcl_lexer::LineIndex::new(source);
@@ -2514,6 +2693,7 @@ impl Analyser {
 
         // Same structural + diagnostic-emission tail as ``analyse``.
         self.record_literal_parameter_definitions();
+        self.retain_original_callback_signature_lookups(source);
         self.run_diagnostic_emitters(source);
 
         let result = std::mem::take(&mut self.result);
@@ -2540,11 +2720,18 @@ impl Analyser {
         finalise: bool,
     ) -> AnalysisResult {
         self.source = source.to_string();
+        self.original_static_source_names.clear();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
         self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
+        if let Some(result) = self.unavailable_analysis_result(dialect) {
+            return result;
+        }
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.file_lexer_config());
+        self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
@@ -2565,12 +2752,6 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Next-line ``# noqa`` pre-scan — see ``analyse`` for
-        // rationale.
-        merge_noqa_line_suppressions(
-            &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
-        );
 
         // Same registry + line-index prelude as
         // ``analyse_chunked`` — see that doc-comment.  Without
@@ -2578,15 +2759,16 @@ impl Analyser {
         // ``process_command`` silently skips body recursion on
         // the incremental path.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::realm::document_realm_bindings_with_config(
-            source,
-            self.lexer_config(),
-            self.registry.as_deref().expect("registry just stashed"),
-        );
+        self.head_identities = self.document_command_realm(source);
+        self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
+        self.result.original_command_world =
+            self.head_identities.original_completed_command_world();
+        self.retain_original_comment_suppressions(source);
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
+            self.file_lexer_config(),
         );
         self.line_offsets = Some(compute_line_offsets(source));
         self.cached_line_index = tcl_lexer::LineIndex::new(source);
@@ -2609,6 +2791,7 @@ impl Analyser {
 
         if finalise {
             self.record_literal_parameter_definitions();
+            self.retain_original_callback_signature_lookups(source);
             self.run_diagnostic_emitters(source);
         }
 
@@ -2639,11 +2822,20 @@ impl Analyser {
         new_text: &str,
         dialect: &str,
     ) -> AnalysisResult {
+        self.resolve_walk_environment(dialect);
+        if let Some(result) = self.unavailable_analysis_result(dialect) {
+            return result;
+        }
         // Error recovery (ghost-token re-lex, stray-closer repair) and
         // inline `# tcl-lsp: stub` overlays are only applied on the full
         // `analyse` path; when either could be in play, re-analyse fully
         // so the incremental result can never diverge.
-        if !tcl_lexer::script_is_complete(new_text) || new_text.contains("tcl-lsp: stub") {
+        if tcl_lexer::script_image_is_complete(
+            &tcl_lexer::SourceImage::document(new_text),
+            self.file_lexer_config(),
+        ) != Ok(true)
+            || new_text.contains("tcl-lsp: stub")
+        {
             return self.analyse(new_text, dialect);
         }
         let cmds = crate::segmenter::segment_commands_incremental(
@@ -2652,31 +2844,25 @@ impl Analyser {
             new_text,
             // The document's whole-file grammar, resolved once through the
             // ingress exactly as `analyse` resolves it for the full walk.
-            tcl_lexer::LexerConfig::for_file_grammar(
-                crate::environment_ingress::resolve_environment(dialect).grammar(),
-            ),
+            self.file_lexer_config(),
         );
         // `analyse` segments with *error recovery*; the fast path uses plain
-        // incremental segmentation.  `script_is_complete` only checks overall
-        // delimiter balance, so a locally-unbalanced brace (a stray `}` matched
-        // by a missing `{` elsewhere) passes it yet makes recovery segmentation
+        // incremental segmentation. Configured completeness accepts terminal
+        // syntax cuts as complete; that does not prove the recovery stream.
+        // A locally-unbalanced brace can still make recovery segmentation
         // split off a partial command — emitting E200/E102/E202 that the plain
         // walk never sees.  Replicate the recovery segmentation `analyse` uses
         // and fall back to a full rebuild when it differs from what the fast
         // path would walk, or leaves any partial command.  (This also subsumes
         // the plain-segmentation-metadata check: the recovery segmenter is the
         // authority on the command stream + its attached comments.)
-        let environment = crate::environment_ingress::resolve_environment(dialect);
-        let keyed =
-            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation =
-            crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay);
+        let generation = self.analysis_context();
         let known: std::collections::HashSet<&str> =
             generation.commands().command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
             &known,
-            tcl_lexer::LexerConfig::from_grammar(environment.analyser_profile().grammar),
+            self.file_lexer_config(),
         );
         if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
             return self.fresh_full_analyse(new_text, dialect);
@@ -2710,26 +2896,32 @@ impl Analyser {
     /// safe way to take the full-rebuild fallback mid-call.
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
+            .with_resolved_input(self.resolved_analysis_input())
             .with_non_ascii_mode(self.non_ascii_mode)
             .with_pack_overlay(self.pack_overlay)
             .with_shared_extra_commands(Arc::clone(&self.extra_commands))
             .with_package_provides(self.package_provides.clone());
+        fresh
+            .source_analysis_entry
+            .clone_from(&self.source_analysis_entry);
         fresh.analyse(new_text, dialect)
     }
 
-    /// Record the batch's raw path-constant candidates (see
-    /// [`AnalysisResult::path_constant_assignments`]).  Called from the head
-    /// of both top-level walks — `analyse`'s [`Self::walk_commands_top_level`]
-    /// and the chunked/batched [`Self::analyse_commands_inner`] — which are
-    /// sibling implementations, so no path records a batch twice.  Accumulated
-    /// per batch (the chunked path walks one chunk at a time, and document
-    /// order across chunks is exactly append order), with multi-write
-    /// poisoning applied at fold time, where the whole document's write
-    /// counts are in view.
+    /// Extend conditional path source advice through the same actual input,
+    /// original realm and complete image as command analysis. Batches preserve
+    /// prior lexical homes; namespace seeds remain constructed source scopes.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        self.result.path_constant_assignments.extend(
-            crate::auto_path_eval::constant_path_assignments_from_commands(commands, self.profile),
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let mut inventory = std::mem::take(&mut self.result.path_constant_assignments);
+        crate::auto_path_eval::extend_path_constant_assignments_from_analysis_commands(
+            &self.source,
+            &self.result,
+            commands,
+            self.path_constant_source_namespace.as_deref(),
+            &mut inventory,
         );
+        self.result.path_constant_assignments = inventory;
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
@@ -2737,6 +2929,7 @@ impl Analyser {
     /// commands at the current scope path.  Covers the dispatch
     /// portion that's load-bearing for incremental analysis.
     fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+        self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
         self.record_path_constant_candidates(commands);
         let scope_path = self.current_scope_path.clone();
         let total = commands.len();
@@ -2994,6 +3187,8 @@ impl Analyser {
                         PackageRequireOrigin::Provides(from.clone())
                     };
                     out.push(SignaturePackageRequire {
+                        original_name: None,
+                        original_requirements: Vec::new(),
                         name: loaded.clone(),
                         version: None,
                         requirements: Vec::new(),
@@ -3011,6 +3206,22 @@ impl Analyser {
     }
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        #[cfg(debug_assertions)]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(debug_assertions)]
+        let trace_phase = |stage: &str| {
+            if let Some(start) = phase_start {
+                eprintln!(
+                    "DIAGNOSTIC_PHASE bytes={} stage={stage} ms={}",
+                    source.len(),
+                    start.elapsed().as_millis()
+                );
+            }
+        };
+        #[cfg(debug_assertions)]
+        trace_phase("initial");
         // Declared package availability first: every emitter below that asks
         // "is this package available here?" — W120, H301, the W123 widening,
         // the Tk activation gate — reads `package_requires`, so the declared
@@ -3036,18 +3247,22 @@ impl Analyser {
         // every definition in the file (a local candidate defined later in
         // the file still wins; an absent one falls back to global).
         self.finalise_invocation_resolutions();
+        self.retain_positioned_command_definitions();
         self.publish_load_level_destructions();
+        #[cfg(debug_assertions)]
+        trace_phase("invocations");
         // Attach every namespace-qualified occurrence to the cell it names,
         // now that the whole file's `namespace eval` bodies have been walked
         // — a qualified read can precede its declaring `namespace eval`
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
+        #[cfg(debug_assertions)]
+        trace_phase("variable-references");
         let diag_registry = self.profile_registry();
         self.emit_unresolved_command_diagnostics(&diag_registry);
         self.flush_disabled_command_diagnostics();
         self.flush_w143_diagnostics();
         self.flush_w304_diagnostics();
-        self.flush_var_literal_checks();
         // Decide every version-gated option relationship *before* the arity
         // flush: a conflict the resolved floor has is promoted onto
         // `pending_arity`, so it goes through the same shadowing suppression
@@ -3065,8 +3280,14 @@ impl Analyser {
         // Q8's assistance half. Disjoint from W120 by construction — that
         // fires when the requirement is absent, this when it is merely late.
         self.emit_package_require_ordering_hints(&diag_registry);
+        #[cfg(debug_assertions)]
+        trace_phase("command-diagnostics");
         self.emit_variable_usage_diagnostics();
+        #[cfg(debug_assertions)]
+        trace_phase("variable-usage");
         self.emit_cfg_ssa_diagnostics(source);
+        #[cfg(debug_assertions)]
+        trace_phase("cfg-ssa");
         self.flush_loop_terminations();
         self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();
@@ -3078,6 +3299,21 @@ impl Analyser {
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();
+        #[cfg(debug_assertions)]
+        trace_phase("complete");
+    }
+
+    pub(super) fn retain_original_callback_signature_lookups(&mut self, source: &str) {
+        let retained = self.result.command_invocations.iter().map(|invocation| {
+            let prefix = std::sync::Arc::clone(invocation.original_callback_prefix.as_ref()?);
+            let offset = prefix.source_registration().map(|registration| registration.site().offset)
+                .or_else(|| prefix.lookup().map(|lookup| lookup.site().offset))?;
+            let lookup = crate::registry_invocation::source_structure::source_callback_procedure_target_at(source, &self.result, offset, &prefix)?;
+            super::SourceCallbackSignatureLookup::from_original_lookup(&self.result, prefix, std::sync::Arc::new(lookup)).map(std::sync::Arc::new)
+        }).collect::<Vec<_>>();
+        for (invocation, lookup) in self.result.command_invocations.iter_mut().zip(retained) {
+            invocation.original_callback_signature_lookup = lookup;
+        }
     }
 
     /// Canonicalise the order of the walk-populated, order-sensitive result
@@ -3096,6 +3332,7 @@ impl Analyser {
                 .cmp(&b.range.start())
                 .then(a.range.end().cmp(&b.range.end()))
                 .then_with(|| a.name.cmp(&b.name))
+                .then(a.lookup.cmp(&b.lookup))
         });
         sort_scope_refs(&mut self.result.global_scope);
         for v in self.result.all_variables.values_mut() {
@@ -3189,18 +3426,20 @@ impl Analyser {
             return Some(std::sync::Arc::clone(trust));
         }
         let registry = self.registry.as_deref()?;
-        let module = crate::lowering::lower_to_ir_with_dialect(
-            &self.source,
-            registry,
-            self.lexer_config(),
-            // `None`, not `Some(plain_tcl)`, when the analysis named no
-            // dialect: an unstated dialect is not the same input as an
-            // explicit plain-Tcl one, and `Lowerer::dialect` feeds numeral
-            // source selection. `self.profile` is always populated (it
-            // defaults to the plain fallback), so gate on the recorded
-            // spelling the way the pre-refactor `&str` boundary did.
-            (!self.result.dialect.is_empty()).then_some(self.profile),
-        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, self.file_lexer_config())
+            .with_dialect(
+                // `None`, not `Some(plain_tcl)`, when the analysis named no
+                // dialect: an unstated dialect is not the same input as an
+                // explicit plain-Tcl one, and `Lowerer::dialect` feeds numeral
+                // source selection. `self.profile` is always populated (it
+                // defaults to the plain fallback), so gate on the recorded
+                // spelling the way the pre-refactor `&str` boundary did.
+                (!self.result.dialect.is_empty()).then_some(self.profile),
+            );
+        if let Some(entry) = &self.source_analysis_entry {
+            lowerer.set_source_analysis_options(entry.options());
+        }
+        let module = crate::lowering::lower_to_ir_with(lowerer, &self.source);
         let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
             &module, registry,
         ));
@@ -3231,6 +3470,7 @@ impl Analyser {
         self.objdefine_abort_candidates.clear();
         self.objdefine_unresolved_receiver = false;
         self.seed_namespace_key = None;
+        self.path_constant_source_namespace = None;
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();
         self.minted_synthetic_names.clear();
@@ -3381,26 +3621,277 @@ mod tests {
     }
 
     #[test]
+    fn retained_analysis_fixture_keeps_the_returned_source_owner_for_private_queries() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let source = "eval $script";
+        let mut analyser = Analyser::new();
+        let returned = analyser.analyse(source, "tcl");
+        assert!(returned.resolved_input.is_some());
+        assert!(analyser.result.resolved_input.is_none());
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let input = analyser.result.resolved_input.as_ref().unwrap();
+        assert!(analyser.result.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config()
+        ));
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert!(
+            analyser
+                .original_diagnostic_call_at(command.argv[0], command.arg_tokens())
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn unavailable_overlay_is_retained_before_every_analysis_walk() {
+        let overlay = u64::MAX;
+        let source = "proc must_not_be_walked {} {set x 1}; must_not_be_walked";
+        let commands = crate::segmenter::segment_commands(source);
+        let mut analyser = Analyser::new().with_pack_overlay(overlay);
+        let missing = analyser
+            .try_analysis_context()
+            .expect_err("no registered overlay");
+        assert_eq!(missing.overlay, overlay);
+        let full = analyser.analyse(source, "tcl");
+        let supplied = analyser.analyse_commands(source, &commands, "tcl", true);
+        let (chunked, snapshots) = analyser.analyse_chunked(source, vec![commands.clone()], "tcl");
+        assert!(snapshots.is_empty());
+        let incremental = analyser.analyse_incremental(source, &commands, source, "tcl");
+        let mut called = false;
+        let per_item = analyser.analyse_per_item_with(source, "tcl", &mut |_| {
+            called = true;
+            unreachable!("an unavailable generation cannot dispatch a body")
+        });
+        assert!(!called);
+        for result in [full, supplied, chunked, incremental, per_item] {
+            assert_eq!(result.analysis_context_unavailable.as_ref(), Some(&missing));
+            assert!(result.resolved_input.is_none());
+            assert!(result.all_procs.is_empty());
+            assert!(result.command_invocations.is_empty());
+            assert!(result.diagnostics.is_empty());
+            assert!(result.global_scope.children.is_empty());
+        }
+    }
+
+    #[test]
+    fn original_whole_source_recovery_keeps_file_config_and_typed_warning_fields() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original recovery/diagnostic streams, without entered-source admission.
+        let source = "\u{feff}set x [foo bar\nputs done\n";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for supplied in [None, Some(input.clone())] {
+            let mut analyser = supplied.as_ref().map_or_else(Analyser::new, |input| {
+                Analyser::new().with_resolved_input(input.clone())
+            });
+            analyser.analyse_and_retain_result_for_test(source, "tcl9.1");
+            let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            );
+            assert!(analyser.apply_ghost_recovery(source, &mut commands));
+            assert_eq!(
+                commands
+                    .iter()
+                    .map(crate::segmenter::SegmentedCommand::name)
+                    .collect::<Vec<_>>(),
+                ["set", "puts"]
+            );
+            assert_eq!(commands[0].argv[0].span.start(), 3);
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        }
+        for (source, kind, code) in [
+            (
+                "\u{feff}set x {abc}def\n",
+                tcl_lexer::ParseIssueKind::ExtraAfterBrace,
+                DiagCode::E204,
+            ),
+            (
+                "\u{feff}set y \"abc\"def\n",
+                tcl_lexer::ParseIssueKind::ExtraAfterQuote,
+                DiagCode::E205,
+            ),
+            (
+                "\u{feff}puts ${foo\n",
+                tcl_lexer::ParseIssueKind::MissingVariableBrace,
+                DiagCode::E206,
+            ),
+        ] {
+            let config = input.lexer_config();
+            let (_, warnings) = tcl_lexer::Lexer::with_config(source, config)
+                .tokenise_all_with_warnings()
+                .unwrap();
+            let warning = warnings
+                .iter()
+                .find(|warning| warning.kind == kind)
+                .unwrap();
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "display-only");
+            let diagnostic = analysis
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .unwrap();
+            assert_eq!(diagnostic.message, warning.message);
+            assert_eq!(diagnostic.span, Span::new(warning.offset, warning.offset));
+        }
+    }
+
+    #[test]
+    fn original_prepared_input_records_the_file_boundary_and_preserves_supplied_config() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original editing inputs; no runtime source or Native entry receipt.
+        let source = "\u{feff}set name value";
+        let mut default = Analyser::new();
+        let prepared = default.prepare_analysis_input("tcl9.1").unwrap();
+        assert_eq!(prepared.lexer_config(), default.file_lexer_config());
+        assert_eq!(
+            prepared.lexer_config().leading_bom,
+            tcl_lexer::LeadingBom::Skip
+        );
+        assert_ne!(prepared.lexer_config(), default.lexer_config());
+        let ordinary = Analyser::new().analyse(source, "tcl9.1");
+        let retained = Analyser::new()
+            .with_resolved_input(prepared.clone())
+            .analyse(source, "presentation-only");
+        assert_eq!(ordinary.resolved_input.as_ref(), Some(&prepared));
+        assert_eq!(ordinary.body_lexer_config, Some(prepared.lexer_config()));
+        assert!(ordinary.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            prepared.lexer_config(),
+        ));
+        assert!(retained.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            prepared.lexer_config(),
+        ));
+        assert_eq!(project_result(&ordinary), project_result(&retained));
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            prepared.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert_eq!(command.texts[0], "set");
+
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+        };
+        let supplied = super::super::input::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            config,
+        );
+        let mut selected = Analyser::new().with_resolved_input(supplied.clone());
+        assert_eq!(selected.prepare_analysis_input("tcl8.4").unwrap(), supplied);
+        let result = selected.analyse(source, "tcl8.4");
+        assert_eq!(result.resolved_input.as_ref(), Some(&supplied));
+        assert_eq!(result.body_lexer_config, Some(config));
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            result.resolved_input.as_ref().unwrap().lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert_eq!(command.texts[0], "\u{feff}set");
+    }
+
+    #[test]
+    fn original_incremental_completeness_retains_the_supplied_parser_configuration() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Incremental source analysis must converge; this grants no entry.
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        let previous = "puts before";
+        let source = "puts \"${a{}\"";
+        for braced_var in [
+            tcl_lexer::BracedVarStyle::FirstClose,
+            tcl_lexer::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var,
+                ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+            };
+            let input = super::super::input::ResolvedAnalysisInput::new(
+                environment.analyser_profile(),
+                environment.unit_profile(),
+                environment.default_context_registry(),
+                config,
+            );
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(previous, 0, config);
+            let result = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse_incremental(previous, &commands, source, "tcl9.1");
+            let fresh = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl9.1");
+            assert_eq!(result.resolved_input.as_ref(), Some(&input));
+            assert_eq!(project_result(&result), project_result(&fresh));
+        }
+    }
+
+    #[test]
+    fn retained_actual_input_does_not_borrow_a_presentation_overlay() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl");
+        let input = super::super::input::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::default().with_grammar(environment.grammar()),
+        );
+        let mut analyser = Analyser::new()
+            .with_resolved_input(input.clone())
+            .with_pack_overlay(u64::MAX);
+        let result = analyser.analyse("proc retained {} {}", "tcl9.1");
+        assert!(result.analysis_context_unavailable.is_none());
+        assert_eq!(result.resolved_input.as_ref(), Some(&input));
+        assert!(result.all_procs.contains_key("::retained"));
+    }
+
+    #[test]
     fn new_analyser_starts_at_global_scope_with_empty_state() {
         let a = Analyser::new();
         assert_eq!(a.result.global_scope.kind, ScopeKind::Global);
-        assert!(a.current_scope_path.is_empty());
-        assert!(a.source.is_empty());
-        assert!(a.disabled_diagnostics.is_empty());
+        assert_eq!(a.current_scope_path, [] as [usize; 0]);
+        assert_eq!(a.source, "");
+        assert_eq!(a.disabled_diagnostics.len(), 0);
         assert_eq!(a.conditional_depth, 0);
         assert_eq!(a.body_depth, 0);
-        assert!(a.last_comment.is_empty());
+        assert_eq!(a.last_comment, "");
         assert!(a.file_path.is_none());
-        assert!(a.command_aliases.is_empty());
-        assert!(a.var_command_sites.is_empty());
-        assert!(a.cmd_command_sites.is_empty());
-        assert!(a.const_strings.is_empty());
-        assert!(a.regex_vars.is_empty());
+        assert_eq!(a.command_aliases.len(), 0);
+        assert_eq!(
+            a.var_command_sites,
+            [] as [crate::analyser::state::VarCommandSite; 0]
+        );
+        assert_eq!(
+            a.cmd_command_sites,
+            [] as [crate::analyser::state::CmdCommandSite; 0]
+        );
+        assert_eq!(a.const_strings.len(), 0);
+        assert_eq!(a.regex_vars.len(), 0);
         assert!(a.builtin_names.is_none());
         assert!(a.builtin_dialect.is_none());
         assert!(a.current_event.is_none());
-        assert!(a.ensemble_namespaces.is_empty());
-        assert!(a.objdefined_vars.is_empty());
+        assert_eq!(a.ensemble_namespaces.len(), 0);
+        assert_eq!(a.objdefined_vars.len(), 0);
         assert!(!a.unresolved_commands_emitted);
     }
 
@@ -3852,7 +4343,7 @@ mod tests {
         // records nothing.
         let mut a = Analyser::new();
         let r = a.analyse("set d [Widget new]\n", "tcl");
-        assert!(r.instance_classes.is_empty(), "{:?}", r.instance_classes);
+        assert_eq!(r.instance_classes.len(), 0, "{:?}", r.instance_classes);
     }
 
     #[test]
@@ -3867,8 +4358,8 @@ mod tests {
     fn analyse_empty_source_is_empty_result() {
         let mut a = Analyser::new();
         let r = a.analyse("", "tcl");
-        assert!(r.all_procs.is_empty());
-        assert!(r.diagnostics.is_empty());
+        assert_eq!(r.all_procs.len(), 0);
+        assert_eq!(r.diagnostics, [] as [crate::analyser::types::Diagnostic; 0]);
     }
 
     #[test]
@@ -3880,6 +4371,26 @@ mod tests {
         let _ = a.analyse("# tcl-lsp: disable=W210,W211\nproc foo {} {}\n", "tcl");
         assert!(a.disabled_diagnostics.contains("W210"));
         assert!(a.disabled_diagnostics.contains("W211"));
+    }
+
+    #[test]
+    fn original_next_line_noqa_matches_all_actual_analyser_ingresses() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {\n# noqa: W210\n# comment-only\n}\n";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let full = Analyser::new().analyse(source, profile.name);
+        let (chunked, _) =
+            Analyser::new().analyse_chunked(source, vec![commands.clone()], profile.name);
+        let snapshot = Analyser::new().analyse_commands(source, &commands, profile.name, true);
+        let isolated = Analyser::new().analyse_per_item(source, profile.name);
+        assert!(full.suppressed_lines.get(&5).unwrap().contains("W210"));
+        for result in [chunked, snapshot, isolated] {
+            assert_eq!(result.suppressed_lines, full.suppressed_lines);
+        }
     }
 
     #[test]
@@ -4084,8 +4595,9 @@ mod tests {
             .filter(|d| matches!(d.code.as_str(), "W220" | "W211" | "O109" | "O126"))
             .map(|d| d.code.to_string())
             .collect();
-        assert!(
-            codes.is_empty(),
+        assert_eq!(
+            codes.len(),
+            0,
             "RMW read in cmd-sub keeps set i 0 alive: {codes:?}"
         );
         // TP control: no read-modify-write of `i` — the first assignment is
@@ -4158,7 +4670,7 @@ mod tests {
         let codes = rbs_codes(
             "proc f {fp} {\n  while {[gets $fp line] >= 0} {\n    set n [string length $line]\n    puts \"$line ($n chars)\"\n  }\n}\n",
         );
-        assert!(codes.is_empty(), "gets-in-condition writes line: {codes:?}");
+        assert_eq!(codes.len(), 0, "gets-in-condition writes line: {codes:?}");
     }
 
     #[test]
@@ -4168,7 +4680,7 @@ mod tests {
         let codes = rbs_codes(
             "proc f {sock} {\n  set eof [expr {[catch {eof $sock} tmp] || $tmp}]\n  return $eof\n}\n",
         );
-        assert!(codes.is_empty(), "catch-in-expr writes tmp: {codes:?}");
+        assert_eq!(codes.len(), 0, "catch-in-expr writes tmp: {codes:?}");
     }
 
     #[test]
@@ -4282,8 +4794,9 @@ mod tests {
             .filter(|d| matches!(d.code.as_str(), "W210" | "W214"))
             .map(|d| d.code.to_string())
             .collect();
-        assert!(
-            offenders.is_empty(),
+        assert_eq!(
+            offenders.len(),
+            0,
             "method params / instance vars must not fire W210/W214: {offenders:?}",
         );
     }
@@ -4674,10 +5187,10 @@ mod tests {
         let r = a.analyse("interp alias {} a {} b\ninterp alias {} b {} expr\n", "tcl");
         let alias_a = r.command_aliases.get("::a").expect("::a recorded");
         assert_eq!(alias_a.target, "b");
-        assert!(alias_a.extras.is_empty());
+        assert_eq!(alias_a.extras, [] as [std::string::String; 0]);
         let alias_b = r.command_aliases.get("::b").expect("::b recorded");
         assert_eq!(alias_b.target, "expr");
-        assert!(alias_b.extras.is_empty());
+        assert_eq!(alias_b.extras, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -4690,7 +5203,7 @@ mod tests {
         );
         let alias = r.command_aliases.get("::myop").expect("::myop recorded");
         assert_eq!(alias.target, "puts");
-        assert!(alias.extras.is_empty());
+        assert_eq!(alias.extras, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -4809,7 +5322,10 @@ mod tests {
             .iter()
             .filter(|p| p.command == "switch")
             .collect();
-        assert!(switch_pats.is_empty());
+        assert_eq!(
+            switch_pats,
+            [] as [&crate::analyser::types::RegexPattern; 0]
+        );
     }
 
     #[test]
@@ -4887,7 +5403,10 @@ mod tests {
         // pattern arg is dropped.
         let mut a = Analyser::new();
         let r = a.analyse("regexp $p $line\n", "tcl");
-        assert!(r.regex_patterns.is_empty());
+        assert_eq!(
+            r.regex_patterns,
+            [] as [crate::analyser::types::RegexPattern; 0]
+        );
     }
 
     // -- W105 unbraced-body emitter
@@ -5224,8 +5743,9 @@ mod tests {
             .iter()
             .filter(|d| d.code == DiagCode::W110)
             .collect();
-        assert!(
-            unbraced.is_empty(),
+        assert_eq!(
+            unbraced.len(),
+            0,
             "unbraced expr must not fire W110, got {:?}",
             r.diagnostics
         );
@@ -5629,7 +6149,7 @@ mod tests {
             .iter()
             .find(|d| d.code == DiagCode::W302)
             .expect("W302");
-        assert!(!w302.fixes.is_empty());
+        assert_ne!(w302.fixes, [] as [crate::irules_checks::CodeFix; 0]);
         assert!(
             w302.fixes.iter().all(|f| !f.safety.is_bulk_applicable()),
             "got {:?}",
@@ -6077,13 +6597,13 @@ mod tests {
     #[test]
     fn fp_leading_else_is_not_malformed() {
         let r_diags = e004_diags("if else { x }\n");
-        assert!(r_diags.is_empty(), "got {r_diags:?}");
+        assert_eq!(r_diags.len(), 0, "got {r_diags:?}");
     }
 
     #[test]
     fn fp_leading_elseif_is_not_malformed() {
         let r_diags = e004_diags("if elseif { x }\n");
-        assert!(r_diags.is_empty(), "got {r_diags:?}");
+        assert_eq!(r_diags.len(), 0, "got {r_diags:?}");
     }
 
     #[test]
@@ -6093,35 +6613,50 @@ mod tests {
         // either (verified against tclsh 8.6: runs body "a", not a
         // wrong-#args error).
         let r_diags = e004_diags("if {1} { a } elseif else { b }\n");
-        assert!(r_diags.is_empty(), "got {r_diags:?}");
+        assert_eq!(r_diags.len(), 0, "got {r_diags:?}");
     }
 
     // -- TN: well-formed shapes never flagged.
 
     #[test]
     fn tn_single_clause_if() {
-        assert!(e004_diags("if {1} { a }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} { a }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_if_else() {
-        assert!(e004_diags("if {1} { a } else { b }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} { a } else { b }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_if_elseif_else_chain() {
-        assert!(e004_diags("if {$a} { x } elseif {$b} { y } else { z }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {$a} { x } elseif {$b} { y } else { z }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_if_with_then_keyword() {
-        assert!(e004_diags("if {1} then { a }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} then { a }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_implicit_else_single_body() {
         // ``if {1} { a } { b }`` — one implicit-else body, no keyword.
-        assert!(e004_diags("if {1} { a } { b }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} { a } { b }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
@@ -6133,25 +6668,14 @@ mod tests {
         assert_eq!(e004.len(), 1, "got {e004:?}");
     }
 
-    // -- FN (documented, intentional scope boundary): a renamed `if` is
-    // not checked. `if`'s registry clause grammar is looked
-    // up by resolving `cmd_name` as written — namespace-qualification
-    // (`::if`) resolves through it (see
-    // `tp_qualified_double_colon_if_is_checked_too`), but a `rename if
-    // myif` target does not, since that requires chasing the same
-    // same-file rename/alias graph the arity checker's
-    // `resolve_indirect_call_target` uses — a distinct, heavier
-    // mechanism not wired up to this dispatch-site check. Real Tcl
-    // *does* validate a renamed `if`'s shape (the C source's own doc
-    // comment: `Tcl_IfObjCmd` runs for "if" or "the name to which if was
-    // renamed"), so this is a genuine, narrow gap — not a false
-    // negative this test is happy about, just one it pins so a future
-    // fix shows up as an intentional behaviour change.
+    // Original move lineage retains the selected clause grammar.
     #[test]
-    fn fn_renamed_if_is_not_currently_checked() {
+    fn renamed_if_keeps_its_original_clause_shape() {
+        // naming.diagnostic.original-control-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-control-advice.md
         let src = "rename if myif\nmyif {1} { a } { b } { c }\n";
         let e004 = e004_diags(src);
-        assert!(e004.is_empty(), "got {e004:?}");
+        assert_eq!(e004.len(), 1, "got {e004:?}");
     }
 
     // -- Redundant-diagnostic fix: `if`'s registry `arity` floor no
@@ -6196,7 +6720,7 @@ mod tests {
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } {{ b } { c }}");
         // The fixed source must itself be shape-well-formed.
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6206,7 +6730,7 @@ mod tests {
         assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } else {{ b } extra}");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6217,7 +6741,7 @@ mod tests {
         assert_eq!(e004[0].fixes[0].new_text, "");
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } ");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6227,7 +6751,7 @@ mod tests {
         assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } ");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6237,7 +6761,7 @@ mod tests {
         assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } ");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6247,8 +6771,9 @@ mod tests {
         for src in ["if", "if {1}", "if {1} then"] {
             let e004 = e004_diags(src);
             assert_eq!(e004.len(), 1, "src={src:?}");
-            assert!(
-                e004[0].fixes.is_empty(),
+            assert_eq!(
+                e004[0].fixes.len(),
+                0,
                 "src={src:?} got {:?}",
                 e004[0].fixes
             );
@@ -6290,7 +6815,7 @@ mod tests {
         // Pattern starts with `(` — non-dynamic, doesn't start with
         // `-`, so the OFF gate suppresses regardless of command.
         let diags = w304_diags("regexp {(a+)+$} $text\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6323,13 +6848,13 @@ mod tests {
         // (variable resolved via constant-prop to a `-`-prefixed
         // value).
         let diags = w304_diags("exec foo -bad\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_regexp_with_terminator() {
         let diags = w304_diags("regexp -- $pattern $text\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6351,7 +6876,7 @@ mod tests {
         // ``subst`` does not declare a ``--`` option — registry-
         // level filter suppresses W304 entirely.
         let diags = w304_diags("subst $template\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6363,28 +6888,28 @@ mod tests {
     #[test]
     fn analyse_no_w304_for_exec_with_terminator() {
         let diags = w304_diags("exec -- $cmd\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_glob_safe_literal() {
         // ``*.tcl`` does not start with `-`; OFF gate suppresses.
         let diags = w304_diags("glob *.tcl\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_string_match() {
         // ``string match`` does not support ``--`` — registry filter.
         let diags = w304_diags("string match $pattern $value\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_lsearch() {
         // ``lsearch`` does not declare ``--`` either.
         let diags = w304_diags("lsearch -exact $domain c\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6398,7 +6923,7 @@ mod tests {
     #[test]
     fn analyse_no_w304_for_file_delete_with_terminator() {
         let diags = w304_diags("file delete -- $path\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6500,13 +7025,13 @@ mod tests {
     #[test]
     fn analyse_no_w101_for_eval_braced_script() {
         let diags = w101_diags("eval {puts hello}\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w101_for_eval_multiple_braced() {
         let diags = w101_diags("eval {set x 1} {puts $x}\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6522,7 +7047,7 @@ mod tests {
         // ``eval puts hello`` — both args are bare literals; no
         // substitution at any level.
         let diags = w101_diags("eval puts hello\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6530,20 +7055,20 @@ mod tests {
         // ``eval [list ...]`` — ``list`` produces a canonical list,
         // safe re-parse.
         let diags = w101_diags("eval [list set $varname $value]\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w101_for_eval_linsert_idiom() {
         // ``linsert`` returns TclType::List → canonical.
         let diags = w101_diags("eval [linsert $cmdlist 0 extraarg]\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w101_for_eval_split_idiom() {
         let diags = w101_diags("eval [split $line :]\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6560,7 +7085,7 @@ mod tests {
         // substitution-bearing commands are handled elsewhere (W301
         // covers uplevel; W312 covers interp eval).
         let diags = w101_diags("uplevel 1 \"puts $x\"\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6593,7 +7118,7 @@ mod tests {
         // source-byte scan that looks for unescaped ``$`` / ``[``
         // outside ``{...}``.
         let diags = w101_diags("eval foo{bar}\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6603,7 +7128,7 @@ mod tests {
         // word-span scan must skip the next byte after ``\`` to
         // avoid mis-detecting the literal ``$``.
         let diags = w101_diags("eval no\\$x\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]

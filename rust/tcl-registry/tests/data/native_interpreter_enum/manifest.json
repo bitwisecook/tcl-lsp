@@ -1,0 +1,295 @@
+[
+  {
+    "version": "8.4.20",
+    "compile": {
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.4.20"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.06326441100100055,
+      "stdout": "",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    },
+    "sha256": {
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIndexObj.c": "babe18e9f596d54d49f16c17b0576723d0d6c580ffb4356e1fca9b26ad6576da",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c": "bad6946a5f0872319cb95ddeacfa4a304b05198129585e56fe4f850489afd8fd",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.4.20": "cf6b3b598b5629f5bacb1530ba429f054825968f3beade8878309611517e424a",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/8.4.20.tsv": "9b8a1f5718054600a219117b36e67324d5fbc4c1628502ae4bbb31dc0353b8ce"
+    },
+    "run": {
+      "command": [
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.4.20"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.0018217569449916482,
+      "stdout": "root-inventory\t0\tindex\t5\t1\t0\t1\t1\t31\ntable-root-inventory\t0\t616c696173\ntable-root-inventory\t1\t616c6961736573\ntable-root-inventory\t2\t637265617465\ntable-root-inventory\t3\t64656c657465\ntable-root-inventory\t4\t6576616c\ntable-root-inventory\t5\t657869737473\ntable-root-inventory\t6\t6578706f7365\ntable-root-inventory\t7\t68696465\ntable-root-inventory\t8\t68696464656e\ntable-root-inventory\t9\t697373616665\ntable-root-inventory\t10\t696e766f6b6568696464656e\ntable-root-inventory\t11\t6d61726b74727573746564\ntable-root-inventory\t12\t726563757273696f6e6c696d6974\ntable-root-inventory\t13\t736c61766573\ntable-root-inventory\t14\t7368617265\ntable-root-inventory\t15\t746172676574\ntable-root-inventory\t16\t7472616e73666572\nchild-inventory\t0\tindex\t6\t0\t1\t1\t1\t30\ntable-child-inventory\t0\t616c696173\ntable-child-inventory\t1\t616c6961736573\ntable-child-inventory\t2\t6576616c\ntable-child-inventory\t3\t6578706f7365\ntable-child-inventory\t4\t68696465\ntable-child-inventory\t5\t68696464656e\ntable-child-inventory\t6\t697373616665\ntable-child-inventory\t7\t696e766f6b6568696464656e\ntable-child-inventory\t8\t6d61726b74727573746564\ntable-child-inventory\t9\t726563757273696f6e6c696d6974\nroot-sl\t0\tindex\t13\t1\t0\t1\t1\t6b6964\nroot-children\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e20226368696c6472656e223a206d75737420626520616c6961732c20616c69617365732c206372656174652c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-s\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202273223a206d75737420626520616c6961732c20616c69617365732c206372656174652c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-bogus\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d75737420626520616c6961732c20616c69617365732c206372656174652c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-h\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202268223a206d75737420626520616c6961732c20616c69617365732c206372656174652c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-ev\t1\tindex\t4\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\nchild-ev-switch\t1\tindex\t2\t0\t1\t1\t1\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nchild-ev-cached-absent\t1\tindex\t2\t0\t1\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nroot-ev-switch-absent\t1\tindex\t4\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\n",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+      }
+    }
+  },
+  {
+    "version": "8.5.19",
+    "compile": {
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.5.19"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.07159594295080751,
+      "stdout": "",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    },
+    "sha256": {
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIndexObj.c": "5ef48cf4d90044d6513c8b452ca7e9070cc3a14e42e83186f8be2d42e90129aa",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c": "bad6946a5f0872319cb95ddeacfa4a304b05198129585e56fe4f850489afd8fd",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.5.19": "55b38a17eacddc73492ccd00a54c3b8909a94e0268ea1c72dcd6a6da33fbf92e",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/8.5.19.tsv": "a13cfaf331d34092c006b36520e20f7b7cd5bcd9a0e8f5be30134505d440dc0f"
+    },
+    "run": {
+      "command": [
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.5.19"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.0031578190391883254,
+      "stdout": "root-inventory\t0\tindex\t7\t1\t0\t1\t1\t31\ntable-root-inventory\t0\t616c696173\ntable-root-inventory\t1\t616c6961736573\ntable-root-inventory\t2\t62676572726f72\ntable-root-inventory\t3\t637265617465\ntable-root-inventory\t4\t6465627567\ntable-root-inventory\t5\t64656c657465\ntable-root-inventory\t6\t6576616c\ntable-root-inventory\t7\t657869737473\ntable-root-inventory\t8\t6578706f7365\ntable-root-inventory\t9\t68696465\ntable-root-inventory\t10\t68696464656e\ntable-root-inventory\t11\t697373616665\ntable-root-inventory\t12\t696e766f6b6568696464656e\ntable-root-inventory\t13\t6c696d6974\ntable-root-inventory\t14\t6d61726b74727573746564\ntable-root-inventory\t15\t726563757273696f6e6c696d6974\ntable-root-inventory\t16\t736c61766573\ntable-root-inventory\t17\t7368617265\ntable-root-inventory\t18\t746172676574\ntable-root-inventory\t19\t7472616e73666572\nchild-inventory\t0\tindex\t8\t0\t1\t1\t1\t30\ntable-child-inventory\t0\t616c696173\ntable-child-inventory\t1\t616c6961736573\ntable-child-inventory\t2\t62676572726f72\ntable-child-inventory\t3\t6465627567\ntable-child-inventory\t4\t6576616c\ntable-child-inventory\t5\t6578706f7365\ntable-child-inventory\t6\t68696465\ntable-child-inventory\t7\t68696464656e\ntable-child-inventory\t8\t697373616665\ntable-child-inventory\t9\t696e766f6b6568696464656e\ntable-child-inventory\t10\t6c696d6974\ntable-child-inventory\t11\t6d61726b74727573746564\ntable-child-inventory\t12\t726563757273696f6e6c696d6974\nroot-sl\t0\tindex\t16\t1\t0\t1\t1\t6b6964\nroot-children\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e20226368696c6472656e223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-s\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202273223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-bogus\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-h\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202268223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-ev\t1\tindex\t6\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\nchild-ev-switch\t1\tindex\t4\t0\t1\t1\t1\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nchild-ev-cached-absent\t1\tindex\t4\t0\t1\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nroot-ev-switch-absent\t1\tindex\t6\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\n",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+      }
+    }
+  },
+  {
+    "version": "8.6.18",
+    "compile": {
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.6.18"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.07441409199964255,
+      "stdout": "",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    },
+    "sha256": {
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIndexObj.c": "550096cdb69b26ddbcf459c07273db48ad8ed4f5cccd68133559483c4af67c17",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c": "bad6946a5f0872319cb95ddeacfa4a304b05198129585e56fe4f850489afd8fd",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.6.18": "b3eae1461d91158fd14b56b87c0531a7abb3683c29603bd42be258b5c7314600",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/8.6.18.tsv": "f7304e850e7bd6cea3dc46c5f8e47816e6138ec86ef122e6e051d20c3783af48"
+    },
+    "run": {
+      "command": [
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-8.6.18"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.00350529100978747,
+      "stdout": "root-inventory\t0\tindex\t9\t1\t0\t1\t1\t31\ntable-root-inventory\t0\t616c696173\ntable-root-inventory\t1\t616c6961736573\ntable-root-inventory\t2\t62676572726f72\ntable-root-inventory\t3\t63616e63656c\ntable-root-inventory\t4\t6368696c6472656e\ntable-root-inventory\t5\t637265617465\ntable-root-inventory\t6\t6465627567\ntable-root-inventory\t7\t64656c657465\ntable-root-inventory\t8\t6576616c\ntable-root-inventory\t9\t657869737473\ntable-root-inventory\t10\t6578706f7365\ntable-root-inventory\t11\t68696465\ntable-root-inventory\t12\t68696464656e\ntable-root-inventory\t13\t697373616665\ntable-root-inventory\t14\t696e766f6b6568696464656e\ntable-root-inventory\t15\t6c696d6974\ntable-root-inventory\t16\t6d61726b74727573746564\ntable-root-inventory\t17\t726563757273696f6e6c696d6974\ntable-root-inventory\t18\t736c61766573\ntable-root-inventory\t19\t7368617265\ntable-root-inventory\t20\t746172676574\ntable-root-inventory\t21\t7472616e73666572\nchild-inventory\t0\tindex\t8\t0\t1\t1\t1\t30\ntable-child-inventory\t0\t616c696173\ntable-child-inventory\t1\t616c6961736573\ntable-child-inventory\t2\t62676572726f72\ntable-child-inventory\t3\t6465627567\ntable-child-inventory\t4\t6576616c\ntable-child-inventory\t5\t6578706f7365\ntable-child-inventory\t6\t68696465\ntable-child-inventory\t7\t68696464656e\ntable-child-inventory\t8\t697373616665\ntable-child-inventory\t9\t696e766f6b6568696464656e\ntable-child-inventory\t10\t6c696d6974\ntable-child-inventory\t11\t6d61726b74727573746564\ntable-child-inventory\t12\t726563757273696f6e6c696d6974\nroot-sl\t0\tindex\t18\t1\t0\t1\t1\t6b6964\nroot-children\t0\tindex\t4\t1\t0\t1\t1\t6b6964\nroot-s\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202273223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-bogus\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-h\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202268223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c20736c617665732c2073686172652c207461726765742c206f72207472616e73666572\nroot-ev\t1\tindex\t8\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\nchild-ev-switch\t1\tindex\t4\t0\t1\t1\t1\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nchild-ev-cached-absent\t1\tindex\t4\t0\t1\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nroot-ev-switch-absent\t1\tindex\t8\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\n",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+      }
+    }
+  },
+  {
+    "version": "9.0.4",
+    "compile": {
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-9.0.4"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.09051950502907857,
+      "stdout": "",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    },
+    "sha256": {
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIndexObj.c": "5ae0b7f7da756611674d4f80dd04a0646e64674fb3f829805ebebd73866d552a",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c": "bad6946a5f0872319cb95ddeacfa4a304b05198129585e56fe4f850489afd8fd",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-9.0.4": "1a0ad0fe751dec8100bf361fef85ab40688c8fe25992fa9b5fba4abdae21c57c",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/9.0.4.tsv": "731c03d18086c0e222ebd2845400e6f48d42ce686c7065577ef65c6204de2f8c"
+    },
+    "run": {
+      "command": [
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-9.0.4"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.004548361001070589,
+      "stdout": "root-inventory\t0\tindex\t9\t1\t0\t1\t1\t31\ntable-root-inventory\t0\t616c696173\ntable-root-inventory\t1\t616c6961736573\ntable-root-inventory\t2\t62676572726f72\ntable-root-inventory\t3\t63616e63656c\ntable-root-inventory\t4\t6368696c6472656e\ntable-root-inventory\t5\t637265617465\ntable-root-inventory\t6\t6465627567\ntable-root-inventory\t7\t64656c657465\ntable-root-inventory\t8\t6576616c\ntable-root-inventory\t9\t657869737473\ntable-root-inventory\t10\t6578706f7365\ntable-root-inventory\t11\t68696465\ntable-root-inventory\t12\t68696464656e\ntable-root-inventory\t13\t697373616665\ntable-root-inventory\t14\t696e766f6b6568696464656e\ntable-root-inventory\t15\t6c696d6974\ntable-root-inventory\t16\t6d61726b74727573746564\ntable-root-inventory\t17\t726563757273696f6e6c696d6974\ntable-root-inventory\t18\t7368617265\ntable-root-inventory\t19\t736c61766573\ntable-root-inventory\t20\t746172676574\ntable-root-inventory\t21\t7472616e73666572\nchild-inventory\t0\tindex\t8\t0\t1\t1\t1\t30\ntable-child-inventory\t0\t616c696173\ntable-child-inventory\t1\t616c6961736573\ntable-child-inventory\t2\t62676572726f72\ntable-child-inventory\t3\t6465627567\ntable-child-inventory\t4\t6576616c\ntable-child-inventory\t5\t6578706f7365\ntable-child-inventory\t6\t68696465\ntable-child-inventory\t7\t68696464656e\ntable-child-inventory\t8\t697373616665\ntable-child-inventory\t9\t696e766f6b6568696464656e\ntable-child-inventory\t10\t6c696d6974\ntable-child-inventory\t11\t6d61726b74727573746564\ntable-child-inventory\t12\t726563757273696f6e6c696d6974\nroot-sl\t0\tindex\t19\t1\t0\t1\t1\t6b6964\nroot-children\t0\tindex\t4\t1\t0\t1\t1\t6b6964\nroot-s\t1\tindex\t18\t0\t0\t1\t1\t\nroot-bogus\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c2073686172652c207461726765742c206f72207472616e73666572\nroot-h\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202268223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c2073686172652c207461726765742c206f72207472616e73666572\nroot-ev\t1\tindex\t8\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\nchild-ev-switch\t1\tindex\t4\t0\t1\t1\t1\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nchild-ev-cached-absent\t1\tindex\t4\t0\t1\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nroot-ev-switch-absent\t1\tindex\t8\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\n",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+      }
+    }
+  },
+  {
+    "version": "9.1.0",
+    "compile": {
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-9.1.0"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.09444371302379295,
+      "stdout": "",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    },
+    "sha256": {
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIndexObj.c": "fd9dfe1a261db55472f88ff9c1a7be53f9c0aee1ea597a6f96ace48b666d8487",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/interp_probe.c": "bad6946a5f0872319cb95ddeacfa4a304b05198129585e56fe4f850489afd8fd",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-9.1.0": "8234d3822946552a137efe6992acf1cc6fea7337e6df6b3fbc205f7c5b2de1aa",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/9.1.0.tsv": "0a31c98e72f58370a633e77d23564eb00f32c5935b7c345c8f9eceba1f00394c"
+    },
+    "run": {
+      "command": [
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-9.1.0"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.004819906025659293,
+      "stdout": "root-inventory\t0\tindex\t9\t1\t0\t1\t1\t31\ntable-root-inventory\t0\t616c696173\ntable-root-inventory\t1\t616c6961736573\ntable-root-inventory\t2\t62676572726f72\ntable-root-inventory\t3\t63616e63656c\ntable-root-inventory\t4\t6368696c6472656e\ntable-root-inventory\t5\t637265617465\ntable-root-inventory\t6\t6465627567\ntable-root-inventory\t7\t64656c657465\ntable-root-inventory\t8\t6576616c\ntable-root-inventory\t9\t657869737473\ntable-root-inventory\t10\t6578706f7365\ntable-root-inventory\t11\t68696465\ntable-root-inventory\t12\t68696464656e\ntable-root-inventory\t13\t697373616665\ntable-root-inventory\t14\t696e766f6b6568696464656e\ntable-root-inventory\t15\t6c696d6974\ntable-root-inventory\t16\t6d61726b74727573746564\ntable-root-inventory\t17\t726563757273696f6e6c696d6974\ntable-root-inventory\t18\t736574\ntable-root-inventory\t19\t7368617265\ntable-root-inventory\t20\t736c61766573\ntable-root-inventory\t21\t746172676574\ntable-root-inventory\t22\t7472616e73666572\nchild-inventory\t0\tindex\t8\t0\t1\t1\t1\t30\ntable-child-inventory\t0\t616c696173\ntable-child-inventory\t1\t616c6961736573\ntable-child-inventory\t2\t62676572726f72\ntable-child-inventory\t3\t6465627567\ntable-child-inventory\t4\t6576616c\ntable-child-inventory\t5\t6578706f7365\ntable-child-inventory\t6\t68696465\ntable-child-inventory\t7\t68696464656e\ntable-child-inventory\t8\t697373616665\ntable-child-inventory\t9\t696e766f6b6568696464656e\ntable-child-inventory\t10\t6c696d6974\ntable-child-inventory\t11\t6d61726b74727573746564\ntable-child-inventory\t12\t726563757273696f6e6c696d6974\ntable-child-inventory\t13\t736574\nroot-sl\t0\tindex\t20\t1\t0\t1\t1\t6b6964\nroot-children\t0\tindex\t4\t1\t0\t1\t1\t6b6964\nroot-s\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202273223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c207365742c2073686172652c207461726765742c206f72207472616e73666572\nroot-bogus\t1\tnone\t-1\t0\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c207365742c2073686172652c207461726765742c206f72207472616e73666572\nroot-h\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f7573206f7074696f6e202268223a206d75737420626520616c6961732c20616c69617365732c2062676572726f722c2063616e63656c2c206368696c6472656e2c206372656174652c2064656275672c2064656c6574652c206576616c2c206578697374732c206578706f73652c20686964652c2068696464656e2c206973736166652c20696e766f6b6568696464656e2c206c696d69742c206d61726b747275737465642c20726563757273696f6e6c696d69742c207365742c2073686172652c207461726765742c206f72207472616e73666572\nroot-ev\t1\tindex\t8\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\nchild-ev-switch\t1\tindex\t4\t0\t1\t1\t1\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nchild-ev-cached-absent\t1\tindex\t4\t0\t1\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226b6964206576616c20617267203f617267202e2e2e3f22\nroot-ev-switch-absent\t1\tindex\t8\t1\t0\t1\t1\t77726f6e67202320617267733a2073686f756c642062652022696e74657270206576616c207061746820617267203f617267202e2e2e3f22\nproperty-warm-index\t0\tindex\t0\t0\t0\t1\t1\t59\nproperty-retained-own-table\t1\nproperty-index-absent\t0\tindex\t0\t0\t0\t1\t0\t59\nproperty-absent-retained-own-table\t1\nproperty-ambiguous-fresh\t1\tnone\t-1\t0\t0\t1\t1\t616d626967756f75732070726f706572747920222d7965223a206d757374206265202d79656c6c6f77206f72202d796573\nproperty-prefix-fresh\t0\tnone\t-1\t0\t0\t1\t1\t59\n",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+      }
+    }
+  },
+  {
+    "version": "Jim",
+    "compile": {
+      "command": [
+        "cc",
+        "-I/tmp/2286-oracles/jimtcl",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/jim_enum_probe.c",
+        "/tmp/2286-oracles/jimtcl/libjim.a",
+        "-lm",
+        "-ldl",
+        "-lssl",
+        "-lcrypto",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-Jim"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.06891527597326785,
+      "stdout": "",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    },
+    "sha256": {
+      "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/jim_enum_probe.c": "f3c79a3368692c114eb4490dd6e6fef0a93b58bab7fdf30cda71c81f4c0faf14",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-Jim": "672c385c56d36e62749042363aaead9676eb6a09e537d4f2c1f32d374ef8069a",
+      "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/Jim.tsv": "c17d3dbb5f9b170480ec9db123e699051ed84a36e245cabd0ced88b3766c219b"
+    },
+    "run": {
+      "command": [
+        "/workspace/.proofs/2286-packages-dialects/native-interpreter-enum-next/probe-Jim"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "seconds": 0.0012332649785093963,
+      "stdout": "abbrev-errmsg\t0\t0\tget-enum\t3\t1\t1\t1\t\nexact-miss-different-flags\t1\t-1\tget-enum\t3\t1\t1\t1\t626164206f7074696f6e202270726f223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nabbrev-noerrmsg-different-flags\t0\t0\tget-enum\t2\t1\t1\t1\t626164206f7074696f6e202270726f223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nchanged-table\t0\t1\tget-enum\t2\t1\t1\t1\t626164206f7074696f6e202270726f223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\ncached-absent\t0\t1\tget-enum\t2\t1\t0\t1\t626164206f7074696f6e202270726f223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nfresh-empty\t1\t-1\tnone\t-1\t0\t1\t1\t616d626967756f7573206f7074696f6e2022223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nfresh--\t1\t-1\tnone\t-1\t0\t1\t1\t626164206f7074696f6e20222d223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nfresh-p\t1\t-1\tnone\t-1\t0\t1\t1\t616d626967756f7573206f7074696f6e202270223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nfresh-bogus\t1\t-1\tnone\t-1\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nfresh---\t0\t2\tget-enum\t3\t1\t1\t1\t626164206f7074696f6e2022626f677573223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\ncounted-nul-exact\t0\t0\tget-enum\t1\t1\t1\t1\t626164206f7074696f6e2022626f677573223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\ncompared-exact\t0\t0\tget-enum\t1\t1\t1\t1\t626164206f7074696f6e2022626f677573223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\ncompared-failed\t1\t-1\tcompared-string\t-1\t0\t1\t1\t626164206f7074696f6e2022626f677573223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\nnumeric-failed\t1\t-1\tint\t-1\t0\t1\t0\t626164206f7074696f6e20223432223a206d7573742062652070726573656e742c2070726f766964652c206f72202d2d\n",
+      "stderr": "",
+      "original_budget": 60,
+      "global_slots": 2,
+      "explicit_environment": {}
+    }
+  }
+]

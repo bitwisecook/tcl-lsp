@@ -1,0 +1,52 @@
+
+running 18 tests
+test command_binding::conditional_body::original_body_frame_tests::declared_caller_navigation_keeps_definition_without_an_actual_dispatch ... ok
+test command_binding::conditional_body::original_body_frame_tests::entered_original_body_frames_keep_declaration_and_allocation_independent ... ok
+test command_binding::conditional_body::original_body_frame_tests::nested_declaration_context_requires_unchanged_original_procedure_source ... ok
+test command_binding::conditional_body::original_body_frame_tests::original_multiline_caller_navigation_retains_the_declared_procedure ... ok
+test command_binding::conditional_body::original_body_frame_tests::rejected_formal_binding_cannot_supply_an_entered_original_body_frame ... ok
+test command_binding::deferred_body_index::tests::original_body_index_invalidates_real_inventory_without_cloning_body_buffers ... 
+thread 'command_binding::deferred_body_index::tests::original_body_index_invalidates_real_inventory_without_cloning_body_buffers' (1297582) panicked at rust/tcl-compiler/src/command_binding/deferred_body_index.rs:218:53:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::deferred_body_index::tests::original_body_index_preserves_innermost_source_and_boundary_ownership ... 
+thread 'command_binding::deferred_body_index::tests::original_body_index_preserves_innermost_source_and_boundary_ownership' (1297583) panicked at rust/tcl-compiler/src/command_binding/deferred_body_index.rs:178:77:
+called `Option::unwrap()` on a `None` value
+FAILED
+test command_binding::deferred_body_index::tests::original_body_index_retains_equal_span_conflicts_and_layout_config ... 
+thread 'command_binding::deferred_body_index::tests::original_body_index_retains_equal_span_conflicts_and_layout_config' (1297584) panicked at rust/tcl-compiler/src/command_binding/deferred_body_index.rs:256:9:
+assertion failed: bindings.conditional_body_entry_at(&origin, offset).is_some()
+FAILED
+test command_binding::semantic_equality::cfg_replay_declines_conflicting_or_missing_retained_entry_contexts ... ok
+test command_binding::semantic_equality::cfg_replay_retains_actual_entry_without_later_world_mutations ... 
+thread 'command_binding::semantic_equality::cfg_replay_retains_actual_entry_without_later_world_mutations' (1297586) panicked at rust/tcl-compiler/src/command_binding/semantic_equality.rs:51:13:
+assertion `left == right` failed
+  left: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: Tcl9Nesting, array_index: Tcl9, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl90 }, expression_word_grammar: None, word_values: WordValueRules { brace: Folds, list: Strict }, numbers: Tcl84, characters: Some(BmpCharsElseUtf8Bytes), upvar_level_presence: Some(DigitOrHash), uplevel_level_presence: Some(DigitOrHash), tcl_version: Some(V8_4), package_protocol: Some(Tcl), variable_lookup_policy: Some(Tcl), variable_link_binding: Some(StableCell), variable_container_model: Some(DistinctArray), namespace_var_global_fallback: Some(true), process_exit_conversion: Some(Narrow32), interpreter_protocol: Some(Tcl), namespace_import_binding: Some(CommandToken) })
+ right: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_grammar: LexerGrammar { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl84, escapes: Tcl84 }, expression_word_grammar: None, word_values: WordValueRules { brace: Folds, list: Strict }, numbers: Tcl84, characters: Some(BmpCharsElseUtf8Bytes), upvar_level_presence: Some(DigitOrHash), uplevel_level_presence: Some(DigitOrHash), tcl_version: Some(V8_4), package_protocol: Some(Tcl), variable_lookup_policy: Some(Tcl), variable_link_binding: Some(StableCell), variable_container_model: Some(DistinctArray), namespace_var_global_fallback: Some(true), process_exit_conversion: Some(Narrow32), interpreter_protocol: Some(Tcl), namespace_import_binding: Some(CommandToken) })
+FAILED
+test command_binding::semantic_equality::native_entry_grammar_selects_original_reads_before_assistance ... 
+thread 'command_binding::semantic_equality::native_entry_grammar_selects_original_reads_before_assistance' (1297587) panicked at rust/tcl-compiler/src/command_binding/semantic_equality.rs:189:9:
+assertion `left == right` failed: actual=jim, assistance=tcl8.6, source=set café UNICODE; set caf ASCII; list $café
+  left: ["$caf"]
+ right: ["$café"]
+FAILED
+test command_binding::semantic_equality::original_snapshot_equality_retains_source_frame_alias_epoch_and_native_context ... ok
+test command_binding::semantic_equality::original_snapshot_equality_shares_world_without_initialising_full_hash ... ok
+test command_binding::semantic_equality::source_lookup_snapshot_join_invalidates_only_the_detached_point ... ok
+test command_binding::semantic_equality::source_lookup_snapshot_memo_is_lazy_and_preserves_clone_semantics ... ok
+test command_binding::semantic_equality::source_lookup_snapshot_memo_keeps_realm_and_full_state_identity ... ok
+test command_binding::semantic_equality::source_proof_equality_ignores_query_caches_but_retains_authority ... ok
+test command_binding::semantic_equality::unavailable_native_grammar_retains_supplied_lexical_configuration ... ok
+
+failures:
+
+failures:
+    command_binding::deferred_body_index::tests::original_body_index_invalidates_real_inventory_without_cloning_body_buffers
+    command_binding::deferred_body_index::tests::original_body_index_preserves_innermost_source_and_boundary_ownership
+    command_binding::deferred_body_index::tests::original_body_index_retains_equal_span_conflicts_and_layout_config
+    command_binding::semantic_equality::cfg_replay_retains_actual_entry_without_later_world_mutations
+    command_binding::semantic_equality::native_entry_grammar_selects_original_reads_before_assistance
+
+test result: FAILED. 13 passed; 5 failed; 0 ignored; 0 measured; 9381 filtered out; finished in 2.36s
+

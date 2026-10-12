@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Server: BaseHTTP/0.6 Python/3.14.4
+Date: Wed, 07 Oct 2026 15:02:10 GMT
+Content-Type: application/json
+Content-Length: 177
+Connection: close
+

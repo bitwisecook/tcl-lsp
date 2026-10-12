@@ -1,0 +1,12 @@
+CompileStrictlyBinaryOpCmd(
+    Tcl_Interp *interp,
+    Tcl_Parse *parsePtr,
+    int instruction,
+    CompileEnv *envPtr)
+{
+    if (parsePtr->numWords != 3) {
+	return TCL_ERROR;
+    }
+    return CompileAssociativeBinaryOpCmd(interp, parsePtr,
+	    NULL, instruction, envPtr);
+}

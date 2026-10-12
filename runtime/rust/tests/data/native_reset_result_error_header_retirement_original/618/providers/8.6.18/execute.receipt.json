@@ -1,0 +1,36 @@
+{
+  "provider": "8.6.18",
+  "channel": "execute",
+  "status": "closed",
+  "command": [
+    "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-reset-result-error-header-retirement618",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "CPATH",
+      "C_INCLUDE_PATH",
+      "CPLUS_INCLUDE_PATH",
+      "OBJC_INCLUDE_PATH",
+      "BASH_ENV",
+      "ENV"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "source_sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.00742491299752146,
+  "stdout_sha256": "66179b8d1a93fcab8532f7df63031c4b307ff5428004eac8b87425112e103d7a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verification_scope": "Actual process/streams only. Header, link, runtime, own-executable and final input verification are separate records."
+}

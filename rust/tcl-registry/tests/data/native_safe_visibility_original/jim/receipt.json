@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-safe-visibility157/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.004852222002227791,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "aa9cc598b853d1dd72bc20bc8c1f0fb6b48e99fc554a295366d909114c48b96f",
+  "runner_sha256": "936eb374440ed5fa52dc9622a512869074c8690e5ee3d8de0253297103a7d3a9",
+  "stdout_sha256": "60afe32d5c2364b5971bd56d09b19110ab33786bfb24fd5784a5b20875b6c917",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "PATCHLEVEL 0.84-9-g5bac7c9",
+    "OBSERVATION safe_colon_and_namespace 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION safe_global_qualification 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION hide_distinct_token_and_colon_exposure 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION hide_default_qualified_token 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION hide_namespace_source 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION hidden_and_new_visible_allocations 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION hide_literal_colon 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022",
+    "OBSERVATION counted_binary_command_boundary 1 77726f6e67202320617267733a2073686f756c642062652022696e7465727022"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent owned child interpreter command visibility tests",
+  "boundary": "Eight labelled command visibility cases with scoped names, exact hide/expose tokens, allocation collisions and binary-produced counted NUL. No physical object/header/cache or Native child-entry proof is inferred from CLI results."
+}

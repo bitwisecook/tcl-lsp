@@ -61,7 +61,10 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement, SwitchArm};
 use crate::sccp::BranchFactKind;
-use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, leading_zero_is_octal};
+use crate::ssa::SsaSourceView;
+use crate::tcl_expr_eval::{
+    Env, EnvValue, FoldPolicy, eval_tcl_expr_with_math_bindings, leading_zero_is_octal,
+};
 use tcl_registry::value_transfer::ExactValue;
 
 use super::helpers::spans::full_rewrite_span;
@@ -80,6 +83,9 @@ use super::{Optimisation, PassContext};
 /// still needs its own check, since it runs an independent def-use-chain
 /// scan that never consults `fu.sccp` at all.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    // The unit owns the ingress word grammar. Even a standalone pass caller
+    // must decode body words under that exact grammar rather than a default.
+    ctx.source_lexer_config = Some(cu.ir_module.lexer_config);
     // Top-level script.
     let top_env = sccp_env_for(&cu.top_level);
     let top = Facts {
@@ -124,8 +130,12 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
         }
     }
     let mut env = Env::new();
-    for (sym, cvs) in per_var {
-        // Require every version to agree on one constant.
+    for (source_name, symbol) in SsaSourceView::unpositioned(&fu.ssa).source_symbols() {
+        let Some(cvs) = per_var.get(&symbol) else {
+            continue;
+        };
+        // Source spellings must select one cell throughout the function;
+        // presentation labels can be shared by independently rebound cells.
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
@@ -136,7 +146,7 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
             ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
             ConstValue::String(s) => EnvValue::Str(s.clone()),
         };
-        env.insert(fu.ssa.var_name(sym).to_owned(), entry);
+        env.insert(source_name.to_owned(), entry);
     }
     env
 }
@@ -172,20 +182,30 @@ fn decide(ctx: &PassContext<'_>, condition: &ExprNode, env: &Env) -> Option<bool
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script, facts: &Facts<'_>, depth: u32) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
-    for stmt in &script.statements {
-        walk_statement(ctx, stmt, facts, depth);
+    for (index, stmt) in script.statements.iter().enumerate() {
+        // The enclosing evaluator may observe the final completion value.
+        // Without a result-use proof, deletion must preserve that value.
+        let result_observed = index + 1 == script.statements.len();
+        walk_statement(ctx, stmt, script, facts, depth, result_observed);
     }
 }
 
-fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, depth: u32) {
+fn walk_statement(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    facts: &Facts<'_>,
+    depth: u32,
+    result_observed: bool,
+) {
     match stmt {
-        Statement::If { .. } => visit_if(ctx, stmt, facts, depth),
-        Statement::While { .. } => visit_while(ctx, stmt, facts, depth),
-        Statement::For { .. } => visit_for(ctx, stmt, facts, depth),
-        Statement::Switch { .. } => visit_switch(ctx, stmt, facts, depth),
+        Statement::If { .. } => visit_if(ctx, stmt, source, facts, depth, result_observed),
+        Statement::While { .. } => visit_while(ctx, stmt, source, facts, depth, result_observed),
+        Statement::For { .. } => visit_for(ctx, stmt, source, facts, depth, result_observed),
+        Statement::Switch { .. } => visit_switch(ctx, stmt, facts, depth, result_observed),
         Statement::Catch { body, .. } | Statement::Foreach { body, .. } => {
             walk_script(ctx, body, facts, depth + 1);
         }
@@ -207,24 +227,21 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>
     }
 }
 
-fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, depth: u32) {
+fn visit_if(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    facts: &Facts<'_>,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::If {
-        span,
-        clauses,
-        else_body,
-        else_span,
+        clauses, else_body, ..
     } = stmt
     else {
         return;
     };
-    try_eliminate_if(
-        ctx,
-        *span,
-        clauses,
-        else_body.as_ref(),
-        *else_span,
-        facts.env,
-    );
+    try_eliminate_if(ctx, stmt, source, facts.env, result_observed);
     for clause in clauses {
         walk_script(ctx, &clause.body, facts, depth + 1);
     }
@@ -233,17 +250,35 @@ fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, dept
     }
 }
 
-fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, depth: u32) {
+fn visit_while(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    facts: &Facts<'_>,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::While {
         span,
         condition,
+        condition_base,
         body,
         ..
     } = stmt
     else {
         return;
     };
-    if decide(ctx, condition, facts.env) == Some(false) {
+    let bindings =
+        crate::math_function_binding::ExpressionMathBindings::new(source, *condition_base);
+    if let Some(val) = eval_tcl_expr_with_math_bindings(
+        condition,
+        facts.env,
+        ctx.fold_policy(),
+        &|function, start| bindings.proves_intrinsic_for_erasure(function, start),
+    ) && !val.is_truthy()
+        && decide(ctx, condition, facts.env) == Some(false)
+        && !result_observed
+    {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate dead while loop (condition is always false)",
@@ -254,12 +289,20 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, d
     walk_script(ctx, body, facts, depth + 1);
 }
 
-fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, depth: u32) {
+fn visit_for(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    facts: &Facts<'_>,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::For {
         span,
         init,
         init_span,
         condition,
+        condition_base,
         next,
         body,
         ..
@@ -267,7 +310,17 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, dep
     else {
         return;
     };
-    if decide(ctx, condition, facts.env) == Some(false) {
+    let bindings =
+        crate::math_function_binding::ExpressionMathBindings::new(source, *condition_base);
+    if let Some(val) = eval_tcl_expr_with_math_bindings(
+        condition,
+        facts.env,
+        ctx.fold_policy(),
+        &|function, start| bindings.proves_intrinsic_for_erasure(function, start),
+    ) && !val.is_truthy()
+        && decide(ctx, condition, facts.env) == Some(false)
+        && !result_observed
+    {
         if init.statements.is_empty() {
             ctx.report(Optimisation::new(
                 DiagCode::O112,
@@ -276,7 +329,10 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, dep
                 "",
             ));
         } else {
-            let replacement = extract_body_text(ctx.source, *init_span, *span);
+            let Some(replacement) = extract_body_text(ctx.source, *init_span, ctx.lexer_config())
+            else {
+                return;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate dead for loop (condition is always false); keep init",
@@ -290,14 +346,20 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, dep
     walk_script(ctx, next, facts, depth + 1);
 }
 
-fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, depth: u32) {
+fn visit_switch(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    facts: &Facts<'_>,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::Switch {
         arms, default_body, ..
     } = stmt
     else {
         return;
     };
-    try_eliminate_switch(ctx, stmt, facts.fu);
+    try_eliminate_switch(ctx, stmt, facts.fu, result_observed);
     for arm in arms {
         if let Some(body) = &arm.body {
             walk_script(ctx, body, facts, depth + 1);
@@ -310,18 +372,45 @@ fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, facts: &Facts<'_>, 
 
 fn try_eliminate_if(
     ctx: &mut PassContext<'_>,
-    stmt_span: tcl_lexer::Span,
-    clauses: &[crate::ir::IfClause],
-    else_body: Option<&Script>,
-    else_span: Option<tcl_lexer::Span>,
+    statement: &Statement,
+    source: &Script,
     env: &Env,
+    result_observed: bool,
 ) {
+    let Statement::If {
+        span: stmt_span,
+        clauses,
+        else_body,
+        else_span,
+    } = statement
+    else {
+        return;
+    };
+    let stmt_span = *stmt_span;
+    let else_body = else_body.as_ref();
+    let else_span = *else_span;
     for clause in clauses {
-        let Some(truth) = decide(ctx, &clause.condition, env) else {
+        let bindings = crate::math_function_binding::ExpressionMathBindings::new(
+            source,
+            clause.condition_base,
+        );
+        let Some(val) = eval_tcl_expr_with_math_bindings(
+            &clause.condition,
+            env,
+            ctx.fold_policy(),
+            &|function, start| bindings.proves_intrinsic_for_erasure(function, start),
+        ) else {
             return;
         };
-        if truth {
-            let replacement = extract_body_text(ctx.source, clause.body_span, stmt_span);
+        if decide(ctx, &clause.condition, env) != Some(val.is_truthy()) {
+            return;
+        }
+        if val.is_truthy() {
+            let Some(replacement) =
+                extract_body_text(ctx.source, clause.body_span, ctx.lexer_config())
+            else {
+                return;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate constant if (condition is always true)",
@@ -334,14 +423,16 @@ fn try_eliminate_if(
     // Every clause folded to false.
     if let (Some(body), Some(span)) = (else_body, else_span) {
         let _ = body;
-        let replacement = extract_body_text(ctx.source, span, stmt_span);
+        let Some(replacement) = extract_body_text(ctx.source, span, ctx.lexer_config()) else {
+            return;
+        };
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate constant if (all conditions false); keep else",
             full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
-    } else {
+    } else if !result_observed {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate dead if (all conditions are always false)",
@@ -472,7 +563,12 @@ fn describe(subject: &str, decided: &Decided, arms: &[SwitchArm]) -> String {
 /// runs, or delete it when it decided none does. A selection the solver did
 /// not make — an undecided subject or pattern, a fact declined, members that
 /// run different bodies — leaves the statement alone.
-fn try_eliminate_switch(ctx: &mut PassContext<'_>, stmt: &Statement, fu: &FunctionUnit) {
+fn try_eliminate_switch(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    fu: &FunctionUnit,
+    result_observed: bool,
+) {
     let Statement::Switch {
         span,
         subject,
@@ -487,13 +583,18 @@ fn try_eliminate_switch(ctx: &mut PassContext<'_>, stmt: &Statement, fu: &Functi
         return;
     };
     let replacement = match decided.body {
+        None if result_observed => return,
         None => String::new(),
         Some(arm) => {
             let body_span = arms.get(arm).map_or(*default_span, |arm| arm.body_span);
             let Some(body_span) = body_span else {
                 return;
             };
-            extract_body_text(ctx.source, body_span, *span)
+            let Some(replacement) = extract_body_text(ctx.source, body_span, ctx.lexer_config())
+            else {
+                return;
+            };
+            replacement
         }
     };
     ctx.report(Optimisation::new(
@@ -502,6 +603,44 @@ fn try_eliminate_switch(ctx: &mut PassContext<'_>, stmt: &Statement, fu: &Functi
         full_rewrite_span(ctx.source, *span),
         replacement,
     ));
+}
+
+#[cfg(test)]
+use super::helpers::literals::is_plain_literal;
+#[cfg(test)]
+use crate::naming::normalise_var_name;
+/// Resolve a switch subject to a literal string. Returns `None`
+/// when the subject contains substitutions we cannot fold.
+#[cfg(test)]
+fn resolve_subject(
+    subject_raw: &str,
+    env: &Env,
+    policy: crate::tcl_expr_eval::FoldPolicy,
+) -> Option<String> {
+    if is_plain_literal(subject_raw) {
+        return Some(subject_raw.to_owned());
+    }
+    // `$var` or `${var}` — try the SCCP env.
+    let name = if let Some(inner) = subject_raw
+        .strip_prefix("${")
+        .and_then(|s| s.strip_suffix('}'))
+    {
+        inner.to_owned()
+    } else {
+        let rest = subject_raw.strip_prefix('$')?;
+        rest.to_owned()
+    };
+    let var_ref = format!("${name}");
+    let normalised = normalise_var_name(&var_ref).to_owned();
+    let value = env.get(&name).or_else(|| env.get(&normalised))?;
+    match value {
+        EnvValue::Int(i) => Some(i.to_string()),
+        EnvValue::Float(f) => crate::tcl_expr_eval::format_tcl_value_with_policy(
+            &crate::tcl_expr_eval::TclValue::Float(*f),
+            policy,
+        ),
+        EnvValue::Str(s) => Some(s.clone()),
+    }
 }
 
 #[cfg(test)]
@@ -535,6 +674,37 @@ mod tests {
         ctx.optimisations
     }
 
+    #[test]
+    fn resolve_subject_plain_literal_passes_through() {
+        let env = Env::new();
+        assert_eq!(
+            resolve_subject("abc", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
+            Some("abc")
+        );
+    }
+
+    #[test]
+    fn resolve_subject_dollar_var_looks_up_env() {
+        let mut env = Env::new();
+        env.insert("x".into(), EnvValue::Str("hi".into()));
+        assert_eq!(
+            resolve_subject("$x", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
+            Some("hi")
+        );
+        assert_eq!(
+            resolve_subject("${x}", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
+            Some("hi")
+        );
+        // Missing binding → None.
+        assert!(
+            resolve_subject(
+                "$missing",
+                &env,
+                crate::tcl_expr_eval::FoldPolicy::default()
+            )
+            .is_none()
+        );
+    }
     /// The one O112 the pass reports over `source` under `dialect`.
     fn the_fold(source: &str, dialect: &str) -> Optimisation {
         let mut folds: Vec<Optimisation> = run_pass_in(source, dialect)
@@ -546,6 +716,36 @@ mod tests {
     }
 
     // end-to-end tests
+
+    #[test]
+    fn final_empty_completion_is_not_replaced_by_preceding_result() {
+        for tail in [
+            "if 0 {puts never}",
+            "if 1 {}",
+            "if 1 {# comment only}",
+            "while 0 {}",
+            "for {set i 7} 0 {} {}",
+            "switch missing {match {puts never}}",
+        ] {
+            let source = format!("set previous 42\n{tail}");
+            let opts = run_pass(&source);
+            assert!(
+                opts.iter().all(|opt| opt.code != DiagCode::O112),
+                "final empty result must be retained: {source}, {opts:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_body_rewrite_preserves_child_closing_delimiter() {
+        let opts = run_pass("if 1 {proc set {args} {return CUSTOM}}");
+        let replacement = &opts
+            .iter()
+            .find(|opt| opt.code == DiagCode::O112)
+            .expect("constant selected body")
+            .replacement;
+        assert_eq!(replacement, "proc set {args} {return CUSTOM}\n");
+    }
 
     #[test]
     fn constant_true_if_replaces_with_body() {
@@ -571,7 +771,7 @@ mod tests {
 
     #[test]
     fn constant_false_if_without_else_is_deleted() {
-        let opts = run_pass("if {0} { puts hi }");
+        let opts = run_pass("if {0} { puts hi }\nputs done");
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O112)
@@ -582,7 +782,7 @@ mod tests {
 
     #[test]
     fn while_false_is_dead_loop() {
-        let opts = run_pass("while {0} { puts never }");
+        let opts = run_pass("while {0} { puts never }\nputs done");
         assert!(
             opts.iter()
                 .any(|o| o.code == DiagCode::O112 && o.message.contains("dead while loop")),
@@ -592,7 +792,7 @@ mod tests {
 
     #[test]
     fn for_false_with_init_keeps_init() {
-        let opts = run_pass("for {set i 0} {0} {incr i} { puts $i }");
+        let opts = run_pass("for {set i 0} {0} {incr i} { puts $i }\nputs done");
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O112)
@@ -603,7 +803,7 @@ mod tests {
 
     #[test]
     fn for_false_without_init_is_dead() {
-        let opts = run_pass("for {} {0} {} { puts $i }");
+        let opts = run_pass("for {} {0} {} { puts $i }\nputs done");
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O112)
@@ -637,7 +837,7 @@ mod tests {
 
     #[test]
     fn switch_no_match_no_default_emits_empty() {
-        let opts = run_pass("switch baz { foo { puts one } bar { puts two } }");
+        let opts = run_pass("switch baz { foo { puts one } bar { puts two } }\nputs done");
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O112
                 && o.message.contains("matches no pattern")
@@ -950,6 +1150,68 @@ mod tests {
         assert!(!sccp_env_for(&local.procedures["::p"]).contains_key("x"));
         let before = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
         assert!(sccp_env_for(&before.top_level).contains_key("x"));
+    }
+
+    #[test]
+    // Implementation contract: naming.variable.optimiser-source-environment
+    // docs/design/analysis/name-resolution-proofs/optimiser-source-environment.md
+    fn original_sccp_environment_withdraws_rebound_source_names_despite_display_collisions() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "proc p {} {set firstcell OLD; set secondcell NEW; upvar 0 firstcell a; set observed $a; upvar 0 secondcell a; return $a}; p";
+        let mut unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let function = unit.procedures.get_mut("::p").unwrap();
+        let mut reads = Vec::new();
+        for (&block, body) in &function.ssa.blocks {
+            for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                for access in tokens
+                    .variable_accesses
+                    .iter()
+                    .filter(|access| access.original_spelling == "$a")
+                {
+                    let read = view
+                        .read_reference(&access.source, &access.original_spelling)
+                        .expect("the original alias read has its own value receipt");
+                    reads.push(read);
+                }
+            }
+        }
+        assert_eq!(
+            reads.len(),
+            2,
+            "the separate original alias read points are retained"
+        );
+        assert_ne!(reads[0].symbol, reads[1].symbol);
+        assert_ne!(
+            function.ssa.cell_key(reads[0].symbol),
+            function.ssa.cell_key(reads[1].symbol)
+        );
+        assert!(reads.iter().all(|read| read.version.is_some()));
+        assert!(
+            SsaSourceView::unpositioned(&function.ssa)
+                .symbol("a")
+                .is_none()
+        );
+        assert!(
+            reads
+                .iter()
+                .any(|read| function.ssa.var_name(read.symbol) == "a")
+        );
+
+        // Isolate projection from SCCP evaluation: the two actual cell versions
+        // receive different constant lattice entries, not a new name binding.
+        function.sccp.values.clear();
+        for (read, value) in reads.iter().zip([7, 9]) {
+            function.sccp.values.insert(
+                (read.symbol, read.version.unwrap()),
+                LatticeValue::Const(ConstValue::Int(value)),
+            );
+        }
+        let env = sccp_env_for(function);
+        assert!(!env.contains_key("a"));
     }
 
     #[test]

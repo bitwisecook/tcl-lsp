@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order-interpretation501/14449-Jim_ProcCoreCommand.txt",
+      "sha256": "da491e60f89f9754f32e229ecc497dc55f609e7794a36d3c706186e0ef63c066"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order-interpretation501/4360-JimCreateProcedureCmd.txt",
+      "sha256": "6dfb6cd9629a547e64e8463044aff9e4d9291dff78330e830dfd0012357cafbf"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order-interpretation501/interpretation.json",
+      "sha256": "27de863f9ae7aa8254d95844ecd1c492d00fe51cd62e025dc1875cf815b70d38"
+    }
+  ]
+}

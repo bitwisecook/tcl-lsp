@@ -1,0 +1,46 @@
+{
+  "question": "naming.bootstrap.original-mathop-constructor-publication",
+  "provider": "8.4.20",
+  "channel": "execute",
+  "command": [
+    "/workspace/.proofs/native-mathop-constructor424/providers/8.4.20/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-mathop-constructor424",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "exit": 0,
+  "timeout": false,
+  "seconds": 0.0036711750144604594,
+  "request_sha256": "40158aeae095e48a8c64ed30ab945783e419829fbc72b6d09296d1c4382c7506",
+  "probe_source_sha256": "664966e2bfae90132629e80e81d02f89e4be36369874945d9b56c49177e8fa95",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIntDecls.h": "ef14c8b968a80d9d4b08b70419afbfcef4dc484d03fb5c3f6c729350e0c45a1e",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.h": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c": "26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompCmds.c": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclProc.c": "bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c": "a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c",
+    "/workspace/.proofs/native-jim-class-source269/8.4.20/receipt.json": "0f7234e7d052215ad3586d3f98dbfe640c84868c10d915cda35c612b11dfcf63"
+  },
+  "stdout_sha256": "a195a9bb5d6e501f4698a7467956cf18f3905a85bb0d4e890fad67c663171e2e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "version_receipt": "/workspace/.proofs/native-jim-class-source269/8.4.20/receipt.json",
+  "version_receipt_sha256": "0f7234e7d052215ad3586d3f98dbfe640c84868c10d915cda35c612b11dfcf63",
+  "reported_version_row": "version 8.4.20 initial_class {} alias_command {}",
+  "probe_executable_sha256": "d04dc8d6fe335c0c18bab41e2f635631dcc482eb661f53234fd0437aabdf6d96",
+  "compile_receipt_sha256": "1624457b45a63ee45fbf4d12904c2b4a05299947a311a6442267c1e2ea9f5e9d"
+}

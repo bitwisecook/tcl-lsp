@@ -1,0 +1,5 @@
+display ::a:::b ::a:::b
+values LEFT LEFT_ELEM LEFT
+values RIGHT RIGHT_ELEM RIGHT
+traces LEFT
+unaffected RIGHT RIGHT_ELEM

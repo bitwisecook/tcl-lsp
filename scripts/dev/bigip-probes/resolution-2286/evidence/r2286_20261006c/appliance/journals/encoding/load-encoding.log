@@ -1,0 +1,10 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/encoding.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_encoding] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_encoding:1: error: [braces are required around the expression][when HTTP_REQUEST {
+    set x "é|é"
+    binary scan $x H* hx
+    log local0. "R2286|r2286_20261006c|encoding|hex=$hx|chars=[string length $x]"
+    HTTP::respond 200 content "$hx\n" Connection close
+}]
+
+Unexpected Error: Loading configuration process failed.

@@ -1,0 +1,22 @@
+ltm virtual /R2286_r2286m/__tcl_lsp_2286_r2286m_vs {
+    destination /R2286_r2286m/192.168.9.24:18101
+    ip-protocol tcp
+    mask 255.255.255.255
+    partition R2286_r2286m
+    pool /R2286_r2286m/__tcl_lsp_2286_r2286m_pool
+    profiles {
+        http { }
+        tcp { }
+    }
+    rules {
+        __tcl_lsp_2286_r2286m_backend
+    }
+    serverssl-use-sni disabled
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+    vs-index 12
+}

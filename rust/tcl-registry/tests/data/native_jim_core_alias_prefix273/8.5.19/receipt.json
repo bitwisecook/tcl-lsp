@@ -1,0 +1,35 @@
+{
+  "provider": "8.5.19",
+  "command": [
+    "/workspace/.proofs/native-jim-core-alias-prefix273-capture/8.5.19/probe.elf"
+  ],
+  "exit": 0,
+  "seconds": 0.08010933201876469,
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "CORE_ALIAS_PREFIX|NOT_APPLICABLE"
+  ],
+  "executable_sha256": "856e8ef9ea454a7b5a76621659aea82cdd077d76942692f289e6639ea6320211",
+  "compile_receipt_sha256": "afa7ab4b7ce0452717078148a408c3aa2a92e0c18e9b8ce4521b63f9586649f0",
+  "request_sha256": "43400f97623828e72082e1886bd0e3e2975193d2b77512b9ba5238d540a8bc79",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+    "/workspace/.proofs/native-jim-core-alias-prefix273-capture/probe.c": "360bbedd2b7cce8177c40ff5762e07ff6754109dc48a0f8258ffe00f228a6a31",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6"
+  },
+  "stdout_sha256": "d724919e6969712e5709896a49470c33daf78fbf93fcc0fe7617cd2fc5b6893a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "reported_cli_provider_version_association": "version 8.5.19 initial_class {} alias_command {}",
+  "provider_version_receipt_sha256": "5c357fa1bd8f44e02b0b08fca76640fecbe85297493b116cb8e8e0a78aa617e7",
+  "channel": "Compile this exact C99 probe against the same six independently pinned headers/archive/build pairs as Native241. Run with no arguments in one fresh interpreter per provider. Jim uses Jim_CreateInterp + Jim_RegisterCoreCommands ONLY: no static extensions or script installer. C uses full Tcl_Init only for its version report and explicitly reports incompatible standalone alias/object API NOT_APPLICABLE. Retain exact stdout/stderr/exit and actual version. No stack override, source wrapper, expectation normalization, address printing or allocator instrumentation."
+}

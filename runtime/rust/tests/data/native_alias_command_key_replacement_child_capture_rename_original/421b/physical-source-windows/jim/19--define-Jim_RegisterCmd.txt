@@ -1,0 +1,165 @@
+ * don't need delProc or privData
+ */
+#define Jim_RegisterSimpleCmd(interp, name, usage, minargs, maxargs, cmdproc) \
+        Jim_RegisterCommand(interp, Jim_NewStringObj(interp, name, -1), cmdproc, NULL, usage, NULL, minargs, maxargs, 0, NULL)
+/* And also slightly more complex where delProc, privData and flags may be needed */
+#define Jim_RegisterCmd(interp, name, usage, minargs, maxargs, cmdproc, delproc, privdata, flags) \
+        Jim_RegisterCommand(interp, Jim_NewStringObj(interp, name, -1), cmdproc, delproc, usage, NULL, minargs, maxargs, flags, privdata)
+
+/** Register the built-in core commands in an interpreter. */
+JIM_EXPORT void Jim_RegisterCoreCommands (Jim_Interp *interp);
+/** Delete a command by name object. */
+JIM_EXPORT int Jim_DeleteCommand (Jim_Interp *interp,
+        Jim_Obj *cmdNameObj);
+/** Rename an existing command. */
+JIM_EXPORT int Jim_RenameCommand (Jim_Interp *interp,
+        Jim_Obj *oldNameObj, Jim_Obj *newNameObj);
+/** Look up a command by name object. Accepts JIM_ERRMSG. */
+JIM_EXPORT Jim_Cmd * Jim_GetCommand (Jim_Interp *interp,
+        Jim_Obj *objPtr, int flags);
+/** Set a variable using object names and values. */
+/* Note that if Jim_SetVariable() fails, and valObjPtr has a zero reference count, it will be freed */
+JIM_EXPORT int Jim_SetVariable (Jim_Interp *interp,
+        Jim_Obj *nameObjPtr, Jim_Obj *valObjPtr);
+/** Set a variable from a C string name. */
+JIM_EXPORT int Jim_SetVariableStr (Jim_Interp *interp,
+        const char *name, Jim_Obj *objPtr);
+/** Set a global variable from a C string name. */
+JIM_EXPORT int Jim_SetGlobalVariableStr (Jim_Interp *interp,
+        const char *name, Jim_Obj *objPtr);
+/** Set a variable from C string name and value inputs. */
+JIM_EXPORT int Jim_SetVariableStrWithStr (Jim_Interp *interp,
+        const char *name, const char *val);
+/** Link a variable name to another variable in a target call frame. */
+JIM_EXPORT int Jim_SetVariableLink (Jim_Interp *interp,
+        Jim_Obj *nameObjPtr, Jim_Obj *targetNameObjPtr,
+        Jim_CallFrame *targetCallFrame);
+/** Build the fully qualified global namespace name for an object name. */
+JIM_EXPORT Jim_Obj * Jim_MakeGlobalNamespaceName(Jim_Interp *interp,
+        Jim_Obj *nameObjPtr);
+/**
+ * Get a variable by object name.
+ *
+ * Accepts JIM_ERRMSG and JIM_UNSHARED. JIM_UNSHARED only affects dict-sugar
+ * access such as foo(bar): if the backing dictionary is shared, it is
+ * duplicated before the element is returned so callers can safely update it.
+ */
+JIM_EXPORT Jim_Obj * Jim_GetVariable (Jim_Interp *interp,
+        Jim_Obj *nameObjPtr, int flags);
+/** Get a global variable by object name. Accepts the same flags as Jim_GetVariable(). */
+JIM_EXPORT Jim_Obj * Jim_GetGlobalVariable (Jim_Interp *interp,
+        Jim_Obj *nameObjPtr, int flags);
+/** Get a variable by C string name. Accepts the same flags as Jim_GetVariable(). */
+JIM_EXPORT Jim_Obj * Jim_GetVariableStr (Jim_Interp *interp,
+        const char *name, int flags);
+/** Get a global variable by C string name. Accepts the same flags as Jim_GetVariable(). */
+JIM_EXPORT Jim_Obj * Jim_GetGlobalVariableStr (Jim_Interp *interp,
+        const char *name, int flags);
+/** Unset a variable by object name. Accepts JIM_ERRMSG. */
+JIM_EXPORT int Jim_UnsetVariable (Jim_Interp *interp,
+        Jim_Obj *nameObjPtr, int flags);
+
+/* call frame */
+/** Resolve a Tcl-style stack level to the corresponding call frame. */
+JIM_EXPORT Jim_CallFrame *Jim_GetCallFrameByLevel(Jim_Interp *interp,
+        Jim_Obj *levelObjPtr);
+
+/* garbage collection */
+/** Run a garbage collection pass. */
+JIM_EXPORT int Jim_Collect (Jim_Interp *interp);
+/** Run garbage collection if the interpreter decides it is needed. */
+JIM_EXPORT void Jim_CollectIfNeeded (Jim_Interp *interp);
+
+/* index object */
+/** Extract an integer index from an object. */
+JIM_EXPORT int Jim_GetIndex (Jim_Interp *interp, Jim_Obj *objPtr,
+        int *indexPtr);
+
+/* list object */
+/** Create a list object from an element vector. */
+JIM_EXPORT Jim_Obj * Jim_NewListObj (Jim_Interp *interp,
+        Jim_Obj *const *elements, int len);
+/** Insert elements into a list object at the specified index. */
+JIM_EXPORT void Jim_ListInsertElements (Jim_Interp *interp,
+        Jim_Obj *listPtr, int listindex, int objc, Jim_Obj *const *objVec);
+/** Append one element to a list object. */
+JIM_EXPORT void Jim_ListAppendElement (Jim_Interp *interp,
+        Jim_Obj *listPtr, Jim_Obj *objPtr);
+/** Append all elements of one list object to another. */
+JIM_EXPORT void Jim_ListAppendList (Jim_Interp *interp,
+        Jim_Obj *listPtr, Jim_Obj *appendListPtr);
+/** Return the element count of a list object. */
+JIM_EXPORT int Jim_ListLength (Jim_Interp *interp, Jim_Obj *objPtr);
+/** Return a list element by index, optionally reporting conversion errors. */
+JIM_EXPORT int Jim_ListIndex (Jim_Interp *interp, Jim_Obj *listPrt,
+        int listindex, Jim_Obj **objPtrPtr, int seterr);
+/** Return a list element by index as an object pointer. */
+JIM_EXPORT Jim_Obj *Jim_ListGetIndex(Jim_Interp *interp, Jim_Obj *listPtr, int idx);
+/** Set a list element reachable through a variable and index vector. */
+JIM_EXPORT int Jim_SetListIndex (Jim_Interp *interp,
+        Jim_Obj *varNamePtr, Jim_Obj *const *indexv, int indexc,
+        Jim_Obj *newObjPtr);
+/** Concatenate multiple list-like objects using Tcl list concatenation rules. */
+JIM_EXPORT Jim_Obj * Jim_ConcatObj (Jim_Interp *interp, int objc,
+        Jim_Obj *const *objv);
+/** Join the elements of a list into a string with the supplied separator. */
+JIM_EXPORT Jim_Obj *Jim_ListJoin(Jim_Interp *interp,
+        Jim_Obj *listObjPtr, const char *joinStr, int joinStrLen);
+
+/* dict object */
+/** Create a dictionary object from alternating key/value elements. */
+JIM_EXPORT Jim_Obj * Jim_NewDictObj (Jim_Interp *interp,
+        Jim_Obj *const *elements, int len);
+/** Look up one key in a dictionary object. Accepts JIM_ERRMSG. */
+JIM_EXPORT int Jim_DictKey (Jim_Interp *interp, Jim_Obj *dictPtr,
+        Jim_Obj *keyPtr, Jim_Obj **objPtrPtr, int flags);
+/** Follow a vector of keys through nested dictionaries. Accepts JIM_ERRMSG. */
+JIM_EXPORT int Jim_DictKeysVector (Jim_Interp *interp,
+        Jim_Obj *dictPtr, Jim_Obj *const *keyv, int keyc,
+        Jim_Obj **objPtrPtr, int flags);
+/**
+ * Set a nested dictionary value addressed by a key vector inside a variable.
+ *
+ * Accepts JIM_ERRMSG, JIM_UNSHARED, JIM_MUSTEXIST, and JIM_NORESULT.
+ * JIM_UNSHARED duplicates a shared container before modifying it.
+ * JIM_MUSTEXIST makes missing variables or keys an error during unset-style updates.
+ * JIM_NORESULT suppresses storing the updated dictionary in the interpreter result.
+ */
+JIM_EXPORT int Jim_SetDictKeysVector (Jim_Interp *interp,
+        Jim_Obj *varNamePtr, Jim_Obj *const *keyv, int keyc,
+        Jim_Obj *newObjPtr, int flags);
+/** Return the alternating key/value object array used by a dictionary. */
+JIM_EXPORT Jim_Obj **Jim_DictPairs(Jim_Interp *interp,
+        Jim_Obj *dictPtr, int *len);
+/** Add or replace one key/value pair in a dictionary object. */
+JIM_EXPORT int Jim_DictAddElement(Jim_Interp *interp, Jim_Obj *objPtr,
+        Jim_Obj *keyObjPtr, Jim_Obj *valueObjPtr);
+
+#define JIM_DICTMATCH_KEYS 0x0001
+#define JIM_DICTMATCH_VALUES 0x002
+
+/** Match dictionary keys and/or values against a pattern and return the requested components. */
+JIM_EXPORT int Jim_DictMatchTypes(Jim_Interp *interp, Jim_Obj *objPtr, Jim_Obj *patternObj, int match_type, int return_types);
+/** Return the number of key/value pairs in a dictionary object. */
+JIM_EXPORT int Jim_DictSize(Jim_Interp *interp, Jim_Obj *objPtr);
+/** Return implementation-specific diagnostic information about a dictionary object. */
+JIM_EXPORT int Jim_DictInfo(Jim_Interp *interp, Jim_Obj *objPtr);
+/** Merge multiple dictionaries and return the merged dictionary object. */
+JIM_EXPORT Jim_Obj *Jim_DictMerge(Jim_Interp *interp, int objc, Jim_Obj *const *objv);
+
+/* return code object */
+/** Extract a return code integer from an object. */
+JIM_EXPORT int Jim_GetReturnCode (Jim_Interp *interp, Jim_Obj *objPtr,
+        int *intPtr);
+
+/* expression object */
+/** Evaluate an expression object and leave the result in the interpreter. */
+JIM_EXPORT int Jim_EvalExpression (Jim_Interp *interp,
+        Jim_Obj *exprObjPtr);
+/** Evaluate an expression object and convert the result to boolean. */
+JIM_EXPORT int Jim_GetBoolFromExpr (Jim_Interp *interp,
+        Jim_Obj *exprObjPtr, int *boolPtr);
+
+/* boolean object */
+/** Convert an object to boolean. */
+JIM_EXPORT int Jim_GetBoolean(Jim_Interp *interp, Jim_Obj *objPtr,

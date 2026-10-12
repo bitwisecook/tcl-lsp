@@ -1,0 +1,43 @@
+{
+  "provider": "jim-current-upstream",
+  "probe_sha256": "328332ea741e91bd653c3b5bd84ae417c6c4f049fe96724328a06441a0fc108e",
+  "runner_sha256": "cd8d407b200d61b812ee8821ca9b1536ba76d1fa385f2621c1460611c76d1341",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+  "source_sha256": {
+    "jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+  },
+  "private_headers_sha256": {},
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/native-oo-bootstrap-capability074-v3/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-oo-bootstrap-capability074-v3/jim/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": null
+  },
+  "process_exit": 0,
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "OO_COMMAND|0|",
+    "OO_BOOTSTRAP|0|UNAVAILABLE"
+  ],
+  "executable_sha256": "9f16bf88afc1e44cbeed7015de89d4cd76afad33a8adbc367686d0f6fa5d700d",
+  "stdout_sha256": "389be2560d359cd44438ceece59426d13227f4856a6ce2a7a81412d32f849f14",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "0.84-9-g5bac7c9"
+}

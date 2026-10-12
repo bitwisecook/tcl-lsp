@@ -1,0 +1,8 @@
+nestedCatch 0 1
+uplevelZero 0 2
+ownFrameLambda 1 {can't read "x": no such variable}
+catchPartial 0 1
+catchPreWrite 1 {can't read "x": no such variable}
+catchUnset 1 {can't read "x": no such variable}
+returnCaught 0 {stop 1}
+deferredCallback 0 1

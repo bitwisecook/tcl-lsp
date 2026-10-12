@@ -1,0 +1,6 @@
+provider 0.84-9-g5bac7c9
+lsort 0 {b a} {A 1 ::A}
+after 0 {ROOT 1 ::} {ROOT 1 ::}
+trace 1 {invalid command name "trace"} {}
+command-trace 1 {invalid command name "trace"} {}
+execution-trace 1 {invalid command name "trace"} {}

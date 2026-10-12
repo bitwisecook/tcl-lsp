@@ -1,0 +1,16 @@
+				Tcl_DStringValue(&ds),
+			        (Tcl_Namespace *) cmdNsPtr, /*flags*/ 0);
+
+			if ((cmdPtr != NULL)
+			        && (cmdPtr->compileProc != NULL)
+			        && !(cmdPtr->flags & CMD_HAS_EXEC_TRACES)
+			        && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {
+			    int savedNumCmds = envPtr->numCommands;
+			    unsigned int savedCodeNext =
+				    envPtr->codeNext - envPtr->codeStart;
+
+			    code = (*(cmdPtr->compileProc))(interp, &parse,
+			            envPtr);
+			    if (code == TCL_OK) {
+				goto finishCommand;
+			    } else if (code == TCL_OUT_LINE_COMPILE) {

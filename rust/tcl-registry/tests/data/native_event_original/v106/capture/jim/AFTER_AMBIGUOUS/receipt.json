@@ -1,0 +1,19 @@
+{
+  "id": "AFTER_AMBIGUOUS",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/jim/probe",
+    "16"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "73a3f276960528380ffaa426837c4c05db0e55c1320093c0250056ab48d12ead",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "AFTER_AMBIGUOUS_INPUT|0|61667465722069",
+    "AFTER_AMBIGUOUS|1|62616420617267756d656e74202269223a206d7573742062652063616e63656c2c2069646c652c206f7220696e666f",
+    "AFTER_AMBIGUOUS_OPTIONS_NOT_TESTED|1|no-C-return-options-api"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

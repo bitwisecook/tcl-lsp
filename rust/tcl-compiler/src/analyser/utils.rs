@@ -315,9 +315,27 @@ fn parse_noqa_line_suppressions_with_registry(
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
+    noqa_lines_from_comments(script_comment_facts(source, config, registry))
+}
+
+/// Next-line suppression facts from the same complete retained analysis.
+/// Missing source/config/context correspondence remains unavailable; source
+/// directives cannot reconstruct a nominal Registry or entered body.
+#[must_use]
+pub fn parse_noqa_line_suppressions_from_analysis(
+    source: &str,
+    analysis: &super::AnalysisResult,
+) -> Option<std::collections::HashMap<i32, HashSet<String>>> {
+    let comments = script_comment_facts_from_analysis(source, analysis)?;
+    Some(noqa_lines_from_comments(comments))
+}
+
+fn noqa_lines_from_comments(
+    comments: impl IntoIterator<Item = ScriptCommentFact>,
+) -> std::collections::HashMap<i32, HashSet<String>> {
     let mut result: std::collections::HashMap<i32, HashSet<String>> =
         std::collections::HashMap::new();
-    for fact in script_comment_facts(source, config, registry) {
+    for fact in comments {
         let Some(codes) = parse_noqa_marker(&fact.text) else {
             continue;
         };
@@ -327,6 +345,19 @@ fn parse_noqa_line_suppressions_with_registry(
         result.entry(next_line).or_default().extend(codes);
     }
     result
+}
+
+/// Physical source comments under the actual complete analysis and Registry.
+/// Authored Body, member/case/lambda geometry stays source syntax only; this
+/// does not enter a frame, choose runtime dispatch or grant an edit.
+#[must_use]
+pub fn script_comment_facts_from_analysis(
+    source: &str,
+    analysis: &super::AnalysisResult,
+) -> Option<Vec<ScriptCommentFact>> {
+    // naming.core.original-comment-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+    CommentLineWalker::from_analysis(source, analysis)?.collect_original()
 }
 
 /// One lexer-confirmed command-position comment in a registry-reachable script.
@@ -358,7 +389,65 @@ pub fn script_comment_facts(
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<ScriptCommentFact> {
+    // Every retained physical comment includes its original marker byte.
+    // An absent marker closes this inventory without selecting body roles.
+    if !source.as_bytes().contains(&b'#') {
+        return Vec::new();
+    }
     CommentLineWalker::new(source, config, registry).collect()
+}
+
+/// Physical comment tokens in explicitly supplied original script regions.
+///
+/// The caller owns each region's source-syntax applicability. This lexical
+/// projection does not select command roles, reconstruct an analysis, prove
+/// execution or authorise an edit. Regions and comment slices remain in the
+/// supplied image's original byte coordinates; cooked values have no mapping.
+/// Unknown text, geometry or lexing returns `None`, never an empty inventory.
+#[must_use]
+pub fn original_script_comment_facts(
+    image: &tcl_lexer::SourceImage,
+    scripts: &[(Span, u32)],
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<ScriptCommentFact>> {
+    // naming.core.original-comment-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+    let source = image.try_text().ok()?;
+    let source_map = image.source_map();
+    let mut facts = Vec::new();
+    for &(region, depth) in scripts {
+        let script = source.get(region.as_range())?;
+        let tokens = tcl_lexer::Lexer::with_config(script, config.normalized().at_depth(depth))
+            .tokenise_all()
+            .ok()?;
+        for token in tokens
+            .into_iter()
+            .filter(|token| token.kind == TokenType::Comment)
+        {
+            let span = Span::new(
+                region.start().checked_add(token.span.start())?,
+                region.start().checked_add(token.span.end())?,
+            );
+            let start = usize::try_from(span.start()).ok()?;
+            let before = source.get(..start)?;
+            let line_start = before.rfind('\n').map_or(0, |offset| offset + 1);
+            if !source
+                .get(line_start..start)?
+                .bytes()
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
+            {
+                continue;
+            }
+            facts.push(ScriptCommentFact {
+                span,
+                line: usize::try_from(source_map.line_index().line_at(span.start())).ok()?,
+                text: source.get(span.as_range())?.to_owned(),
+            });
+        }
+    }
+    facts.sort_unstable_by_key(|fact| (fact.span.start(), fact.span.end()));
+    facts.dedup_by_key(|fact| fact.span);
+    Some(facts)
 }
 
 /// Lexer-fact walk over every registry-declared script shape.  This is shared
@@ -369,26 +458,171 @@ struct CommentLineWalker<'a> {
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
     identities: crate::realm::CommandBindingRealm,
-    line_index: tcl_lexer::LineIndex,
-    availability: Option<SurfaceQuery<'static>>,
+    source_context:
+        Option<crate::registry_invocation::source_structure::OriginalSourceRegistryContext>,
+    analysis: Option<&'a super::AnalysisResult>,
+    availability: Option<SurfaceQuery<'a>>,
     visited: HashSet<(u32, u32)>,
     facts: Vec<ScriptCommentFact>,
 }
 
 impl<'a> CommentLineWalker<'a> {
     fn new(whole: &'a str, config: tcl_lexer::LexerConfig, registry: &'a CommandRegistry) -> Self {
+        let source_context = registry.profile().filter(|profile| {
+            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy().is_some()
+        }).map(|profile| {
+            let generation = crate::environment_ingress::context_for_profile(profile);
+            let context = std::sync::Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+            let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+            crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(whole, input)
+        });
+        let identities = source_context.as_ref().map_or_else(
+            || crate::realm::document_realm_bindings_with_config(whole, config, registry),
+            |source| source.retained_source_realm().clone(),
+        );
         Self {
             whole,
             config,
             registry,
-            identities: crate::realm::document_realm_bindings_with_config(whole, config, registry),
-            line_index: tcl_lexer::LineIndex::new(whole),
+            identities,
+            source_context,
+            analysis: None,
             availability: registry
                 .profile()
                 .map(tcl_dialect::DialectProfile::surface_query),
             visited: HashSet::new(),
             facts: Vec::new(),
         }
+    }
+
+    fn from_analysis(whole: &'a str, analysis: &'a super::AnalysisResult) -> Option<Self> {
+        let config = analysis.body_lexer_config?;
+        let input = analysis.resolved_input.as_ref()?;
+        let image = tcl_lexer::SourceImage::document(whole);
+        analysis
+            .matches_original_source_image(&image, config)
+            .then_some(())?;
+        Some(Self {
+            whole,
+            config,
+            registry: analysis.resolved_registry()?,
+            identities: analysis.retained_command_realm()?.clone(),
+            source_context: None,
+            analysis: Some(analysis),
+            availability: Some(input.availability_context().authoring_query()),
+            visited: HashSet::new(),
+            facts: Vec::new(),
+        })
+    }
+
+    fn collect_original(mut self) -> Option<Vec<ScriptCommentFact>> {
+        if !self.whole.as_bytes().contains(&b'#') {
+            return Some(Vec::new());
+        }
+        let end = u32::try_from(self.whole.len()).ok()?;
+        self.visit_original(Span::new(0, end), 0, None)?;
+        self.facts
+            .sort_unstable_by_key(|fact| (fact.span.start(), fact.span.end()));
+        self.facts.dedup_by_key(|fact| fact.span);
+        Some(self.facts)
+    }
+
+    fn visit_original(
+        &mut self,
+        region: Span,
+        depth: u32,
+        definition_parent: Option<&crate::registry_invocation::OriginalSourceScriptBody>,
+    ) -> Option<()> {
+        if depth > 256 || !self.visited.insert((region.start(), region.end())) {
+            return Some(());
+        }
+        let analysis = self.analysis?;
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        let image = tcl_lexer::SourceImage::document(self.whole);
+        self.facts.extend(original_script_comment_facts(
+            &image,
+            &[(region, depth)],
+            self.config,
+        )?);
+        let script = self.whole.get(region.as_range())?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            region.start(),
+            self.config.at_depth(depth),
+        );
+        let plan = tcl_lexer::native_script_words_in(image, region, self.config).ok()?;
+        let definition_members =
+            definition_parent.and_then(|parent| parent.definition_member_region(&context, region));
+        for native in &plan.commands {
+            for word in &native.words {
+                for part in word.executable_parts().all_parts() {
+                    if let tcl_lexer::ExecutablePart::Command { body } = part.part {
+                        self.visit_original(body, depth + 1, definition_parent)?;
+                    }
+                }
+            }
+            if let Some(members) = &definition_members
+                && let Some(bodies) = members.script_bodies(&native.words)
+            {
+                for body in bodies {
+                    self.visit_original(body.content_span(), depth + 1, body.definition_parent())?;
+                }
+                continue;
+            }
+            let Some(command) = commands.iter().find(|command| {
+                command.argv.first().map(|token| token.span.start())
+                    == native.words.first().map(|word| word.span().start())
+            }) else {
+                continue;
+            };
+            if let Some(declared) =
+                crate::registry_invocation::source_structure::source_declared_command_words(
+                    self.whole, analysis, command,
+                )
+            {
+                for body in declared.source_script_bodies_for(
+                    crate::registry_invocation::OriginalSourceScriptPurpose::Syntax,
+                ) {
+                    self.visit_original(body.content_span(), depth + 1, None)?;
+                }
+                continue;
+            }
+            let Some(words) = crate::registry_invocation::source_structure::source_registry_words(
+                self.whole, analysis, command,
+            ) else {
+                continue;
+            };
+            for body in words.source_script_bodies(&context) {
+                let parent = body.definition_parent_for(&context, definition_parent);
+                self.visit_original(body.content_span(), depth + 1, parent.as_ref())?;
+            }
+            if let Some(bodies) =
+                words.source_expression_script_bodies(analysis.resolved_input.as_ref()?)
+            {
+                for body in bodies {
+                    self.visit_original(body.content_span(), depth + 1, definition_parent)?;
+                }
+            }
+            for &(ordinal, role) in words.roles().unwrap_or_default() {
+                if role != ArgRole::LambdaLiteral {
+                    continue;
+                }
+                let Some(word) = words
+                    .operands()
+                    .get(ordinal)
+                    .and_then(Option::as_ref)
+                    .and_then(|operand| operand.word())
+                else {
+                    continue;
+                };
+                if let Some(body) = crate::lambda_literal::split_original_lambda_literal(word)
+                    .and_then(|lambda| lambda.braced_body())
+                {
+                    self.visit_original(body, depth + 1, None)?;
+                }
+            }
+        }
+        Some(())
     }
 
     fn collect(mut self) -> Vec<ScriptCommentFact> {
@@ -412,75 +646,71 @@ impl<'a> CommentLineWalker<'a> {
         {
             return;
         }
-        if let Ok(tokens) =
-            tcl_lexer::Lexer::with_config(script, self.config.at_depth(depth)).tokenise_all()
-        {
-            for token in tokens
-                .into_iter()
-                .filter(|token| token.kind == TokenType::Comment)
-            {
-                let start = usize::try_from(token.span.start()).unwrap_or(script.len());
-                let line_start = script[..start].rfind('\n').map_or(0, |offset| offset + 1);
-                if !script[line_start..start]
-                    .bytes()
-                    .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
-                {
-                    continue;
-                }
-                let span = Span::new(
-                    base_offset.saturating_add(token.span.start()),
-                    base_offset.saturating_add(token.span.end()),
-                );
-                self.facts.push(ScriptCommentFact {
-                    span,
-                    line: usize::try_from(self.line_index.line_at(span.start()))
-                        .unwrap_or(usize::MAX),
-                    text: script
-                        .get(token.span.start() as usize..token.span.end() as usize)
-                        .unwrap_or_default()
-                        .to_owned(),
-                });
-            }
-        }
+        self.record_comments(script, base_offset, depth);
         for command in crate::segmenter::segment_commands_with_offset_and_config(
             script,
             0,
             self.config.at_depth(depth),
         ) {
+            if self.source_context.is_some() && definition_grammar.is_none() {
+                self.visit_source_schema(&command, base_offset, depth);
+                self.visit_command_substitutions(script, &command, base_offset, depth);
+                continue;
+            }
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            let written = command.name();
-            let at = base_offset
-                .saturating_add(command.argv.first().map_or(0, |token| token.span.start()));
-            let name = registry_head(
-                self.identities.head_words(written, at).resolved,
-                self.registry,
+            // Member keywords are syntax within an already selected definition
+            // grammar. They do not establish a Tcl command implementation.
+            let name = command.name();
+            let literal_head = command.single_token_word.first() == Some(&true)
+                && command
+                    .argv
+                    .first()
+                    .is_some_and(|token| matches!(token.kind, TokenType::Str | TokenType::Esc));
+            let surface = tcl_registry::model::DocumentCommandSurface::new(self.registry, None);
+            let view = crate::registry_invocation::segmented_body_assistance(
+                &surface,
+                self.identities.source_bindings_ref(),
+                script,
+                self.config.at_depth(depth),
+                &command,
+                base_offset,
+                self.identities.source_metadata_context().as_deref(),
             );
-            let member = definition_grammar.and_then(|grammar| grammar.member(&name));
+            let roles = view
+                .as_ref()
+                .map_or(&[][..], |view| view.possible_roles.as_slice());
+            let member = definition_grammar
+                .filter(|_| literal_head)
+                .and_then(|grammar| grammar.member(name));
             let body_indices = member.map_or_else(
                 || {
-                    self.registry
-                        .arg_indices_for_role(&name, &args, ArgRole::Body)
+                    roles
+                        .iter()
+                        .filter_map(|&(index, role)| (role == ArgRole::Body).then_some(index))
+                        .collect()
                 },
                 |_| {
                     definition_grammar
                         .expect("member has grammar")
-                        .member_body_indices_in(&name, &args, self.availability)
+                        .member_body_indices_in(name, &args, self.availability)
                 },
             );
-            let next_grammar =
-                next_definition_grammar(self.registry, &name, &args, definition_grammar, member);
-            let case_list = self
-                .registry
-                .case_invocation(&name, &args, self.availability)
-                .and_then(|(spec, invocation)| {
-                    invocation.clause_list_index.map(|index| (spec, index))
-                });
-
-            if let Some((spec, index)) = case_list
-                && let Some(&token) = command.arg_tokens().get(index)
-                && token.kind == tcl_lexer::TokenType::Str
-            {
-                self.visit_case_list(script, token, &spec, base_offset, depth);
+            let next_grammar = next_definition_grammar(
+                view.as_ref()
+                    .map_or(&[], |view| view.possible_definition_grammars.as_slice()),
+                &args,
+                definition_grammar,
+                member,
+            );
+            let case_lists = view
+                .as_ref()
+                .map_or(&[][..], |view| view.possible_case_lists.as_slice());
+            for &(spec, index) in case_lists {
+                if let Some(&token) = command.arg_tokens().get(index)
+                    && token.kind == tcl_lexer::TokenType::Str
+                {
+                    self.visit_case_list(script, token, &spec, base_offset, depth);
+                }
             }
 
             for index in body_indices {
@@ -490,13 +720,89 @@ impl<'a> CommentLineWalker<'a> {
                 if token.kind != tcl_lexer::TokenType::Str {
                     continue;
                 }
-                if case_list.is_some_and(|(_, case_index)| case_index == index) {
+                if case_lists
+                    .iter()
+                    .any(|&(_, case_index)| case_index == index)
+                {
                     continue;
                 }
                 self.visit_braced_word(script, token, base_offset, depth, next_grammar);
             }
-            self.visit_lambda_literals(script, &command, &name, &args, base_offset, depth);
+            self.visit_lambda_literals(script, &command, roles, base_offset, depth);
             self.visit_command_substitutions(script, &command, base_offset, depth);
+        }
+    }
+
+    /// Readonly source roles select physical script geometry. Neither unknown
+    /// argument values nor an unavailable execution entry turn a body into data.
+    fn visit_source_schema(
+        &mut self,
+        command: &crate::segmenter::SegmentedCommand,
+        base_offset: u32,
+        depth: u32,
+    ) {
+        let Some(source) = &self.source_context else {
+            return;
+        };
+        let command = command.clone().shifted_by(base_offset);
+        let Some(words) = source.words(&command) else {
+            return;
+        };
+        let context = source.editing_input().context_registry();
+        let grammar = words
+            .with_source_schema(&context, |schema| {
+                context
+                    .context()
+                    .resolve_spec(context.commands(), schema.canonical_command)
+                    .and_then(|spec| spec.definition_body)
+            })
+            .flatten();
+        let mut children = words
+            .source_script_bodies(&context)
+            .into_iter()
+            .map(|body| body.content_span())
+            .collect::<Vec<_>>();
+        for &(ordinal, role) in words.roles().unwrap_or_default() {
+            if role != ArgRole::LambdaLiteral {
+                continue;
+            }
+            let Some(word) = words
+                .operands()
+                .get(ordinal)
+                .and_then(Option::as_ref)
+                .and_then(|operand| operand.word())
+            else {
+                continue;
+            };
+            if let Some(body) = crate::lambda_literal::split_original_lambda_literal(word)
+                .and_then(|lambda| lambda.braced_body())
+            {
+                children.push(body);
+            }
+        }
+        children.sort_unstable_by_key(|span| (span.start(), span.end()));
+        children.dedup();
+        for child in children {
+            if let Some(script) = self.whole.get(child.as_range()) {
+                self.visit(script, child.start(), depth.saturating_add(1), grammar);
+            }
+        }
+    }
+
+    fn record_comments(&mut self, script: &str, base_offset: u32, depth: u32) {
+        let Some(end) = u32::try_from(script.len())
+            .ok()
+            .and_then(|length| base_offset.checked_add(length))
+        else {
+            return;
+        };
+        let image = tcl_lexer::SourceImage::document(self.whole);
+        if let Some(facts) = original_script_comment_facts(
+            &image,
+            &[(Span::new(base_offset, end), depth)],
+            self.config,
+        ) {
+            self.facts.extend(facts);
         }
     }
 
@@ -565,14 +871,13 @@ impl<'a> CommentLineWalker<'a> {
         &mut self,
         script: &'a str,
         command: &crate::segmenter::SegmentedCommand,
-        name: &str,
-        args: &[&str],
+        roles: &[(usize, ArgRole)],
         base_offset: u32,
         depth: u32,
     ) {
-        for index in self
-            .registry
-            .arg_indices_for_role(name, args, ArgRole::LambdaLiteral)
+        for index in roles
+            .iter()
+            .filter_map(|&(index, role)| (role == ArgRole::LambdaLiteral).then_some(index))
         {
             let Some(&token) = command.arg_tokens().get(index) else {
                 continue;
@@ -631,32 +936,17 @@ impl<'a> CommentLineWalker<'a> {
     }
 }
 
-/// Convert a proven command identity into the registry's canonical global
-/// spelling.  A leading namespace root is Tcl syntax, not part of a core
-/// command's registry key; qualified names that the registry owns remain
-/// intact. Rebound identities are already the empty string and fail closed.
-fn registry_head(head: &str, registry: &CommandRegistry) -> String {
-    let canonical = tcl_syntax::naming::canonical_written_command(head);
-    if registry.get_exact(&canonical).is_some() {
-        return canonical;
-    }
-    if let Some(rooted) = canonical.strip_prefix("::")
-        && registry.get_exact(rooted).is_some()
-    {
-        return rooted.to_owned();
-    }
-    canonical
-}
-
 fn next_definition_grammar(
-    registry: &CommandRegistry,
-    name: &str,
+    possible: &[&'static DefinitionBodyGrammar],
     args: &[&str],
     current: Option<&'static DefinitionBodyGrammar>,
     member: Option<&'static tcl_registry::definer::MemberSpec>,
 ) -> Option<&'static DefinitionBodyGrammar> {
-    if let Some(grammar) = registry.get(name).and_then(|spec| spec.definition_body) {
-        return Some(grammar);
+    if let [grammar] = possible {
+        return Some(*grammar);
+    }
+    if !possible.is_empty() {
+        return None;
     }
     let Some(member) = member else {
         return current;
@@ -747,27 +1037,44 @@ pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
 /// a plain in-memory set by the time it reaches here, so folding it in costs
 /// nothing extra beyond the registry union already does.
 ///
-/// Gated on [`tcl_lexer::script_is_complete`]: the in-file signature scan only
-/// ever runs on a document with an unclosed delimiter, so a complete script
-/// skips that extra scan entirely — zero added cost on the overwhelmingly
-/// common well-formed edit.
+/// The in-file scan runs only when configured Document completeness proves
+/// the source incomplete. Both queries share the supplied whole-file grammar;
+/// an unavailable parser retains only registry and caller-supplied candidates.
 #[must_use]
 pub fn recovery_known_commands(
     source: &str,
     registry: &CommandRegistry,
     extra: &SharedNameSet,
+    config: tcl_lexer::LexerConfig,
 ) -> RecoveryKnownCommands {
     let mut names: HashSet<String> = registry.command_names().map(str::to_owned).collect();
-    if !tcl_lexer::script_is_complete(source) {
-        let sig = crate::signature_scan::extract_signatures(source, registry);
-        for qname in sig
-            .procs
-            .keys()
-            .chain(sig.classes.keys())
-            .chain(sig.command_aliases.keys())
-            .chain(sig.renames.keys())
+    if tcl_lexer::script_image_is_complete(&tcl_lexer::SourceImage::document(source), config)
+        == Ok(false)
+    {
+        let sig = crate::signature_scan::extract_signatures_with_config(source, config, registry);
+        for declaration in &sig.procedure_declarations {
+            if let Some(spelling) = declaration.source_spelling() {
+                insert_qualified_and_tail(&mut names, &spelling);
+                names.insert(declaration.name.clone());
+            }
+        }
+        for declaration in &sig.class_declarations {
+            if let Some(spelling) = declaration.source_spelling() {
+                insert_qualified_and_tail(&mut names, &spelling);
+                names.insert(declaration.name.clone());
+            }
+        }
+        for spelling in sig
+            .command_aliases
+            .values()
+            .filter_map(super::super::signature_scan::types::SignatureCommandAlias::source_spelling)
+            .chain(
+                sig.renames.values().filter_map(
+                    super::super::signature_scan::types::SignatureRename::source_spelling,
+                ),
+            )
         {
-            insert_qualified_and_tail(&mut names, qname);
+            insert_qualified_and_tail(&mut names, &spelling);
         }
     }
     RecoveryKnownCommands {
@@ -880,13 +1187,12 @@ pub fn insert_qualified_and_tail<S: std::hash::BuildHasher>(
     if !qname.is_empty() {
         names.insert(qname.to_string());
     }
-    let absolute = qname.trim_start_matches("::");
+    let absolute = crate::naming::unroot_rooted_key(qname).unwrap_or(qname);
     if !absolute.is_empty() {
         names.insert(absolute.to_string());
     }
-    if let Some((_, tail)) = qname.rsplit_once("::")
-        && !tail.is_empty()
-    {
+    let tail = crate::naming::key_tail(qname);
+    if !tail.is_empty() {
         names.insert(tail.to_string());
     }
 }
@@ -1948,7 +2254,7 @@ mod tests {
     fn parse_file_suppression_no_directive_returns_empty() {
         let src = "# Just a comment\nproc foo {} {}\n";
         let codes = parse_file_suppression(src);
-        assert!(codes.is_empty());
+        assert_eq!(codes.len(), 0);
     }
 
     /// The `package … provides …` directive is read anywhere in
@@ -1992,8 +2298,9 @@ mod tests {
             "# tcl-lsp: stub myproc {a b}\n",
             "set x {package require Tk}\n",
         ] {
-            assert!(
-                parse_provides_directives(src).is_empty(),
+            assert_eq!(
+                parse_provides_directives(src).len(),
+                0,
                 "must declare no edge: {src:?}"
             );
         }
@@ -2026,7 +2333,7 @@ mod tests {
             "# supports tcl 8.5\n",
             "# — tcl-lsp: supports tcl 8.5\n",
         ] {
-            assert!(parse_supports_directives(line).is_empty(), "{line:?}");
+            assert_eq!(parse_supports_directives(line).len(), 0, "{line:?}");
         }
     }
 
@@ -2042,12 +2349,12 @@ mod tests {
         // An em dash a few bytes into the leading comment straddles the
         // "tcl-lsp" keyword's 7-byte check.
         let em_dash_early = "# E001 \u{2014} missing dispatch word\nproc foo {} {}\n";
-        assert!(parse_file_suppression(em_dash_early).is_empty());
+        assert_eq!(parse_file_suppression(em_dash_early).len(), 0);
 
         // An em dash inside the post-colon text straddles the "disable"
         // keyword's own 7-byte check.
         let em_dash_after_colon = "# tcl-lsp: abcdef\u{2014}ghi\nproc foo {} {}\n";
-        assert!(parse_file_suppression(em_dash_after_colon).is_empty());
+        assert_eq!(parse_file_suppression(em_dash_after_colon).len(), 0);
     }
 
     #[test]
@@ -2138,8 +2445,9 @@ mod tests {
         // A substring match reads the trailing prose as a bare marker and
         // silences every code on the command below.
         let src = "# do not use noqa here\nputs $x\n";
-        assert!(
-            parse_noqa_line_suppressions(src).is_empty(),
+        assert_eq!(
+            parse_noqa_line_suppressions(src).len(),
+            0,
             "prose must not seed the suppression map"
         );
     }
@@ -2223,6 +2531,138 @@ mod tests {
         assert!(map.get(&2).expect("line 2 entry").contains("*"));
     }
 
+    fn retained_comment_analysis(source: &str) -> super::super::AnalysisResult {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "hold-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let context = crate::environment_ingress::context_for_profile(profile)
+            .with_command_store(std::sync::Arc::new(registry));
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = super::super::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context),
+            config,
+        );
+        super::super::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn retained_noqa_facts_use_actual_custom_and_declared_body_syntax() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold-script {\n# noqa: W210\n# comment-only\n}\nhold {\n# noqa: W305\n# comment-only\n}\n";
+        let analysis = retained_comment_analysis(source);
+        let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
+        assert!(lines.get(&5).unwrap().contains("W210"));
+        assert!(lines.get(&9).unwrap().contains("W305"));
+        assert_eq!(analysis.suppressed_lines.get(&5), lines.get(&5));
+        assert_eq!(analysis.suppressed_lines.get(&9), lines.get(&9));
+        let facts = script_comment_facts_from_analysis(source, &analysis).unwrap();
+        for fact in facts {
+            assert_eq!(source.get(fact.span.as_range()), Some(fact.text.as_str()));
+        }
+        assert!(
+            parse_noqa_line_suppressions_from_analysis(&format!("{source} "), &analysis).is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(parse_noqa_line_suppressions_from_analysis(source, &missing).is_none());
+    }
+
+    #[test]
+    fn retained_noqa_declines_body_roles_at_a_known_source_replacement() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "proc if args {}\nif 1 {\n# noqa: W210\n# literal-data\n}";
+        let analysis = retained_comment_analysis(source);
+        let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
+        assert!(!lines.contains_key(&3));
+        assert!(!analysis.suppressed_lines.contains_key(&3));
+    }
+
+    #[test]
+    fn retained_noqa_expression_commands_keep_original_comment_regions() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "expr {[\n# noqa: W210\n# comment-only\nformat café\n]}";
+        let analysis = retained_comment_analysis(source);
+        let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
+        assert!(lines.get(&2).unwrap().contains("W210"));
+        assert_eq!(analysis.suppressed_lines.get(&2), lines.get(&2));
+        let facts = script_comment_facts_from_analysis(source, &analysis).unwrap();
+        assert_eq!(facts.len(), 2);
+        for fact in facts {
+            assert_eq!(source.get(fact.span.as_range()), Some(fact.text.as_str()));
+        }
+    }
+
+    #[test]
+    fn retained_noqa_definition_vocabulary_clears_ordinary_and_procedure_bodies() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        for (source, expected) in [
+            (
+                "oo::class create C {if 1 {method café {} {\n# noqa: W210\n# control\n}}}",
+                true,
+            ),
+            (
+                "oo::class create C {proc p {} {method ordinary {} {\n# noqa: W210\n# data\n}}}",
+                false,
+            ),
+            (
+                "oo::class create C {method m {} {method ordinary {} {\n# noqa: W210\n# data\n}}}",
+                false,
+            ),
+            (
+                "oo::class create C {apply {{} {method ordinary {} {\n# noqa: W210\n# data\n}}}}",
+                false,
+            ),
+        ] {
+            let analysis = retained_comment_analysis(source);
+            let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
+            assert_eq!(
+                lines.get(&2).is_some_and(|codes| codes.contains("W210")),
+                expected,
+                "{source}"
+            );
+            assert_eq!(analysis.suppressed_lines.get(&2), lines.get(&2));
+        }
+    }
+
+    #[test]
+    fn retained_noqa_member_geometry_keeps_original_selectors_and_whole_words() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "oo::class create C {\nmethod café {} {\n# noqa: W210\n# comment-only\n}\nself self {\nmethod m {} {\n# noqa: W305\n# comment-only\n}\n}\n}\n";
+        let analysis = retained_comment_analysis(source);
+        let lines = parse_noqa_line_suppressions_from_analysis(source, &analysis).unwrap();
+        assert!(lines.get(&3).unwrap().contains("W210"));
+        assert!(lines.get(&8).unwrap().contains("W305"));
+        let source = "oo::class create C {\n$member m {} {\n# noqa: W210\n# comment-only\n}\n}\n";
+        let analysis = retained_comment_analysis(source);
+        assert!(
+            !parse_noqa_line_suppressions_from_analysis(source, &analysis)
+                .unwrap()
+                .contains_key(&3)
+        );
+        let source = r#"oo::class create C {method m {} "\u0023 noqa: W210\nputs hidden"}"#;
+        let analysis = retained_comment_analysis(source);
+        assert!(
+            parse_noqa_line_suppressions_from_analysis(source, &analysis)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
     #[test]
     fn comment_facts_are_exact_slices_and_never_promote_pre_comment_noqa() {
         let src = "set marker \"noqa\"; # ordinary comment\n# café noqa: W305\nputs \"\u{202e}\"\n";
@@ -2261,8 +2701,9 @@ mod tests {
     fn parse_noqa_line_suppressions_ignores_braced_data() {
         let src = "proc example {} {\n    set help {\nline one\n# noqa\n    }\n    puts $undefined_var\n}\n";
         let map = parse_noqa_line_suppressions(src);
-        assert!(
-            map.is_empty(),
+        assert_eq!(
+            map.len(),
+            0,
             "braced data must not become a directive: {map:?}"
         );
     }
@@ -2372,10 +2813,87 @@ mod tests {
     }
 
     #[test]
+    fn original_comment_projection_keeps_whole_image_geometry_and_declines_unmapped_text() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "hold {\n    # café 😀 \\\n    puts hidden\n}\n";
+        let image = tcl_lexer::SourceImage::document(source);
+        let start = u32::try_from(source.find('\n').unwrap() + 1).unwrap();
+        let end = u32::try_from(source.rfind('}').unwrap()).unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_dialect("tcl8.6");
+        let facts =
+            original_script_comment_facts(&image, &[(Span::new(start, end), 1)], config).unwrap();
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].line, 1);
+        assert_eq!(
+            source.get(facts[0].span.as_range()),
+            Some(facts[0].text.as_str())
+        );
+        let inline = tcl_lexer::SourceImage::document("hold {# inline \\\nputs hidden\n}");
+        let inline_end = u32::try_from(inline.len() - 1).unwrap();
+        assert!(
+            original_script_comment_facts(&inline, &[(Span::new(6, inline_end), 1)], config)
+                .unwrap()
+                .is_empty()
+        );
+        let bad_boundary = u32::try_from(source.find('é').unwrap() + 1).unwrap();
+        assert!(
+            original_script_comment_facts(&image, &[(Span::new(bad_boundary, end), 1)], config)
+                .is_none()
+        );
+        assert!(
+            original_script_comment_facts(&image, &[(Span::new(start, u32::MAX), 1)], config)
+                .is_none()
+        );
+        let opaque = tcl_lexer::SourceImage::native(std::sync::Arc::<[u8]>::from([0xff]));
+        assert!(original_script_comment_facts(&opaque, &[(Span::new(0, 1), 0)], config).is_none());
+    }
+
+    #[test]
+    fn cooked_script_comment_markers_have_no_original_physical_line() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let protocol = tcl_registry::InvocationDialect::of_profile(profile)
+            .authored_name_policy()
+            .unwrap()
+            .string_protocol();
+        for source in [
+            r#"proc p {} "\u0023 noqa: W210\nputs hi""#,
+            r#"namespace eval N "\x23 noqa: W210\nputs hi""#,
+        ] {
+            assert!(!source.as_bytes().contains(&b'#'));
+            let image = tcl_lexer::SourceImage::document(source);
+            let parsed = tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                protocol,
+            )
+            .unwrap();
+            assert!(captured.literal(3).unwrap().starts_with(b"# noqa:"));
+            assert!(script_comment_facts(source, config, registry).is_empty());
+        }
+        let source = "proc p {} {\n# noqa: W210\nputs hi\n}";
+        let facts = script_comment_facts(source, config, registry);
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].text, "# noqa: W210");
+        assert_eq!(
+            source.get(facts[0].span.start() as usize..facts[0].span.end() as usize),
+            Some(facts[0].text.as_str())
+        );
+    }
+
+    #[test]
     fn parse_noqa_line_suppressions_empty_for_no_directives() {
         let src = "set x 1\nset y 2\n";
         let map = parse_noqa_line_suppressions(src);
-        assert!(map.is_empty());
+        assert_eq!(map.len(), 0);
     }
 
     #[test]
@@ -2388,7 +2906,7 @@ mod tests {
         }
         src.push_str("# tcl-lsp: disable=W210\n");
         let codes = parse_file_suppression(&src);
-        assert!(codes.is_empty());
+        assert_eq!(codes.len(), 0);
     }
 
     #[test]
@@ -2458,6 +2976,8 @@ mod tests {
     fn possible_paste_fingerprint_other_stmt_returns_none() {
         // A non-assign statement — return.
         let stmt = Statement::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             expr: None,
@@ -2568,7 +3088,7 @@ proc foo {} {}
     #[test]
     fn scan_stub_command_names_empty_source() {
         let names = scan_stub_command_names("");
-        assert!(names.is_empty());
+        assert_eq!(names.len(), 0);
     }
 
     // -- ``parse_command_stub`` + ``parse_expr_stub`` tests
@@ -2733,7 +3253,7 @@ proc foo {} {}
     #[test]
     fn parse_command_stub_empty_args() {
         let stub = cmd_stub("# tcl-lsp: stub no_args {} -pure").unwrap();
-        assert!(stub.args.is_empty());
+        assert_eq!(stub.args, [] as [crate::analyser::types::StubArgDef; 0]);
         assert!(stub.flags.contains(super::super::types::StubFlags::PURE));
     }
 
@@ -2800,7 +3320,7 @@ proc foo {} {}
 proc foo {} {}
 ";
         let (cmds, exprs) = scan_source_for_stubs(src);
-        assert!(exprs.is_empty());
+        assert_eq!(exprs, [] as [crate::analyser::types::StubExprDef; 0]);
         assert_eq!(cmds.len(), 2);
         let foreach = cmds
             .iter()
@@ -2874,8 +3394,12 @@ proc foo {} {}
 
     #[test]
     fn recovery_known_commands_includes_registry_names() {
-        let known =
-            recovery_known_commands("set x [foo\n", &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            "set x [foo\n",
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(known.contains("set"));
         assert!(known.contains("puts"));
     }
@@ -2888,7 +3412,12 @@ proc foo {} {}
         // costs nothing extra to fold in a set the caller already built.
         let extra: std::sync::Arc<HashSet<String>> =
             std::sync::Arc::new(["workspace_helper".to_string()].into_iter().collect());
-        let known = recovery_known_commands("set x 1\n", &registry(), &extra);
+        let known = recovery_known_commands(
+            "set x 1\n",
+            &registry(),
+            &extra,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(known.contains("workspace_helper"));
     }
 
@@ -2901,7 +3430,12 @@ proc foo {} {}
         let extra: SharedNameSet =
             std::sync::Arc::new(["workspace_helper".to_string()].into_iter().collect());
         let before = std::sync::Arc::strong_count(&extra);
-        let known = recovery_known_commands("set q {\nunclosed\n", &registry(), &extra);
+        let known = recovery_known_commands(
+            "set q {\nunclosed\n",
+            &registry(),
+            &extra,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             std::sync::Arc::strong_count(&extra),
             before + 1,
@@ -2927,6 +3461,7 @@ proc foo {} {}
             "proc my_helper {} {}\nmy_helper\n",
             &registry(),
             &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
         );
         assert!(!known.contains("my_helper"));
         assert!(known.contains("proc")); // registry names are always present
@@ -2935,7 +3470,12 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_user_proc_qualified_and_tail() {
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("myns::helper"),
             "expected the qualified name: {known:?}"
@@ -2947,13 +3487,63 @@ proc foo {} {}
     }
 
     #[test]
+    fn original_recovery_procedure_declarations_keep_all_written_name_forms() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Genuine scanner metadata only; no command-cell or execution receipt.
+        let source = "namespace eval source_names {proc SourceOnlyHelper {} {}}\nset unfinished {";
+        let registry = registry();
+        let config = tcl_lexer::LexerConfig::default();
+        let scan = crate::signature_scan::extract_signatures_with_config(source, config, &registry);
+        let declaration = scan.procedure_declarations.iter()
+            .find(|declaration| declaration.name == "SourceOnlyHelper").unwrap();
+        assert_eq!(declaration.source_spelling().as_deref(), Some("::source_names::SourceOnlyHelper"));
+        assert!(declaration.source_name.is_none());
+        let known = recovery_known_commands(source, &registry, &std::sync::Arc::default(), config);
+        for spelling in ["::source_names::SourceOnlyHelper", "source_names::SourceOnlyHelper", "SourceOnlyHelper"] {
+            assert!(known.contains(spelling), "{spelling}");
+        }
+        assert!(!known.contains("foreign::SourceOnlyHelper"));
+        assert!(!known.contains("invented_source_command"));
+    }
+
+    #[test]
+    fn original_recovery_class_spellings_remain_metadata_under_the_complete_file_gate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original symbolic declarations and recovery candidates grant no namespace fact.
+        let complete = "namespace eval source_classes {oo::class create SourceOnlyClass {}}";
+        let source = format!("{complete}\nset unfinished {{");
+        let registry = registry();
+        let config = tcl_lexer::LexerConfig::default();
+        let scan = crate::signature_scan::extract_signatures_with_config(&source, config, &registry);
+        let declaration = scan.class_declarations.iter()
+            .find(|declaration| declaration.name == "SourceOnlyClass").unwrap();
+        assert_eq!(declaration.source_spelling().as_deref(), Some("::source_classes::SourceOnlyClass"));
+        assert!(declaration.source_name.is_none());
+        let known = recovery_known_commands(&source, &registry, &std::sync::Arc::default(), config);
+        for spelling in ["::source_classes::SourceOnlyClass", "source_classes::SourceOnlyClass", "SourceOnlyClass"] {
+            assert!(known.contains(spelling), "{spelling}");
+        }
+        let closed = recovery_known_commands(complete, &registry, &std::sync::Arc::default(), config);
+        assert!(!closed.contains("SourceOnlyClass"));
+        let dynamic = recovery_known_commands("proc $unknown_name {} {}\nset unfinished {", &registry, &std::sync::Arc::default(), config);
+        assert!(!dynamic.contains("$unknown_name"));
+    }
+
+    #[test]
     fn recovery_known_commands_adds_the_leading_colon_colon_form_too() {
         // `signature_scan::qualify` always records `::myns::helper`; a
         // recovery-point call can equally be written that way (absolute
         // Tcl syntax), so the leading-`::` form must be recognised
         // alongside the stripped/tail forms asserted above.
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("::myns::helper"),
             "expected the fully-qualified leading-:: form: {known:?}"
@@ -2964,7 +3554,12 @@ proc foo {} {}
     fn recovery_known_commands_adds_user_class_and_alias() {
         let src =
             "oo::class create Widget {}\ninterp alias {} greet {} puts hi\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(known.contains("Widget"), "{known:?}");
         assert!(known.contains("greet"), "{known:?}");
     }
@@ -2972,7 +3567,12 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_rename_target() {
         let src = "rename puts my_puts\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("my_puts"),
             "expected the rename target: {known:?}"
@@ -2982,7 +3582,12 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_namespaced_rename_target() {
         let src = "namespace eval myns {\n  rename puts loud_puts\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("myns::loud_puts"),
             "expected the qualified rename target: {known:?}"
@@ -2998,15 +3603,49 @@ proc foo {} {}
         // `rename OLD {}` deletes OLD; it must not introduce an empty-string
         // "command name".
         let src = "rename puts {}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(!known.contains(""));
     }
 
     #[test]
     fn recovery_known_commands_does_not_invent_undefined_names() {
         let src = "set q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(!known.contains("not_a_real_proc"));
         assert!(!known.contains("unclosed")); // plain data, not a definition
+    }
+}
+
+#[cfg(test)]
+mod original_configured_recovery_tests {
+    #[test]
+    fn original_recovery_scan_and_gate_share_the_supplied_whole_configuration() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Conditional signature candidates; no command installation or entry.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let extra = std::sync::Arc::default();
+        let source = "proc hidden {} {}; set x ${a{}";
+        let config = tcl_lexer::LexerConfig::default();
+        let first_close = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..config
+        };
+        let complete = super::recovery_known_commands(source, &registry, &extra, first_close);
+        assert!(!complete.contains("hidden"));
+        let incomplete = super::recovery_known_commands(source, &registry, &extra, config);
+        assert!(incomplete.contains("hidden"));
+        assert!(complete.contains("set"));
+        assert!(incomplete.contains("set"));
     }
 }

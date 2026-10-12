@@ -62,6 +62,13 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lmap",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Foreach,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Lmap,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("lmap"),
         // `BYTE_COMPILED`: dedicated bytecode handling, not the generic
         // invoke path — the codegen loop-block emitter recognises `lmap`

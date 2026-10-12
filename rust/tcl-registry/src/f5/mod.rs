@@ -59,7 +59,11 @@ pub mod corpus;
 pub mod evidence;
 pub mod execution_context;
 pub mod iapp_metadata;
+pub mod naming;
+pub mod rule_identity;
+pub mod storage;
 pub mod tmsh_syntax;
+pub use rule_identity::{RuleIdentity, RuleIdentityError, RuleProcedureTarget};
 
 pub use corpus::{
     COMMAND_CLASS_VECTORS, CONTEXT_ENVIRONMENT_VECTORS, CaseOutcome, CommandClassVector,
@@ -81,4 +85,9 @@ pub use iapp_metadata::{
 pub use tmsh_syntax::{
     TMSH_SYNTAX_VERSIONED_SINCE, TmshSyntaxSelection, TmshSyntaxState, TmshSyntaxTransition,
     tmsh_syntax_transition_for,
+};
+
+pub use storage::{
+    VariableStorageDomain, WorkerExecution, namespace_storage_domain,
+    namespace_storage_domain_in_path, runtime_namespaces,
 };

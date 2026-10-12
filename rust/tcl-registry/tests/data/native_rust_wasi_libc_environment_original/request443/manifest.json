@@ -1,0 +1,25 @@
+{
+  "name": "GrammarRustWasiNumericEnvironmentRetry443",
+  "status": "SEALED REQUEST ONLY; Root sole compile/run",
+  "request_path": "/tmp/grammar-rust-wasi-numeric-request443/request.json",
+  "request_sha256": "15a1dbcf9da112059b670aaf86d5fa96ea1a3b34b8e653020cf84f05b74a3a33",
+  "probe_path": "/tmp/grammar-rust-wasi-numeric-request443/probe.rs",
+  "probe_sha256": "b53f9d4702055d8b751a79d33c3351cf4b109e7bdd31cc413a3bac9ef864c733",
+  "launcher_path": "/tmp/grammar-rust-wasi-numeric-request443/launch.py",
+  "launcher_sha256": "25e8327ddbdcad21e08ed5be471da5ece7eaf0fd22ba8947703efcd97bb95bfd",
+  "link_wrapper_path": "/tmp/grammar-rust-wasi-numeric-request443/link-wrapper.py",
+  "link_wrapper_sha256": "5e9aa4021e616a779469e1e1721c287b554b5ba55cb49a4a9ca7b965f26cd822",
+  "target_library_count": 58,
+  "all_input_pin_count": 83,
+  "rows": 315,
+  "errno_cells": 3,
+  "adapter_controls": 12,
+  "original442_receipt_sha256": "1ef6aa22b61783dc58e9dd1117659953e670fbb8146fc2405174c1ed813f0f87",
+  "validation": {
+    "probe_cases_wrapper_byte_identical": true,
+    "python_ast_parse": true,
+    "all_pins_exact": true,
+    "no_unstable_options_or_compiler_change": true,
+    "cargo_native_guest_launched_by_agent": false
+  }
+}

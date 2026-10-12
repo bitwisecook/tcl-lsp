@@ -1,0 +1,7 @@
+{
+  "executable": "/tmp/naming-owned317/pinned-core317.elf",
+  "sha256": "5d293d2829c2f12aa957ebe5eea561a4be590214f1156a5dea6bbce789344e62",
+  "build_receipt": "/workspace/.proofs/integration-core-own-test-build317.json",
+  "build_receipt_sha256": "e050c09ac9cdba0ef286edb7df4e96f21838a6555bef6bfd2e8b377065332449",
+  "source_snapshot_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb"
+}

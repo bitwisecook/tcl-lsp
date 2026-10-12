@@ -1,0 +1,28 @@
+{
+  "label": "dynamic_namespace-clean-cmp-yes",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006c-dynamic_namespace-clean-cmp-yes",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "23919",
+    "--requests",
+    "128",
+    "--path",
+    "/?action=read",
+    "--out",
+    "/tmp/r2286_20261006c-dev/traffic-dynamic_namespace-clean-cmp-yes.jsonl",
+    "--expect-units",
+    "0:0,0:1,0:2,0:3"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"0:3\": 32,\n    \"0:0\": 32,\n    \"0:1\": 32,\n    \"0:2\": 32\n  },\n  \"expected_active_roster\": [\n    \"0:0\",\n    \"0:1\",\n    \"0:2\",\n    \"0:3\"\n  ],\n  \"missing_units\": [],\n  \"coverage\": \"COMPLETE_FOR_SUPPLIED_ROSTER\"\n}\n",
+  "stderr": ""
+}

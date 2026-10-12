@@ -156,7 +156,10 @@ const DENIED_COMMANDS: &[(&str, &str)] = &[
 /// rather than unknown vocabulary.
 #[must_use]
 pub fn denied_axis(name: &str) -> Option<&'static str> {
-    let name = name.trim_start_matches("::");
+    // This classifier accepts written vocabulary spelling. Actual unknown
+    // dispatch attempts command lookup before it reaches this classifier.
+    let written = tcl_syntax::naming::canonical_written_command(name);
+    let name = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
     if name.starts_with("thread::") || name.starts_with("tpool::") || name.starts_with("tsv::") {
         return Some("threading");
     }
@@ -242,6 +245,10 @@ pub enum PackEvalFailure {
     /// The program raised an uncaught Tcl error (a sandbox denial reaches the
     /// caller this way, carrying the denial message its handler produced).
     Script(String),
+    /// Exact non-Unicode guest error bytes.
+    ScriptBytes(Vec<u8>),
+    /// The engine cannot execute the requested host protocol.
+    ExecutionRefusal(String),
     /// The program outran its budget on the named axis.
     Budget(&'static str),
     /// The engine panicked; the payload is whatever the boundary recovered.
@@ -265,6 +272,15 @@ impl std::fmt::Display for PackEvalFailure {
         match self {
             Self::Compile(message) => write!(f, "the pack does not compile as Tcl: {message}"),
             Self::Script(message) => write!(f, "{message}"),
+            Self::ScriptBytes(message) => {
+                for byte in message {
+                    for escaped in byte.escape_ascii() {
+                        write!(f, "{}", char::from(escaped))?;
+                    }
+                }
+                Ok(())
+            }
+            Self::ExecutionRefusal(reason) => write!(f, "engine execution unavailable: {reason}"),
             Self::Budget(axis) => {
                 write!(f, "the evaluation budget was exhausted on the {axis} axis")
             }
@@ -303,9 +319,20 @@ impl PackEvalCtx<'_> {
         match self.vm.eval_source(body) {
             Ok(completion) => match completion.code {
                 Code::Ok | Code::Return => Ok(()),
-                _ => Err(completion.result.to_str().to_string()),
+                _ => {
+                    match self.vm.original_callback_unicode_words(
+                        std::slice::from_ref(&completion.result),
+                        "SpecTcl declaration errors require Unicode",
+                    ) {
+                        Ok(mut words) => Err(words.pop().expect("one original result")),
+                        Err(refusal) => {
+                            drop(refusal);
+                            Err("SpecTcl declaration errors require Unicode".into())
+                        }
+                    }
+                }
             },
-            Err(error) => Err(error.message),
+            Err(error) => Err(tcl_vm::VmCompilationError::Tcl(error).to_string()),
         }
     }
 }
@@ -344,12 +371,16 @@ fn completion_of(outcome: Result<Option<String>, String>) -> Completion<tcl_vm::
     }
 }
 
+
 impl NativeCommand for WordAdapter {
     fn invoke(&self, vm: &mut Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
-        let words: Vec<String> = args
-            .iter()
-            .map(|value| value.to_str().to_string())
-            .collect();
+        let words = match vm.original_callback_unicode_words(
+            args,
+            "SpecTcl declaration vocabulary requires Unicode",
+        ) {
+            Ok(words) => words,
+            Err(refusal) => return refusal,
+        };
         let mut ctx = PackEvalCtx {
             vm,
             line: self.line.get(),
@@ -367,10 +398,13 @@ struct UnknownAdapter {
 
 impl NativeCommand for UnknownAdapter {
     fn invoke(&self, vm: &mut Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
-        let words: Vec<String> = args
-            .iter()
-            .map(|value| value.to_str().to_string())
-            .collect();
+        let words = match vm.original_callback_unicode_words(
+            args,
+            "SpecTcl declaration vocabulary requires Unicode",
+        ) {
+            Ok(words) => words,
+            Err(refusal) => return refusal,
+        };
         let Some((name, rest)) = words.split_first() else {
             return completion_of(Ok(None));
         };
@@ -435,7 +469,7 @@ pub fn run_pack_program(
     // hook-sandbox commands, the pack extras, the ensemble helper namespaces,
     // and the maths functions minus `rand`/`srand`.
     engine.vm_mut().retain_commands(&|name| {
-        let name = name.trim_start_matches("::");
+        let name = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         if DENIED_MATHFUNCS.contains(&name) {
             return false;
         }
@@ -466,7 +500,16 @@ pub fn run_pack_program(
         }
         Ok(Err(EngineError::Compile(message))) => Err(PackEvalFailure::Compile(message)),
         Ok(Err(EngineError::Script { message, .. })) => Err(PackEvalFailure::Script(message)),
-        Ok(Err(other)) => Err(PackEvalFailure::Script(other.to_string())),
+        Ok(Err(EngineError::ScriptBytes { message, .. })) => {
+            Err(match String::from_utf8(message) {
+                Ok(message) => PackEvalFailure::Script(message),
+                Err(error) => PackEvalFailure::ScriptBytes(error.into_bytes()),
+            })
+        }
+        Ok(Err(EngineError::ExecutionRefusal(reason))) => {
+            Err(PackEvalFailure::ExecutionRefusal(reason))
+        }
+        Ok(Err(other)) => Err(PackEvalFailure::ExecutionRefusal(other.to_string())),
         Err(payload) => Err(PackEvalFailure::Panic(panic_text(payload.as_ref()))),
     }
 }
@@ -519,6 +562,20 @@ mod tests {
             })
         };
         (seen, vocabulary, unknown)
+    }
+
+    #[test]
+    fn pack_registration_keeps_constructed_colon_name_after_real_lookup() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual pack interpreter/vocabulary path, not a native name experiment.
+        let (seen, mut vocabulary, unknown) = capture_all();
+        vocabulary[0].0 = ":clock";
+        run_pack_program(":clock {A\0B}\n", &vocabulary, &unknown, &PackEvalConfig::default()).unwrap();
+        assert_eq!(*seen.borrow(), [vec!["register".to_owned(), "A\0B".to_owned()]]);
+        assert_eq!(denied_axis(":clock"), None);
+        assert_eq!(denied_axis("::::clock"), Some("clock/time"));
+        assert_eq!(denied_axis("other::clock"), None);
     }
 
     #[test]

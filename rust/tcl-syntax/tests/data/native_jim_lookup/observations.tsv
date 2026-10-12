@@ -1,0 +1,28 @@
+cmd-miss-fresh	ok=0	type=none	refs=1	frame=1	proc=1
+cmd-first	ok=1	type=command	refs=1	frame=1	proc=1	cacheproc=1	nsrefs=100	cmdlive=1
+cmd-duplicate	ok=1	type=command	refs=1	frame=1	proc=1	cacheproc=1	nsrefs=101	cmdlive=1
+cmd-replace-before-lookup	ok=1	type=command	refs=1	frame=1	proc=1	cacheproc=1	nsrefs=100	cmdlive=0
+cmd-replace-lookup	ok=1	type=command	refs=1	frame=1	proc=1	cacheproc=1	nsrefs=100	cmdlive=1
+cmd-rename-before-lookup	ok=1	type=command	refs=1	frame=1	proc=2	cacheproc=1	nsrefs=102	cmdlive=-1
+cmd-rename-old-miss	ok=0	type=command	refs=1	frame=1	proc=2	cacheproc=1	nsrefs=102	cmdlive=-1
+cmd-retired-miss	ok=0	type=command	refs=1	frame=1	proc=2	cacheproc=1	nsrefs=101	cmdlive=-1
+var-miss-fresh	ok=0	type=none	refs=1	frame=1	proc=2
+var-created	ok=1	type=variable	refs=2	frame=1	proc=2	cacheframe=1	global=0
+var-read	ok=1	type=variable	refs=2	frame=1	proc=2	cacheframe=1	global=0
+var-duplicate	ok=1	type=variable	refs=1	frame=1	proc=2	cacheframe=1	global=0
+var-local-frame-miss	ok=0	type=variable	refs=2	frame=39	proc=2	cacheframe=1	global=0
+var-root-again	ok=1	type=variable	refs=2	frame=1	proc=2	cacheframe=1	global=0
+var-unrelated-unset-before-lookup	ok=1	type=variable	refs=2	frame=40	proc=2	cacheframe=1	global=0
+var-unrelated-unset-lookup	ok=1	type=variable	refs=2	frame=40	proc=2	cacheframe=40	global=0
+var-unset-before-miss	ok=1	type=variable	refs=1	frame=41	proc=2	cacheframe=40	global=0
+var-unset-miss	ok=0	type=variable	refs=1	frame=41	proc=2	cacheframe=40	global=0
+var-recreate	ok=1	type=variable	refs=2	frame=41	proc=2	cacheframe=41	global=0
+var-absolute-create	ok=1	type=variable	refs=1	frame=41	proc=2	cacheframe=41	global=1
+var-absolute-read	ok=1	type=variable	refs=1	frame=41	proc=2	cacheframe=41	global=1
+var-counted-nul-create	ok=1	type=variable	refs=2	frame=41	proc=2	cacheframe=41	global=0
+var-counted-nul-read	ok=1	type=variable	refs=2	frame=41	proc=2	cacheframe=41	global=0
+var-opaque-create	ok=1	type=variable	refs=2	frame=41	proc=2	cacheframe=41	global=0
+var-opaque-read	ok=1	type=variable	refs=2	frame=41	proc=2	cacheframe=41	global=0
+cmd-deleted-active-original-hit	ok=1	type=command	refs=2	frame=41	proc=2	cacheproc=2	nsrefs=105	cmdlive=1
+cmd-deleted-active-fresh-miss	ok=0	type=none	refs=1	frame=41	proc=2
+cmd-after-active-retirement	ok=0	type=command	refs=1	frame=41	proc=2	cacheproc=2	nsrefs=105	cmdlive=0

@@ -1,0 +1,52 @@
+[
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_each_loop/original/manifest.json",
+    "sha256": "6331df842ad47fb5610d98174f248ce32b3c657f35736ef95afb0c1405e1a22c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.each-loop.original-member-and-body-roles",
+      "naming.each-loop.incomplete-group-padding",
+      "naming.each-loop.empty-values-body-withdrawal",
+      "naming.each-loop.original-lmap-collection",
+      "naming.each-loop.group-validation-order"
+    ],
+    "reason": "Exact original probe SHA and all six full output digests/10 completions/per-provider window counts/statuses independently checked. Ten measured cases are grouped by original member roles, incomplete group, unentered malformed body, lmap collection and group error order. Command-unavailable C84/85 lmap rows stay guest errors, not supported physical loops."
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_each_loop/shimmer/manifest.json",
+    "sha256": "b71dc5bb81e1570ebe54fd6b383e5d530d1e3e49e5e7a3301bdd94baa218b868",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.each-loop.original-root-shimmer-and-refetch"
+    ],
+    "reason": "Exact distinct source and six whole original output hashes verified;60 guest completions and217 snapshots. Actual extra pins/first-body getters and subsequent original root states are preserved; unsupported and unentered cases are not called successful shimmer windows."
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_list_storage/manifest.json",
+    "sha256": "9f06be1c13a3cb37d724ef82ad5082f0c4a882e18c93cebb528163e6de409a60",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.list-storage.original-whole-header-publication",
+      "naming.list-storage.original-prefix-and-span-geometry",
+      "naming.list-storage.original-shared-header-versus-store"
+    ],
+    "reason": "Exact private probe SHA and both full output digests checked;144case\u00d73snapshot rows each preserve real original/share/duplicate/result owners. Whole publication, unshared prefix/span and header-versus-store sharing are independently scoped; C8/Jim not-tested and native implementation hashes are not source excerpts."
+  },
+  {
+    "path": "rust/tcl-core-types/tests/data/native_variable_tables/manifest.json",
+    "sha256": "ef2b629ba28eeae46b8823ea8e02bdb7b32b28d2326a004b8cad350d53425a72",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable-table.actual-abi-inputs",
+      "naming.variable-table.original-array-growth-and-reinsertion",
+      "naming.variable-table.original-opaque-key-extents",
+      "naming.variable-table.bootstrap-physical-versus-visible-keys",
+      "naming.variable-table.dynamic-global-and-local-order",
+      "naming.variable-table.undefined-array-shell-growth",
+      "naming.variable-table.undefined-global-shell-filtering",
+      "naming.variable-table.array-unset-observer-order",
+      "naming.variable-table.dynamic-local-unset-observer-order"
+    ],
+    "reason": "Exact retained source, six whole298-row JSONL digests/header-library/statuses, and320derived C array-names projections independently checked. ABI, array growth/order/opaque extents, bootstrap filtering, dynamic inventories, traced undefined array/global shells and separate array/frame teardown questions are all mapped; Jim absent trace/search rows remain unsupported. Missing listed additional artifacts are not treated as recovered byte evidence."
+  }
+]

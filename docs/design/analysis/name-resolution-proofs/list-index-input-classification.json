@@ -1,0 +1,9 @@
+[
+  {
+    "path": "rust/tcl-registry/tests/data/native_list_index_compilation/cases.json",
+    "sha256": "97f7e039efcb4ea18a5b221a1f6ddfd55303b9484db587a4385bd974fb822840",
+    "classification": "input-fixture",
+    "proof_ids": [],
+    "reason": "Inspected 19 JSON script strings and decoded every corresponding original C bodies[] literal; the arrays are exactly equal in order and bytes. This file is an authored input list, with no run/status/output/provider rows. The separate compiler probe and manifest own opcode/result observations and remain independently reviewed."
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "source_sha256": "04b7c2d0042b26ab25dc8569bbc4cc6bf215994b8d47dd1f4077796b85a8ecd6",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Native counted object-vector property declarations/access; original result pointer sampled before string getter",
+  "question_id": "naming.property.original-c9-counted-name-access",
+  "cases": [
+    "Default FF/D800/D801/raw-zero declaration/write/read/original-value identity",
+    "Two simultaneous D800/D801 custom getters and counted roster",
+    "List-quoting and name grammar invalid declarations"
+  ],
+  "limits": [
+    "C84/C85/C86/Jim configurable availability negatives",
+    "No property cache/header/epoch/pointer ownership transfer claims"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "question": "naming.property.original-configurable-availability-counted-argv",
+  "provider": "9.1.0",
+  "input_channel": "original-counted-object-vector (Tcl_EvalObjv or Jim_EvalObjVector); actual info patchlevel from separate ASCII startup source",
+  "scope": "Availability and the fresh ASCII configurable create/class object create argv only. No property storage, opaque names, Native source preflight, compilation or callback absence claim. Source-script CREATE rows of native_property_counted_original are a separate retained channel.",
+  "source_sha256": "d002f896107884e9aa995e1363f5acf25700c2b5be97e65c05d9508586c77940",
+  "queue_sha256": "5c73bb71f33c71927715cdcacad6739136914a6e2462fd2a4abfaa07660edf96",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+    "/workspace/.proofs/current-native-property-availability-argv169/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/current-native-property-availability-argv169/output/9.1.0/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "e6e72592125a71a582e7912e04172b5b91a6027a60cd37136ae994033d8de784",
+  "stdout_sha256": "daac7a2c5b744e7cea65fae08d2eb1471769d0de3c7811cc8361a8609cdaae8a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "9.1.0",
+  "rows": [
+    "VERSION|0|0|392e312e30",
+    "AVAILABILITY_OBJV|0|0|3a3a6f6f3a3a636f6e666967757261626c65",
+    "FACTORY_OBJV|0|0|3a3a43",
+    "OBJECT_OBJV|0|0|3a3a6f"
+  ],
+  "seconds": 0.11001707200193778
+}

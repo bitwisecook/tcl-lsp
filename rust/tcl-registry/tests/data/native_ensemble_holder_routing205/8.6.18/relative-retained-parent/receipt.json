@@ -1,0 +1,45 @@
+{
+  "provider": "8.6.18",
+  "command": [
+    "/workspace/.proofs/native-ensemble-holder-routing205/8.6.18/probe.elf",
+    "/workspace/.proofs/native-ensemble-holder-routing205/holder-prelude.tcl",
+    "/workspace/.proofs/native-ensemble-holder-routing205/relative-retained-parent.tcl",
+    "/workspace/.proofs/native-ensemble-holder-routing205/retained-query.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.003691285994136706,
+  "rows": [
+    "VERSION|0|382e362e3138",
+    "PRELUDE|0|",
+    "ORIGINAL|1|747269656420746f206d616e6970756c61746520656e73656d626c65206f662064656c65746564206e616d657370616365",
+    "QUERY|1|63616e2774207265616420223a3a6f62736572766564223a206e6f2073756368207661726961626c65"
+  ],
+  "executable_sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+  "compile_receipt_sha256": "980706c31626204df33b55fa953bfe4266d836c4d0a39b1b89dd03d995248415",
+  "source_sha256": {
+    "original": "db5a9892ac7694565b0ad26fc1e2cb74724450fa0294f63f46f294ef8e96cd3a",
+    "prelude": "91076201c8ff10be3ed7c20bbb9206f6a91e6a70ec83261c4fb0c6142c74976b",
+    "query": "e07363aec89b50366186fa575fd9c9d2aa874acb50eb82d5de2f4cb3333aa422"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c": "83845b75b4da27d7ae67afd5b15135153d68557681cd9659f75d4d4e027135a2",
+    "/workspace/.proofs/native-ensemble-holder-routing205/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3"
+  },
+  "stdout_sha256": "7e6dcffeeed928f51f5accbb569634c5de91afbc6cf86da4e9a417acc5ba6c2e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "reported_cli_provider_version_association": "version 8.6.18 initial_class {} alias_command {}",
+  "provider_version_receipt_sha256": "9a89b544c51fe11d8dc302119e7047e0cdc0dceb183572c743c430a88c155af1",
+  "channel": "External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only"
+}

@@ -1,0 +1,10 @@
+Jim_Obj *Jim_NewStringObjNoAlloc(Jim_Interp *interp, char *s, int len)
+{
+    Jim_Obj *objPtr = Jim_NewObj(interp);
+
+    objPtr->bytes = s;
+    objPtr->length = (len == -1) ? strlen(s) : len;
+    objPtr->typePtr = NULL;
+    return objPtr;
+}
+

@@ -1,0 +1,362 @@
+[
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "provide-prefix",
+    "source": "package prov Tcl",
+    "source_sha256": "c91b08daf96ed5d30d58af1986fbf07503645328db708714a62e1d3e64a9292f",
+    "exit": 0,
+    "stdout": "0|382e34\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "require-prefix",
+    "source": "package req -exact Tcl 8.4",
+    "source_sha256": "8b4508a096e3426c946c484219424d70949f691006ce6b16d34910310e933e77",
+    "exit": 0,
+    "stdout": "0|382e34\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "present-prefix",
+    "source": "package pres Tcl",
+    "source_sha256": "046c1d7595f4ce4527c0a7f2c1aa0e639399718d575ceb7193d878c6a60c0e66",
+    "exit": 0,
+    "stdout": "0|382e34\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "ambiguous-package",
+    "source": "package pr",
+    "source_sha256": "3243002a1c1776deca51e5057dca7e867ca353226af47247d77a76d6fbafeada",
+    "exit": 0,
+    "stdout": "1|616d626967756f7573206f7074696f6e20227072223a206d75737420626520666f726765742c2069666e65656465642c206e616d65732c2070726573656e742c2070726f766964652c20726571756972652c20756e6b6e6f776e2c2076636f6d706172652c2076657273696f6e732c206f722076736174697366696573\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "new-member",
+    "source": "package files Tcl",
+    "source_sha256": "631655b234c8da8457950a1d068d291d1297d57417791005906b8ffb52add653",
+    "exit": 0,
+    "stdout": "1|626164206f7074696f6e202266696c6573223a206d75737420626520666f726765742c2069666e65656465642c206e616d65732c2070726573656e742c2070726f766964652c20726571756972652c20756e6b6e6f776e2c2076636f6d706172652c2076657273696f6e732c206f722076736174697366696573\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "multi-requirement",
+    "source": "package vsat 1.2 1.0 2.0",
+    "source_sha256": "97d57d6e552d355bba6cf8b6d5f09764fbbe534b46debd168cebc17282fc5ed8",
+    "exit": 0,
+    "stdout": "1|77726f6e67202320617267733a2073686f756c6420626520227061636b61676520767361746973666965732076657273696f6e312076657273696f6e3222\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "provide-arity",
+    "source": "package prov",
+    "source_sha256": "7b5144a1f0394323975d65a7710d1a2c0ab8521aa6014146aad8abd4c3a5c06a",
+    "exit": 0,
+    "stdout": "1|77726f6e67202320617267733a2073686f756c6420626520227061636b6167652070726f76696465207061636b616765203f76657273696f6e3f22\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "custom-provide",
+    "source": "package provide Demo 1.2; package present Demo",
+    "source_sha256": "f6ac509f23e1fa97de0250bdb6ca7136924bf4d63a7592647d814e7f9a4b9e00",
+    "exit": 0,
+    "stdout": "0|312e32\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "custom-versions",
+    "source": "package ifneeded Demo 1.2 {package provide Demo 1.2}; package versions Demo",
+    "source_sha256": "4b306f4e6b07b3d3c3d4f0ac195b102e300cd990cc114a9f95ef5038739ed47d",
+    "exit": 0,
+    "stdout": "0|312e32\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "custom-loader",
+    "source": "package ifneeded Demo 1.2 {package provide Demo 1.2}; package req Demo",
+    "source_sha256": "9962f26233ef8a34d3a7c06c8878c926303e6c44cae61c062d06722c44c1a096",
+    "exit": 0,
+    "stdout": "0|312e32\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "forget-core",
+    "source": "package forget Tcl; package prov Tcl",
+    "source_sha256": "7dcf3752ba3abcab0442fbb2ff2deac38e59b51b089614fa7caf199254c5c51f",
+    "exit": 0,
+    "stdout": "0|\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "names-forgotten",
+    "source": "package forget Tcl; lsearch -exact [package names] Tcl",
+    "source_sha256": "5489a2cc30d4b4ccf103bb2b4710953d4f82c72d72ca0012c117e526b30054a4",
+    "exit": 0,
+    "stdout": "0|2d31\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "unknown",
+    "source": "package unknown {package provide}; package unknown",
+    "source_sha256": "c8bb642d38ec6a9c8f136f5a6bbf37f8670598c3170a05fe3e2134ed3427bc3e",
+    "exit": 0,
+    "stdout": "0|7061636b6167652070726f76696465\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "version-compare",
+    "source": "package vc 1.2 1.2.0",
+    "source_sha256": "54c5616c89e45c0d68f246c501c628bddf3da8f5be582e505e76df4f3aca985e",
+    "exit": 0,
+    "stdout": "0|30\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "version-invalid",
+    "source": "package prov Demo bad",
+    "source_sha256": "5a9e4e90009d3c7453d177f4c95ed4cac6d30911d1cf9b0836ac4d307b5865c6",
+    "exit": 0,
+    "stdout": "1|65787065637465642076657273696f6e206e756d6265722062757420676f74202262616422\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "namespace-ambiguous",
+    "source": "namespace e",
+    "source_sha256": "748bb6999cb07f3b94a4893f034beb6529576401a72385af584502f3928c6fb8",
+    "exit": 0,
+    "stdout": "1|616d626967756f7573206f7074696f6e202265223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "namespace-path",
+    "source": "namespace path",
+    "source_sha256": "5736e8245259542db4f4d3aaba439ffe28d77edebae93a9e7f99d4443d61d34d",
+    "exit": 0,
+    "stdout": "1|626164206f7074696f6e202270617468223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl8.4.20",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "label": "namespace-prefix",
+    "source": "namespace cur",
+    "source_sha256": "51dd507228ea53a195cd42b89241243ee41649964866628967c34932e12f62b5",
+    "exit": 0,
+    "stdout": "0|3a3a\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "provide-prefix",
+    "source": "package prov Tcl",
+    "source_sha256": "3074f8865a25ee99bb896e3daa47c700f2bccda283cfea9179405bfc1498d840",
+    "exit": 0,
+    "stdout": "0|392e302e34\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "require-prefix",
+    "source": "package req -exact Tcl 8.4",
+    "source_sha256": "3527e7f0fe62e27836fd4be3d935aeca7da5aec9a6aaccfcf1b6c13c32ac1556",
+    "exit": 0,
+    "stdout": "1|76657273696f6e20636f6e666c69637420666f72207061636b616765202254636c223a206861766520392e302e342c206e6565642065786163746c7920382e34\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "present-prefix",
+    "source": "package pres Tcl",
+    "source_sha256": "deeadb7e8c8d4eb62920e59ace01399cc10b2aa072d5447b5b8267c90c50c168",
+    "exit": 0,
+    "stdout": "0|392e302e34\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "ambiguous-package",
+    "source": "package pr",
+    "source_sha256": "72ba52f94808db5fec496cfb38b0ada7ad18ebcae7c1fff0524f1ec47c35f600",
+    "exit": 0,
+    "stdout": "1|616d626967756f7573206f7074696f6e20227072223a206d7573742062652066696c65732c20666f726765742c2069666e65656465642c206e616d65732c207072656665722c2070726573656e742c2070726f766964652c20726571756972652c20756e6b6e6f776e2c2076636f6d706172652c2076657273696f6e732c206f722076736174697366696573\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "new-member",
+    "source": "package files Tcl",
+    "source_sha256": "7ea2c1f06b956c11399272f6c74dd30a85877e29171820b122f6acd1906e1003",
+    "exit": 0,
+    "stdout": "0|\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "multi-requirement",
+    "source": "package vsat 1.2 1.0 2.0",
+    "source_sha256": "e998290cceff134a3930522067e1e4b303953598a8005deb633a4706e7d6f23e",
+    "exit": 0,
+    "stdout": "0|31\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "provide-arity",
+    "source": "package prov",
+    "source_sha256": "68dfd3bbdb01a058c167f1e0b012abc0a35b60da9e966a636d5cdeea9a034aba",
+    "exit": 0,
+    "stdout": "1|77726f6e67202320617267733a2073686f756c6420626520227061636b6167652070726f76696465207061636b616765203f76657273696f6e3f22\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "custom-provide",
+    "source": "package provide Demo 1.2; package present Demo",
+    "source_sha256": "64e0642673b17a7921c4aa1f4058c8c5bef022c824452601ef0fd4c2eb52289f",
+    "exit": 0,
+    "stdout": "0|312e32\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "custom-versions",
+    "source": "package ifneeded Demo 1.2 {package provide Demo 1.2}; package versions Demo",
+    "source_sha256": "b286fda0dbfeea6b3e6b84b8fc19a28aefd4e2061e44ff2514deb595ebe7789d",
+    "exit": 0,
+    "stdout": "0|312e32\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "custom-loader",
+    "source": "package ifneeded Demo 1.2 {package provide Demo 1.2}; package req Demo",
+    "source_sha256": "723da01df2131a969abcc1165c4474f2d0a845c8fe25f8071e6d131cceb2ff1b",
+    "exit": 0,
+    "stdout": "0|312e32\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "forget-core",
+    "source": "package forget Tcl; package prov Tcl",
+    "source_sha256": "f9bc094e26fce6c603c38ed5e0134e78a4013f3a1dad8bf208549b23db7cec2d",
+    "exit": 0,
+    "stdout": "0|\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "names-forgotten",
+    "source": "package forget Tcl; lsearch -exact [package names] Tcl",
+    "source_sha256": "64dfc8c331b475273a5b65632ea7d88456ed4fc9f92f4d1533aad950e75e713c",
+    "exit": 0,
+    "stdout": "0|2d31\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "unknown",
+    "source": "package unknown {package provide}; package unknown",
+    "source_sha256": "e504b21e3e985d1ab25a22a62ba99aa30053563fb9535e8a7252a03394eb524c",
+    "exit": 0,
+    "stdout": "0|7061636b6167652070726f76696465\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "version-compare",
+    "source": "package vc 1.2 1.2.0",
+    "source_sha256": "7be8384e698625d4bc4ff8e247f68109935b560046a9787e2a48b76e7b230644",
+    "exit": 0,
+    "stdout": "0|30\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "version-invalid",
+    "source": "package prov Demo bad",
+    "source_sha256": "7c3db12fd73eb3830d427f56079b50e390f0349d3ca1cfbd5a19afe710b7242b",
+    "exit": 0,
+    "stdout": "1|65787065637465642076657273696f6e206e756d6265722062757420676f74202262616422\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "namespace-ambiguous",
+    "source": "namespace e",
+    "source_sha256": "b721e319127959989284e0f5de1a8d71e42dfb13e617d70050e6f5a6b655d1d0",
+    "exit": 0,
+    "stdout": "1|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e64202265223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c20656e73656d626c652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c20706174682c207175616c6966696572732c207461696c2c20756e6b6e6f776e2c2075707661722c206f72207768696368\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "namespace-path",
+    "source": "namespace path",
+    "source_sha256": "be02bf57d214441b56d2b56ca21f2faa5171bfcb51046fc6478c39e1958a1cba",
+    "exit": 0,
+    "stdout": "0|\n",
+    "stderr": ""
+  },
+  {
+    "engine": "tcl9.0.4",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "label": "namespace-prefix",
+    "source": "namespace cur",
+    "source_sha256": "daea21f9358312a22414607dd69c3f2d3c92b1e9ef350aebcac167ea595d76ae",
+    "exit": 0,
+    "stdout": "0|3a3a\n",
+    "stderr": ""
+  }
+]

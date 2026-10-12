@@ -1,0 +1,117 @@
+{
+  "probe_sha256": "0c97c11f3e6f5c0a26ab2eb856b780341cd1e22026b6115d6f6e73a4f35b7ea6",
+  "timeout_seconds": 60,
+  "engines": [
+    {
+      "release": "8.4.20",
+      "argv": [
+        "cc",
+        "-O0",
+        "-Itmp/tcl8.4.20/generic",
+        "-Itmp/tcl8.4.20/unix",
+        "rust/tcl-registry/tests/data/native_selected_worker_names/probe.c",
+        "tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/.proofs/2286-consumer-selected-worker-native/probe-8.4"
+      ],
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "binary_sha256": "60eaa048918b403045bb3559c1c8cd9e5a504d423fb635814d70eaccb6b2e843",
+      "return_code": 0,
+      "stderr": ""
+    },
+    {
+      "release": "8.5.19",
+      "argv": [
+        "cc",
+        "-O0",
+        "-Itmp/tcl8.5.19/generic",
+        "-Itmp/tcl8.5.19/unix",
+        "rust/tcl-registry/tests/data/native_selected_worker_names/probe.c",
+        "tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/.proofs/2286-consumer-selected-worker-native/probe-8.5"
+      ],
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "binary_sha256": "4d519ae937d111e3a3270237308c59244c9c18afadfd04541868c7bb5a3decef",
+      "return_code": 0,
+      "stderr": ""
+    },
+    {
+      "release": "8.6.18",
+      "argv": [
+        "cc",
+        "-O0",
+        "-Itmp/tcl8.6.18/generic",
+        "-Itmp/tcl8.6.18/unix",
+        "rust/tcl-registry/tests/data/native_selected_worker_names/probe.c",
+        "tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/.proofs/2286-consumer-selected-worker-native/probe-8.6"
+      ],
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "binary_sha256": "252cc3c7bab48634f55c4a8cc949827f0772598d75ce9bd5dddefea7d1d4a415",
+      "return_code": 0,
+      "stderr": ""
+    },
+    {
+      "release": "9.0.4",
+      "argv": [
+        "cc",
+        "-O0",
+        "-Itmp/tcl9.0.4/generic",
+        "-Itmp/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_selected_worker_names/probe.c",
+        "tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/.proofs/2286-consumer-selected-worker-native/probe-9.0"
+      ],
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "binary_sha256": "b3273d652d241b7e04bf74636d70a879d98599c28322d94934a9da0e61799a1e",
+      "return_code": 0,
+      "stderr": ""
+    },
+    {
+      "release": "9.1.0",
+      "argv": [
+        "cc",
+        "-O0",
+        "-Itmp/tcl9.1.0/generic",
+        "-Itmp/tcl9.1.0/unix",
+        "rust/tcl-registry/tests/data/native_selected_worker_names/probe.c",
+        "tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/.proofs/2286-consumer-selected-worker-native/probe-9.1"
+      ],
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "binary_sha256": "7cee62fef0c8f49e3f6509414d1a68483533a2071ff53dad19490755d8184d08",
+      "return_code": 0,
+      "stderr": ""
+    },
+    {
+      "release": "current Jim",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "return_code": 0,
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "question": "Can array set materialise a root that already owns an undefined write-trace shell, and do write callbacks alter a later pair before that original pair overwrites it?",
+  "source": "source.tcl",
+  "sha256": "4ffc50f2014c35f4bf451199b9916153f104e79fdf153b28c7280db8ea75177b",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Fresh original ASCII whole-source counted fullInit CAPI; retain actual completion/result and exact stderr/exit/build/source pins. Modern trace add variable API unchanged across all original sources; Jim actual unavailable API error retained.",
+  "limits": "Whole public completion and final values only; no receiver/header/member identity or callback-private state claims. Expected FIRST LAST is a corpus control independently reconfirmed, not assumed provider agreement."
+}

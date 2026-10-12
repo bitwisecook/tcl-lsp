@@ -1,0 +1,5 @@
+VERSION|0|392e302e34
+INPUT|string-eacute|none|1|c3a9
+RETURN|0|bytearray|0
+INPUT_AFTER|none|1
+RAW|2|c3a9

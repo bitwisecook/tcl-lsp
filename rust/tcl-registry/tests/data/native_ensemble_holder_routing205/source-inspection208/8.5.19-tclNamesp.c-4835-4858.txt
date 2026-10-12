@@ -1,0 +1,24 @@
+	/*
+	 * Parse the option list, applying type checks as we go. Note that we
+	 * are not incrementing any reference counts in the objects at this
+	 * stage, so the presence of an option multiple times won't cause any
+	 * memory leaks.
+	 */
+
+	for (; objc>1 ; objc-=2,objv+=2 ) {
+	    if (Tcl_GetIndexFromObj(interp, objv[0], createOptions, "option",
+		    0, &index) != TCL_OK) {
+		if (allocatedMapFlag) {
+		    Tcl_DecrRefCount(mapObj);
+		}
+		return TCL_ERROR;
+	    }
+	    switch ((enum EnsCreateOpts) index) {
+	    case CRT_CMD:
+		name = TclGetString(objv[1]);
+		continue;
+	    case CRT_SUBCMDS:
+		if (TclListObjLength(interp, objv[1], &len) != TCL_OK) {
+		    if (allocatedMapFlag) {
+			Tcl_DecrRefCount(mapObj);
+		    }

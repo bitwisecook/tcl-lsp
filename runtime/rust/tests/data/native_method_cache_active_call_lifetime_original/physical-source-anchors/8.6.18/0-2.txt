@@ -1,0 +1,96 @@
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODeleteChain(
+    CallChain *callPtr)
+{
+    if (callPtr == NULL || callPtr->refCount-- > 1) {
+	return;
+    }
+    if (callPtr->chain != callPtr->staticChain) {
+	ckfree(callPtr->chain);
+    }
+    ckfree(callPtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOStashContext --
+ *
+ *	Saves a reference to a method call context in a Tcl_Obj's internal
+ *	representation.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+StashCallChain(
+    Tcl_Obj *objPtr,
+    CallChain *callPtr)
+{
+    callPtr->refCount++;
+    TclGetString(objPtr);
+    TclFreeIntRep(objPtr);
+    objPtr->typePtr = &methodNameType;
+    objPtr->internalRep.twoPtrValue.ptr1 = callPtr;
+}
+
+void
+TclOOStashContext(
+    Tcl_Obj *objPtr,
+    CallContext *contextPtr)
+{
+    StashCallChain(objPtr, contextPtr->callPtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * DupMethodNameRep, FreeMethodNameRep --
+ *
+ *	Functions to implement the required parts of the Tcl_Obj guts needed
+ *	for caching of method contexts in Tcl_Objs.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+DupMethodNameRep(
+    Tcl_Obj *srcPtr,
+    Tcl_Obj *dstPtr)
+{
+    CallChain *callPtr = srcPtr->internalRep.twoPtrValue.ptr1;
+
+    dstPtr->typePtr = &methodNameType;
+    dstPtr->internalRep.twoPtrValue.ptr1 = callPtr;
+    callPtr->refCount++;
+}
+
+static void
+FreeMethodNameRep(
+    Tcl_Obj *objPtr)
+{
+    CallChain *callPtr = objPtr->internalRep.twoPtrValue.ptr1;
+
+    TclOODeleteChain(callPtr);
+    objPtr->typePtr = NULL;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOInvokeContext --
+ *
+ *	Invokes a single step along a method call-chain context. Note that the
+ *	invocation of a step along the chain can cause further steps along the
+ *	chain to be invoked. Note that this function is written to be as light
+ *	in stack usage as possible.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOOInvokeContext(
+    void *clientData,	/* The method call context. */

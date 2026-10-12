@@ -1,0 +1,5 @@
+PATCHLEVEL|0.84-9-g5bac7c9
+INFO|library|1|info, unknown command "library": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version
+INFO|nameofexecutable|0|/workspace/.proofs/native-providers/jimtcl/jimsh
+INFO|loaded|1|info, unknown command "loaded": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version
+ENCODING|1|invalid command name "encoding"

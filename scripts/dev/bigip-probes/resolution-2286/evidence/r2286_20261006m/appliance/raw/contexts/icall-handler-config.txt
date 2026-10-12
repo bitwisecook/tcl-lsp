@@ -1,0 +1,13 @@
+sys icall handler triggered __tcl_lsp_2286_r2286n_contexts_icall_handler {
+    app-service none
+    description none
+    script __tcl_lsp_2286_r2286n_contexts_icall
+    status active
+    subscriptions {
+        only {
+            app-service none
+            event-name R2286N_FOLLOWUP
+            filters none
+        }
+    }
+}

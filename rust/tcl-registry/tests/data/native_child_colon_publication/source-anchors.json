@@ -1,0 +1,50 @@
+[
+  {
+    "provider": "8.4.20",
+    "file": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclProc.c",
+    "sha256": "bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879",
+    "start_line": 126,
+    "end_line": 143,
+    "scope": "The original procedure publisher prepends nsPtr.fullName and :: only when nsPtr differs from globalNsPtr; simple procedure name is always appended before Tcl_CreateObjCommand."
+  },
+  {
+    "provider": "8.5.19",
+    "file": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c",
+    "sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+    "start_line": 173,
+    "end_line": 187,
+    "scope": "The original procedure publisher prepends nsPtr.fullName and :: only when nsPtr differs from globalNsPtr; simple procedure name is always appended before Tcl_CreateObjCommand."
+  },
+  {
+    "provider": "8.5.19",
+    "file": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c",
+    "sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+    "start_line": 2610,
+    "end_line": 2630,
+    "scope": "SetLambdaFromAny retains the original namespace object if it starts with ::; otherwise it creates :: and appends the original counted namespace object before TclGetNamespaceFromObj lookup. This source construction is separate from Procedure holder publication."
+  },
+  {
+    "provider": "8.6.18",
+    "file": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c",
+    "sha256": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+    "start_line": 2591,
+    "end_line": 2611,
+    "scope": "SetLambdaFromAny retains the original namespace object if it starts with ::; otherwise it creates :: and appends the original counted namespace object before TclGetNamespaceFromObj lookup. This source construction is separate from Procedure holder publication."
+  },
+  {
+    "provider": "9.0.4",
+    "file": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c",
+    "sha256": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110",
+    "start_line": 2624,
+    "end_line": 2644,
+    "scope": "SetLambdaFromAny retains the original namespace object if it starts with ::; otherwise it creates :: and appends the original counted namespace object before TclGetNamespaceFromObj lookup. This source construction is separate from Procedure holder publication."
+  },
+  {
+    "provider": "9.1.0",
+    "file": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c",
+    "sha256": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+    "start_line": 2525,
+    "end_line": 2545,
+    "scope": "SetLambdaFromAny retains the original namespace object if it starts with ::; otherwise it creates :: and appends the original counted namespace object before TclGetNamespaceFromObj lookup. This source construction is separate from Procedure holder publication."
+  }
+]

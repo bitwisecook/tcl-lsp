@@ -1,0 +1,111 @@
+			    Tcl_Namespace *namespacePtr, Object *oPtr,
+			    int objc, Tcl_Obj *const objv[]);
+static inline void	RecomputeClassCacheFlag(Object *oPtr);
+static int		RenameDeleteMethod(Tcl_Interp *interp, Object *oPtr,
+			    int useClass, Tcl_Obj *const fromPtr,
+			    Tcl_Obj *const toPtr);
+static int		ClassFilterGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassFilterSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassMixinGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassMixinSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassSuperGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassSuperSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassVarsGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ClassVarsSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ObjFilterGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ObjFilterSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ObjMixinGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ObjMixinSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ObjVarsGet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		ObjVarsSet(ClientData clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+
+/*
+ * Now define the slots used in declarations.
+ */
+
+static const struct DeclaredSlot slots[] = {
+    SLOT("define::filter",      ClassFilterGet, ClassFilterSet),
+    SLOT("define::mixin",       ClassMixinGet,  ClassMixinSet),
+    SLOT("define::superclass",  ClassSuperGet,  ClassSuperSet),
+    SLOT("define::variable",    ClassVarsGet,   ClassVarsSet),
+    SLOT("objdefine::filter",   ObjFilterGet,   ObjFilterSet),
+    SLOT("objdefine::mixin",    ObjMixinGet,    ObjMixinSet),
+    SLOT("objdefine::variable", ObjVarsGet,     ObjVarsSet),
+    {NULL, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}}
+};
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * BumpGlobalEpoch --
+ *	Utility that ensures that call chains that are invalid will get thrown
+ *	away at an appropriate time. Note that exactly which epoch gets
+ *	advanced will depend on exactly what the class is tangled up in; in
+ *	the worst case, the simplest option is to advance the global epoch,
+ *	causing *everything* to be thrown away on next usage.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+BumpGlobalEpoch(
+    Tcl_Interp *interp,
+    Class *classPtr)
+{
+    if (classPtr != NULL
+	    && classPtr->subclasses.num == 0
+	    && classPtr->instances.num == 0
+	    && classPtr->mixinSubs.num == 0) {
+	/*
+	 * If a class has no subclasses or instances, and is not mixed into
+	 * anything, a change to its structure does not require us to
+	 * invalidate any call chains. Note that we still bump our object's
+	 * epoch if it has any mixins; the relation between a class and its
+	 * representative object is special. But it won't hurt.
+	 */
+
+	if (classPtr->thisPtr->mixins.num > 0) {
+	    classPtr->thisPtr->epoch++;
+	}
+	return;
+    }
+
+    /*
+     * Either there's no class (?!) or we're reconfiguring something that is
+     * in use. Force regeneration of call chains.
+     */
+
+    TclOOGetFoundation(interp)->epoch++;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *

@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/string-option-trailing129/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.023800102004315704,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "8a4987bd87d697144bb07f463116e1e96853bbbb9aa825f9b6ef2be3abd12619",
+  "runner_sha256": "d96185d44373899e52d8b309c5b27eb52a326fb9da6ac09a4d548d67f8433fb7",
+  "stdout_sha256": "7d7aa24c5ecd090b58d9bc1e65b6c8444c11b3d368355b3b2c6768954665bc8b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "VERSION|8.5.19",
+    "baseline_optionlike_tail|0|31",
+    "shortened_selected_prefix|0|31",
+    "corrupted_tail|0|30",
+    "two_literal_tails|0|31",
+    "corrupted_first_literal|0|30",
+    "selected_length_before_tail|0|31"
+  ],
+  "input_channel": "ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0",
+  "boundary": "Observed success/error/result for six fixed string-equal forms only. No opaque object, compiler admission, cache, native storage or BIG-IP claim."
+}

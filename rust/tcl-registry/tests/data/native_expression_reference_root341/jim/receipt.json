@@ -1,0 +1,42 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-expression-reference-root341/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.018818790005752817,
+  "provider": "jim",
+  "provider_version_association": "version 0.84-9-g5bac7c9 initial_class class alias_command alias",
+  "version_association_receipt": "/workspace/.proofs/native-jim-class-source269/jim/receipt.json",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "76bc797db154598f002be8a2aeed8aae94360f988edd817042281b9ab10eef19",
+  "stdout_sha256": "56892884b53261fc1fe77d3f19c85fb7aaa054c856b2b9c48006883909663775",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+  },
+  "rows": [
+    "META patchlevel 0.84-9-g5bac7c9",
+    "EXPR label unmatched_scalar_open expression_hex 247b7363616c6172286f70656e7d code 0 result_hex 3131",
+    "EXPR label scalar_parenthesis_tail expression_hex 247b7363616c6172286f70656e297461696c7d code 0 result_hex 3132",
+    "EXPR label combined_closed_element expression_hex 247b617272286b6579297d code 0 result_hex 3231",
+    "EXPR label separate_closed_element expression_hex 24617272286b657929 code 0 result_hex 3231",
+    "EXPR label combined_multiple_parentheses expression_hex 247b61727228696e6e657229286b6579297d code 0 result_hex 3232",
+    "EXPR label first_close_reference expression_hex 247b617b627d code 0 result_hex 3331",
+    "EXPR label nested_close_reference expression_hex 247b617b627d637d code 1 result_hex 73796e746178206572726f7220696e2065787072657373696f6e3a2022247b617b627d637d22",
+    "EXPR label literal_dollar_scalar expression_hex 247b63617368246e616d657d code 0 result_hex 3431"
+  ],
+  "input_channel": "Exact ASCII LF source-file CLI. binary format H* explicitly constructs the declared variable name and reached expr argument. Public catch completion/result are sampled; no private parsed AST, table/header/cache, opaque source-byte, execution-entry or BIG-IP claim.",
+  "question": "naming.expression.variable-reference-boundaries"
+}

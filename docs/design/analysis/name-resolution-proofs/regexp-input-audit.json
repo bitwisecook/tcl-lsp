@@ -1,0 +1,36 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+    "probe_sha256": "d53afd2143239af6cc9fc8d3d166d7d7054f748e7e614c2c60bcbe5c3ae7c336",
+    "all_recorded_probe_hashes_match": true,
+    "build_statuses": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+    "probe_sha256": "ece4064597072cc821d332f2bc5de3467604edec8d8d153736aaa4b31ce76876",
+    "all_recorded_probe_hashes_match": true,
+    "build_statuses": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+    "probe_sha256": "dbd3c02c4d9b11f3f8cf91cefbffef96ca8a128ed6d84fd20fcec46315372f2e",
+    "recorded_probe_hash_matches": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+    "probe_sha256": "b427c8677cb8dcf5d7343c9cda1bae6d93e492fbe964a5c2de49c88b8fa5a803",
+    "recorded_probe_hash_matches": true
+  }
+]

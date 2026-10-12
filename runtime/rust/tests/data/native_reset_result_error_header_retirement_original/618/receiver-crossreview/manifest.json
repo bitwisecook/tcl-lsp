@@ -1,0 +1,23 @@
+{
+  "status": "READY independent actual Native618 cross-review",
+  "question": "naming.error.original-reset-result-error-header-retirement",
+  "files": [
+    {
+      "path": "/tmp/receiver-native-reset-result618-crossreview/interpretation.json",
+      "sha256": "4c883635ae1aebc2be79eb069a22cf65ab7493b812cfcedf7cba886bf93ce786",
+      "bytes": 47668
+    },
+    {
+      "path": "/tmp/receiver-native-reset-result618-crossreview/case-observations.json",
+      "sha256": "7a86467f85784e5894a2fd061ce4e09097b185870099d4fa4f7eed8d2e6f6192",
+      "bytes": 186887
+    },
+    {
+      "path": "/tmp/receiver-crossreview-reset618.py",
+      "sha256": "da615653cf595d4d4a3a1c0c6f2a8184726b63e07bb7a85872f761bfb67dcc02",
+      "bytes": 18522
+    }
+  ],
+  "original_request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "original_closure_sha256": "e0e0dbacb79e1812d97fd7c35103d8b5a7220fe7c855c22dee61fd2a04c571b8"
+}

@@ -1,0 +1,1994 @@
+
+running 29 tests
+test codegen::wasm::backend::tests::a_substituted_definition_body_is_left_to_the_runtimes_own_proc ... ok
+test codegen::wasm::backend::tests::a_top_level_written_out_definition_is_registered ... 
+thread 'codegen::wasm::backend::tests::a_top_level_written_out_definition_is_registered' (820335) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:3140:9:
+assertion `left == right` failed: {}
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test codegen::wasm::backend::tests::a_written_out_definition_body_still_binds ... 
+thread 'codegen::wasm::backend::tests::a_written_out_definition_body_still_binds' (820344) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:3126:9:
+the guard must not refuse a definition it should register: {}
+FAILED
+test codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays ... 
+thread 'codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays' (820364) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:2977:51:
+called `Option::unwrap()` on a `None` value
+FAILED
+test codegen::wasm::backend::tests::host_script_admission_boxes_the_complete_original_byte_image ... ok
+test codegen::wasm::backend::tests::provable_words_select_a_prebuilt_argv_plan ... ok
+test codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers ... 
+thread 'codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers' (820369) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:2920:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+FAILED
+test codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar ... 
+thread 'codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar' (820370) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:2835:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+FAILED
+test codegen::wasm::backend::tests::unprovable_words_record_their_typed_decline ... ok
+test common_aot_plan::tests::a_declined_caller_poisons_propagated_actual_types ... ok
+test common_aot_plan::tests::add_call_and_integer_formals_receive_common_proofs ... 
+thread 'common_aot_plan::tests::add_call_and_integer_formals_receive_common_proofs' (820453) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2563:32:
+nested add call selected: CommonAotProofPlan {
+    environment: Hosted,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: Some(
+                0,
+            ),
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::add",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Selected(
+            SemanticCallEvidence {
+                operation: StructuredLowering(
+                    Proc,
+                ),
+                form: None,
+                context: None,
+                metadata_context: ResolvedContext {
+                    environment: EnvironmentDefinition {
+                        id: EnvironmentId(
+                            "tcl9.0",
+                        ),
+                        aliases: [],
+                        display_name: "Tcl 9.0",
+                        short_name: "Tcl 9.0",
+                        kind: Language,
+                        editor_identity: Some(
+                            EditorLanguageIdentityId(
+                                "tcl90",
+                            ),
+                        ),
+                        selecting_identities: [],
+                        core: Some(
+                            CoreProfileSelector {
+                                family: Tcl,
+                                default_release: Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                                build: Canonical,
+                            },
+                        ),
+                        targets: VersionSet {
+                            axis: VersionAxisId(
+                                Core(
+                                    Tcl,
+                                ),
+                            ),
+                            ranges: [
+                                Span {
+                                    min: Version {
+                                        text: "9.0a0",
+                                    },
+                                    max: Some(
+                                        Version {
+                                            text: "9.1a0",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                        expected_packages: [
+                            PackagePlacement {
+                                package: "Tk",
+                                version: TracksBase,
+                                ambient: false,
+                            },
+                            PackagePlacement {
+                                package: "Itcl",
+                                version: Pinned(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                                ambient: false,
+                            },
+                        ],
+                        policy_defaults: EnvironmentPolicy {
+                            closed_world: Open,
+                            fixed_ensembles: false,
+                            strict_ascii: false,
+                            version_ceiling: Some(
+                                Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                            ),
+                        },
+                        server_detection: DetectionFacts {
+                            file_extensions: [],
+                            filenames: [],
+                            content_signatures: [],
+                            shebang_words: [
+                                "tclsh9.0",
+                                "wish9.0",
+                            ],
+                            directive_names: [],
+                        },
+                        help_terms: [
+                            "tcl",
+                            "tk",
+                        ],
+                        provenance: BuiltIn,
+                    },
+                    floors: FloorMap {
+                        entries: [
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Core(
+                                        Tcl,
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Core(
+                                            Tcl,
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Span {
+                                            min: Version {
+                                                text: "9.0a0",
+                                            },
+                                            max: Some(
+                                                Version {
+                                                    text: "9.1a0",
+                                                },
+                                            ),
+                                        },
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Tk",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Tk",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "9.0",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Itcl",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Itcl",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "4.2",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                            },
+                        ],
+                    },
+                    required_packages: [],
+                    pack_ambient: [],
+                    declared_targets: [],
+                    authoring_scope: AuthoringScope {
+                        core: [
+                            (
+                                Tcl,
+                                Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            ),
+                        ],
+                        packages: [],
+                    },
+                },
+                dispatch_dependencies: DispatchDependencies(
+                    15,
+                ),
+                traits: Traits(
+                    2514565704799273116908914754,
+                ),
+                arguments: [
+                    Value {
+                        outer_argument: 0,
+                    },
+                    Value {
+                        outer_argument: 1,
+                    },
+                    Value {
+                        outer_argument: 2,
+                    },
+                ],
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: None,
+        }: Declined(
+            NestedDirectUnavailable {
+                outer_argument: 0,
+            },
+        ),
+    },
+    closed_program_coverage: Declined(
+        HostedEnvironment,
+    ),
+    materialisable_slots: {
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 1,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 2,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                1,
+            ),
+            version: 1,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                1,
+            ),
+            version: 2,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                2,
+            ),
+            version: 0,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                3,
+            ),
+            version: 0,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+    },
+    coverage_declines: [],
+}
+FAILED
+test common_aot_plan::tests::defaults_variadics_rebinding_aliases_and_traces_decline ... 
+thread 'common_aot_plan::tests::defaults_variadics_rebinding_aliases_and_traces_decline' (820479) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2975:13:
+proc p {{x 1}} {return $x}
+p
+: CommonAotProofPlan { environment: Hosted, direct_calls: {DirectCallSiteId { function: "::top", block: BlockId(0), statement_index: 2, nested_argument: None }: Declined(NativeCompilationAdmissionRequired)}, declined_direct_callees: {"::p"}, semantic_calls: {DirectCallSiteId { function: "::top", block: BlockId(0), statement_index: 0, nested_argument: None }: Selected(SemanticCallEvidence { operation: StructuredLowering(Proc), form: None, context: None, metadata_context: ResolvedContext { environment: EnvironmentDefinition { id: EnvironmentId("tcl9.0"), aliases: [], display_name: "Tcl 9.0", short_name: "Tcl 9.0", kind: Language, editor_identity: Some(EditorLanguageIdentityId("tcl90")), selecting_identities: [], core: Some(CoreProfileSelector { family: Tcl, default_release: Release { family: Tcl, ordinal: 3 }, build: Canonical }), targets: VersionSet { axis: VersionAxisId(Core(Tcl)), ranges: [Span { min: Version { text: "9.0a0" }, max: Some(Version { text: "9.1a0" }) }] }, expected_packages: [PackagePlacement { package: "Tk", version: TracksBase, ambient: false }, PackagePlacement { package: "Itcl", version: Pinned(Version { text: "4.2" }), ambient: false }], policy_defaults: EnvironmentPolicy { closed_world: Open, fixed_ensembles: false, strict_ascii: false, version_ceiling: Some(Release { family: Tcl, ordinal: 3 }) }, server_detection: DetectionFacts { file_extensions: [], filenames: [], content_signatures: [], shebang_words: ["tclsh9.0", "wish9.0"], directive_names: [] }, help_terms: ["tcl", "tk"], provenance: BuiltIn }, floors: FloorMap { entries: [AxisFloor { axis: VersionAxisId(Core(Tcl)), targets: VersionSet { axis: VersionAxisId(Core(Tcl)), ranges: [Span { min: Version { text: "9.0a0" }, max: Some(Version { text: "9.1a0" }) }] }, primary: Some(Version { text: "9.0" }) }, AxisFloor { axis: VersionAxisId(Package("Tk")), targets: VersionSet { axis: VersionAxisId(Package("Tk")), ranges: [Exact(Version { text: "9.0" })] }, primary: Some(Version { text: "9.0" }) }, AxisFloor { axis: VersionAxisId(Package("Itcl")), targets: VersionSet { axis: VersionAxisId(Package("Itcl")), ranges: [Exact(Version { text: "4.2" })] }, primary: Some(Version { text: "4.2" }) }] }, required_packages: [], pack_ambient: [], declared_targets: [], authoring_scope: AuthoringScope { core: [(Tcl, Some(Version { text: "9.0" }))], packages: [] } }, dispatch_dependencies: DispatchDependencies(15), traits: Traits(2514565704799273116908914754), arguments: [Value { outer_argument: 0 }, Value { outer_argument: 1 }, Value { outer_argument: 2 }] }), DirectCallSiteId { function: "::top", block: BlockId(0), statement_index: 2, nested_argument: None }: Declined(RegistryUnresolved)}, closed_program_coverage: Declined(HostedEnvironment), materialisable_slots: {SsaValueIdentity { function: "::p", symbol: Symbol(0), version: 0 }: Declined(OriginalSlotUnavailable)}, coverage_declines: [] }
+FAILED
+test common_aot_plan::tests::dialect_tcloo_and_variable_trace_premises_are_retained ... 
+thread 'common_aot_plan::tests::dialect_tcloo_and_variable_trace_premises_are_retained' (820492) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2885:9:
+assertion failed: oo.coverage_declines().contains(&CommonAotCoverageDecline::TclOoMethods)
+FAILED
+test common_aot_plan::tests::direct_calls_retain_native_argv_expansion_at_the_generic_boundary ... 
+thread 'common_aot_plan::tests::direct_calls_retain_native_argv_expansion_at_the_generic_boundary' (820493) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2940:9:
+CommonAotProofPlan {
+    environment: Hosted,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 2,
+            nested_argument: None,
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::p",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Selected(
+            SemanticCallEvidence {
+                operation: StructuredLowering(
+                    Proc,
+                ),
+                form: None,
+                context: None,
+                metadata_context: ResolvedContext {
+                    environment: EnvironmentDefinition {
+                        id: EnvironmentId(
+                            "tcl9.0",
+                        ),
+                        aliases: [],
+                        display_name: "Tcl 9.0",
+                        short_name: "Tcl 9.0",
+                        kind: Language,
+                        editor_identity: Some(
+                            EditorLanguageIdentityId(
+                                "tcl90",
+                            ),
+                        ),
+                        selecting_identities: [],
+                        core: Some(
+                            CoreProfileSelector {
+                                family: Tcl,
+                                default_release: Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                                build: Canonical,
+                            },
+                        ),
+                        targets: VersionSet {
+                            axis: VersionAxisId(
+                                Core(
+                                    Tcl,
+                                ),
+                            ),
+                            ranges: [
+                                Span {
+                                    min: Version {
+                                        text: "9.0a0",
+                                    },
+                                    max: Some(
+                                        Version {
+                                            text: "9.1a0",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                        expected_packages: [
+                            PackagePlacement {
+                                package: "Tk",
+                                version: TracksBase,
+                                ambient: false,
+                            },
+                            PackagePlacement {
+                                package: "Itcl",
+                                version: Pinned(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                                ambient: false,
+                            },
+                        ],
+                        policy_defaults: EnvironmentPolicy {
+                            closed_world: Open,
+                            fixed_ensembles: false,
+                            strict_ascii: false,
+                            version_ceiling: Some(
+                                Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                            ),
+                        },
+                        server_detection: DetectionFacts {
+                            file_extensions: [],
+                            filenames: [],
+                            content_signatures: [],
+                            shebang_words: [
+                                "tclsh9.0",
+                                "wish9.0",
+                            ],
+                            directive_names: [],
+                        },
+                        help_terms: [
+                            "tcl",
+                            "tk",
+                        ],
+                        provenance: BuiltIn,
+                    },
+                    floors: FloorMap {
+                        entries: [
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Core(
+                                        Tcl,
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Core(
+                                            Tcl,
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Span {
+                                            min: Version {
+                                                text: "9.0a0",
+                                            },
+                                            max: Some(
+                                                Version {
+                                                    text: "9.1a0",
+                                                },
+                                            ),
+                                        },
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Tk",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Tk",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "9.0",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Itcl",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Itcl",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "4.2",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                            },
+                        ],
+                    },
+                    required_packages: [],
+                    pack_ambient: [],
+                    declared_targets: [],
+                    authoring_scope: AuthoringScope {
+                        core: [
+                            (
+                                Tcl,
+                                Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            ),
+                        ],
+                        packages: [],
+                    },
+                },
+                dispatch_dependencies: DispatchDependencies(
+                    15,
+                ),
+                traits: Traits(
+                    2514565704799273116908914754,
+                ),
+                arguments: [
+                    Value {
+                        outer_argument: 0,
+                    },
+                    Value {
+                        outer_argument: 1,
+                    },
+                    Value {
+                        outer_argument: 2,
+                    },
+                ],
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 2,
+            nested_argument: None,
+        }: Declined(
+            RegistryUnresolved,
+        ),
+    },
+    closed_program_coverage: Declined(
+        HostedEnvironment,
+    ),
+    materialisable_slots: {
+        SsaValueIdentity {
+            function: "::p",
+            symbol: Symbol(
+                0,
+            ),
+            version: 0,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+    },
+    coverage_declines: [],
+}
+FAILED
+test common_aot_plan::tests::direct_formals_consume_native_activation_plan ... ok
+test common_aot_plan::tests::direct_procedure_selection_preserves_native_preformal_admission ... ok
+test common_aot_plan::tests::dynamic_binding_transition_still_declines_direct_call_identity ... 
+thread 'common_aot_plan::tests::dynamic_binding_transition_still_declines_direct_call_identity' (820510) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2853:9:
+assertion failed: plan.direct_calls().any(|(_, decision)|
+        matches!(decision,
+            DirectProcDecision::Declined(DirectProcDecline::DynamicCommandMutation)))
+FAILED
+test common_aot_plan::tests::exceptional_edges_decline_direct_and_slot_plans ... 
+thread 'common_aot_plan::tests::exceptional_edges_decline_direct_and_slot_plans' (820533) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2990:9:
+assertion failed: plan.direct_calls().any(|(_, decision)|
+        matches!(decision,
+            DirectProcDecision::Declined(DirectProcDecline::ExceptionalControlFlow)))
+FAILED
+test common_aot_plan::tests::frame_elision_has_an_independent_default_off_gate ... 
+thread 'common_aot_plan::tests::frame_elision_has_an_independent_default_off_gate' (820563) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2763:9:
+assertion failed: plan.direct_calls().any(|(_, decision)|
+        {
+            matches!(decision,
+                DirectProcDecision::Selected(DirectProcEvidence
+                {
+                    body:
+                    DirectProcBodyDecision::Declined(DirectProcBodyDecline::FrameElisionPassDisabled),
+                    frame_elidable: false, ..
+                }))
+        })
+FAILED
+test common_aot_plan::tests::hosted_top_level_state_is_explicitly_observable ... ok
+test common_aot_plan::tests::internal_operation_rebinding_and_tracing_decline_body_specialisation ... 
+thread 'common_aot_plan::tests::internal_operation_rebinding_and_tracing_decline_body_specialisation' (820604) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2810:13:
+proc add {b c} {return [expr {$b+$c}]}
+rename expr saved_expr
+add 2 4
+: CommonAotProofPlan {
+    environment: Hosted,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 4,
+            nested_argument: None,
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::add",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Declined(
+            DynamicCommandMutation,
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 2,
+            nested_argument: None,
+        }: Declined(
+            DynamicCommandMutation,
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 4,
+            nested_argument: None,
+        }: Declined(
+            DynamicCommandMutation,
+        ),
+    },
+    closed_program_coverage: Declined(
+        HostedEnvironment,
+    ),
+    materialisable_slots: {},
+    coverage_declines: [],
+}
+FAILED
+test common_aot_plan::tests::known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation ... 
+thread 'common_aot_plan::tests::known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation' (820612) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2832:9:
+CommonAotProofPlan {
+    environment: Hosted,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: None,
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::add",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Declined(
+            DynamicCommandMutation,
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 3,
+            nested_argument: None,
+        }: Declined(
+            DynamicCommandMutation,
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: None,
+        }: Declined(
+            DynamicCommandMutation,
+        ),
+    },
+    closed_program_coverage: Declined(
+        HostedEnvironment,
+    ),
+    materialisable_slots: {
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 1,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+    },
+    coverage_declines: [],
+}
+FAILED
+test common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts ... 
+thread 'common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts' (820613) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2412:9:
+assertion `left == right` failed
+  left: None
+ right: Some([StructuredLowering(Expr), StructuredLowering(Return)])
+FAILED
+test common_aot_plan::tests::passes_are_off_by_default ... ok
+test common_aot_plan::tests::retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input ... ok
+test common_aot_plan::tests::sealed_program_proves_exact_top_slots_proc_and_output_boundary ... 
+thread 'common_aot_plan::tests::sealed_program_proves_exact_top_slots_proc_and_output_boundary' (820652) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2698:13:
+sealed program coverage missing: CommonAotProofPlan {
+    environment: SealedProgram,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: Some(
+                0,
+            ),
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::add",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Selected(
+            SemanticCallEvidence {
+                operation: StructuredLowering(
+                    Proc,
+                ),
+                form: None,
+                context: None,
+                metadata_context: ResolvedContext {
+                    environment: EnvironmentDefinition {
+                        id: EnvironmentId(
+                            "tcl9.0",
+                        ),
+                        aliases: [],
+                        display_name: "Tcl 9.0",
+                        short_name: "Tcl 9.0",
+                        kind: Language,
+                        editor_identity: Some(
+                            EditorLanguageIdentityId(
+                                "tcl90",
+                            ),
+                        ),
+                        selecting_identities: [],
+                        core: Some(
+                            CoreProfileSelector {
+                                family: Tcl,
+                                default_release: Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                                build: Canonical,
+                            },
+                        ),
+                        targets: VersionSet {
+                            axis: VersionAxisId(
+                                Core(
+                                    Tcl,
+                                ),
+                            ),
+                            ranges: [
+                                Span {
+                                    min: Version {
+                                        text: "9.0a0",
+                                    },
+                                    max: Some(
+                                        Version {
+                                            text: "9.1a0",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                        expected_packages: [
+                            PackagePlacement {
+                                package: "Tk",
+                                version: TracksBase,
+                                ambient: false,
+                            },
+                            PackagePlacement {
+                                package: "Itcl",
+                                version: Pinned(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                                ambient: false,
+                            },
+                        ],
+                        policy_defaults: EnvironmentPolicy {
+                            closed_world: Open,
+                            fixed_ensembles: false,
+                            strict_ascii: false,
+                            version_ceiling: Some(
+                                Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                            ),
+                        },
+                        server_detection: DetectionFacts {
+                            file_extensions: [],
+                            filenames: [],
+                            content_signatures: [],
+                            shebang_words: [
+                                "tclsh9.0",
+                                "wish9.0",
+                            ],
+                            directive_names: [],
+                        },
+                        help_terms: [
+                            "tcl",
+                            "tk",
+                        ],
+                        provenance: BuiltIn,
+                    },
+                    floors: FloorMap {
+                        entries: [
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Core(
+                                        Tcl,
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Core(
+                                            Tcl,
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Span {
+                                            min: Version {
+                                                text: "9.0a0",
+                                            },
+                                            max: Some(
+                                                Version {
+                                                    text: "9.1a0",
+                                                },
+                                            ),
+                                        },
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Tk",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Tk",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "9.0",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Itcl",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Itcl",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "4.2",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                            },
+                        ],
+                    },
+                    required_packages: [],
+                    pack_ambient: [],
+                    declared_targets: [],
+                    authoring_scope: AuthoringScope {
+                        core: [
+                            (
+                                Tcl,
+                                Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            ),
+                        ],
+                        packages: [],
+                    },
+                },
+                dispatch_dependencies: DispatchDependencies(
+                    15,
+                ),
+                traits: Traits(
+                    2514565704799273116908914754,
+                ),
+                arguments: [
+                    Value {
+                        outer_argument: 0,
+                    },
+                    Value {
+                        outer_argument: 1,
+                    },
+                    Value {
+                        outer_argument: 2,
+                    },
+                ],
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: None,
+        }: Declined(
+            NestedDirectUnavailable {
+                outer_argument: 0,
+            },
+        ),
+    },
+    closed_program_coverage: Declined(
+        UncoveredStatement,
+    ),
+    materialisable_slots: {
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 1,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 2,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                1,
+            ),
+            version: 1,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                1,
+            ),
+            version: 2,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                2,
+            ),
+            version: 0,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                3,
+            ),
+            version: 0,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+    },
+    coverage_declines: [],
+}
+FAILED
+test common_aot_plan::tests::semantic_operation_pass_is_independently_default_off ... ok
+test common_aot_plan::tests::semantic_operation_rebinding_alias_trace_and_dynamic_mutation_decline ... 
+thread 'common_aot_plan::tests::semantic_operation_rebinding_alias_trace_and_dynamic_mutation_decline' (820658) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2659:13:
+proc add {b c} {return [expr {$b+$c}]}
+rename puts q
+q [add 2 4]
+: CommonAotProofPlan {
+    environment: Hosted,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: Some(
+                0,
+            ),
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::add",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Selected(
+            SemanticCallEvidence {
+                operation: StructuredLowering(
+                    Proc,
+                ),
+                form: None,
+                context: None,
+                metadata_context: ResolvedContext {
+                    environment: EnvironmentDefinition {
+                        id: EnvironmentId(
+                            "tcl9.0",
+                        ),
+                        aliases: [],
+                        display_name: "Tcl 9.0",
+                        short_name: "Tcl 9.0",
+                        kind: Language,
+                        editor_identity: Some(
+                            EditorLanguageIdentityId(
+                                "tcl90",
+                            ),
+                        ),
+                        selecting_identities: [],
+                        core: Some(
+                            CoreProfileSelector {
+                                family: Tcl,
+                                default_release: Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                                build: Canonical,
+                            },
+                        ),
+                        targets: VersionSet {
+                            axis: VersionAxisId(
+                                Core(
+                                    Tcl,
+                                ),
+                            ),
+                            ranges: [
+                                Span {
+                                    min: Version {
+                                        text: "9.0a0",
+                                    },
+                                    max: Some(
+                                        Version {
+                                            text: "9.1a0",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                        expected_packages: [
+                            PackagePlacement {
+                                package: "Tk",
+                                version: TracksBase,
+                                ambient: false,
+                            },
+                            PackagePlacement {
+                                package: "Itcl",
+                                version: Pinned(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                                ambient: false,
+                            },
+                        ],
+                        policy_defaults: EnvironmentPolicy {
+                            closed_world: Open,
+                            fixed_ensembles: false,
+                            strict_ascii: false,
+                            version_ceiling: Some(
+                                Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                            ),
+                        },
+                        server_detection: DetectionFacts {
+                            file_extensions: [],
+                            filenames: [],
+                            content_signatures: [],
+                            shebang_words: [
+                                "tclsh9.0",
+                                "wish9.0",
+                            ],
+                            directive_names: [],
+                        },
+                        help_terms: [
+                            "tcl",
+                            "tk",
+                        ],
+                        provenance: BuiltIn,
+                    },
+                    floors: FloorMap {
+                        entries: [
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Core(
+                                        Tcl,
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Core(
+                                            Tcl,
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Span {
+                                            min: Version {
+                                                text: "9.0a0",
+                                            },
+                                            max: Some(
+                                                Version {
+                                                    text: "9.1a0",
+                                                },
+                                            ),
+                                        },
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Tk",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Tk",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "9.0",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Itcl",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Itcl",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "4.2",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                            },
+                        ],
+                    },
+                    required_packages: [],
+                    pack_ambient: [],
+                    declared_targets: [],
+                    authoring_scope: AuthoringScope {
+                        core: [
+                            (
+                                Tcl,
+                                Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            ),
+                        ],
+                        packages: [],
+                    },
+                },
+                dispatch_dependencies: DispatchDependencies(
+                    15,
+                ),
+                traits: Traits(
+                    2514565704799273116908914754,
+                ),
+                arguments: [
+                    Value {
+                        outer_argument: 0,
+                    },
+                    Value {
+                        outer_argument: 1,
+                    },
+                    Value {
+                        outer_argument: 2,
+                    },
+                ],
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 2,
+            nested_argument: None,
+        }: Declined(
+            GenericInvocation,
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 5,
+            nested_argument: None,
+        }: Declined(
+            NestedDirectUnavailable {
+                outer_argument: 0,
+            },
+        ),
+    },
+    closed_program_coverage: Declined(
+        HostedEnvironment,
+    ),
+    materialisable_slots: {
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 0,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                1,
+            ),
+            version: 0,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+    },
+    coverage_declines: [],
+}
+FAILED
+test common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation ... 
+thread 'common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation' (820677) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2922:9:
+assertion `left == right` failed: CommonAotProofPlan {
+    environment: Hosted,
+    direct_calls: {
+        DirectCallSiteId {
+            function: "::caller",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 1,
+            nested_argument: None,
+        }: Declined(
+            BindingNotProcedure {
+                kind: Unknown,
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 6,
+            nested_argument: None,
+        }: Declined(
+            NativeCompilationAdmissionRequired,
+        ),
+    },
+    declined_direct_callees: {
+        "::add",
+    },
+    semantic_calls: {
+        DirectCallSiteId {
+            function: "::caller",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 1,
+            nested_argument: None,
+        }: Declined(
+            RegistryUnresolved,
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 0,
+            nested_argument: None,
+        }: Selected(
+            SemanticCallEvidence {
+                operation: StructuredLowering(
+                    Proc,
+                ),
+                form: None,
+                context: None,
+                metadata_context: ResolvedContext {
+                    environment: EnvironmentDefinition {
+                        id: EnvironmentId(
+                            "tcl9.0",
+                        ),
+                        aliases: [],
+                        display_name: "Tcl 9.0",
+                        short_name: "Tcl 9.0",
+                        kind: Language,
+                        editor_identity: Some(
+                            EditorLanguageIdentityId(
+                                "tcl90",
+                            ),
+                        ),
+                        selecting_identities: [],
+                        core: Some(
+                            CoreProfileSelector {
+                                family: Tcl,
+                                default_release: Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                                build: Canonical,
+                            },
+                        ),
+                        targets: VersionSet {
+                            axis: VersionAxisId(
+                                Core(
+                                    Tcl,
+                                ),
+                            ),
+                            ranges: [
+                                Span {
+                                    min: Version {
+                                        text: "9.0a0",
+                                    },
+                                    max: Some(
+                                        Version {
+                                            text: "9.1a0",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                        expected_packages: [
+                            PackagePlacement {
+                                package: "Tk",
+                                version: TracksBase,
+                                ambient: false,
+                            },
+                            PackagePlacement {
+                                package: "Itcl",
+                                version: Pinned(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                                ambient: false,
+                            },
+                        ],
+                        policy_defaults: EnvironmentPolicy {
+                            closed_world: Open,
+                            fixed_ensembles: false,
+                            strict_ascii: false,
+                            version_ceiling: Some(
+                                Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                            ),
+                        },
+                        server_detection: DetectionFacts {
+                            file_extensions: [],
+                            filenames: [],
+                            content_signatures: [],
+                            shebang_words: [
+                                "tclsh9.0",
+                                "wish9.0",
+                            ],
+                            directive_names: [],
+                        },
+                        help_terms: [
+                            "tcl",
+                            "tk",
+                        ],
+                        provenance: BuiltIn,
+                    },
+                    floors: FloorMap {
+                        entries: [
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Core(
+                                        Tcl,
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Core(
+                                            Tcl,
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Span {
+                                            min: Version {
+                                                text: "9.0a0",
+                                            },
+                                            max: Some(
+                                                Version {
+                                                    text: "9.1a0",
+                                                },
+                                            ),
+                                        },
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Tk",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Tk",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "9.0",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Itcl",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Itcl",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "4.2",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                            },
+                        ],
+                    },
+                    required_packages: [],
+                    pack_ambient: [],
+                    declared_targets: [],
+                    authoring_scope: AuthoringScope {
+                        core: [
+                            (
+                                Tcl,
+                                Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            ),
+                        ],
+                        packages: [],
+                    },
+                },
+                dispatch_dependencies: DispatchDependencies(
+                    15,
+                ),
+                traits: Traits(
+                    2514565704799273116908914754,
+                ),
+                arguments: [
+                    Value {
+                        outer_argument: 0,
+                    },
+                    Value {
+                        outer_argument: 1,
+                    },
+                    Value {
+                        outer_argument: 2,
+                    },
+                ],
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 2,
+            nested_argument: None,
+        }: Selected(
+            SemanticCallEvidence {
+                operation: StructuredLowering(
+                    Proc,
+                ),
+                form: None,
+                context: None,
+                metadata_context: ResolvedContext {
+                    environment: EnvironmentDefinition {
+                        id: EnvironmentId(
+                            "tcl9.0",
+                        ),
+                        aliases: [],
+                        display_name: "Tcl 9.0",
+                        short_name: "Tcl 9.0",
+                        kind: Language,
+                        editor_identity: Some(
+                            EditorLanguageIdentityId(
+                                "tcl90",
+                            ),
+                        ),
+                        selecting_identities: [],
+                        core: Some(
+                            CoreProfileSelector {
+                                family: Tcl,
+                                default_release: Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                                build: Canonical,
+                            },
+                        ),
+                        targets: VersionSet {
+                            axis: VersionAxisId(
+                                Core(
+                                    Tcl,
+                                ),
+                            ),
+                            ranges: [
+                                Span {
+                                    min: Version {
+                                        text: "9.0a0",
+                                    },
+                                    max: Some(
+                                        Version {
+                                            text: "9.1a0",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                        expected_packages: [
+                            PackagePlacement {
+                                package: "Tk",
+                                version: TracksBase,
+                                ambient: false,
+                            },
+                            PackagePlacement {
+                                package: "Itcl",
+                                version: Pinned(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                                ambient: false,
+                            },
+                        ],
+                        policy_defaults: EnvironmentPolicy {
+                            closed_world: Open,
+                            fixed_ensembles: false,
+                            strict_ascii: false,
+                            version_ceiling: Some(
+                                Release {
+                                    family: Tcl,
+                                    ordinal: 3,
+                                },
+                            ),
+                        },
+                        server_detection: DetectionFacts {
+                            file_extensions: [],
+                            filenames: [],
+                            content_signatures: [],
+                            shebang_words: [
+                                "tclsh9.0",
+                                "wish9.0",
+                            ],
+                            directive_names: [],
+                        },
+                        help_terms: [
+                            "tcl",
+                            "tk",
+                        ],
+                        provenance: BuiltIn,
+                    },
+                    floors: FloorMap {
+                        entries: [
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Core(
+                                        Tcl,
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Core(
+                                            Tcl,
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Span {
+                                            min: Version {
+                                                text: "9.0a0",
+                                            },
+                                            max: Some(
+                                                Version {
+                                                    text: "9.1a0",
+                                                },
+                                            ),
+                                        },
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Tk",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Tk",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "9.0",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            },
+                            AxisFloor {
+                                axis: VersionAxisId(
+                                    Package(
+                                        "Itcl",
+                                    ),
+                                ),
+                                targets: VersionSet {
+                                    axis: VersionAxisId(
+                                        Package(
+                                            "Itcl",
+                                        ),
+                                    ),
+                                    ranges: [
+                                        Exact(
+                                            Version {
+                                                text: "4.2",
+                                            },
+                                        ),
+                                    ],
+                                },
+                                primary: Some(
+                                    Version {
+                                        text: "4.2",
+                                    },
+                                ),
+                            },
+                        ],
+                    },
+                    required_packages: [],
+                    pack_ambient: [],
+                    declared_targets: [],
+                    authoring_scope: AuthoringScope {
+                        core: [
+                            (
+                                Tcl,
+                                Some(
+                                    Version {
+                                        text: "9.0",
+                                    },
+                                ),
+                            ),
+                        ],
+                        packages: [],
+                    },
+                },
+                dispatch_dependencies: DispatchDependencies(
+                    15,
+                ),
+                traits: Traits(
+                    2514565704799273116908914754,
+                ),
+                arguments: [
+                    Value {
+                        outer_argument: 0,
+                    },
+                    Value {
+                        outer_argument: 1,
+                    },
+                    Value {
+                        outer_argument: 2,
+                    },
+                ],
+            },
+        ),
+        DirectCallSiteId {
+            function: "::top",
+            block: BlockId(
+                0,
+            ),
+            statement_index: 6,
+            nested_argument: None,
+        }: Declined(
+            RegistryUnresolved,
+        ),
+    },
+    closed_program_coverage: Declined(
+        HostedEnvironment,
+    ),
+    materialisable_slots: {
+        SsaValueIdentity {
+            function: "::caller",
+            symbol: Symbol(
+                0,
+            ),
+            version: 1,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::caller",
+            symbol: Symbol(
+                1,
+            ),
+            version: 0,
+        }: Declined(
+            OriginalSlotUnavailable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                0,
+            ),
+            version: 1,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+        SsaValueIdentity {
+            function: "::top",
+            symbol: Symbol(
+                1,
+            ),
+            version: 1,
+        }: Declined(
+            HostedTopLevelObservable,
+        ),
+    },
+    coverage_declines: [],
+}
+  left: 0
+ right: 2
+FAILED
+
+failures:
+
+failures:
+    codegen::wasm::backend::tests::a_top_level_written_out_definition_is_registered
+    codegen::wasm::backend::tests::a_written_out_definition_body_still_binds
+    codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays
+    codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers
+    codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar
+    common_aot_plan::tests::add_call_and_integer_formals_receive_common_proofs
+    common_aot_plan::tests::defaults_variadics_rebinding_aliases_and_traces_decline
+    common_aot_plan::tests::dialect_tcloo_and_variable_trace_premises_are_retained
+    common_aot_plan::tests::direct_calls_retain_native_argv_expansion_at_the_generic_boundary
+    common_aot_plan::tests::dynamic_binding_transition_still_declines_direct_call_identity
+    common_aot_plan::tests::exceptional_edges_decline_direct_and_slot_plans
+    common_aot_plan::tests::frame_elision_has_an_independent_default_off_gate
+    common_aot_plan::tests::internal_operation_rebinding_and_tracing_decline_body_specialisation
+    common_aot_plan::tests::known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation
+    common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts
+    common_aot_plan::tests::sealed_program_proves_exact_top_slots_proc_and_output_boundary
+    common_aot_plan::tests::semantic_operation_rebinding_alias_trace_and_dynamic_mutation_decline
+    common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation
+
+test result: FAILED. 11 passed; 18 failed; 0 ignored; 0 measured; 8487 filtered out; finished in 24.10s
+

@@ -1,0 +1,100 @@
+TclCompileSetCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int isAssignment, isScalar, simpleVarName, localIndex, numWords;
+    int code = TCL_OK;
+
+    DefineLineInformation;
+
+    numWords = parsePtr->numWords;
+    if ((numWords != 2) && (numWords != 3)) {
+	Tcl_ResetResult(interp);
+	Tcl_AppendToObj(Tcl_GetObjResult(interp),
+	        "wrong # args: should be \"set varName ?newValue?\"", -1);
+        return TCL_ERROR;
+    }
+    isAssignment = (numWords == 3);
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we
+     * need to emit code to compute and push the name at runtime. We use a
+     * frame slot (entry in the array of local vars) if we are compiling a
+     * procedure body and if the name is simple text that does not include
+     * namespace qualifiers. 
+     */
+
+    varTokenPtr = parsePtr->tokenPtr
+	    + (parsePtr->tokenPtr->numComponents + 1);
+
+    code = TclPushVarNameWord(interp, varTokenPtr, envPtr, TCL_CREATE_VAR,
+	    &localIndex, &simpleVarName, &isScalar, 1);
+    if (code != TCL_OK) {
+	goto done;
+    }
+
+    /*
+     * If we are doing an assignment, push the new value.
+     */
+
+    if (isAssignment) {
+	valueTokenPtr = varTokenPtr + (varTokenPtr->numComponents + 1);
+	if (valueTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    TclEmitPush(TclRegisterNewLiteral(envPtr, valueTokenPtr[1].start,
+		    valueTokenPtr[1].size), envPtr);
+	} else {
+	    SetLineInformation (2);
+	    code = TclCompileTokens(interp, valueTokenPtr+1,
+	            valueTokenPtr->numComponents, envPtr);
+	    if (code != TCL_OK) {
+		goto done;
+	    }
+	}
+    }
+
+    /*
+     * Emit instructions to set/get the variable.
+     */
+
+    if (simpleVarName) {
+	if (isScalar) {
+	    if (localIndex >= 0) {
+		if (localIndex <= 255) {
+		    TclEmitInstInt1((isAssignment?
+		            INST_STORE_SCALAR1 : INST_LOAD_SCALAR1),
+			    localIndex, envPtr);
+		} else {
+		    TclEmitInstInt4((isAssignment?
+			    INST_STORE_SCALAR4 : INST_LOAD_SCALAR4),
+			    localIndex, envPtr);
+		}
+	    } else {
+		TclEmitOpcode((isAssignment?
+		        INST_STORE_SCALAR_STK : INST_LOAD_SCALAR_STK), envPtr);
+	    }
+	} else {
+	    if (localIndex >= 0) {
+		if (localIndex <= 255) {
+		    TclEmitInstInt1((isAssignment?
+		            INST_STORE_ARRAY1 : INST_LOAD_ARRAY1),
+			    localIndex, envPtr);
+		} else {
+		    TclEmitInstInt4((isAssignment?
+			    INST_STORE_ARRAY4 : INST_LOAD_ARRAY4),
+			    localIndex, envPtr);
+		}
+	    } else {
+		TclEmitOpcode((isAssignment?
+		        INST_STORE_ARRAY_STK : INST_LOAD_ARRAY_STK), envPtr);
+	    }
+	}
+    } else {
+	TclEmitOpcode((isAssignment? INST_STORE_STK : INST_LOAD_STK), envPtr);
+    }
+	
+    done:
+    return code;
+}

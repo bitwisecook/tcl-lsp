@@ -1,0 +1,84 @@
+{
+  "problem": "Does calling a namespace-qualified procedure inside namespace eval add an info level frame compared with calling it after namespace eval returns?",
+  "boundary": "Script-visible info level only; no native frame memory layout, Host failure metadata, TMM or pointer equivalence claim.",
+  "records": [
+    {
+      "provider": "8.4.20",
+      "command": [
+        "/workspace/.proofs/oracle-bin/tclsh8.4"
+      ],
+      "binary_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "binary_bytes": 124,
+      "script_sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "exit": 0,
+      "seconds": 0.011089162027928978,
+      "stdout_sha256": "dff7c14e0383416a31ed505955302e545a9af5c70c6a2756f6be0b1d91266b42",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "8.5.19",
+      "command": [
+        "/workspace/.proofs/oracle-bin/tclsh8.5"
+      ],
+      "binary_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "binary_bytes": 124,
+      "script_sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "exit": 0,
+      "seconds": 0.011345839011482894,
+      "stdout_sha256": "9a9519b74117bf8d0bc6dc2084157f8ccd9b8e8fa1ff658dfaac1b807c72ff0f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "8.6.18",
+      "command": [
+        "/workspace/.proofs/oracle-bin/tclsh8.6"
+      ],
+      "binary_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "binary_bytes": 124,
+      "script_sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "exit": 0,
+      "seconds": 0.010092787997564301,
+      "stdout_sha256": "fd9fe4b8863e3313bf2ad445e50708709dbf1b9ce1e56560552b378752a3f95b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.0.4",
+      "command": [
+        "/workspace/.proofs/oracle-bin/tclsh9.0"
+      ],
+      "binary_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "binary_bytes": 122,
+      "script_sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "exit": 0,
+      "seconds": 0.02585802201065235,
+      "stdout_sha256": "99c709b6223a7dcb78be3e5460ded3646d806fa954bd88af717bccecfe70853f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.1.0",
+      "command": [
+        "/workspace/.proofs/oracle-bin/tclsh9.1"
+      ],
+      "binary_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "binary_bytes": 122,
+      "script_sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "exit": 0,
+      "seconds": 0.018068934994516894,
+      "stdout_sha256": "12fc71750f37f5f65b57322fcdef8713924aedbfed09dbb61bbd383e5479dc10",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "command": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh"
+      ],
+      "binary_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "binary_bytes": 438632,
+      "script_sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "exit": 0,
+      "seconds": 0.013472602004185319,
+      "stdout_sha256": "16273d47ee5d32fe8c846468f282b29d413c047edea888fb26ac71fb1373b3bc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

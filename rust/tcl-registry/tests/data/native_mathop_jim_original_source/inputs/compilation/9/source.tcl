@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}

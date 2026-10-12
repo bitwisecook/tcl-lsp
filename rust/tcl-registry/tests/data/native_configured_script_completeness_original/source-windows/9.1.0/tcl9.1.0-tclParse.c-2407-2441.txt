@@ -1,0 +1,35 @@
+CommandComplete(
+    const char *script,		/* Script to check. */
+    Tcl_Size numBytes)		/* Number of bytes in script. */
+{
+    Tcl_Parse parse;
+    const char *p, *end;
+    bool result;
+
+    p = script;
+    end = p + numBytes;
+    while (Tcl_ParseCommand(NULL, p, end - p, 0, &parse) == TCL_OK) {
+	p = parse.commandStart + parse.commandSize;
+	if (p >= end) {
+	    break;
+	}
+	Tcl_FreeParse(&parse);
+    }
+    result = !parse.incomplete;
+    Tcl_FreeParse(&parse);
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_CommandComplete --
+ *
+ *	Given a partial or complete Tcl script, this function determines
+ *	whether the script is complete in the sense of having matched braces
+ *	and quotes and brackets.
+ *
+ * Results:
+ *	1 is returned if the script is complete, 0 otherwise. 1 is also
+ *	returned if there is a parse error in the script other than unmatched
+ *	delimiters.

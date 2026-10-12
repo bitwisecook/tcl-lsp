@@ -1,0 +1,13 @@
+{
+  "opaque_runtime_vm_whole_source_receipt_stdout_equal": true,
+  "opaque_native_rows": 2,
+  "property_name_native_rows": 11,
+  "first_eight_rows_equal_current_owners": true,
+  "property_name_manifest_pending_shared_owner_questions": [],
+  "property_name_manifest_scoped_question_ids": [
+    "naming.property.original-enumeration-header-and-members",
+    "naming.property.original-foundation-epoch-and-cache",
+    "naming.property.original-selected-name-cache",
+    "naming.property.original-accessor-name-cache-children"
+  ]
+}

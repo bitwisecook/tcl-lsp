@@ -1,0 +1,33 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error: unused import: `AppendedArity`
+  --> rust/tcl-compiler/src/analyser/commands.rs:32:20
+   |
+32 | use tcl_registry::{AppendedArity, ArgRole, CommandRegistry};
+   |                    ^^^^^^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error[E0624]: method `extend_class_inventory` is private
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:524:14
+    |
+524 |           self.extend_class_inventory(other.class_declarations, other.constructor_calls);
+    |                ^^^^^^^^^^^^^^^^^^^^^^ private method
+    |
+   ::: rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:316:5
+    |
+316 | /     fn extend_class_inventory(
+317 | |         &mut self,
+318 | |         declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
+319 | |         calls: BTreeMap<u32, Option<OriginalSourceConstructorCall>>,
+320 | |     ) {
+    | |_____- private method defined here
+
+For more information about this error, try `rustc --explain E0624`.
+error: could not compile `tcl-compiler` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

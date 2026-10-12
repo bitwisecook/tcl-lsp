@@ -1,0 +1,1642 @@
+Archive member included to satisfy reference by file (symbol)
+
+/workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o)
+                              /tmp/cc5Z8B2Q.o (Jim_InitStaticExtensions)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                              /tmp/cc5Z8B2Q.o (Jim_Allocator)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o) (utf8_fromunicode)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_aioInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_arrayInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_clockInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (Jim_CreateFileHandler)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_execInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (Jim_FileStoreStatData)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_historyInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_interpInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_jsonInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_loadInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_namespaceInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_packInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (Jim_PackageProvide)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_posixInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_readdirInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_regexpInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o) (Jim_SignalSetIgnored)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_syslogInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_tclprefixInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_zlibInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_binaryInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_ensembleInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_globInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_jsonencodeInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_nshelperInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_ooInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_stdlibInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_tclcompatInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o) (Jim_treeInit)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o) (Jim_SubCmdArgError)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o) (Jim_HistoryGetline)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o) (Jim_FormatString)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o) (jim_regcomp)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o) (Jim_SetResultErrno)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o) (linenoiseSetCompletionCallback)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (Jim_GetTtySettings)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (openpty)
+/workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o) (jsmn_parse)
+/usr/lib/x86_64-linux-gnu/libc_nonshared.a(atexit.oS)
+                              /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o) (atexit)
+
+Merging program properties
+
+Removed property 0xc0000002 to merge /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o (not found) and /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o (0x3)
+Removed property 0xc0000002 to merge /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o (not found) and /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o (0x3)
+
+As-needed library included to satisfy reference by file (symbol)
+
+libm.so.6                     /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o) (exp@@GLIBC_2.29)
+libssl.so.3                   /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (SSL_get_error@@OPENSSL_3.0.0)
+libcrypto.so.3                /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o) (ERR_get_error@@OPENSSL_3.0.0)
+libz.so.1                     /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o) (inflateEnd)
+libc.so.6                     /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o) (syslog@@GLIBC_2.2.5)
+
+Discarded input sections
+
+ .note.gnu.property
+                0x0000000000000000       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .note.gnu.property
+                0x0000000000000000       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+LOAD /tmp/cc5Z8B2Q.o
+LOAD /workspace/.proofs/native-providers/jimtcl/libjim.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so
+START GROUP
+LOAD /lib/x86_64-linux-gnu/libm.so.6
+LOAD /lib/x86_64-linux-gnu/libmvec.so.1
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libssl.so
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libcrypto.so
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+START GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so
+START GROUP
+LOAD /lib/x86_64-linux-gnu/libc.so.6
+LOAD /usr/lib/x86_64-linux-gnu/libc_nonshared.a
+LOAD /lib64/ld-linux-x86-64.so.2
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+START GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+END GROUP
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+LOAD /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+                [!provide]                        PROVIDE (__executable_start = SEGMENT_START ("text-segment", 0x0))
+                0x0000000000000350                . = (SEGMENT_START ("text-segment", 0x0) + SIZEOF_HEADERS)
+
+.note.gnu.property
+                0x0000000000000350       0x20
+ .note.gnu.property
+                0x0000000000000350       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.note.gnu.build-id
+                0x0000000000000370       0x24
+ *(.note.gnu.build-id)
+ .note.gnu.build-id
+                0x0000000000000370       0x24 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.interp         0x0000000000000394       0x1c
+ *(.interp)
+ .interp        0x0000000000000394       0x1c /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.hash
+ *(.hash)
+
+.gnu.hash       0x00000000000003b0       0x40
+ *(.gnu.hash)
+ .gnu.hash      0x00000000000003b0       0x40 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.dynsym         0x00000000000003f0     0x15a8
+ *(.dynsym)
+ .dynsym        0x00000000000003f0     0x15a8 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.dynstr         0x0000000000001998      0x88b
+ *(.dynstr)
+ .dynstr        0x0000000000001998      0x88b /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.gnu.version    0x0000000000002224      0x1ce
+ *(.gnu.version)
+ .gnu.version   0x0000000000002224      0x1ce /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.gnu.version_d  0x00000000000023f8        0x0
+ *(.gnu.version_d)
+ .gnu.version_d
+                0x00000000000023f8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.gnu.version_r  0x00000000000023f8      0x140
+ *(.gnu.version_r)
+ .gnu.version_r
+                0x00000000000023f8      0x140 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.rela.dyn       0x0000000000002538     0x7350
+ *(.rela.init)
+ *(.rela.text .rela.text.* .rela.gnu.linkonce.t.*)
+ .rela.text     0x0000000000002538        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.fini)
+ *(.rela.rodata .rela.rodata.* .rela.gnu.linkonce.r.*)
+ *(.rela.data .rela.data.* .rela.gnu.linkonce.d.*)
+ .rela.data.rel.ro
+                0x0000000000002538        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.data.rel.local
+                0x0000000000002538      0x300 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.data.rel.ro.local
+                0x0000000000002838     0x6e28 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.tdata .rela.tdata.* .rela.gnu.linkonce.td.*)
+ *(.rela.tbss .rela.tbss.* .rela.gnu.linkonce.tb.*)
+ *(.rela.ctors)
+ *(.rela.dtors)
+ *(.rela.got)
+ .rela.got      0x0000000000009660      0x198 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.bss .rela.bss.* .rela.gnu.linkonce.b.*)
+ .rela.bss      0x00000000000097f8       0x60 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.ldata .rela.ldata.* .rela.gnu.linkonce.l.*)
+ *(.rela.lbss .rela.lbss.* .rela.gnu.linkonce.lb.*)
+ *(.rela.lrodata .rela.lrodata.* .rela.gnu.linkonce.lr.*)
+ *(.rela.ifunc)
+ .rela.ifunc    0x0000000000009858        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.fini_array
+                0x0000000000009858       0x18 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .rela.init_array
+                0x0000000000009870       0x18 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.rela.plt       0x0000000000009888     0x1368
+ *(.rela.plt)
+ .rela.plt      0x0000000000009888     0x1368 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.rela.iplt)
+
+.relr.dyn
+ *(.relr.dyn)
+                0x000000000000b000                . = ALIGN (CONSTANT (MAXPAGESIZE))
+
+.init           0x000000000000b000       0x17
+ *(SORT_NONE(.init))
+ .init          0x000000000000b000       0x12 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+                0x000000000000b000                _init
+ .init          0x000000000000b012        0x5 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+
+.plt            0x000000000000b020      0xd00
+ *(.plt)
+ .plt           0x000000000000b020      0xd00 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000000b030                getegid@@GLIBC_2.2.5
+                0x000000000000b040                setvbuf@@GLIBC_2.2.5
+                0x000000000000b050                SSL_get_error@@OPENSSL_3.0.0
+                0x000000000000b060                __errno_location@@GLIBC_2.2.5
+                0x000000000000b070                printf@@GLIBC_2.2.5
+                0x000000000000b080                symlink@@GLIBC_2.2.5
+                0x000000000000b090                SSL_read@@OPENSSL_3.0.0
+                0x000000000000b0a0                deflateBound@@ZLIB_1.2.0
+                0x000000000000b0b0                sendto@@GLIBC_2.2.5
+                0x000000000000b0c0                deflateInit2_
+                0x000000000000b0d0                SSL_CTX_free@@OPENSSL_3.0.0
+                0x000000000000b0e0                ualarm@@GLIBC_2.2.5
+                0x000000000000b0f0                syslog@@GLIBC_2.2.5
+                0x000000000000b100                strptime@@GLIBC_2.2.5
+                0x000000000000b110                atan2@@GLIBC_2.2.5
+                0x000000000000b120                __ctype_toupper_loc@@GLIBC_2.3
+                0x000000000000b130                bind@@GLIBC_2.2.5
+                0x000000000000b140                __ctype_tolower_loc@@GLIBC_2.3
+                0x000000000000b150                sprintf@@GLIBC_2.2.5
+                0x000000000000b160                sin@@GLIBC_2.2.5
+                0x000000000000b170                strstr@@GLIBC_2.2.5
+                0x000000000000b180                tanh@@GLIBC_2.2.5
+                0x000000000000b190                SSL_CTX_set_verify@@OPENSSL_3.0.0
+                0x000000000000b1a0                socket@@GLIBC_2.2.5
+                0x000000000000b1b0                fork@@GLIBC_2.2.5
+                0x000000000000b1c0                rand@@GLIBC_2.2.5
+                0x000000000000b1d0                getc@@GLIBC_2.2.5
+                0x000000000000b1e0                hypot@@GLIBC_2.35
+                0x000000000000b1f0                link@@GLIBC_2.2.5
+                0x000000000000b200                mkstemp@@GLIBC_2.2.5
+                0x000000000000b210                accept@@GLIBC_2.2.5
+                0x000000000000b220                ERR_error_string@@OPENSSL_3.0.0
+                0x000000000000b230                strerror@@GLIBC_2.2.5
+                0x000000000000b240                realpath@@GLIBC_2.3
+                0x000000000000b250                write@@GLIBC_2.2.5
+                0x000000000000b260                strchr@@GLIBC_2.2.5
+                0x000000000000b270                longjmp@@GLIBC_2.2.5
+                0x000000000000b280                SSL_get_verify_result@@OPENSSL_3.0.0
+                0x000000000000b290                SSL_use_PrivateKey_file@@OPENSSL_3.0.0
+                0x000000000000b2a0                SSL_ctrl@@OPENSSL_3.0.0
+                0x000000000000b2b0                __isoc23_sscanf@@GLIBC_2.38
+                0x000000000000b2c0                rmdir@@GLIBC_2.2.5
+                0x000000000000b2d0                strlen@@GLIBC_2.2.5
+                0x000000000000b2e0                memcmp@@GLIBC_2.2.5
+                0x000000000000b2f0                mkdir@@GLIBC_2.2.5
+                0x000000000000b300                deflate
+                0x000000000000b310                unlink@@GLIBC_2.2.5
+                0x000000000000b320                strncmp@@GLIBC_2.2.5
+                0x000000000000b330                getuid@@GLIBC_2.2.5
+                0x000000000000b340                grantpt@@GLIBC_2.2.5
+                0x000000000000b350                log10@@GLIBC_2.2.5
+                0x000000000000b360                getcwd@@GLIBC_2.2.5
+                0x000000000000b370                strncpy@@GLIBC_2.2.5
+                0x000000000000b380                localtime_r@@GLIBC_2.2.5
+                0x000000000000b390                X509_free@@OPENSSL_3.0.0
+                0x000000000000b3a0                memset@@GLIBC_2.2.5
+                0x000000000000b3b0                abort@@GLIBC_2.2.5
+                0x000000000000b3c0                tan@@GLIBC_2.2.5
+                0x000000000000b3d0                SSL_free@@OPENSSL_3.0.0
+                0x000000000000b3e0                fcntl@@GLIBC_2.2.5
+                0x000000000000b3f0                geteuid@@GLIBC_2.2.5
+                0x000000000000b400                deflateEnd
+                0x000000000000b410                cfsetispeed@@GLIBC_2.2.5
+                0x000000000000b420                SSL_set_fd@@OPENSSL_3.0.0
+                0x000000000000b430                rename@@GLIBC_2.2.5
+                0x000000000000b440                vsnprintf@@GLIBC_2.2.5
+                0x000000000000b450                SSL_set_cipher_list@@OPENSSL_3.0.0
+                0x000000000000b460                __assert_fail@@GLIBC_2.2.5
+                0x000000000000b470                calloc@@GLIBC_2.2.5
+                0x000000000000b480                clock@@GLIBC_2.2.5
+                0x000000000000b490                mktime@@GLIBC_2.2.5
+                0x000000000000b4a0                utimes@@GLIBC_2.2.5
+                0x000000000000b4b0                X509_verify_cert_error_string@@OPENSSL_3.0.0
+                0x000000000000b4c0                crc32
+                0x000000000000b4d0                getpeername@@GLIBC_2.2.5
+                0x000000000000b4e0                open@@GLIBC_2.2.5
+                0x000000000000b4f0                localtime@@GLIBC_2.2.5
+                0x000000000000b500                sleep@@GLIBC_2.2.5
+                0x000000000000b510                getsockopt@@GLIBC_2.2.5
+                0x000000000000b520                recvfrom@@GLIBC_2.2.5
+                0x000000000000b530                strtod@@GLIBC_2.2.5
+                0x000000000000b540                ptsname@@GLIBC_2.2.5
+                0x000000000000b550                unlockpt@@GLIBC_2.2.5
+                0x000000000000b560                sqrt@@GLIBC_2.2.5
+                0x000000000000b570                waitpid@@GLIBC_2.2.5
+                0x000000000000b580                inflate
+                0x000000000000b590                log@@GLIBC_2.29
+                0x000000000000b5a0                dlclose@@GLIBC_2.34
+                0x000000000000b5b0                strftime@@GLIBC_2.2.5
+                0x000000000000b5c0                memcpy@@GLIBC_2.14
+                0x000000000000b5d0                connect@@GLIBC_2.2.5
+                0x000000000000b5e0                atan@@GLIBC_2.2.5
+                0x000000000000b5f0                fsync@@GLIBC_2.2.5
+                0x000000000000b600                inflateInit2_
+                0x000000000000b610                gmtime@@GLIBC_2.2.5
+                0x000000000000b620                openlog@@GLIBC_2.2.5
+                0x000000000000b630                socketpair@@GLIBC_2.2.5
+                0x000000000000b640                __cxa_atexit@@GLIBC_2.2.5
+                0x000000000000b650                OPENSSL_init_ssl@@OPENSSL_3.0.0
+                0x000000000000b660                stat@@GLIBC_2.33
+                0x000000000000b670                clock_gettime@@GLIBC_2.17
+                0x000000000000b680                time@@GLIBC_2.2.5
+                0x000000000000b690                getsockname@@GLIBC_2.2.5
+                0x000000000000b6a0                dup2@@GLIBC_2.2.5
+                0x000000000000b6b0                sinh@@GLIBC_2.2.5
+                0x000000000000b6c0                dlsym@@GLIBC_2.34
+                0x000000000000b6d0                dlerror@@GLIBC_2.34
+                0x000000000000b6e0                div@@GLIBC_2.2.5
+                0x000000000000b6f0                select@@GLIBC_2.2.5
+                0x000000000000b700                acos@@GLIBC_2.2.5
+                0x000000000000b710                fmod@@GLIBC_2.38
+                0x000000000000b720                closelog@@GLIBC_2.2.5
+                0x000000000000b730                fclose@@GLIBC_2.2.5
+                0x000000000000b740                raise@@GLIBC_2.2.5
+                0x000000000000b750                SSL_new@@OPENSSL_3.0.0
+                0x000000000000b760                inet_ntop@@GLIBC_2.2.5
+                0x000000000000b770                inflateEnd
+                0x000000000000b780                fileno@@GLIBC_2.2.5
+                0x000000000000b790                tcsendbreak@@GLIBC_2.2.5
+                0x000000000000b7a0                getgid@@GLIBC_2.2.5
+                0x000000000000b7b0                readlink@@GLIBC_2.2.5
+                0x000000000000b7c0                __ctype_b_loc@@GLIBC_2.3
+                0x000000000000b7d0                strcasecmp@@GLIBC_2.2.5
+                0x000000000000b7e0                cfsetospeed@@GLIBC_2.2.5
+                0x000000000000b7f0                SSL_CTX_set_default_verify_paths@@OPENSSL_3.0.0
+                0x000000000000b800                strrchr@@GLIBC_2.2.5
+                0x000000000000b810                memchr@@GLIBC_2.2.5
+                0x000000000000b820                tcgetattr@@GLIBC_2.2.5
+                0x000000000000b830                fputs@@GLIBC_2.2.5
+                0x000000000000b840                listen@@GLIBC_2.2.5
+                0x000000000000b850                fflush@@GLIBC_2.2.5
+                0x000000000000b860                fopen@@GLIBC_2.2.5
+                0x000000000000b870                signal@@GLIBC_2.2.5
+                0x000000000000b880                free@@GLIBC_2.2.5
+                0x000000000000b890                getenv@@GLIBC_2.2.5
+                0x000000000000b8a0                SSL_use_certificate_file@@OPENSSL_3.0.0
+                0x000000000000b8b0                fputc@@GLIBC_2.2.5
+                0x000000000000b8c0                __isoc23_strtoul@@GLIBC_2.38
+                0x000000000000b8d0                SSL_CTX_load_verify_locations@@OPENSSL_3.0.0
+                0x000000000000b8e0                sigaction@@GLIBC_2.2.5
+                0x000000000000b8f0                getaddrinfo@@GLIBC_2.2.5
+                0x000000000000b900                strncasecmp@@GLIBC_2.2.5
+                0x000000000000b910                tcsetattr@@GLIBC_2.2.5
+                0x000000000000b920                freeaddrinfo@@GLIBC_2.2.5
+                0x000000000000b930                sysinfo@@GLIBC_2.2.5
+                0x000000000000b940                ERR_get_error@@OPENSSL_3.0.0
+                0x000000000000b950                malloc@@GLIBC_2.2.5
+                0x000000000000b960                pipe@@GLIBC_2.2.5
+                0x000000000000b970                __isoc23_strtoull@@GLIBC_2.38
+                0x000000000000b980                shutdown@@GLIBC_2.2.5
+                0x000000000000b990                vfork@@GLIBC_2.2.5
+                0x000000000000b9a0                dlopen@@GLIBC_2.34
+                0x000000000000b9b0                putchar@@GLIBC_2.2.5
+                0x000000000000b9c0                cosh@@GLIBC_2.2.5
+                0x000000000000b9d0                strcmp@@GLIBC_2.2.5
+                0x000000000000b9e0                SSL_connect@@OPENSSL_3.0.0
+                0x000000000000b9f0                ioctl@@GLIBC_2.2.5
+                0x000000000000ba00                usleep@@GLIBC_2.2.5
+                0x000000000000ba10                kill@@GLIBC_2.2.5
+                0x000000000000ba20                SSL_CTX_new@@OPENSSL_3.0.0
+                0x000000000000ba30                fprintf@@GLIBC_2.2.5
+                0x000000000000ba40                read@@GLIBC_2.2.5
+                0x000000000000ba50                _setjmp@@GLIBC_2.2.5
+                0x000000000000ba60                getpid@@GLIBC_2.2.5
+                0x000000000000ba70                chdir@@GLIBC_2.2.5
+                0x000000000000ba80                fread@@GLIBC_2.2.5
+                0x000000000000ba90                gethostname@@GLIBC_2.2.5
+                0x000000000000baa0                opendir@@GLIBC_2.2.5
+                0x000000000000bab0                poll@@GLIBC_2.2.5
+                0x000000000000bac0                dup@@GLIBC_2.2.5
+                0x000000000000bad0                readdir@@GLIBC_2.2.5
+                0x000000000000bae0                puts@@GLIBC_2.2.5
+                0x000000000000baf0                snprintf@@GLIBC_2.2.5
+                0x000000000000bb00                closedir@@GLIBC_2.2.5
+                0x000000000000bb10                gettimeofday@@GLIBC_2.2.5
+                0x000000000000bb20                memmove@@GLIBC_2.2.5
+                0x000000000000bb30                _exit@@GLIBC_2.2.5
+                0x000000000000bb40                realloc@@GLIBC_2.2.5
+                0x000000000000bb50                asin@@GLIBC_2.2.5
+                0x000000000000bb60                access@@GLIBC_2.2.5
+                0x000000000000bb70                fstat@@GLIBC_2.33
+                0x000000000000bb80                isatty@@GLIBC_2.2.5
+                0x000000000000bb90                pow@@GLIBC_2.29
+                0x000000000000bba0                strpbrk@@GLIBC_2.2.5
+                0x000000000000bbb0                umask@@GLIBC_2.2.5
+                0x000000000000bbc0                setsockopt@@GLIBC_2.2.5
+                0x000000000000bbd0                exp@@GLIBC_2.29
+                0x000000000000bbe0                remove@@GLIBC_2.2.5
+                0x000000000000bbf0                TLS_method@@OPENSSL_3.0.0
+                0x000000000000bc00                strdup@@GLIBC_2.2.5
+                0x000000000000bc10                SSL_get1_peer_certificate@@OPENSSL_3.0.0
+                0x000000000000bc20                lseek@@GLIBC_2.2.5
+                0x000000000000bc30                cos@@GLIBC_2.2.5
+                0x000000000000bc40                SSL_accept@@OPENSSL_3.0.0
+                0x000000000000bc50                ferror@@GLIBC_2.2.5
+                0x000000000000bc60                alarm@@GLIBC_2.2.5
+                0x000000000000bc70                qsort@@GLIBC_2.2.5
+                0x000000000000bc80                cfgetispeed@@GLIBC_2.2.5
+                0x000000000000bc90                SSL_write@@OPENSSL_3.0.0
+                0x000000000000bca0                putc@@GLIBC_2.2.5
+                0x000000000000bcb0                execvpe@@GLIBC_2.11
+                0x000000000000bcc0                lstat@@GLIBC_2.33
+                0x000000000000bcd0                fwrite@@GLIBC_2.2.5
+                0x000000000000bce0                posix_openpt@@GLIBC_2.2.5
+                0x000000000000bcf0                close@@GLIBC_2.2.5
+                0x000000000000bd00                SSL_pending@@OPENSSL_3.0.0
+                0x000000000000bd10                __isoc23_strtol@@GLIBC_2.38
+ *(.iplt)
+
+.plt.got        0x000000000000bd20        0x8
+ *(.plt.got)
+ .plt.got       0x000000000000bd20        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000000bd20                __cxa_finalize@@GLIBC_2.2.5
+
+.plt.sec
+ *(.plt.sec)
+
+.text           0x000000000000bd40    0x3acce
+ *(.text.unlikely .text.*_unlikely .text.unlikely.*)
+ .text.unlikely
+                0x000000000000bd40      0x17b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .text.unlikely
+                0x000000000000bebb       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ .text.unlikely
+                0x000000000000bedb       0x3e /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .text.unlikely
+                0x000000000000bf19       0x1f /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .text.unlikely
+                0x000000000000bf38       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .text.unlikely
+                0x000000000000bf58       0x3e /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .text.unlikely
+                0x000000000000bf96       0xba /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ *(.text.exit .text.exit.*)
+ *(.text.startup .text.startup.*)
+ *(.text.hot .text.hot.*)
+ *(SORT_BY_NAME(.text.sorted.*))
+ *(.text .stub .text.* .gnu.linkonce.t.*)
+ .text          0x000000000000c050       0x22 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000000c050                _start
+ .text          0x000000000000c072        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ *fill*         0x000000000000c072        0xe 
+ .text          0x000000000000c080       0xb9 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .text          0x000000000000c139      0x858 /tmp/cc5Z8B2Q.o
+                0x000000000000c7a4                main
+ *fill*         0x000000000000c991        0xf 
+ .text          0x000000000000c9a0       0xed /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o)
+                0x000000000000c9a0                Jim_InitStaticExtensions
+ *fill*         0x000000000000ca8d       0x33 
+ .text          0x000000000000cac0    0x1eb0a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                0x000000000000d520                JimDefaultAllocator
+                0x000000000000f990                Jim_StringToWide
+                0x000000000000fa20                Jim_StringToDouble
+                0x000000000000fab0                Jim_StrDup
+                0x000000000000faf0                Jim_StrDupLen
+                0x000000000000fb30                Jim_GetTimeUsec
+                0x000000000000fb90                Jim_IntHashFunction
+                0x000000000000fbc0                Jim_GenHashFunction
+                0x000000000000fc00                Jim_InitHashTable
+                0x000000000000fc30                Jim_ExpandHashTable
+                0x000000000000fe90                Jim_AddHashEntry
+                0x000000000000ff20                Jim_ReplaceHashEntry
+                0x0000000000010000                Jim_DeleteHashEntry
+                0x0000000000010100                Jim_ClearHashTable
+                0x00000000000101c0                Jim_FreeHashTable
+                0x00000000000101f0                Jim_FindHashEntry
+                0x0000000000010330                Jim_GetHashTableIterator
+                0x0000000000010360                Jim_NextHashEntry
+                0x00000000000103b0                Jim_StackInit
+                0x00000000000103d0                Jim_StackFree
+                0x0000000000010420                Jim_StackPush
+                0x0000000000010480                Jim_StackPop
+                0x00000000000104b0                Jim_NewObj
+                0x0000000000010630                Jim_FreeObj
+                0x0000000000011290                Jim_InvalidateStringRep
+                0x00000000000112c0                Jim_DuplicateObj
+                0x00000000000113a0                Jim_GetString
+                0x00000000000113e0                Jim_Length
+                0x0000000000011400                Jim_String
+                0x0000000000011420                Jim_Utf8Length
+                0x00000000000114b0                Jim_NewStringObj
+                0x0000000000013660                Jim_NewStringObjUtf8
+                0x00000000000136b0                Jim_NewStringObjNoAlloc
+                0x0000000000013760                Jim_AppendString
+                0x00000000000137f0                Jim_AppendObj
+                0x0000000000013850                Jim_AppendStrings
+                0x0000000000013c30                Jim_StringEqObj
+                0x0000000000014380                Jim_StringMatchObj
+                0x00000000000143f0                Jim_StringCompareObj
+                0x00000000000146d0                Jim_CompareStringImmediate
+                0x0000000000014850                Jim_ScriptIsComplete
+                0x00000000000148d0                Jim_GetSourceInfo
+                0x0000000000014970                Jim_SetSourceInfo
+                0x00000000000149b0                Jim_InterpIncrProcEpoch
+                0x0000000000014a00                Jim_MakeGlobalNamespaceName
+                0x0000000000014a90                Jim_RegisterCommand
+                0x0000000000014c30                Jim_CreateCommand
+                0x0000000000014c80                Jim_IsBigEndian
+                0x0000000000014c90                Jim_SetAssocData
+                0x0000000000014ce0                Jim_GetAssocData
+                0x0000000000014d10                Jim_DeleteAssocData
+                0x0000000000014d20                Jim_GetExitCode
+                0x0000000000014d30                Jim_NewIntObj
+                0x0000000000014dc0                Jim_NewDoubleObj
+                0x0000000000014e50                Jim_NewListObj
+                0x0000000000014f30                Jim_ListAppendElement
+                0x0000000000015730                Jim_ListAppendList
+                0x0000000000015790                Jim_ListLength
+                0x00000000000157a0                Jim_ListInsertElements
+                0x0000000000015810                Jim_ListGetIndex
+                0x0000000000015860                Jim_ListIndex
+                0x0000000000015920                Jim_ListJoin
+                0x0000000000015b30                Jim_ConcatObj
+                0x0000000000015e40                Jim_DictAddElement
+                0x0000000000015eb0                Jim_NewDictObj
+                0x0000000000015f40                Jim_DictPairs
+                0x0000000000015fd0                Jim_ReturnCode
+                0x0000000000015ff0                Jim_ScanString
+                0x0000000000016b60                Jim_CalcTaint
+                0x0000000000016bb0                Jim_DictMatchTypes
+                0x0000000000016d10                Jim_DictSize
+                0x0000000000016d40                Jim_DictMerge
+                0x0000000000016e60                Jim_DictInfo
+                0x0000000000016ef0                Jim_GetEnviron
+                0x0000000000016f00                Jim_SetEnviron
+                0x0000000000016f10                Jim_RegisterCoreCommands
+                0x0000000000016fb0                Jim_CheckShowCommands
+                0x0000000000017070                Jim_FindByName
+                0x00000000000170e0                Jim_IsDict
+                0x0000000000017100                Jim_IsList
+                0x0000000000017120                Jim_SetResultFormatted
+                0x00000000000173d0                Jim_DeleteCommand
+                0x0000000000017440                Jim_RenameCommand
+                0x0000000000017650                Jim_GetCommand
+                0x0000000000017b10                Jim_GetReference
+                0x0000000000017b40                Jim_GetFinalizer
+                0x0000000000017b90                Jim_SetFinalizer
+                0x0000000000017f20                Jim_GetWide
+                0x0000000000017f60                Jim_GetLong
+                0x00000000000181b0                Jim_GetCallFrameByLevel
+                0x0000000000018360                Jim_GetDouble
+                0x0000000000019d60                Jim_WrongNumArgs
+                0x0000000000019f60                Jim_GetEnum
+                0x000000000001a7f0                Jim_GetReturnCode
+                0x000000000001a8c0                Jim_GetBoolean
+                0x000000000001aaa0                Jim_DictKey
+                0x000000000001ab40                Jim_SetDictKeysVector
+                0x000000000001b070                Jim_SetVariable
+                0x000000000001b230                Jim_SetVariableStr
+                0x000000000001b2a0                Jim_SetGlobalVariableStr
+                0x000000000001b2d0                Jim_SetVariableStrWithStr
+                0x000000000001b340                Jim_CreateInterp
+                0x000000000001b750                Jim_SetTaintError
+                0x000000000001bb30                Jim_SetVariableLink
+                0x000000000001cc00                Jim_GetVariable
+                0x000000000001cc20                Jim_GetGlobalVariable
+                0x000000000001cc60                Jim_GetVariableStr
+                0x000000000001ccf0                Jim_GetGlobalVariableStr
+                0x000000000001e440                Jim_EvalObjVector
+                0x000000000001e560                Jim_Collect
+                0x000000000001e9b0                Jim_CollectIfNeeded
+                0x000000000001eab0                Jim_NewReference
+                0x000000000001ef00                Jim_EvalObjPrefix
+                0x000000000001f140                Jim_MakeErrorMessage
+                0x000000000001f300                Jim_EvalObj
+                0x000000000001fe90                Jim_FreeInterp
+                0x0000000000020240                Jim_EvalNamespace
+                0x0000000000020310                Jim_EvalSource
+                0x00000000000203d0                Jim_Eval
+                0x0000000000020a90                Jim_EvalFile
+                0x0000000000020c90                Jim_EvalFileGlobal
+                0x00000000000217c0                Jim_SubstObj
+                0x0000000000021a90                Jim_EvalExpression
+                0x0000000000021d00                Jim_GetBoolFromExpr
+                0x0000000000021d80                Jim_GetWideExpr
+                0x00000000000227a0                Jim_GetIndex
+                0x0000000000023720                Jim_ListRange
+                0x0000000000023bc0                Jim_StringByteRangeObj
+                0x0000000000023c80                Jim_StringRangeObj
+                0x0000000000023df0                JimStringReplaceObj
+                0x00000000000277c0                Jim_EvalGlobal
+                0x0000000000027800                Jim_EvalObjList
+                0x0000000000028a80                Jim_ListSetIndex
+                0x000000000002ab10                Jim_UnsetVariable
+                0x000000000002adb0                Jim_DictKeysVector
+                0x000000000002b570                Jim_CheckAbiVersion
+ *fill*         0x000000000002b5ca        0x6 
+ .text          0x000000000002b5d0      0x4fe /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+                0x000000000002b5d0                utf8_fromunicode
+                0x000000000002b660                utf8_charlen
+                0x000000000002b6c0                utf8_index
+                0x000000000002b750                utf8_prev_len
+                0x000000000002b7a0                utf8_tounicode
+                0x000000000002b900                utf8_strlen
+                0x000000000002b960                utf8_upper
+                0x000000000002b9e0                utf8_lower
+                0x000000000002ba60                utf8_title
+ *fill*         0x000000000002bace        0x2 
+ .text          0x000000000002bad0     0x4597 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+                0x000000000002fe20                Jim_AioFilehandle
+                0x000000000002fe80                Jim_aioInit
+ *fill*         0x0000000000030067        0x9 
+ .text          0x0000000000030070      0x5ab /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+                0x00000000000305b0                Jim_arrayInit
+ *fill*         0x000000000003061b        0x5 
+ .text          0x0000000000030620      0x6db /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+                0x0000000000030c90                Jim_clockInit
+ *fill*         0x0000000000030cfb        0x5 
+ .text          0x0000000000030d00     0x15e2 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+                0x0000000000030e40                Jim_EvalObjBackground
+                0x0000000000030fe0                Jim_CreateFileHandler
+                0x0000000000031050                Jim_CreateScriptFileHandler
+                0x00000000000310d0                Jim_FindFileHandler
+                0x0000000000031110                Jim_DeleteFileHandler
+                0x00000000000311d0                Jim_CreateTimeHandler
+                0x00000000000312b0                Jim_DeleteTimeHandler
+                0x0000000000031880                Jim_ProcessEvents
+                0x0000000000032190                Jim_eventloopInit
+ *fill*         0x00000000000322e2        0xe 
+ .text          0x00000000000322f0     0x2199 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+                0x0000000000034330                Jim_execInit
+ *fill*         0x0000000000034489       0x17 
+ .text          0x00000000000344a0     0x1c4a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+                0x0000000000035a70                Jim_FileStoreStatData
+                0x0000000000036000                Jim_fileInit
+ *fill*         0x00000000000360ea        0x6 
+ .text          0x00000000000360f0      0x2ab /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+                0x0000000000036330                Jim_historyInit
+ *fill*         0x000000000003639b        0x5 
+ .text          0x00000000000363a0      0x4f1 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+                0x0000000000036800                Jim_interpInit
+ *fill*         0x0000000000036891        0xf 
+ .text          0x00000000000368a0      0xb28 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+                0x0000000000037320                Jim_jsonInit
+ *fill*         0x00000000000373c8        0x8 
+ .text          0x00000000000373d0      0x266 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+                0x0000000000037410                Jim_LoadLibrary
+                0x00000000000375f0                Jim_loadInit
+ *fill*         0x0000000000037636        0xa 
+ .text          0x0000000000037640      0x71f /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+                0x0000000000037640                JimCanonicalNamespace
+                0x0000000000037710                Jim_CreateNamespaceVariable
+                0x00000000000377c0                Jim_NamespaceQualifiers
+                0x0000000000037820                Jim_NamespaceTail
+                0x0000000000037c90                Jim_namespaceInit
+ *fill*         0x0000000000037d5f       0x21 
+ .text          0x0000000000037d80      0xa8f /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+                0x0000000000038740                Jim_packInit
+ *fill*         0x000000000003880f        0x1 
+ .text          0x0000000000038810      0x560 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+                0x0000000000038970                Jim_PackageProvide
+                0x00000000000389f0                Jim_PackageRequire
+                0x0000000000038d50                Jim_packageInit
+ .text          0x0000000000038d70      0x51f /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+                0x0000000000039100                Jim_posixInit
+ *fill*         0x000000000003928f        0x1 
+ .text          0x0000000000039290      0x201 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+                0x0000000000039290                Jim_ReaddirCmd
+                0x0000000000039400                Jim_readdirInit
+ *fill*         0x0000000000039491        0xf 
+ .text          0x00000000000394a0      0xfff /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+                0x0000000000039580                Jim_RegexpCmd
+                0x0000000000039c50                Jim_RegsubCmd
+                0x000000000003a3d0                Jim_regexpInit
+ *fill*         0x000000000003a49f        0x1 
+ .text          0x000000000003a4a0      0xbe0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+                0x000000000003ad50                Jim_SignalSetIgnored
+                0x000000000003ad60                Jim_SignalId
+                0x000000000003ad90                Jim_signalInit
+ .text          0x000000000003b080      0x3f2 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+                0x000000000003b0c0                Jim_SyslogCmd
+                0x000000000003b3a0                Jim_syslogInit
+ *fill*         0x000000000003b472        0xe 
+ .text          0x000000000003b480      0x7c7 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+                0x000000000003b480                JimStringComparePrefix
+                0x000000000003bbb0                Jim_tclprefixInit
+ *fill*         0x000000000003bc47        0x9 
+ .text          0x000000000003bc50      0x70b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+                0x000000000003c2f0                Jim_zlibInit
+ *fill*         0x000000000003c35b        0x5 
+ .text          0x000000000003c360       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+                0x000000000003c360                Jim_binaryInit
+ *fill*         0x000000000003c3ac        0x4 
+ .text          0x000000000003c3b0       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+                0x000000000003c3b0                Jim_ensembleInit
+ *fill*         0x000000000003c3fc        0x4 
+ .text          0x000000000003c400       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+                0x000000000003c400                Jim_globInit
+ *fill*         0x000000000003c44c        0x4 
+ .text          0x000000000003c450       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+                0x000000000003c450                Jim_jsonencodeInit
+ *fill*         0x000000000003c49c        0x4 
+ .text          0x000000000003c4a0       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+                0x000000000003c4a0                Jim_nshelperInit
+ *fill*         0x000000000003c4ec        0x4 
+ .text          0x000000000003c4f0       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+                0x000000000003c4f0                Jim_ooInit
+ *fill*         0x000000000003c53c        0x4 
+ .text          0x000000000003c540       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+                0x000000000003c540                Jim_stdlibInit
+ *fill*         0x000000000003c58c        0x4 
+ .text          0x000000000003c590       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+                0x000000000003c590                Jim_tclcompatInit
+ *fill*         0x000000000003c5dc        0x4 
+ .text          0x000000000003c5e0       0x4c /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+                0x000000000003c5e0                Jim_treeInit
+ *fill*         0x000000000003c62c       0x14 
+ .text          0x000000000003c640      0x6d7 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+                0x000000000003c7b0                Jim_SubCmdArgError
+                0x000000000003c830                Jim_ParseSubCmd
+                0x000000000003cc00                Jim_CallSubCmd
+                0x000000000003cc90                Jim_SubCmdProc
+                0x000000000003ccd0                Jim_RegisterSubCmd
+ *fill*         0x000000000003cd17        0x9 
+ .text          0x000000000003cd20      0x968 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+                0x000000000003cfa0                Jim_HistoryGetline
+                0x000000000003d0c0                Jim_HistoryLoad
+                0x000000000003d0d0                Jim_HistoryAdd
+                0x000000000003d0e0                Jim_HistorySave
+                0x000000000003d110                Jim_HistoryShow
+                0x000000000003d170                Jim_HistorySetMaxLen
+                0x000000000003d180                Jim_HistoryGetMaxLen
+                0x000000000003d190                Jim_HistorySetCompletion
+                0x000000000003d240                Jim_HistorySetHints
+                0x000000000003d2f0                Jim_InteractivePrompt
+ *fill*         0x000000000003d688        0x8 
+ .text          0x000000000003d690      0xb4f /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+                0x000000000003d690                Jim_FormatString
+ *fill*         0x000000000003e1df        0x1 
+ .text          0x000000000003e1e0     0x28e7 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+                0x0000000000040470                jim_regcomp
+                0x0000000000040820                jim_regexec
+                0x0000000000040a70                jim_regerror
+                0x0000000000040ab0                jim_regfree
+ *fill*         0x0000000000040ac7        0x9 
+ .text          0x0000000000040ad0      0x1fb /workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+                0x0000000000040ad0                Jim_SetResultErrno
+                0x0000000000040b10                Jim_MakeTempFile
+                0x0000000000040ca0                Jim_OpenForWrite
+                0x0000000000040cc0                Jim_OpenForRead
+ *fill*         0x0000000000040ccb       0x15 
+ .text          0x0000000000040ce0     0x4a15 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+                0x0000000000041970                sb_alloc
+                0x00000000000419a0                sb_free
+                0x00000000000419c0                sb_chars
+                0x00000000000419d0                sb_append
+                0x0000000000041a60                sb_append_len
+                0x0000000000042c00                sb_to_string
+                0x0000000000042c30                sb_insert_len
+                0x0000000000043030                sb_insert_chars
+                0x00000000000430a0                sb_delete
+                0x00000000000434a0                sb_delete_chars
+                0x0000000000043540                sb_clear
+                0x0000000000043560                linenoiseHistoryFree
+                0x0000000000043600                linenoiseClearScreen
+                0x0000000000043620                linenoiseSetCompletionCallback
+                0x0000000000043640                linenoiseAddCompletion
+                0x0000000000043690                linenoiseSetHintsCallback
+                0x00000000000436a0                linenoiseSetFreeHintsCallback
+                0x00000000000436b0                linenoiseSetMultiLine
+                0x00000000000436c0                linenoiseColumns
+                0x0000000000043720                linenoiseWithInitial
+                0x0000000000045370                linenoise
+                0x0000000000045380                linenoiseHistoryAdd
+                0x00000000000453a0                linenoiseHistoryGetMaxLen
+                0x00000000000453b0                linenoiseHistorySetMaxLen
+                0x0000000000045490                linenoiseHistorySave
+                0x00000000000455d0                linenoiseHistoryLoad
+                0x00000000000456e0                linenoiseHistory
+ *fill*         0x00000000000456f5        0xb 
+ .text          0x0000000000045700      0xb8b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+                0x0000000000045700                Jim_GetTtySettings
+                0x0000000000045b40                Jim_SetTtySettings
+                0x0000000000046010                Jim_GetTtyControlSettings
+                0x00000000000460c0                Jim_SetTtyControlSettings
+ *fill*         0x000000000004628b        0x5 
+ .text          0x0000000000046290       0xfd /workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+                0x0000000000046290                openpty
+ *fill*         0x000000000004638d       0x13 
+ .text          0x00000000000463a0      0x65a /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+                0x00000000000463a0                jsmn_parse
+                0x00000000000469e0                jsmn_init
+ *fill*         0x00000000000469fa        0x6 
+ .text          0x0000000000046a00        0xe /usr/lib/x86_64-linux-gnu/libc_nonshared.a(atexit.oS)
+                0x0000000000046a00                atexit
+ .text          0x0000000000046a0e        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .text          0x0000000000046a0e        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+ *(.gnu.warning)
+
+.fini           0x0000000000046a10        0x9
+ *(SORT_NONE(.fini))
+ .fini          0x0000000000046a10        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+                0x0000000000046a10                _fini
+ .fini          0x0000000000046a14        0x5 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+                [!provide]                        PROVIDE (__etext = .)
+                [!provide]                        PROVIDE (_etext = .)
+                [!provide]                        PROVIDE (etext = .)
+                0x0000000000047000                . = ALIGN (CONSTANT (MAXPAGESIZE))
+                0x0000000000047000                . = SEGMENT_START ("rodata-segment", (ALIGN (CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 0x1))))
+
+.rodata         0x0000000000047000     0xf028
+ *(.rodata .rodata.* .gnu.linkonce.r.*)
+ .rodata.cst4   0x0000000000047000        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x0000000000047000                _IO_stdin_used
+ *fill*         0x0000000000047004        0x4 
+ .rodata        0x0000000000047008      0xc76 /tmp/cc5Z8B2Q.o
+ *fill*         0x0000000000047c7e        0x2 
+ .rodata        0x0000000000047c80      0xc25 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .rodata.str1.1
+                0x00000000000488a5     0x27b0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                                       0x1302 (size before relaxing)
+ *fill*         0x000000000004b055        0x3 
+ .rodata.str1.8
+                0x000000000004b058     0x80cf /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                                       0x10fc (size before relaxing)
+ *fill*         0x0000000000053127        0x1 
+ .rodata.cst2   0x0000000000053128        0xa /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ *fill*         0x0000000000053132        0xe 
+ .rodata.cst16  0x0000000000053140       0x70 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                                         0x40 (size before relaxing)
+ .rodata.cst8   0x00000000000531b0       0x98 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                                         0x68 (size before relaxing)
+ .rodata.str1.1
+                0x0000000000053248        0xf /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ *fill*         0x0000000000053248       0x18 
+ .rodata        0x0000000000053260     0x2404 /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ .rodata.str1.1
+                0x0000000000055664      0x635 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ *fill*         0x0000000000055664       0x1c 
+ .rodata        0x0000000000055680      0x114 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .rodata.str1.8
+                0x0000000000055794      0x1cd /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .rodata.cst16  0x0000000000055794       0x10 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .rodata.cst8   0x0000000000055794        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .rodata.str1.8
+                0x0000000000055794       0x2a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .rodata.str1.1
+                0x0000000000055794       0x74 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .rodata.str1.1
+                0x0000000000055794       0x64 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .rodata.str1.8
+                0x0000000000055794       0xa2 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .rodata.str1.1
+                0x0000000000055794       0xfd /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ .rodata.cst8   0x0000000000055794        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ .rodata.str1.1
+                0x0000000000055794      0x1f7 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .rodata.str1.8
+                0x0000000000055794       0x7a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .rodata.cst8   0x0000000000055794        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .rodata.str1.8
+                0x0000000000055794      0x129 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .rodata.str1.1
+                0x0000000000055794      0x286 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .rodata.str1.1
+                0x0000000000055794       0x6c /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+ .rodata.str1.1
+                0x0000000000055794       0xc0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ *fill*         0x0000000000055794        0xc 
+ .rodata        0x00000000000557a0       0x13 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .rodata.str1.1
+                0x00000000000557b3       0xa7 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .rodata.str1.8
+                0x00000000000557b3       0x5a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ *fill*         0x00000000000557b3        0xd 
+ .rodata        0x00000000000557c0       0x15 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .rodata.str1.8
+                0x00000000000557d5       0x4b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+ .rodata.str1.1
+                0x00000000000557d5       0x2c /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+ .rodata.str1.1
+                0x00000000000557d5      0x159 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .rodata.str1.8
+                0x00000000000557d5       0x3a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ *fill*         0x00000000000557d5        0xb 
+ .rodata        0x00000000000557e0       0x56 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .rodata.str1.1
+                0x0000000000055836       0x6b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .rodata.str1.8
+                0x0000000000055836       0x96 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .rodata.str1.8
+                0x0000000000055836       0x22 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .rodata.str1.1
+                0x0000000000055836       0x90 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .rodata.str1.1
+                0x0000000000055836       0x5b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+ .rodata.str1.1
+                0x0000000000055836       0x2e /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+ .rodata.str1.8
+                0x0000000000055836      0x12b /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ .rodata.str1.1
+                0x0000000000055836       0x84 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ *fill*         0x0000000000055836        0x2 
+ .rodata        0x0000000000055838       0x44 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ .rodata.str1.1
+                0x000000000005587c      0x19d /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .rodata.str1.8
+                0x000000000005587c       0x1f /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .rodata.cst8   0x000000000005587c       0x10 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .rodata.str1.1
+                0x000000000005587c       0xed /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .rodata.str1.8
+                0x000000000005587c       0x54 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .rodata.cst8   0x000000000005587c        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .rodata.str1.1
+                0x000000000005587c       0xc5 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .rodata.str1.8
+                0x000000000005587c       0x57 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .rodata.str1.1
+                0x000000000005587c       0xfe /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+ .rodata.str1.1
+                0x000000000005587c       0x16 /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+ .rodata.str1.8
+                0x000000000005587c     0x1585 /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+ .rodata.str1.1
+                0x000000000005587c       0x1a /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+ .rodata.str1.8
+                0x000000000005587c      0x3c5 /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+ .rodata.str1.1
+                0x000000000005587c       0x12 /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+ .rodata.str1.8
+                0x000000000005587c      0xd32 /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+ .rodata.str1.1
+                0x000000000005587c       0x1e /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+ .rodata.str1.8
+                0x000000000005587c      0x5c6 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+ .rodata.str1.1
+                0x000000000005587c       0x1a /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+ .rodata.str1.8
+                0x000000000005587c      0xd5d /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+ .rodata.str1.1
+                0x000000000005587c        0xe /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+ .rodata.str1.8
+                0x000000000005587c      0xab3 /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+ .rodata.str1.1
+                0x000000000005587c       0x16 /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+ .rodata.str1.8
+                0x000000000005587c      0xb3b /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+ .rodata.str1.1
+                0x000000000005587c       0x1c /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+ .rodata.str1.8
+                0x000000000005587c      0xc76 /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+ .rodata.str1.1
+                0x000000000005587c       0x12 /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+ .rodata.str1.8
+                0x000000000005587c      0xa8b /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+ .rodata.str1.1
+                0x000000000005587c       0x7a /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .rodata.str1.8
+                0x000000000005587c       0xad /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .rodata.str1.1
+                0x000000000005587c       0x97 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+ *fill*         0x000000000005587c        0x4 
+ .rodata        0x0000000000055880       0x17 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+ .rodata.str1.8
+                0x0000000000055897       0xba /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ .rodata.str1.1
+                0x0000000000055897       0x33 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ *fill*         0x0000000000055897        0x1 
+ .rodata        0x0000000000055898       0xc0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ .rodata        0x0000000000055958      0x1f8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .rodata.str1.1
+                0x0000000000055b50      0x1e8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .rodata.cst8   0x0000000000055b50        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .rodata.str1.1
+                0x0000000000055b50       0x25 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+ .rodata        0x0000000000055b50      0x330 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .rodata.str1.1
+                0x0000000000055e80      0x10b /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .rodata.cst8   0x0000000000055e80       0x10 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .rodata.cst16  0x0000000000055e80       0x10 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .rodata.str1.1
+                0x0000000000055e80       0xc3 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ .rodata        0x0000000000055e80       0xe0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ .rodata.str1.1
+                0x0000000000055f60        0x3 /workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+ .rodata        0x0000000000055f60       0xc8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+ .rodata.cst16  0x0000000000056028       0x10 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+ .rodata.cst8   0x0000000000056028        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+
+.rodata1
+ *(.rodata1)
+
+.eh_frame_hdr   0x0000000000056028       0x74
+ *(.eh_frame_hdr)
+ .eh_frame_hdr  0x0000000000056028       0x74 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x0000000000056028                __GNU_EH_FRAME_HDR
+ *(.eh_frame_entry .eh_frame_entry.*)
+
+.eh_frame       0x00000000000560a0      0x1c8
+ *(.eh_frame)
+ .eh_frame      0x00000000000560a0       0x30 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                                         0x2c (size before relaxing)
+ *fill*         0x00000000000560d0        0x0 
+ .eh_frame      0x00000000000560d0       0x40 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .eh_frame      0x0000000000056110       0x18 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                                         0x30 (size before relaxing)
+ .eh_frame      0x0000000000056128      0x128 /tmp/cc5Z8B2Q.o
+                                        0x140 (size before relaxing)
+ .eh_frame      0x0000000000056250       0x14 /usr/lib/x86_64-linux-gnu/libc_nonshared.a(atexit.oS)
+                                         0x30 (size before relaxing)
+ .eh_frame      0x0000000000056264        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ *(.eh_frame.*)
+
+.sframe         0x0000000000056268        0x0
+ *(.sframe)
+ .sframe        0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .sframe        0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.sframe.*)
+
+.gcc_except_table
+ *(.gcc_except_table .gcc_except_table.*)
+
+.gnu_extab
+ *(.gnu_extab*)
+
+.exception_ranges
+ *(.exception_ranges*)
+
+.note.build-id
+ *(.note.build-id)
+
+.note.GNU-stack
+                0x0000000000056268        0x0
+ *(.note.GNU-stack)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .note.GNU-stack
+                0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ .note.GNU-stack
+                0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .note.GNU-stack
+                0x0000000000056268        0x0 /tmp/cc5Z8B2Q.o
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /usr/lib/x86_64-linux-gnu/libc_nonshared.a(atexit.oS)
+ .note.GNU-stack
+                0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .note.GNU-stack
+                0x0000000000056268        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+
+.note.gnu-property
+ *(.note.gnu-property)
+
+.note.ABI-tag   0x0000000000056268       0x20
+ *(.note.ABI-tag)
+ .note.ABI-tag  0x0000000000056268       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.note.package
+ *(.note.package)
+
+.note.dlopen
+ *(.note.dlopen)
+
+.note.netbsd.ident
+ *(.note.netbsd.ident)
+
+.note.openbsd.ident
+ *(.note.openbsd.ident)
+                0x00000000000578d0                . = DATA_SEGMENT_ALIGN (CONSTANT (MAXPAGESIZE), CONSTANT (COMMONPAGESIZE))
+
+.eh_frame
+ *(.eh_frame)
+ *(.eh_frame.*)
+
+.sframe
+ *(.sframe)
+ *(.sframe.*)
+
+.gnu_extab
+ *(.gnu_extab)
+
+.gcc_except_table
+ *(.gcc_except_table .gcc_except_table.*)
+
+.exception_ranges
+ *(.exception_ranges*)
+
+.tdata          0x00000000000578d0        0x0
+                [!provide]                        PROVIDE (__tdata_start = .)
+ *(.tdata .tdata.* .gnu.linkonce.td.*)
+
+.tbss
+ *(.tbss .tbss.* .gnu.linkonce.tb.*)
+ *(.tcommon)
+
+.preinit_array  0x00000000000578d0        0x0
+                [!provide]                        PROVIDE (__preinit_array_start = .)
+ *(.preinit_array)
+                [!provide]                        PROVIDE (__preinit_array_end = .)
+
+.init_array     0x00000000000578d0        0x8
+                [!provide]                        PROVIDE (__init_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
+ *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
+ .init_array    0x00000000000578d0        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                [!provide]                        PROVIDE (__init_array_end = .)
+
+.fini_array     0x00000000000578d8        0x8
+                [!provide]                        PROVIDE (__fini_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
+ *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
+ .fini_array    0x00000000000578d8        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                [!provide]                        PROVIDE (__fini_array_end = .)
+
+.ctors
+ *crtbegin.o(.ctors)
+ *crtbegin?.o(.ctors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .ctors)
+ *(SORT_BY_NAME(.ctors.*))
+ *(.ctors)
+
+.dtors
+ *crtbegin.o(.dtors)
+ *crtbegin?.o(.dtors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .dtors)
+ *(SORT_BY_NAME(.dtors.*))
+ *(.dtors)
+
+.jcr
+ *(.jcr)
+
+.data.rel.ro    0x00000000000578e0     0x4450
+ *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*)
+ .data.rel.ro.local
+                0x00000000000578e0       0x28 /tmp/cc5Z8B2Q.o
+ *fill*         0x0000000000057908       0x18 
+ .data.rel.ro.local
+                0x0000000000057920     0x23e0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .data.rel.ro.local
+                0x0000000000059d00      0x768 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ *fill*         0x000000000005a468       0x18 
+ .data.rel.ro.local
+                0x000000000005a480      0x100 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .data.rel.ro.local
+                0x000000000005a580      0x100 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .data.rel.ro.local
+                0x000000000005a680       0x48 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ *fill*         0x000000000005a6c8       0x18 
+ .data.rel.ro.local
+                0x000000000005a6e0      0x100 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .data.rel.ro.local
+                0x000000000005a7e0      0x3c0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .data.rel.ro.local
+                0x000000000005aba0      0x120 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+ .data.rel.ro.local
+                0x000000000005acc0       0xc0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .data.rel.ro.local
+                0x000000000005ad80       0x60 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .data.rel.ro.local
+                0x000000000005ade0      0x200 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .data.rel.ro.local
+                0x000000000005afe0       0x80 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .data.rel.ro.local
+                0x000000000005b060       0xc0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .data.rel.ro.local
+                0x000000000005b120       0xe8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ *fill*         0x000000000005b208       0x18 
+ .data.rel.ro.local
+                0x000000000005b220       0xe0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .data.rel.ro.local
+                0x000000000005b300      0x608 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ *fill*         0x000000000005b908       0x18 
+ .data.rel.ro.local
+                0x000000000005b920       0x40 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .data.rel.ro.local
+                0x000000000005b960       0xc0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+ .data.rel.ro.local
+                0x000000000005ba20       0x60 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .data.rel.ro.local
+                0x000000000005ba80       0x10 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ *fill*         0x000000000005ba90       0x10 
+ .data.rel.ro.local
+                0x000000000005baa0      0x100 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .data.rel.ro.local
+                0x000000000005bba0       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .data.rel.ro.local
+                0x000000000005bbc0      0x170 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*)
+ .data.rel.ro   0x000000000005bd30        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+
+.dynamic        0x000000000005bd30      0x220
+ *(.dynamic)
+ .dynamic       0x000000000005bd30      0x220 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000005bd30                _DYNAMIC
+
+.got            0x000000000005bf50       0x88
+ *(.got)
+ .got           0x000000000005bf50       0x88 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ *(.igot)
+                0x000000000005bfe8                . = DATA_SEGMENT_RELRO_END (., (SIZEOF (.got.plt) >= 0x18)?0x18:0x0)
+
+.got.plt        0x000000000005bfe8      0x690
+ *(.got.plt)
+ .got.plt       0x000000000005bfe8      0x690 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000005bfe8                _GLOBAL_OFFSET_TABLE_
+ *(.igot.plt)
+
+.data           0x000000000005c680      0x128
+ *(.data .data.* .gnu.linkonce.d.*)
+ .data          0x000000000005c680        0x4 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000005c680                data_start
+                0x000000000005c680                __data_start
+ .data          0x000000000005c684        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ .data          0x000000000005c684        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ *fill*         0x000000000005c684        0x4 
+ .data.rel.local
+                0x000000000005c688        0x8 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                0x000000000005c688                __dso_handle
+ .data          0x000000000005c690        0x0 /tmp/cc5Z8B2Q.o
+ *fill*         0x000000000005c690       0x10 
+ .data.rel.local
+                0x000000000005c6a0       0xf8 /tmp/cc5Z8B2Q.o
+ .data          0x000000000005c798        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o)
+ .data          0x000000000005c798        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .data.rel.local
+                0x000000000005c798        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+                0x000000000005c798                Jim_Allocator
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .data          0x000000000005c7a0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+ .data          0x000000000005c7a0        0x8 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .data          0x000000000005c7a8        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ .data          0x000000000005c7a8        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+ .data          0x000000000005c7a8        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+ .data          0x000000000005c7a8        0x0 /usr/lib/x86_64-linux-gnu/libc_nonshared.a(atexit.oS)
+ .data          0x000000000005c7a8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .data          0x000000000005c7a8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+
+.tm_clone_table
+                0x000000000005c7a8        0x0
+ .tm_clone_table
+                0x000000000005c7a8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ .tm_clone_table
+                0x000000000005c7a8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+
+.data1
+ *(.data1)
+                0x000000000005c7a8                _edata = .
+                [!provide]                        PROVIDE (edata = .)
+                0x000000000005c7a8                . = ALIGN (ALIGNOF (NEXT_SECTION))
+                0x000000000005c7c0                __bss_start = .
+
+.bss            0x000000000005c7c0      0x530
+ *(.dynbss)
+ .dynbss        0x000000000005c7c0       0x28 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+                0x000000000005c7c0                stdout@@GLIBC_2.2.5
+                0x000000000005c7c8                __environ@@GLIBC_2.2.5
+                0x000000000005c7c8                _environ@@GLIBC_2.2.5
+                0x000000000005c7c8                environ@@GLIBC_2.2.5
+                0x000000000005c7d0                stdin@@GLIBC_2.2.5
+                0x000000000005c7e0                stderr@@GLIBC_2.2.5
+ *(.bss .bss.* .gnu.linkonce.b.*)
+ .bss           0x000000000005c7e8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o
+ .bss           0x000000000005c7e8        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o
+ .bss           0x000000000005c7e8        0x1 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+ *fill*         0x000000000005c7e9        0x3 
+ .bss           0x000000000005c7ec        0x8 /tmp/cc5Z8B2Q.o
+ .bss           0x000000000005c7f4        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o)
+ *fill*         0x000000000005c7f4        0xc 
+ .bss           0x000000000005c800       0x21 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+ .bss           0x000000000005c821        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ *fill*         0x000000000005c821       0x1f 
+ .bss           0x000000000005c840      0x418 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .bss           0x000000000005cc58        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+ *fill*         0x000000000005cc58        0x8 
+ .bss           0x000000000005cc60       0x90 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .bss           0x000000000005ccf0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ .bss           0x000000000005ccf0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+ .bss           0x000000000005ccf0        0x0 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+ .bss           0x000000000005ccf0        0x0 /usr/lib/x86_64-linux-gnu/libc_nonshared.a(atexit.oS)
+ .bss           0x000000000005ccf0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+ .bss           0x000000000005ccf0        0x0 /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o
+ *(COMMON)
+                0x000000000005ccf0                . = ALIGN ((. != 0x0)?0x8:0x1)
+
+.lbss
+ *(.dynlbss)
+ *(.lbss .lbss.* .gnu.linkonce.lb.*)
+ *(LARGE_COMMON)
+                0x000000000005ccf0                . = ALIGN (0x8)
+                0x000000000005ccf0                . = SEGMENT_START ("ldata-segment", .)
+
+.lrodata
+ *(.lrodata .lrodata.* .gnu.linkonce.lr.*)
+
+.ldata          0x000000000005ecf0        0x0
+ *(.ldata .ldata.* .gnu.linkonce.l.*)
+                0x000000000005ecf0                . = ALIGN ((. != 0x0)?0x8:0x1)
+                0x000000000005ecf0                . = ALIGN (0x8)
+                0x000000000005ccf0                _end = .
+                [!provide]                        PROVIDE (end = .)
+                0x000000000005ecf0                . = DATA_SEGMENT_END (.)
+
+.stab
+ *(.stab)
+
+.stabstr
+ *(.stabstr)
+
+.stab.excl
+ *(.stab.excl)
+
+.stab.exclstr
+ *(.stab.exclstr)
+
+.stab.index
+ *(.stab.index)
+
+.stab.indexstr
+ *(.stab.indexstr)
+
+.comment        0x0000000000000000       0x1f
+ *(.comment)
+ .comment       0x0000000000000000       0x1f /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o
+                                         0x20 (size before relaxing)
+ .comment       0x000000000000001f       0x20 /tmp/cc5Z8B2Q.o
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(_load-static-exts.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(utf8.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-array.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-clock.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-eventloop.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-exec.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-file.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-history.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interp.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-json.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-load.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-namespace.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-pack.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-package.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-posix.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-readdir.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-regexp.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-signal.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-syslog.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tclprefix.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(binary.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(ensemble.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(glob.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsonencode.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(nshelper.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(oo.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(stdlib.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(tclcompat.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(tree.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-subcmd.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-interactive.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-format.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimregexp.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jimiocompat.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(linenoise.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-tty.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(openpty.o)
+ .comment       0x000000000000001f       0x20 /workspace/.proofs/native-providers/jimtcl/libjim.a(jsmn.o)
+ .comment       0x000000000000001f       0x20 /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o
+
+.gnu.build.attributes
+ *(.gnu.build.attributes .gnu.build.attributes.*)
+
+.debug
+ *(.debug)
+
+.line
+ *(.line)
+
+.debug_srcinfo
+ *(.debug_srcinfo)
+
+.debug_sfnames
+ *(.debug_sfnames)
+
+.debug_aranges
+ *(.debug_aranges)
+
+.debug_pubnames
+ *(.debug_pubnames)
+
+.debug_info
+ *(.debug_info .gnu.linkonce.wi.*)
+
+.debug_abbrev
+ *(.debug_abbrev)
+
+.debug_line
+ *(.debug_line .debug_line.* .debug_line_end)
+
+.debug_frame
+ *(.debug_frame)
+
+.debug_str
+ *(.debug_str)
+
+.debug_loc
+ *(.debug_loc)
+
+.debug_macinfo
+ *(.debug_macinfo)
+
+.debug_weaknames
+ *(.debug_weaknames)
+
+.debug_funcnames
+ *(.debug_funcnames)
+
+.debug_typenames
+ *(.debug_typenames)
+
+.debug_varnames
+ *(.debug_varnames)
+
+.debug_pubtypes
+ *(.debug_pubtypes)
+
+.debug_ranges
+ *(.debug_ranges)
+
+.debug_addr
+ *(.debug_addr)
+
+.debug_line_str
+ *(.debug_line_str)
+
+.debug_loclists
+ *(.debug_loclists)
+
+.debug_macro
+ *(.debug_macro)
+
+.debug_names
+ *(.debug_names)
+
+.debug_rnglists
+ *(.debug_rnglists)
+
+.debug_str_offsets
+ *(.debug_str_offsets)
+
+.debug_sup
+ *(.debug_sup)
+
+.gnu.attributes
+ *(.gnu.attributes)
+
+/DISCARD/
+ *(.note.GNU-stack)
+ *(.gnu_debuglink)
+ *(.gnu.lto_*)
+ *(.gnu_object_only)
+OUTPUT(/workspace/.proofs/native-naming-argument-order499d/providers/jim/probe.elf elf64-x86-64)

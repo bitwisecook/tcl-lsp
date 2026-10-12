@@ -1,0 +1,22 @@
+{
+  "scope": "Actual fixed-input Python proof-gate controls. This is implementation execution, not a native provider or Rust result.",
+  "captured_utc": "2026-10-08T20:19:28.469431+00:00",
+  "command": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "scripts/dev/test_name_resolution_proofs.py"
+  ],
+  "python_version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "python_executable_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "sources": {
+    "scripts/dev/check-name-resolution-proofs.py": "04f4eb7047a6bca1c5d569454ce82451ea219bc787903831642c65fbae694285",
+    "scripts/dev/update-name-resolution-proof-index.py": "3e04c6dc9fe8fa712582f5c4807ed9b1f08ca0197d5dd4e2406398ee319cdf12",
+    "scripts/dev/test_name_resolution_proofs.py": "f1a7285ca3f491f9be2bb1c1b39307c02ee9d3b8ab944b986a7f01f145fb8a34"
+  },
+  "exit": 0,
+  "stdout": "",
+  "stderr": ".............\n----------------------------------------------------------------------\nRan 13 tests in 0.026s\n\nOK\n",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "cfb3954a5cd76fdf1976bc45a636e7b872b25b55888370e312f0dbc5c3066975",
+  "native_launches": 0,
+  "rust_suite_runs": 0
+}

@@ -1,0 +1,925 @@
+{
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "provider": "9.0.4",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b"
+  },
+  "probe_sha256": "c1ead81dfd54f6a92a617c5d3ceaf3dff9105f6d75ac655bdaaba3d8e2c508ca",
+  "inputs_sha256": "87e3a0f8f387da4c457f3666e5c1a44e5953f44760cd5f44c1fc9ab7055ae1a3",
+  "source_anchors_sha256": "00759f8880f90d0d130a0d47eab05bfe812fe6fcf210ddd9831ebce6708d8dc6",
+  "runner_sha256": "129ca8eb7705820365855f379d3dbb5a314e55dbb8c4c444dc781f4cdd7d7017",
+  "queue_sha256": "3eb6871f7e4def2770d65bde01d20ccbe7e7840b3128da03ba072c473292db7e",
+  "compile_command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+    "/workspace/.proofs/native-info-inventory193/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cases": [
+    {
+      "id": "inventory-miss",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "0"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "21d042539e5e6392d136b2ff96cd546e339e825f191bc1fc445c9c6713fdacbf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|337|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420225f5f72323238365f616273656e745f5f223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "inventory-jim-list",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "1"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "0460bece9c51d86548558f5c4a0e0b822fdf666767e85cf2292d774e36151d6a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|330|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d636f6d6d616e6473223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "inventory-c-map",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "2"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "92641410c5e031858475f9ac7561afbbe49f40f14a1bacc0b32d2d6d62995166",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|0|864|61726773203a3a74636c3a3a696e666f3a3a6172677320626f6479203a3a74636c3a3a696e666f3a3a626f647920636d64636f756e74203a3a74636c3a3a696e666f3a3a636d64636f756e7420636d6474797065203a3a74636c3a3a696e666f3a3a636d647479706520636f6d6d616e6473203a3a74636c3a3a696e666f3a3a636f6d6d616e647320636f6d706c657465203a3a74636c3a3a696e666f3a3a636f6d706c65746520636f6e7374616e74203a3a74636c3a3a696e666f3a3a636f6e7374616e7420636f6e737473203a3a74636c3a3a696e666f3a3a636f6e73747320636f726f7574696e65203a3a74636c3a3a696e666f3a3a636f726f7574696e652064656661756c74203a3a74636c3a3a696e666f3a3a64656661756c74206572726f72737461636b203a3a74636c3a3a696e666f3a3a6572726f72737461636b20657869737473203a3a74636c3a3a696e666f3a3a657869737473206672616d65203a3a74636c3a3a696e666f3a3a6672616d652066756e6374696f6e73203a3a74636c3a3a696e666f3a3a66756e6374696f6e7320676c6f62616c73203a3a74636c3a3a696e666f3a3a676c6f62616c7320686f73746e616d65203a3a74636c3a3a696e666f3a3a686f73746e616d65206c6576656c203a3a74636c3a3a696e666f3a3a6c6576656c206c696272617279203a3a74636c3a3a696e666f3a3a6c696272617279206c6f61646564203a3a74636c3a3a696e666f3a3a6c6f61646564206c6f63616c73203a3a74636c3a3a696e666f3a3a6c6f63616c73206e616d656f6665786563757461626c65203a3a74636c3a3a696e666f3a3a6e616d656f6665786563757461626c652070617463686c6576656c203a3a74636c3a3a696e666f3a3a70617463686c6576656c2070726f6373203a3a74636c3a3a696e666f3a3a70726f637320736372697074203a3a74636c3a3a696e666f3a3a736372697074207368617265646c6962657874656e73696f6e203a3a74636c3a3a696e666f3a3a7368617265646c6962657874656e73696f6e2074636c76657273696f6e203a3a74636c3a3a696e666f3a3a74636c76657273696f6e2076617273203a3a74636c3a3a696e666f3a3a76617273206f626a656374203a3a6f6f3a3a496e666f4f626a65637420636c617373203a3a6f6f3a3a496e666f436c617373"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exists-missing",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "3"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "41d31aec09dd7a36d373433fa1e60327515619c2158976e35093f62e449a7b56",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|0|1|30"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-alias",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "4"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "12e33f050ff29932f68d4a2e97936811eeb4293814f4bd23e7dbd1b3666491a6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|326|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022616c696173223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-aliases",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "5"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "7326d0643c002e66fa346baa79a502bf9126b6e0131fded85785bebb0a02b4f4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|328|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022616c6961736573223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-args",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "6"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "8b7221563d95d1e0981c0c6c6f8cacb1df7b6389d569675b8fca8cc40944d5b8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20617267732070726f636e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-body",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "7"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "e63362aec4c4860cb53e1af85226ba5ae7cd8bccb7d3c7d7447df993e6e3e666",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20626f64792070726f636e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-channels",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "8"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "e48be962d3d0a07a8aeb8836f143cbd030c16612c5ab573ddc703ac3483b4535",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|329|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420226368616e6e656c73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-class",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "9"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "921cc775fc259ccc569ccf9731764a1fd21910349b5ff8f0d21ee998c4dbc57f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|233|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420225f5f72323238365f6f706572616e645f5f223a206d7573742062652063616c6c2c20636f6e7374727563746f722c20646566696e6974696f6e2c20646566696e6974696f6e6e616d6573706163652c2064657374727563746f722c2066696c746572732c20666f72776172642c20696e7374616e6365732c206d6574686f64732c206d6574686f64747970652c206d6978696e732c2070726f706572746965732c20737562636c61737365732c207375706572636c61737365732c206f72207661726961626c6573"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-cmdcount",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "10"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6517d0dd98e20f523ae5092dd93f3029a4a0cf6f74eb18e1578513b2729c4594",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|39|77726f6e67202320617267733a2073686f756c642062652022696e666f20636d64636f756e7422"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-cmdtype",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "11"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "9e9c7548c0e87f2bdf772d351ba64833efd1ece5b0d5f9fc092ec2ba9b7395a6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|50|77726f6e67202320617267733a2073686f756c642062652022696e666f20636d647479706520636f6d6d616e644e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-commands",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "12"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "1b5163287f8a326d924b9b6f987333e396f7f8c505c4e525551185758c0280e4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|49|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6d6d616e6473203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-complete",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "13"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5065f6339d314805ad1123eff586d0ef984a6c82b8e3b72bed85ffa6d54cfcc9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6d706c65746520636f6d6d616e6422"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-constant",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "14"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "8e348f7639b1778492f4663ea0215e9b448cf1712a1aa75a71e732ef2a7650fe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6e7374616e74207661724e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-consts",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "15"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f8fd2f4b06392ddd9da19e72d2c39b8b61978c832e13773b9bb2719e2df2e778",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6e737473203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-coroutine",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "16"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "7028dbdb231941d3d935813f553cc27db55b2dea4d7ca50aec7c1703427811bb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|40|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f726f7574696e6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-default",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "17"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "8dd404636eba80373b43dff7768b44b8d853ebe3dea1d8f589f63e640332a1c9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|59|77726f6e67202320617267733a2073686f756c642062652022696e666f2064656661756c742070726f636e616d6520617267207661726e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-errorstack",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "18"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "4112b1b8eb2d50be5193c87b67b599da30784a836cd54c88e7905454f5d324d1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|50|77726f6e67202320617267733a2073686f756c642062652022696e666f206572726f72737461636b203f696e746572703f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-exists",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "19"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "cd7717261ca5884cf38b5cc987b374bde81d1d3459e15e6e060c67b717398174",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f20657869737473207661724e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-frame",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "20"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "d463355bb4a0837cec5c41d6cde8baac46d22d0b39529adfab73785b651face3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f206672616d65203f6e756d6265723f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-functions",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "21"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "aca89c707e5dccd8ea2d91d849bcfd8c224222d834a3918e321aa48e73e9b8ce",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|50|77726f6e67202320617267733a2073686f756c642062652022696e666f2066756e6374696f6e73203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-globals",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "22"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "00fc7ad0c99878ec2b5f9948bfe2543099395500b7af410ab4a8b01c652db195",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|48|77726f6e67202320617267733a2073686f756c642062652022696e666f20676c6f62616c73203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-help",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "23"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "612854bb0a974ffcdcfad31cb6281a10d1e387ac8e9c34174a321e5dd46f826b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|325|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e64202268656c70223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-hostname",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "24"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "3a0b178cf6114f76208a579766de2b641613c69075cb420cdaff9ad965ecae64",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|39|77726f6e67202320617267733a2073686f756c642062652022696e666f20686f73746e616d6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-level",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "25"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "74e19d564a7f2c6fa7ef9655638adea55e7944eabffd56c57a58823555faa55a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f206c6576656c203f6e756d6265723f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-library",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "26"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "a5cd236bd30b3766356d48052e5d9f36959b0074ace550a931a564d8cbb16292",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|38|77726f6e67202320617267733a2073686f756c642062652022696e666f206c69627261727922"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-loaded",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "27"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c1ae0cfd95378cd8f70ae8a720d11943382cce9b7772214d1197f1e1026b6f89",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|55|77726f6e67202320617267733a2073686f756c642062652022696e666f206c6f61646564203f696e746572703f203f7072656669783f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-locals",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "28"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "8e559f4a54f3fddfc9784a45700c85faf920aa1b1b323f2ffc6425e54bcea119",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206c6f63616c73203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-nameofexecutable",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "29"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "95d7a738cdd4acf5d381ccbcfd4abd71e49af20487ff7bc1c69c4f0c3bce9bde",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206e616d656f6665786563757461626c6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-object",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "30"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5519379938d79d79e5892a54f830afc35e357863466a5ad74f31cca82752970f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|191|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420225f5f72323238365f6f706572616e645f5f223a206d7573742062652063616c6c2c20636c6173732c206372656174696f6e69642c20646566696e6974696f6e2c2066696c746572732c20666f72776172642c206973612c206d6574686f64732c206d6574686f64747970652c206d6978696e732c206e616d6573706163652c2070726f706572746965732c207661726961626c65732c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-patchlevel",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "31"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "601df49ab660a6aabdf51416b01eaf50629970e302d8fbd133747130003b6427",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|41|77726f6e67202320617267733a2073686f756c642062652022696e666f2070617463686c6576656c22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-procs",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "32"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "d9161cffba61fc319a343247f6838166d3c6f439f5088c67c2d1c1765fe76ee4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|46|77726f6e67202320617267733a2073686f756c642062652022696e666f2070726f6373203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-references",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "33"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "37155255183b82c8edc7849cfe5096c6de694f45b7f53ed0e66f550f879398aa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|331|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420227265666572656e636573223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-returncodes",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "34"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "03c72def2be6e88c4288e0e88198e95cac65bd92787a975a91138c6dd45675e4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|332|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e64202272657475726e636f646573223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-script",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "35"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f66b3ffa529c7dfd0d760fe005f88a31f9eef06584f1ff69253f6a08b380ad47",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|48|77726f6e67202320617267733a2073686f756c642062652022696e666f20736372697074203f66696c656e616d653f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-sharedlibextension",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "36"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "882c62c13f90762247512f70154b6098ca3dafcc301afa0087dbd9984dc97a22",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|49|77726f6e67202320617267733a2073686f756c642062652022696e666f207368617265646c6962657874656e73696f6e22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-source",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "37"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5cefefc04ca973981e46fcb2928135419a1632a9a04ca5bb408bf370ea75bc69",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|327|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022736f75726365223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-stacktrace",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "38"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "990d2eda167426f4654a24414d41a4516ef74c17ddbbc27f65588b6b3fda98ed",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|331|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022737461636b7472616365223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-statics",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "39"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "59da9c12dca712e0fd9aa2274631c45efe0afa7d9538bd3af166be124a176d67",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|328|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e64202273746174696373223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-tainted",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "40"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "04123b617541553d8646a351db98ae13b6f7e622997d40deac5397b8094707b1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|328|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420227461696e746564223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-tclversion",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "41"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "22cafe83a18491ab3a51565851f7e6306a74ad3ad60420eeb4e19bd8337991b4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|41|77726f6e67202320617267733a2073686f756c642062652022696e666f2074636c76657273696f6e22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-usage",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "42"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "41d69c19df4f0045493f844090375c1d4a1bca1e4e3291bd7601cde95047320a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|326|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420227573616765223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-vars",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "43"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f53d332e1a83c9d8458be84cf18c3d46f4edafca438e5041878f5f690c130ddd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f2076617273203f7061747465726e3f22"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "exact-version",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "44"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "4aeb8f8c95de3276d0294c42811fc6bc3e655e6219724cb7ff87e9702e7e3999",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|328|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e64202276657273696f6e223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-co",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "45"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "98460895f413873190ce89d7638495006a49362f440177372ff05424898e9374",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|323|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636f223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-cor",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "46"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "7028dbdb231941d3d935813f553cc27db55b2dea4d7ca50aec7c1703427811bb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|40|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f726f7574696e6522"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-cl",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "47"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "921cc775fc259ccc569ccf9731764a1fd21910349b5ff8f0d21ee998c4dbc57f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|233|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420225f5f72323238365f6f706572616e645f5f223a206d7573742062652063616c6c2c20636f6e7374727563746f722c20646566696e6974696f6e2c20646566696e6974696f6e6e616d6573706163652c2064657374727563746f722c2066696c746572732c20666f72776172642c20696e7374616e6365732c206d6574686f64732c206d6574686f64747970652c206d6978696e732c2070726f706572746965732c20737562636c61737365732c207375706572636c61737365732c206f72207661726961626c6573"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-cm",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "48"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "b123899f1b1c52e1bdc83a6a77c97f111576b384680e6e54970d7bb81039e7df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|323|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022636d223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-sta",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "49"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c309ea42583e3d04f3589d7449fb5c0ea2a1d58ee160e99ce43a69d62dca3b99",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|324|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022737461223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-vers",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "50"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "b8e4aff7063e1fac019e966c59a1d8f6bd30b34a952d4a54d0bd3888499550f5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|325|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e64202276657273223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    },
+    {
+      "id": "prefix-empty",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+        "51"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "917e7f96717893df34fd2f2776b4c83d6602bde7f7517c5e2a0c2375a40045c6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|5|392e302e34",
+        "INFO|1|321|756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273"
+      ],
+      "reported_version": "9.0.4"
+    }
+  ],
+  "executable_sha256": "c000f5fc5276300bfd9fcd31bc61a352f65fe946cb61037f87927b6df182d0e3"
+}

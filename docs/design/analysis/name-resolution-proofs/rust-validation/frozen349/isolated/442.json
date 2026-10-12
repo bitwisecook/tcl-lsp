@@ -1,0 +1,19 @@
+{
+  "ordinal": 442,
+  "selector": "list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.012701517000095919,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/442.log",
+  "log_sha256": "a87433d2381287fb0866325de10f302cde07c46409e61f58de40e37253ce8d8d"
+}

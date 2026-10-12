@@ -1,0 +1,27 @@
+provider	C-Tcl
+case	12	original-list-encoded-width-high
+operation	lsearch
+input-first	31303733373431383234
+input-last	
+input-roles	path-kind=1	nested=0	empty=1	repeat-option=0	observed-child-extra-owner=1
+before-path	list	0	1	0
+before-path-member0	none	1	2	10
+before-container	none	1	1	0
+before-key0	none	1	2	1
+before-key1	none	1	2	1
+before-key2	none	1	2	1
+before-key3	none	1	2	1
+code	0
+reached-path	list	0	1	0
+reached-path-member0	int	1	2	10
+reached-container	list	1	1	0
+reached-key0	none	1	2	1
+reached-key1	none	1	2	1
+reached-key2	none	1	2	1
+reached-key3	none	1	2	1
+reached-result	int	0	1	131072
+result-alias	container=0	path=0
+result-bytes	2d31
+materialised-result	int	1	1	2
+path-bytes	31303733373431383234
+path-member0-bytes	31303733373431383234

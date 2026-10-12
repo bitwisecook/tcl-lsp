@@ -1,0 +1,158 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-memory-ssa-context284.source-trees.tar.gz",
+  "archive_sha256": "882e776a362f6c3f5ef1ecdbadeaaffa6bc0bbabda4afc80465f4c987bd95341",
+  "archive_bytes": 141215,
+  "uncompressed_bytes": 598210,
+  "source_manifest_sha256": "c8140a3bad6cc8aa6b6e70de28f680066250f4561252dbf0d141ec686c4e1120",
+  "source_patch_sha256": "73be920935754fcf0399c5c7cfc5bb9a440b9a9e91bd8f25c07747babd724ef0",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 12,
+  "members": {
+    "consumer-memory-ssa-context284/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.270948,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.270948,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.270948,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2770736,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/base/rust/tcl-compiler/src/compilation_unit.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2772167,
+      "size": 224170,
+      "sha256": "fd6b935eb0b4d8c03c71142b14f0c8fe19cd4b0087f023e495d9f07128fc0995"
+    },
+    "consumer-memory-ssa-context284/base/rust/tcl-compiler/src/memory_ssa.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2767212,
+      "size": 70935,
+      "sha256": "b4d696d31ee6b672adf1b5c4cb595b00d345f9e0d49401540f7a7f3549a49c89"
+    },
+    "consumer-memory-ssa-context284/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2767212,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2767212,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2767212,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.2772167,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-memory-ssa-context284/candidate/rust/tcl-compiler/src/compilation_unit.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615139.398947,
+      "size": 225037,
+      "sha256": "7a4987b98e6cfbd4c68dc8894a370ae048aaa4d4f42a6636711a21c6fb5f612f"
+    },
+    "consumer-memory-ssa-context284/candidate/rust/tcl-compiler/src/memory_ssa.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791615274.7938914,
+      "size": 78068,
+      "sha256": "4fbf3e331d73b39e3419be413b7d4f42bf3cce5549c4e87349836facce154367"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "7a4987b98e6cfbd4c68dc8894a370ae048aaa4d4f42a6636711a21c6fb5f612f",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "hash_key": "base_sha256",
+      "sha256": "fd6b935eb0b4d8c03c71142b14f0c8fe19cd4b0087f023e495d9f07128fc0995",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/memory_ssa.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "4fbf3e331d73b39e3419be413b7d4f42bf3cce5549c4e87349836facce154367",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/memory_ssa.rs",
+      "hash_key": "base_sha256",
+      "sha256": "b4d696d31ee6b672adf1b5c4cb595b00d345f9e0d49401540f7a7f3549a49c89",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

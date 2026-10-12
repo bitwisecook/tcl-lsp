@@ -1,0 +1,79 @@
+{
+  "request_id": "naming.procedure.original-called-name-and-formal-usage-extents",
+  "question": "For a binary-produced counted NUL in the original called-name or required/default/reference formal, which exact definition completion and wrong-argument usage does each authentic C Tcl8.4\u20139.1/current Jim interpreter publish, including whether later formal names remain in the error?",
+  "problem": "Called-name and formal storage extents are separate from diagnostic usage extents. Current Jim duplicates the called object, appends required formal names as C strings but default formal names as counted objects, then formats the entire usage through snprintf. Applying one final boundary to every formal can drop later names incorrectly. A shared formal-usage owner must follow the measured native construction rather than infer from lookup/storage bytes.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "cases": [
+    {
+      "id": "original-called-name-nul-usage",
+      "source_file": "/workspace/.proofs/native-procedure-usage-extents288-request/original-called-name-nul-usage.tcl",
+      "source_sha256": "1115e2d63ef5560089cec382677fa41ce08b7bd25b01b6ea74e6a6e351baa7b2",
+      "source_encoding": "Exact ASCII LF source. Literal NUL is produced by binary format H*, never present in source. Required/default/reference formal sources differ only in explicitly recorded original specifiers and their byte construction."
+    },
+    {
+      "id": "original-required-formal-nul-usage",
+      "source_file": "/workspace/.proofs/native-procedure-usage-extents288-request/original-required-formal-nul-usage.tcl",
+      "source_sha256": "4028b4149e60c3f67c6eadd55477a695489b7859b4299d822cb252ab33d9577c",
+      "source_encoding": "Exact ASCII LF source. Literal NUL is produced by binary format H*, never present in source. Required/default/reference formal sources differ only in explicitly recorded original specifiers and their byte construction."
+    },
+    {
+      "id": "original-default-formal-nul-usage",
+      "source_file": "/workspace/.proofs/native-procedure-usage-extents288-request/original-default-formal-nul-usage.tcl",
+      "source_sha256": "e0b4fc44b420b8952f8b7d048d2f39790da2a73cdd69fc71404f17db097f77f1",
+      "source_encoding": "Exact ASCII LF source. Literal NUL is produced by binary format H*, never present in source. Required/default/reference formal sources differ only in explicitly recorded original specifiers and their byte construction."
+    },
+    {
+      "id": "original-reference-formal-nul-usage",
+      "source_file": "/workspace/.proofs/native-procedure-usage-extents288-request/original-reference-formal-nul-usage.tcl",
+      "source_sha256": "b3e634d9b69125ff9d80e61ff9f7a8be4b54527103d63a1dba7a22e4e9873aaa",
+      "source_encoding": "Exact ASCII LF source. Literal NUL is produced by binary format H*, never present in source. Required/default/reference formal sources differ only in explicitly recorded original specifiers and their byte construction."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-procedure-usage-extents288-request/jim.c",
+      "excerpt_file": "/workspace/.proofs/native-procedure-usage-extents288-request/JimCmdUsage.c.txt",
+      "excerpt_lines": [
+        11833,
+        11878
+      ],
+      "excerpt_sha256": "cd284667e1a21dad2255ad2f9f0ff09a32929234ad98fa88bdb432eae12e673e",
+      "function": "JimCmdUsage"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-procedure-usage-extents288-request/jim.c",
+      "excerpt_file": "/workspace/.proofs/native-procedure-usage-extents288-request/JimSetProcWrongArgs.c.txt",
+      "excerpt_lines": [
+        11882,
+        11886
+      ],
+      "excerpt_sha256": "e46d076ea5318725573531d8f01dd95281ce819df333d449b6dc7cf4e561572f",
+      "function": "JimSetProcWrongArgs"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-procedure-usage-extents288-request/jim.c",
+      "excerpt_file": "/workspace/.proofs/native-procedure-usage-extents288-request/Jim_SetResultFormatted.c.txt",
+      "excerpt_lines": [
+        17112,
+        17178
+      ],
+      "excerpt_sha256": "6594903ebcd01fd3242fcaeed9be04baa434799636b02db02d814dbc87a279d1",
+      "function": "Jim_SetResultFormatted"
+    }
+  ],
+  "driver": "Reuse byte-identical original-counted fullInit Native279 CAPI driver and exact same six provider pins. One fresh actual Tcl_Init or Jim core plus static extensions interpreter per original source. Run all four unchanged programs for all six providers. proc and binary are the genuine available public APIs in these fullInit providers; do not substitute NOT_APPLICABLE for a measured definition error. Capture complete ORIGINAL code/result hex plus version/stdout/stderr/host exit/source/provider-build hashes. Source has no outer wrapper or early return, and catches definition failure independently before conditionally invoking the original counted called name.",
+  "scope": "Four original public result windows, each retains independent original character-count, definition completion/result, and caught call completion/message fields. Required/reference and default formal names are independent controls, not equivalent storage/header assertions. No physical object/table/key/cell/cache identity, source bytecode mechanism, BIG-IP/TMM behavior, UTF8/FF boundary outside these ASCII+NUL cases, or Rust backend pass is claimed."
+}

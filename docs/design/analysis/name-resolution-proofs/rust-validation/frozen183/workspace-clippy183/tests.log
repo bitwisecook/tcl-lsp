@@ -1,0 +1,23 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+error[E0603]: module `source_scoped_body` is private
+   --> rust/tcl-compiler/src/command_binding/source_declared_command.rs:221:37
+    |
+221 |         crate::registry_invocation::source_scoped_body::declared_source_script_bodies_for(
+    |                                     ^^^^^^^^^^^^^^^^^^  --------------------------------- function `declared_source_script_bodies_for` is not publicly re-exported
+    |                                     |
+    |                                     private module
+    |
+note: the module `source_scoped_body` is defined here
+   --> rust/tcl-compiler/src/registry_invocation.rs:56:1
+    |
+ 56 | mod source_scoped_body;
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0603`.
+error: could not compile `tcl-compiler` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

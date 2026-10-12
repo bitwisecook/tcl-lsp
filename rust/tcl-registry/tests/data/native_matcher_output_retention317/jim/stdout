@@ -1,0 +1,16 @@
+regexp 0 0 0 0 ABSENT
+regexp_nocase 0 0 0 0 ABSENT
+regexp_expanded_plain 0 0 0 0 ABSENT
+regexp_expanded_space 0 0 1 1 ab
+scan_decimal 0 0 0 0 ABSENT
+scan_hex 0 0 0 0 ABSENT
+scan_literal 0 0 0 0 ABSENT
+scan_match 0 0 1 1 42
+regexp 1 0 0 1 OLD
+regexp_nocase 1 0 0 1 OLD
+regexp_expanded_plain 1 0 0 1 OLD
+regexp_expanded_space 1 0 1 1 ab
+scan_decimal 1 0 0 1 OLD
+scan_hex 1 0 0 1 OLD
+scan_literal 1 0 0 1 OLD
+scan_match 1 0 1 1 42

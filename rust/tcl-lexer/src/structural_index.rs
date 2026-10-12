@@ -1148,7 +1148,7 @@ pub fn script_is_complete(source: &str) -> bool {
 
 /// `true` when `b` ends with a backslash-newline continuation: an odd
 /// run of backslashes immediately before the final LF.
-fn ends_with_line_continuation(b: &[u8]) -> bool {
+pub(crate) fn ends_with_line_continuation(b: &[u8]) -> bool {
     let mut k = b.len();
     if k == 0 || b[k - 1] != b'\n' {
         return false;

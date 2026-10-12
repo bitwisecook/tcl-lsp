@@ -1,0 +1,5 @@
+namespace_install 1 {bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}
+namespace_create 0 {}
+namespace_trigger 1 {invalid command name "resolution_scope_missing_command"} observed {}
+package_install 0 {}
+package_trigger 1 {can't find package resolution_scope_missing_package} observed GLOBAL

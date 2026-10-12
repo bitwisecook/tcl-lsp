@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "version": "0.84-9-g5bac7c9",
+  "revision": "recorded configured source association; Jim 5bac7c9",
+  "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+  "function": "Jim_ApplyCoreCommand",
+  "lines": [
+    14546,
+    14589
+  ],
+  "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "snippet": "static int Jim_ApplyCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    int ret;\n    Jim_Cmd *cmd;\n    Jim_Obj *argListObjPtr;\n    Jim_Obj *bodyObjPtr;\n    Jim_Obj *nsObj = NULL;\n    Jim_Obj **nargv;\n\n    int len = Jim_ListLength(interp, argv[1]);\n    if (len != 2 && len != 3) {\n        Jim_SetResultFormatted(interp, \"can't interpret \\\"%#s\\\" as a lambda expression\", argv[1]);\n        return JIM_ERR;\n    }\n\n    if (len == 3) {\n#ifdef jim_ext_namespace\n        /* Note that the namespace is always treated as global */\n        nsObj = Jim_ListGetIndex(interp, argv[1], 2);\n#else\n        Jim_SetResultString(interp, \"namespaces not enabled\", -1);\n        return JIM_ERR;\n#endif\n    }\n    argListObjPtr = Jim_ListGetIndex(interp, argv[1], 0);\n    bodyObjPtr = Jim_ListGetIndex(interp, argv[1], 1);\n\n    cmd = JimCreateProcedureCmd(interp, argListObjPtr, NULL, bodyObjPtr, nsObj);\n\n    if (cmd) {\n        /* Create a new argv array with a dummy argv[0], for error messages */\n        nargv = Jim_Alloc((argc - 2 + 1) * sizeof(*nargv));\n        nargv[0] = Jim_NewStringObj(interp, \"apply lambdaExpr\", -1);\n        Jim_IncrRefCount(nargv[0]);\n        memcpy(&nargv[1], argv + 2, (argc - 2) * sizeof(*nargv));\n        ret = JimCallProcedure(interp, cmd, argc - 2 + 1, nargv);\n        Jim_DecrRefCount(interp, nargv[0]);\n        Jim_Free(nargv);\n\n        JimDecrCmdRefCount(interp, cmd);\n        return ret;\n    }\n    return JIM_ERR;\n}",
+  "snippet_sha256": "9a280f8a6cc600e726c9b6d006bf7bf729c91954a69436ba36788d884b6cd95c"
+}

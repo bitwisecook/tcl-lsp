@@ -1,0 +1,259 @@
+{
+  "approved_candidate_inventory": "/workspace/.proofs/archive-inactive-publication-packet-candidates.json",
+  "completed": [
+    {
+      "directory": "/workspace/.proofs/publication-archive192258",
+      "archive": "/workspace/.proofs/publication-archive192258.base-files.tar.gz",
+      "archive_sha256": "109b642ade0b5aede3f8d4ea9fd177a775dfe7d1fabce819011cc7a888e35d91",
+      "original_bytes": 36178115,
+      "archive_bytes": 27557682,
+      "member_count": 120,
+      "patch_sha256": "77c7973129891ece54d03ca35a84efeb9b00f4ebcc20a6f25123272e3eb29d02",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive171-173202",
+      "archive": "/workspace/.proofs/publication-archive171-173202.base-files.tar.gz",
+      "archive_sha256": "7683b8fdcd8da8120cdcba38fceb45a523e1f9ff708bb1b733470bafa4cd38c3",
+      "original_bytes": 33831090,
+      "archive_bytes": 29620055,
+      "member_count": 126,
+      "patch_sha256": "ed05df024a0af467cfb6eb13f5235c9522a7dcd252b3992ac01d62361ba05682",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive201292",
+      "archive": "/workspace/.proofs/publication-archive201292.base-files.tar.gz",
+      "archive_sha256": "9a6b2dff9698e58ab5d91501059063a356cbf0a4e13e3e88feca76c2c65dd67c",
+      "original_bytes": 25601675,
+      "archive_bytes": 11831282,
+      "member_count": 55,
+      "patch_sha256": "a856004f00ce6bf7fef934100855589f97299a16f5dba6b5e69e651476af7a93",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive179215",
+      "archive": "/workspace/.proofs/publication-archive179215.base-files.tar.gz",
+      "archive_sha256": "21089f88a02b80fcbd908081ddcb0b0f6214e9171c90718f95fa35c9a4f0fa1b",
+      "original_bytes": 21443823,
+      "archive_bytes": 17238708,
+      "member_count": 79,
+      "patch_sha256": "661a468f06872230c67374a2582f289ebfbd10c1691583903ea0c258935c874c",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive174205",
+      "archive": "/workspace/.proofs/publication-archive174205.base-files.tar.gz",
+      "archive_sha256": "aae1de8bfee3838ac6eade015087cdea07aa2c450c3a25177b3c052a12123479",
+      "original_bytes": 16182182,
+      "archive_bytes": 12101496,
+      "member_count": 61,
+      "patch_sha256": "5709f654974d74030e88e2053de4eed05429f13d6d22cfa95ac144f42b4ae2a5",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive195269",
+      "archive": "/workspace/.proofs/publication-archive195269.base-files.tar.gz",
+      "archive_sha256": "94c055f79ffbcbf58e40ce18151787acf9af87437a5ae5cb3d2956e9da0155a9",
+      "original_bytes": 16156366,
+      "archive_bytes": 9424432,
+      "member_count": 50,
+      "patch_sha256": "3e6280bd2140fa983053b79f2c088c08ff09234d857ec6037191417a4e784115",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive203298",
+      "archive": "/workspace/.proofs/publication-archive203298.base-files.tar.gz",
+      "archive_sha256": "65ecc971089863636d495162e20e9b3d3b8faa91b270d9c38fd7b09d7668d606",
+      "original_bytes": 15734910,
+      "archive_bytes": 7331197,
+      "member_count": 40,
+      "patch_sha256": "da488f32b7ea5bc6859479b3a92e97fd94a0d808e3210b91953fb3e1c23f6a99",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive198199282",
+      "archive": "/workspace/.proofs/publication-archive198199282.base-files.tar.gz",
+      "archive_sha256": "1c6e0cdca1a517251375b22d27b6a8d08ebedf570067c2f99697eb615fe3e85b",
+      "original_bytes": 15357409,
+      "archive_bytes": 7069482,
+      "member_count": 40,
+      "patch_sha256": "b3f474b3ae51249a55393870b3d016245efdbaf5ea94457768dc64d8ea8880e9",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive205309",
+      "archive": "/workspace/.proofs/publication-archive205309.base-files.tar.gz",
+      "archive_sha256": "afd453b754f0dd69a3be585dce1ebdba64bbe6f8e017cb94936612c45b602cc9",
+      "original_bytes": 14106468,
+      "archive_bytes": 5595889,
+      "member_count": 33,
+      "patch_sha256": "10ed4371fd167e40887246b0461ecc2564055b466beb5fbf2e17d6053bac6c34",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive188-189251",
+      "archive": "/workspace/.proofs/publication-archive188-189251.base-files.tar.gz",
+      "archive_sha256": "640824f66d584a5f68b08599a4844803299bb6d2537a422018f501d4c4abea73",
+      "original_bytes": 12851714,
+      "archive_bytes": 8197732,
+      "member_count": 47,
+      "patch_sha256": "5e6a8f85fc39b6359af021e5c23f7acc509b13ade5e28fb64a7c9e3053c9ca8e",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive197277",
+      "archive": "/workspace/.proofs/publication-archive197277.base-files.tar.gz",
+      "archive_sha256": "e679791d25e8c3b688c0976363d0cb7da4e728f981edcd3a6a26a5094fb624ca",
+      "original_bytes": 12672427,
+      "archive_bytes": 5161303,
+      "member_count": 33,
+      "patch_sha256": "747613a09c8723400b6776e75d8b3824a636b894ab1712c6a5fd2a86a3f163d7",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive204304",
+      "archive": "/workspace/.proofs/publication-archive204304.base-files.tar.gz",
+      "archive_sha256": "08673bf6962a7129280709418e7ad9bd2851291e741e3aaa0c1b08aac335815b",
+      "original_bytes": 10957511,
+      "archive_bytes": 2666244,
+      "member_count": 23,
+      "patch_sha256": "c333793ed8a7d66fea132ff0c7d9e1228e49aed3d68f12ed51f2e61308c61ea6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive202293",
+      "archive": "/workspace/.proofs/publication-archive202293.base-files.tar.gz",
+      "archive_sha256": "8c14180169126bcbc004b2d82ed4f683f410fdc7b0740be50e6fa9694b6ae4a8",
+      "original_bytes": 10781923,
+      "archive_bytes": 2626157,
+      "member_count": 23,
+      "patch_sha256": "6d0dc5c0d649a1af980e433cd65085d7e8b08087d1f3a6602f83b6ff1be0c520",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive200286",
+      "archive": "/workspace/.proofs/publication-archive200286.base-files.tar.gz",
+      "archive_sha256": "49cbbd175e6c0df8b236df28ab9e0877e5085977ef90481f5683234bbaa0f35f",
+      "original_bytes": 10540844,
+      "archive_bytes": 2560347,
+      "member_count": 23,
+      "patch_sha256": "70ec6fc719d9ac56fa8ae38feaa05fe87a0594b5cfc052c08afb7fa81d962476",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive193194264",
+      "archive": "/workspace/.proofs/publication-archive193194264.base-files.tar.gz",
+      "archive_sha256": "55e43e5628d9975113a1abb7f3923c7a0db2f447550c812dc5908d31493d28f8",
+      "original_bytes": 10241484,
+      "archive_bytes": 4096828,
+      "member_count": 30,
+      "patch_sha256": "87b619b02fa2d748e462d11b1510a8e7316ac4d40ae2910ee56cc5bf12a1f438",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive196274",
+      "archive": "/workspace/.proofs/publication-archive196274.base-files.tar.gz",
+      "archive_sha256": "7a9ea0a1c435e28bed72cb1035d991193901294da730c54b5dd99d19b09d8782",
+      "original_bytes": 10222497,
+      "archive_bytes": 3314753,
+      "member_count": 26,
+      "patch_sha256": "bbec571aed6db0dd90fbc91a9dbf847278335951af8cf3637c79b495396c2896",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive191254",
+      "archive": "/workspace/.proofs/publication-archive191254.base-files.tar.gz",
+      "archive_sha256": "ee8837d18da9e9d310bd437408506c786511c02e2b2a04546ec90771ae1fc9c2",
+      "original_bytes": 9341764,
+      "archive_bytes": 4794232,
+      "member_count": 33,
+      "patch_sha256": "ba57755bd76dfb0c11505a47f4da18341a64baac6a7765b5559d03407a22bac1",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive186239",
+      "archive": "/workspace/.proofs/publication-archive186239.base-files.tar.gz",
+      "archive_sha256": "ff51e31fb5dde2936139398af24d1078610d3cc18667a5e00bca72f3a81ad830",
+      "original_bytes": 9115726,
+      "archive_bytes": 4715893,
+      "member_count": 33,
+      "patch_sha256": "fddbae0d2ac2a9cdf0bcc997644b0985f11030c1887c9fbb5e30b77d32aeac45",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive180-181218",
+      "archive": "/workspace/.proofs/publication-archive180-181218.base-files.tar.gz",
+      "archive_sha256": "a1dea0fda89f313e261e393665a8f3feca6353cd5ca7dfad36448088e7bad21b",
+      "original_bytes": 8258209,
+      "archive_bytes": 3830057,
+      "member_count": 30,
+      "patch_sha256": "883bc773850f7e6bd5e7042ab5a1f48a3148290594eb8af8e3881a30ef493432",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive182-183220",
+      "archive": "/workspace/.proofs/publication-archive182-183220.base-files.tar.gz",
+      "archive_sha256": "62bba55c8ca8bf93c42b223016e64d8e70ea859d9089ba4aca952561a3f558ae",
+      "original_bytes": 8246901,
+      "archive_bytes": 3831292,
+      "member_count": 30,
+      "patch_sha256": "636ce3e345cdb813414e0f0ec785ad0139898a65c34b5299d0c7e62a951c3623",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive175-176208",
+      "archive": "/workspace/.proofs/publication-archive175-176208.base-files.tar.gz",
+      "archive_sha256": "fa7546369acd413b1a19711a666d9bffd1941e2c566115231bc03fb518ef0f0d",
+      "original_bytes": 7991995,
+      "archive_bytes": 3782039,
+      "member_count": 30,
+      "patch_sha256": "f44ebc5b5afcc93f681d14ac558d5c66e99e871362725266202dba901e02af59",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive187245",
+      "archive": "/workspace/.proofs/publication-archive187245.base-files.tar.gz",
+      "archive_sha256": "780549550058210985f76210d335eb0d23c1073504f1a945ee77d4fc98499c04",
+      "original_bytes": 6459864,
+      "archive_bytes": 2149312,
+      "member_count": 23,
+      "patch_sha256": "72bf9c09f4a1b50a7adead1cdb6aeb34314e87b90ce115cbd01091dbe4de69b6",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive185230",
+      "archive": "/workspace/.proofs/publication-archive185230.base-files.tar.gz",
+      "archive_sha256": "81449a1bced4a1e08e334c996dcd100f1cbbc4350af81465974dca066aa52f21",
+      "original_bytes": 6410136,
+      "archive_bytes": 2138634,
+      "member_count": 23,
+      "patch_sha256": "9db56037f49042abf0a62786386e1d98a9e760432a7dfd0123a3918819367d6d",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive184224",
+      "archive": "/workspace/.proofs/publication-archive184224.base-files.tar.gz",
+      "archive_sha256": "cd44caab24cd15b6fd6872ffdf711f0ae2246601bce2595b962eeef1a91cfdaf",
+      "original_bytes": 6407383,
+      "archive_bytes": 2133109,
+      "member_count": 23,
+      "patch_sha256": "ae3808f433957341c8e8166667063fa07cb1c6d748ba7085428119f07241ec54",
+      "verified": true
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive178213",
+      "archive": "/workspace/.proofs/publication-archive178213.base-files.tar.gz",
+      "archive_sha256": "af1f5575e9eaa1994f5344ffa573c25fd934ef3af587797073d9d8aa5cab0ea9",
+      "original_bytes": 6187669,
+      "archive_bytes": 2105142,
+      "member_count": 23,
+      "patch_sha256": "1fa97b7eeb35c80c4102acef69ba93030b5611bf916e4e90a14f69e9403306b8",
+      "verified": true
+    }
+  ],
+  "original_bytes": 341280085,
+  "archive_bytes": 185873297,
+  "logical_saved_bytes": 155406788,
+  "complete": true
+}

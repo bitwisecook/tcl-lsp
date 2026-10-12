@@ -115,11 +115,12 @@ expression, and declared-implementation routes decide nothing here.
 > whose backing is `None` or `HostNative`.
 >
 > The intrinsic table is split by family. `IntrinsicId::family`
-> (`tcl_registry::IntrinsicFamily`) classifies each of the 28 members as a
+> (`tcl_registry::IntrinsicFamily`) classifies each of the 34 members as a
 > `Value` function over the shared cores or a `FamilyB` operation over a
-> runtime's variable-store or channel adapter, which takes the
-> variable-trace guard domain and, for `info exists` and the array queries,
-> runs the variable's traces while observing it. A guard request for a
+> runtime state adapter. Variable and channel members take the variable-trace
+> domain; command lookup, namespace and activation members retain their
+> command-environment, namespace and interpreter domains. `info exists` and
+> the array queries run the variable's traces while observing it. A guard request for a
 > member covers its family's domains, or a runtime refuses it.
 >
 > The runtimes answer what they back. `tcl_runtime_api::RegisteredBacking` and
@@ -560,7 +561,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 
 | Fact | Registry | Analyser |
 |---|---|---|
-| analyser hook variants | 31 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`); a command whose handler would know only a position or a keyword a descriptor states has no variant (`try`, `for`, `dict for`, `dict update`, `incr`, `append`, `lappend`, `upvar`, `namespace upvar`, `global`, `variable`) | analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus two command-specific variants on the migration page's ledger (`DictWith`, `RegexPatternCapture`); a command with no variant falls to the dispatch tail's generic reads |
+| analyser hook variants | 31 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`); a command whose handler would know only a position or a keyword a descriptor states has no variant (`try`, `for`, `dict for`, `dict update`, `incr`, `append`, `lappend`, `upvar`, `namespace upvar`, `global`, `variable`) | analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus two command-specific variants (`DictWith`, `RegexPatternCapture`) recorded in the current command-knowledge inventory; a command with no variant falls to the dispatch tail's generic reads |
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
 | OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`), beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
@@ -585,7 +586,8 @@ through the generic operations the interface contract names:
   of a created interpreter. The drift test in
   `rust/tcl-registry/tests/analyser_hooks.rs` pins the set. A hook variant
   whose handler implements one command's binding rules is command-specific
-  and is listed in the migration page's ledger, not the residue.
+  is recorded in the current command-knowledge inventory's
+  [compiler-owned handlers](value-transfers-migration.md#compiler-owned-handlers).
 - The alias and command-binding resolvers abstain on dynamic words, and a
   witness test pins that. Each descriptor is a four-surface change under
   [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md).
@@ -1518,8 +1520,7 @@ tclsh 9.1 raises.
   catch-position `InlineCodegenHookId` variants — with four residual by-name
   sites: the loop-control jumps, the `::tcl::dict::for` / `::tcl::dict::map`
   rewrite barriers, and the `incr` fallback in
-  `rust/tcl-compiler/src/codegen/values.rs`. The migration page's
-  hand-written-knowledge ledger has no codegen row.
+  `rust/tcl-compiler/src/codegen/values.rs`.
 - **Binding provenance.** The artefact carries a `CommandBindingIdentity`
   per specialised site (`rust/tcl-runtime-api/src/lib.rs`).
   `command_binding_matches` in `rust/tcl-vm/src/interp.rs` re-resolves
@@ -1618,7 +1619,7 @@ tclsh 9.1 raises.
 
 ```mermaid
 flowchart LR
-    R["registration<br/>string registered from its spec;<br/>28 intrinsic identities attested<br/>at its token generation"]
+    R["registration<br/>string registered from its spec;<br/>34 intrinsic identities attested<br/>at its token generation"]
     P["profile pin<br/>identities kept; the interpreter-policy<br/>epoch moves"]
     M["proc, rename, alias of another command<br/>no guard moves"]
     N["rename, replace or hide string<br/>the name reaches no attestation:<br/>generic dispatch"]
@@ -2030,10 +2031,10 @@ refuses survives:
   (`rust/tcl-registry/src/intrinsic.rs`) and the ABI descriptor table
   (`rust/tcl-runtime-api/src/codegen_abi.rs`) are authored in Rust, and the
   command-backing classification is each spec's `runtime_backing`; the
-  build task generates only the backing report from them — the first
-  ruling above, and the direction
-  [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) § *4.
-  Runtime ABI* takes with its shared `CodegenAbiImportId` descriptor table.
+  build task generates only the backing report from them. The shared
+  `CodegenAbiImportId` descriptor table supplies each native ABI import's
+  signature and calling contract; [wasm-native-lowering.md](wasm-native-lowering.md)
+  describes its consumers and admission premises.
 
 ## Consequences for the runtimes
 
@@ -2062,25 +2063,26 @@ Nothing on the analyser side depends on it.
   `runtime_backing` to the WASM runtime's answer, with `KNOWN_UNBACKED` the
   only list left. `docs/generated/wasm-command-backing.md` is the rendering of
   the declarations and both answers, so the drift gate fails on a changed row.
-- **The intrinsic table splits by family.** Half the 28 `IntrinsicId`
-  members are value functions over the shared cores
-  (`IntrinsicFamily::Value`). The other fourteen are Family-B operations
-  over each runtime's variable-store and channel adapters
-  (`IntrinsicFamily::FamilyB { domain, fires_traces }`), under the
-  variable-trace guard domain, and `info exists` and the array queries fire
-  traces. The family is the widest reach of a member under any invocation
-  form, so `string is` (whose `-failindex` stores) and `regexp` (whose match
-  variables store) are Family B. The compiler adds a member's family domain
-  to a guarded plan's dispatch domains (`guard_domains_for_intrinsic`), and
-  each runtime's `prepare_command_guard` refuses a request that omits it
-  (`GuardError::DomainsInsufficient`), so the domain never depends on the
-  caller. `guard_semantics_key` is one key per member, so a member whose
-  semantics move invalidates its own guards and no others: it packs the
-  member's own stable identity, its row of `SEMANTICS_REVISION`, and a
-  release variant, which only `StringLength` — the one member the releases
-  count differently — has more than one of. The VM's interpreter and
-  object-dispatch guard domains stay permanently poisoned, which is why no
-  TclOO fast path is guardable.
+- **The intrinsic table splits by family.** The 34 `IntrinsicId` members
+  comprise fifteen value functions over the shared cores
+  (`IntrinsicFamily::Value`) and nineteen state-adapter operations
+  (`IntrinsicFamily::FamilyB { domains, fires_traces }`). Fourteen use the
+  variable-trace domain. `InfoCommandsResolve`, `NamespaceOrigin` and
+  `NamespaceCode` require command-environment and namespace;
+  `NamespaceCurrent` requires namespace, and `InfoLevel` requires interpreter.
+  `info exists` and the array queries fire traces. The family records the
+  widest reach under any invocation form, including `string is -failindex`
+  and `regexp` output-variable stores. The compiler adds each member's domain
+  mask to the plan (`guard_domains_for_intrinsic`); both runtimes reject missing
+  domains with `GuardError::DomainsInsufficient`. `guard_semantics_key` packs
+  the stable member identity, its `SEMANTICS_REVISION` row and a release
+  variant. `StringLength` distinguishes four character models: Tcl 8.4/8.5
+  BMP, Tcl 8.6 UTF-16, Tcl 9 scalars and Jim 0.84 UTF-8. These software guard
+  keys and masks do not supply original command admission, roster freshness
+  or an active frame; independent retained activation and world premises
+  remain required. The VM's
+  interpreter and object-dispatch domains remain poisoned, so a corresponding
+  fast path cannot borrow an available guard from another domain.
 - **The runtime pin is a context** — environment, release point, build,
   package floors, and overlay generation — resolved through the same ingress
   the compiler uses, at which an overlay miss is an error (`OverlayMiss`) and
@@ -2493,9 +2495,9 @@ flowchart LR
 
 ## Related docs
 
-- [value-transfers.md](value-transfers.md), [value-evaluation.md](value-evaluation.md), [value-transfers-migration.md](value-transfers-migration.md) — the value axis this page places among the others
+- [value-transfers.md](value-transfers.md), [value-evaluation.md](value-evaluation.md), [command-knowledge inventory](value-transfers-migration.md) — the value axis this page places among the others
 - [command-registry.md](command-registry.md) — the registry invariant and the `CommandSpec` field reference
-- [lowering-dispatch.md](lowering-dispatch.md), [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md), [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — how codegen consumes the registry and the proofs it must not skip
+- [lowering-dispatch.md](lowering-dispatch.md), [wasm-native-lowering.md](wasm-native-lowering.md), [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — how codegen consumes the registry and the proofs it must not skip
 - [../contracts/vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md) — the identities an artefact carries
 - [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md) — the four-surface parity rule every new descriptor must satisfy
 - [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md) — the stub contract under the third ruling

@@ -1,0 +1,26 @@
+provider	C-Tcl
+case	17	sort-integer-two-outside-int-width
+operation	lsort
+mode	integer
+extra	absent
+input-key0	counted-string	34323934393637323936
+input-key1	counted-string	31
+input-pattern	absent
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=2
+before-key0	none	1	1	10
+before-key1	none	1	1	1
+before-pattern	absent
+before-container	list	0	1	0
+code	0
+reached-key0	int	1	2	10
+reached-key1	int	1	2	1
+reached-pattern	absent
+reached-container	list	0	1	0
+reached-result	list	0	1	0
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	312034323934393637323936
+materialised-result	list	1	1	12
+after-result-getter-key0	int	1	2	10
+after-result-getter-key1	int	1	2	1
+after-result-getter-pattern	absent
+after-result-getter-container	list	0	1	0

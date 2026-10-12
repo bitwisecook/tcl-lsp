@@ -1,0 +1,5 @@
+integer code=0 before=int after=int result=double
+double code=0 before=double after=double result=double
+string code=0 before=string after=int result=double
+bad-string code=1 before=string after=string result=string
+negative code=1 before=int after=int result=string

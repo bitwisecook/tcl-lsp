@@ -1,0 +1,8 @@
+abstract_public destroy
+abstract_private {<cloned> create createWithNamespace destroy eval new unknown variable varname}
+attempt new code 1 result {unknown method "new": must be destroy}
+attempt create code 1 result {unknown method "create": must be destroy}
+attempt createWithNamespace code 1 result {unknown method "createWithNamespace": must be destroy}
+concrete_create code 0 class ::Concrete
+explicit_export_new code 0 class ::Abstract
+abstract_public_after {destroy new}

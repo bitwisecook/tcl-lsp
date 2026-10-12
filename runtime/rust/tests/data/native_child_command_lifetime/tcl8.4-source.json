@@ -1,0 +1,50 @@
+{
+  "provider": "tcl8.4",
+  "version": "8.4.20",
+  "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c",
+  "source_sha256": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+  "windows": [
+    {
+      "purpose": "creation",
+      "function": "ChildCreate/SlaveCreate",
+      "lines": [
+        1811,
+        1817
+      ],
+      "snippet": "    slavePtr->masterInterp = masterInterp;\n    slavePtr->slaveEntryPtr = hPtr;\n    slavePtr->slaveInterp = slaveInterp;\n    slavePtr->interpCmd = Tcl_CreateObjCommand(masterInterp, path,\n            SlaveObjCmd, (ClientData) slaveInterp, SlaveObjCmdDeleteProc);\n    Tcl_InitHashTable(&slavePtr->aliasTable, TCL_STRING_KEYS);\n    Tcl_SetHashValue(hPtr, (ClientData) slavePtr);\n",
+      "snippet_sha256": "9d4574f44b2dd6292ae23ba1cb56ddd3c478173f9946ca48605b8f1a4f426311",
+      "original_lines": [
+        1833,
+        1839
+      ]
+    },
+    {
+      "purpose": "interp-delete",
+      "function": "Tcl_InterpObjCmd/OPT_DELETE",
+      "lines": [
+        494,
+        515
+      ],
+      "snippet": "\tcase OPT_DELETE: {\n\t    int i;\n\t    InterpInfo *iiPtr;\n\t    Tcl_Interp *slaveInterp;\n\t    \n\t    for (i = 2; i < objc; i++) {\n\t\tslaveInterp = GetInterp(interp, objv[i]);\n\t\tif (slaveInterp == NULL) {\n\t\t    return TCL_ERROR;\n\t\t} else if (slaveInterp == interp) {\n\t\t    Tcl_ResetResult(interp);\n\t\t    Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),\n\t\t\t    \"cannot delete the current interpreter\",\n\t\t\t    (char *) NULL);\n\t\t    return TCL_ERROR;\n\t\t}\n\t\tiiPtr = (InterpInfo *) ((Interp *) slaveInterp)->interpInfo;\n\t\tTcl_DeleteCommandFromToken(iiPtr->slave.masterInterp,\n\t\t\tiiPtr->slave.interpCmd);\n\t    }\n\t    return TCL_OK;\n\t}\n",
+      "snippet_sha256": "c39192a6bef46bf31506f5ffb2ac7569c2c5bd22be0938693c18ed442fb74a1e",
+      "original_lines": [
+        498,
+        519
+      ]
+    },
+    {
+      "purpose": "delete-callback",
+      "function": "SlaveObjCmdDeleteProc",
+      "lines": [
+        2033,
+        2059
+      ],
+      "snippet": "SlaveObjCmdDeleteProc(clientData)\n    ClientData clientData;\t\t/* The SlaveRecord for the command. */\n{\n    Slave *slavePtr;\t\t\t/* Interim storage for Slave record. */\n    Tcl_Interp *slaveInterp;\t\t/* And for a slave interp. */\n\n    slaveInterp = (Tcl_Interp *) clientData;\n    slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;\n\n    /*\n     * Unlink the slave from its master interpreter.\n     */\n\n    Tcl_DeleteHashEntry(slavePtr->slaveEntryPtr);\n\n    /*\n     * Set to NULL so that when the InterpInfo is cleaned up in the slave\n     * it does not try to delete the command causing all sorts of grief.\n     * See SlaveRecordDeleteProc().\n     */\n\n    slavePtr->interpCmd = NULL;\n\n    if (slavePtr->slaveInterp != NULL) {\n\tTcl_DeleteInterp(slavePtr->slaveInterp);\n    }\n}\n",
+      "snippet_sha256": "0668b4fa49727a4ad04ae0d02a8b9dfd06b9fff8616b374e15916fe2f1464bac",
+      "original_lines": [
+        2057,
+        2083
+      ]
+    }
+  ]
+}

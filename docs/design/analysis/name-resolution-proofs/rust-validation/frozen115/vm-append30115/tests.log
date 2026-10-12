@@ -1,0 +1,26 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-dialect)
+   Compiling tcl-core-types v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-core-types)
+   Compiling tcl-platform v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-platform)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-host-native)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-lexer)
+   Compiling tcl-test-support v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-test-support)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-bytecode)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming115/rust/tcl-vm)
+    Finished `test` profile [unoptimized] target(s) in 2m 00s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 1 test
+test exec::native_namespace_string_tests::original_empty_counted_append_matches_thirty_native_constructor_windows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 653 filtered out; finished in 0.50s
+

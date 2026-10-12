@@ -1,0 +1,14 @@
+ByteCode 0x55b0f1b34050, refCt 1, epoch 21, interp 0x55b0f1aae190 (epoch 21)
+  Source "info commands ::caf\u00e9"
+  Cmds 1, src 21, inst 13, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x55b0f1b32ad0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-11, src 0-20
+  Command 1: "info commands ::caf\u00e9"
+    (0) push1 0 	# "::caf\u00e9"
+    (2) resolveCmd 
+    (3) dup 
+    (4) strlen 
+    (5) jumpFalse1 +7 	# pc 12
+    (7) list 1 
+    (12) done 

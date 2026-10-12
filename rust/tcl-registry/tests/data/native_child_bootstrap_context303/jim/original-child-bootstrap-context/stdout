@@ -1,0 +1,17 @@
+VERSION|0|302e38342d392d6735626163376339
+ORIGINAL|0|
+version 0.84-9-g5bac7c9
+child_command namespace 1
+child_command package 1
+child_command interp 1
+child_command array 1
+child_command binary 1
+child_command pack 1
+child_command unpack 1
+child_command class 1
+child_variable argv 1 copy-argv
+child_variable argc 1 copy-argc
+child_variable argv0 1 copy-argv0
+child_variable jim::argv0 1 copy-jim::argv0
+child_variable jim::exe 1 copy-jim::exe
+child_variable jim::lineedit 1 copy-jim::lineedit

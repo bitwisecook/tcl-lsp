@@ -1,0 +1,56 @@
+{
+  "question": "Does the selected release consider the malformed braced-variable source incomplete, and which completed prefix/suffix effects occur when that same original source is evaluated? Does a terminal word-weld parse error remain complete while suppressing its suffix?",
+  "results": [
+    {
+      "provider": "8.4.20",
+      "exit": 0,
+      "seconds": 0.0041844844818115234,
+      "all_after_pins_match": true,
+      "stdout": "VERSION 8.4.20\nVALUE\nROW selected_braced_var 0 31 0 32 1 2\nROW terminal_word 0 31 1 6578747261206368617261637465727320616674657220636c6f73652d6272616365 1 MISSING\n",
+      "stderr": ""
+    },
+    {
+      "provider": "8.5.19",
+      "exit": 0,
+      "seconds": 0.004762172698974609,
+      "all_after_pins_match": true,
+      "stdout": "VERSION 8.5.19\nVALUE\nROW selected_braced_var 0 31 0 32 1 2\nROW terminal_word 0 31 1 6578747261206368617261637465727320616674657220636c6f73652d6272616365 1 MISSING\n",
+      "stderr": ""
+    },
+    {
+      "provider": "8.6.18",
+      "exit": 0,
+      "seconds": 0.004464149475097656,
+      "all_after_pins_match": true,
+      "stdout": "VERSION 8.6.18\nVALUE\nROW selected_braced_var 0 31 0 32 1 2\nROW terminal_word 0 31 1 6578747261206368617261637465727320616674657220636c6f73652d6272616365 1 MISSING\n",
+      "stderr": ""
+    },
+    {
+      "provider": "9.0.4",
+      "exit": 0,
+      "seconds": 0.011101961135864258,
+      "all_after_pins_match": true,
+      "stdout": "VERSION 9.0.4\nROW selected_braced_var 0 30 1 6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65 1 MISSING\nROW terminal_word 0 31 1 6578747261206368617261637465727320616674657220636c6f73652d6272616365 1 MISSING\n",
+      "stderr": ""
+    },
+    {
+      "provider": "9.1.0",
+      "exit": 0,
+      "seconds": 0.008435487747192383,
+      "all_after_pins_match": true,
+      "stdout": "VERSION 9.1.0\nROW selected_braced_var 0 30 1 6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65 1 MISSING\nROW terminal_word 0 31 1 6578747261206368617261637465727320616674657220636c6f73652d6272616365 1 MISSING\n",
+      "stderr": ""
+    },
+    {
+      "provider": "Jim",
+      "exit": 0,
+      "seconds": 0.01444244384765625,
+      "all_after_pins_match": true,
+      "stdout": "VERSION 0.84-9-g5bac7c9\nVALUE\nROW selected_braced_var 0 31 0 32 1 2\nROW terminal_word 0 31 1 6578747261206368617261637465727320616674657220636c6f73652d6272616365 MISSING MISSING\n",
+      "stderr": ""
+    }
+  ],
+  "probe_sha256": "6ed458994510989a4567820460f508e8a5d966f70bfda2db9fa6f37c4dc04e99",
+  "cases_sha256": "c721a0036d1db54e1be3e382a9c3e47b388f0d320b7fd7d3c381bf8ea2fac935",
+  "limitations": "Direct observed queries/effects only; results cannot grant command binding/compiler purpose or Native callback-state equivalence."
+}

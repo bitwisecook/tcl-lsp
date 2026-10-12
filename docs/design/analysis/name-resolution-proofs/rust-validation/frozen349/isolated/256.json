@@ -1,0 +1,19 @@
+{
+  "ordinal": 256,
+  "selector": "interp::native_body_artifact::tests::original_artifact_legacy_recompilation_uses_actual_roles_and_fresh_body",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_body_artifact::tests::original_artifact_legacy_recompilation_uses_actual_roles_and_fresh_body",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 11.45226957599516,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 11.43s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/256.log",
+  "log_sha256": "fd068a016d82329e67e4b5684cbe236592f010c6098599923e3a866b3a40fc46"
+}

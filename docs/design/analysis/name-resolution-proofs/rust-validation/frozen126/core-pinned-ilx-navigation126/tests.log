@@ -1,0 +1,21 @@
+
+running 16 tests
+test ilx_navigation::tests::a_declaration_replaces_the_convention_rather_than_competing_with_it ... ok
+test ilx_navigation::tests::a_duplicate_registration_is_an_ambiguity_not_a_target ... ok
+test ilx_navigation::tests::a_dynamic_handle_abstains_with_a_reason ... ok
+test ilx_navigation::tests::a_literal_call_resolves_to_the_registration ... ok
+test ilx_navigation::tests::a_package_main_entry_point_is_followed ... ok
+test ilx_navigation::tests::a_plugin_named_unlike_its_directory_needs_a_declaration ... ok
+test ilx_navigation::tests::a_plugin_word_that_names_no_workspace_abstains ... ok
+test ilx_navigation::tests::an_unsaved_buffer_wins_over_the_file_on_disk ... ok
+test ilx_navigation::tests::declared_rule_directories_are_searched_recursively ... ok
+test ilx_navigation::tests::original_ilx_analysis_ingress_keeps_configuration_and_never_recaptures_stale_source ... ok
+test ilx_navigation::tests::original_ilx_hover_keeps_constructor_source_labels_separate_from_handles ... ok
+test ilx_navigation::tests::original_ilx_navigation_does_not_join_unresolved_handles_by_method_labels ... ok
+test ilx_navigation::tests::original_ilx_source_navigation_keeps_candidate_paths_and_handle_identity_separate ... ok
+test ilx_navigation::tests::plain_tcl_finds_no_method_word ... ok
+test ilx_navigation::tests::references_from_the_registration_reach_the_rules ... ok
+test ilx_navigation::tests::references_reach_both_call_sites_and_the_registration ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 2598 filtered out; finished in 3.27s
+

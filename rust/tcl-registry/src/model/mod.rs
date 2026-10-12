@@ -69,6 +69,8 @@
 //! every compiled spec under every catalogue profile.
 
 pub mod assembly;
+mod namespace_ownership;
+pub use namespace_ownership::NamespacePackageOwnership;
 pub mod binding;
 pub mod capability;
 pub mod context;
@@ -77,6 +79,8 @@ pub mod ingress;
 pub mod registration;
 pub mod runtime_context;
 pub mod semantic;
+mod source_unavailability;
+pub use source_unavailability::{CommandSourceUnavailability, CommandSourceUnavailabilityKind};
 pub mod surface;
 pub mod tcllib;
 

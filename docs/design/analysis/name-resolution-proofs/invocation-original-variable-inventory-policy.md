@@ -1,0 +1,102 @@
+# naming.invocation.original-variable-inventory-policy
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+Variable inventory needs the actual selected naming purpose before pattern conversion or table access. Catalogue compatibility and a missing lookup policy cannot establish that purpose or the implementation family that owns the inventory.
+
+## Question
+
+How do shared info vars/globals consumers retain the actual sealed C/Jim variable-inventory policy and refuse unsupported or missing policy before a pattern getter or guest-state effect?
+
+## Conclusion
+
+NativeNameProtocol::variable_lookup_policy projects Tcl or Jim from its already selected recipe. NamePolicyProtocol forwards that projection while retaining authority independently. Runtime and VM Namespaces::variable_lookup_policy delegate their actual name_policy_protocol rather than deriving a replacement recipe from a catalogue profile. Shared info::vars and info::globals require selected_variable_inventory_policy before pattern conversion, inventory collection or result publication. An unsupported actual naming purpose returns the typed variable inventory lookup policy refusal. The selected-purpose controls cover six supported software backend selections. Explicit Standalone ingress with unsupported Jim0.79 source purpose has no independently retained native core, leaves the nonresident original pattern untouched and preserves prior Runtime guest result. An independently retained genuine C8.6 native issuer keeps its original inventory purpose even when the source catalogue profile changes to unsupported Jim0.79.
+
+Selected variable-name inventory and compound object materialization have independent owners. The tagged materialization query retains actual engine, installed authored and standalone compatibility purposes for list/dictionary conversion and length; an inventory-name purpose cannot fill a missing compound recipe.
+
+## Scope
+
+Four marked software/API definitions distinguish actual selected policy plus simple variable results, explicit Standalone VM refusal before pattern getter, Runtime refusal with prior guest result retained, and an independently retained native issuer despite changed source compatibility. These are software admission/storage/result controls, not original external C/Jim process comparisons or Jim0.79 observations. Catalogue release/compatibility, physical table/frame currency, actual object getter authority and provider authority remain independent. A pure sealed policy projection confers no Native entry, reached handler, private variable identity, completed source evaluation, object/cache observation or complete inventory law. All seven external providers remain not tested; no executed Rust assertion is attached by this binding.
+
+This owner refinement adds no selector or assertion result. The failed actual C-core/unknown-source inventory control remains a separately pinned software outcome; object policy definitions alone establish no table scan, pattern getter result, Native value/cache identity or provider pass.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+
+No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
+
+## Exact evidence
+
+No evidence artifact is attached.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs), `NativeNameProtocol::variable_lookup_policy`: Project variable lookup semantics only from the already selected C or Jim recipe; catalogue compatibility cannot create a recipe.
+- [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs), `NamePolicyProtocol::variable_lookup_policy`: Forward sealed naming-purpose policy while retaining independent provider/source authority.
+- [runtime/rust/src/state_traits.rs](../../../../runtime/rust/src/state_traits.rs), `Namespaces::variable_lookup_policy`: Delegate the actual Runtime selected name_policy_protocol and preserve unsupported purpose as None.
+- [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Namespaces::variable_lookup_policy`: Delegate the actual VM selected name_policy_protocol; no nominal catalogue fallback supplies missing inventory policy.
+- [rust/tcl-cmd-core/src/info.rs](../../../../rust/tcl-cmd-core/src/info.rs), `selected_variable_inventory_policy`: Require a selected policy before any pattern getter/table scan; missing purpose becomes typed refusal.
+- [rust/tcl-cmd-core/src/info.rs](../../../../rust/tcl-cmd-core/src/info.rs), `vars`: Use independently admitted policy before variable collection and actual pattern access.
+- [rust/tcl-cmd-core/src/info.rs](../../../../rust/tcl-cmd-core/src/info.rs), `globals`: Use independently admitted policy before global collection and actual pattern access.
+- [rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs](../../../../rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs), `interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose` (linked): Six supported software backend selections delegate the actual sealed name purpose and compare simple retained variable results. This is not an original external provider outcome.
+- [rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs](../../../../rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs), `interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter` (linked): Explicit Standalone ingress with unsupported Jim0.79 source purpose and no independently retained native issuer has no actual name policy; both shared inventory queries refuse before a nonresident original pattern getter. No Jim0.79 process or Native cache observation is claimed.
+- [runtime/rust/src/state_traits.rs](../../../../runtime/rust/src/state_traits.rs), `state_traits::tests::unsupported_variable_inventory_policy_preserves_original_guest_state` (linked): Unsupported actual inventory purpose refuses both queries without giving the original wide pattern a string representation or changing the prior Runtime guest result. Software ownership/state control only.
+
+A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs](../../../../rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs), `interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile` (linked): An independently retained actual C8.6 native issuer preserves its selected inventory purpose and original variable results after source compatibility changes to Jim0.79; the source profile cannot revoke or create that issuer. Current software definition only; no external-provider observation or assertion outcome attached.
+
+A source profile and an independently retained native issuer are distinct policy premises; no assertion outcome is attached by this source binding.
+
+- [rust/tcl-vm/src/interp/object_materialization.rs](../../../../rust/tcl-vm/src/interp/object_materialization.rs), `InterpState::object_materialization`: Keep compound object conversion and length purpose independent of selected variable-name inventory policy and descriptive source profile.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+## Replay
+
+Current software definitions are linked only. Assertion coverage requires the independently compiled/listed/executed image matching those definitions. No original process, Native/private table/frame or mutable implementation digest is supplied.

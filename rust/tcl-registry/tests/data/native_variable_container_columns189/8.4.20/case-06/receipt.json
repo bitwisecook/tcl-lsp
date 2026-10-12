@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-variable-container-columns189/case-06.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0029642769950442016,
+  "version_pin_receipt": "/workspace/.proofs/native-variable-container-runtime187/8.4.20/receipt.json",
+  "reported_version_row": "PATCHLEVEL 8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "ad1d3b4d2e2cad5efb1d62d0a0ce8d3fe934b6442746693d5161a16c21699b19",
+  "stdout_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9"
+  },
+  "rows": [
+    "1"
+  ],
+  "input_channel": "Replay all ten retained public variable-container specimens in the exact original ASCII LF isolated script-file envelope used by tcl-test-support::variable_containers_conformance::check. One process per case/provider. Preserve old capture columns independently; these fresh six-provider results define their own corrected original-envelope expectations, with exact source/exe/library/build provenance. No private bytecode/frame/header authority follows from public results.",
+  "control": "case-06"
+}

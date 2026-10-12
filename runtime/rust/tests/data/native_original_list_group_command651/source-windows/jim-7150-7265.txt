@@ -1,0 +1,116 @@
+    Jim_Obj *compare_script;
+    int rc;
+
+    jim_wide ret = 0;
+
+    /* This must be a valid list */
+    compare_script = Jim_DuplicateObj(sort_info->interp, sort_info->command);
+    Jim_ListAppendElement(sort_info->interp, compare_script, *lhsObj);
+    Jim_ListAppendElement(sort_info->interp, compare_script, *rhsObj);
+
+    rc = Jim_EvalObj(sort_info->interp, compare_script);
+
+    if (rc != JIM_OK || Jim_GetWide(sort_info->interp, Jim_GetResult(sort_info->interp), &ret) != JIM_OK) {
+        longjmp(sort_info->jmpbuf, rc);
+    }
+
+    return JimSign(ret) * sort_info->order;
+}
+
+/* Remove duplicate elements from the (sorted) list in-place, according to the
+ * comparison function, comp.
+ *
+ * Note that the last unique value is kept, not the first
+ */
+static void ListRemoveDuplicates(Jim_Obj *listObjPtr, int (*comp)(Jim_Obj **lhs, Jim_Obj **rhs))
+{
+    int src;
+    int dst = 0;
+    Jim_Obj **ele = listObjPtr->internalRep.listValue.ele;
+
+    for (src = 1; src < listObjPtr->internalRep.listValue.len; src++) {
+        if (comp(&ele[dst], &ele[src]) == 0) {
+            /* Match, so replace the dest with the current source */
+            Jim_DecrRefCount(sort_info->interp, ele[dst]);
+        }
+        else {
+            /* No match, so keep the current source and move to the next destination */
+            dst++;
+        }
+        ele[dst] = ele[src];
+    }
+
+    /* At end of list, keep the final element unless all elements were kept */
+    dst++;
+    if (dst < listObjPtr->internalRep.listValue.len) {
+        ele[dst] = ele[src];
+    }
+
+    /* Set the new length */
+    listObjPtr->internalRep.listValue.len = dst;
+}
+
+/* Sort a list *in place*. MUST be called with a non-shared list. */
+static int ListSortElements(Jim_Interp *interp, Jim_Obj *listObjPtr, struct lsort_info *info)
+{
+    struct lsort_info *prev_info;
+
+    typedef int (qsort_comparator) (const void *, const void *);
+    int (*fn) (Jim_Obj **, Jim_Obj **);
+    Jim_Obj **vector;
+    int len;
+    int rc;
+
+    JimPanic((Jim_IsShared(listObjPtr), "ListSortElements called with shared object"));
+    SetListFromAny(interp, listObjPtr);
+
+    /* Allow lsort to be called reentrantly */
+    prev_info = sort_info;
+    sort_info = info;
+
+    vector = listObjPtr->internalRep.listValue.ele;
+    len = listObjPtr->internalRep.listValue.len;
+    switch (info->type) {
+        case JIM_LSORT_ASCII:
+            fn = ListSortString;
+            break;
+        case JIM_LSORT_NOCASE:
+            fn = ListSortStringNoCase;
+            break;
+        case JIM_LSORT_INTEGER:
+            fn = ListSortInteger;
+            break;
+        case JIM_LSORT_REAL:
+            fn = ListSortReal;
+            break;
+        case JIM_LSORT_COMMAND:
+            fn = ListSortCommand;
+            break;
+        case JIM_LSORT_DICT:
+            fn = ListSortDict;
+            break;
+        default:
+            fn = NULL;          /* avoid warning */
+            JimPanic((1, "ListSort called with invalid sort type"));
+            return -1; /* Should not be run but keeps static analysers happy */
+    }
+
+    if (info->indexc) {
+        /* Need to interpose a "list index" function */
+        info->subfn = fn;
+        fn = ListSortIndexHelper;
+    }
+
+    if ((rc = setjmp(info->jmpbuf)) == 0) {
+        qsort(vector, len, sizeof(Jim_Obj *), (qsort_comparator *) fn);
+
+        if (info->unique && len > 1) {
+            ListRemoveDuplicates(listObjPtr, fn);
+        }
+
+        Jim_InvalidateStringRep(listObjPtr);
+    }
+    sort_info = prev_info;
+
+    return rc;
+}

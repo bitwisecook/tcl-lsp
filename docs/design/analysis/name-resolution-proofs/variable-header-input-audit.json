@@ -1,0 +1,547 @@
+[
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json",
+    "provider": "8.4.20",
+    "source_sha256": "36b70978da15c76f1b1358ece97bc6b356dba0f635fb713dcf46e86dbb2a24bb",
+    "original_stream_digest_checked": false,
+    "original_rows": 4,
+    "projected_rows": 4,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json",
+    "provider": "8.5.19",
+    "source_sha256": "36b70978da15c76f1b1358ece97bc6b356dba0f635fb713dcf46e86dbb2a24bb",
+    "original_stream_digest_checked": false,
+    "original_rows": 4,
+    "projected_rows": 4,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json",
+    "provider": "8.6.18",
+    "source_sha256": "36b70978da15c76f1b1358ece97bc6b356dba0f635fb713dcf46e86dbb2a24bb",
+    "original_stream_digest_checked": false,
+    "original_rows": 4,
+    "projected_rows": 4,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json",
+    "provider": "9.0.4",
+    "source_sha256": "36b70978da15c76f1b1358ece97bc6b356dba0f635fb713dcf46e86dbb2a24bb",
+    "original_stream_digest_checked": false,
+    "original_rows": 4,
+    "projected_rows": 4,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json",
+    "provider": "9.1.0",
+    "source_sha256": "36b70978da15c76f1b1358ece97bc6b356dba0f635fb713dcf46e86dbb2a24bb",
+    "original_stream_digest_checked": false,
+    "original_rows": 4,
+    "projected_rows": 4,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json",
+    "provider": "8.4.20",
+    "source_sha256": "96c7bbd1714d9c8bc7318a7a87ffc7d394fefca1892162b73ace95bfdbdcd7c3",
+    "original_stream_digest_checked": true,
+    "original_rows": 30,
+    "projected_rows": 30,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json",
+    "provider": "8.5.19",
+    "source_sha256": "96c7bbd1714d9c8bc7318a7a87ffc7d394fefca1892162b73ace95bfdbdcd7c3",
+    "original_stream_digest_checked": true,
+    "original_rows": 30,
+    "projected_rows": 30,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json",
+    "provider": "8.6.18",
+    "source_sha256": "96c7bbd1714d9c8bc7318a7a87ffc7d394fefca1892162b73ace95bfdbdcd7c3",
+    "original_stream_digest_checked": true,
+    "original_rows": 30,
+    "projected_rows": 30,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json",
+    "provider": "9.0.4",
+    "source_sha256": "96c7bbd1714d9c8bc7318a7a87ffc7d394fefca1892162b73ace95bfdbdcd7c3",
+    "original_stream_digest_checked": true,
+    "original_rows": 30,
+    "projected_rows": 30,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json",
+    "provider": "9.1.0",
+    "source_sha256": "96c7bbd1714d9c8bc7318a7a87ffc7d394fefca1892162b73ace95bfdbdcd7c3",
+    "original_stream_digest_checked": true,
+    "original_rows": 30,
+    "projected_rows": 30,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json",
+    "provider": "8.4.20",
+    "source_sha256": "d1e56adf155f6fff0818a1a18fedc138751323dfb8b0c0a7245e4ddc4cf9b58c",
+    "original_stream_digest_checked": true,
+    "original_rows": 29,
+    "projected_rows": 19,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json",
+    "provider": "8.5.19",
+    "source_sha256": "d1e56adf155f6fff0818a1a18fedc138751323dfb8b0c0a7245e4ddc4cf9b58c",
+    "original_stream_digest_checked": true,
+    "original_rows": 29,
+    "projected_rows": 19,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json",
+    "provider": "8.6.18",
+    "source_sha256": "d1e56adf155f6fff0818a1a18fedc138751323dfb8b0c0a7245e4ddc4cf9b58c",
+    "original_stream_digest_checked": true,
+    "original_rows": 29,
+    "projected_rows": 19,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json",
+    "provider": "9.0.4",
+    "source_sha256": "d1e56adf155f6fff0818a1a18fedc138751323dfb8b0c0a7245e4ddc4cf9b58c",
+    "original_stream_digest_checked": true,
+    "original_rows": 29,
+    "projected_rows": 19,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json",
+    "provider": "9.1.0",
+    "source_sha256": "d1e56adf155f6fff0818a1a18fedc138751323dfb8b0c0a7245e4ddc4cf9b58c",
+    "original_stream_digest_checked": true,
+    "original_rows": 29,
+    "projected_rows": 19,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json",
+    "provider": "8.4.20",
+    "source_sha256": "977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a",
+    "original_stream_digest_checked": true,
+    "original_rows": 6,
+    "projected_rows": 6,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json",
+    "provider": "8.5.19",
+    "source_sha256": "977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a",
+    "original_stream_digest_checked": true,
+    "original_rows": 6,
+    "projected_rows": 6,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json",
+    "provider": "8.6.18",
+    "source_sha256": "977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a",
+    "original_stream_digest_checked": true,
+    "original_rows": 6,
+    "projected_rows": 6,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json",
+    "provider": "9.0.4",
+    "source_sha256": "977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a",
+    "original_stream_digest_checked": true,
+    "original_rows": 6,
+    "projected_rows": 6,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json",
+    "provider": "9.1.0",
+    "source_sha256": "977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a",
+    "original_stream_digest_checked": true,
+    "original_rows": 6,
+    "projected_rows": 6,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "provider": "8.4.20",
+    "source_sha256": "8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f",
+    "original_stream_digest_checked": true,
+    "original_rows": 38,
+    "projected_rows": 38,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "provider": "8.5.19",
+    "source_sha256": "8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f",
+    "original_stream_digest_checked": true,
+    "original_rows": 38,
+    "projected_rows": 38,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "provider": "8.6.18",
+    "source_sha256": "8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f",
+    "original_stream_digest_checked": true,
+    "original_rows": 38,
+    "projected_rows": 38,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "provider": "9.0.4",
+    "source_sha256": "8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f",
+    "original_stream_digest_checked": true,
+    "original_rows": 38,
+    "projected_rows": 38,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "provider": "9.1.0",
+    "source_sha256": "8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f",
+    "original_stream_digest_checked": true,
+    "original_rows": 38,
+    "projected_rows": 38,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json",
+    "provider": "Jim",
+    "source_sha256": "8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f",
+    "original_stream_digest_checked": true,
+    "original_rows": 38,
+    "projected_rows": 38,
+    "compile_exit": 0,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.4.20",
+    "case": 0,
+    "process_exit": 0,
+    "stdout": "0\t0\t1\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.4.20",
+    "case": 1,
+    "process_exit": 0,
+    "stdout": "1\t0\t1\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.4.20",
+    "case": 2,
+    "process_exit": 0,
+    "stdout": "2\t0\t1\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.4.20",
+    "case": 3,
+    "process_exit": 0,
+    "stdout": "3\t0\t1\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.4.20",
+    "case": 4,
+    "process_exit": 0,
+    "stdout": "4\t1\t1\tlocalVarName\t1\t63616e27742072656164202278223a206e6f2073756368207661726961626c65\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.5.19",
+    "case": 0,
+    "process_exit": 0,
+    "stdout": "0\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.5.19",
+    "case": 1,
+    "process_exit": 0,
+    "stdout": "1\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.5.19",
+    "case": 2,
+    "process_exit": -6,
+    "stdout": "",
+    "stderr": "updateStringProc of type localVarName should not be called\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.5.19",
+    "case": 3,
+    "process_exit": -6,
+    "stdout": "",
+    "stderr": "updateStringProc of type localVarName should not be called\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.5.19",
+    "case": 4,
+    "process_exit": -6,
+    "stdout": "",
+    "stderr": "updateStringProc of type localVarName should not be called\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.6.18",
+    "case": 0,
+    "process_exit": 0,
+    "stdout": "0\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.6.18",
+    "case": 1,
+    "process_exit": 0,
+    "stdout": "1\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.6.18",
+    "case": 2,
+    "process_exit": -6,
+    "stdout": "",
+    "stderr": "updateStringProc of type localVarName should not be called\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.6.18",
+    "case": 3,
+    "process_exit": -6,
+    "stdout": "",
+    "stderr": "updateStringProc of type localVarName should not be called\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "8.6.18",
+    "case": 4,
+    "process_exit": -6,
+    "stdout": "",
+    "stderr": "updateStringProc of type localVarName should not be called\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.0.4",
+    "case": 0,
+    "process_exit": 0,
+    "stdout": "0\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.0.4",
+    "case": 1,
+    "process_exit": 0,
+    "stdout": "1\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.0.4",
+    "case": 2,
+    "process_exit": -4,
+    "stdout": "",
+    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.0.4",
+    "case": 3,
+    "process_exit": -4,
+    "stdout": "",
+    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.0.4",
+    "case": 4,
+    "process_exit": -4,
+    "stdout": "",
+    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.1.0",
+    "case": 0,
+    "process_exit": 0,
+    "stdout": "0\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.1.0",
+    "case": 1,
+    "process_exit": 0,
+    "stdout": "1\t0\t0\tlocalVarName\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.1.0",
+    "case": 2,
+    "process_exit": -4,
+    "stdout": "",
+    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.1.0",
+    "case": 3,
+    "process_exit": -4,
+    "stdout": "",
+    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
+  },
+  {
+    "manifest": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json",
+    "provider": "9.1.0",
+    "case": 4,
+    "process_exit": -4,
+    "stdout": "",
+    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
+  },
+  {
+    "manifest": "rust/tcl-cshim/tests/data/native_index_cache/manifest.json",
+    "provider": "8.4.20",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "output_sha256": "8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d",
+    "rows": 5,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-cshim/tests/data/native_index_cache/manifest.json",
+    "provider": "8.5.19",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "output_sha256": "8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d",
+    "rows": 5,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-cshim/tests/data/native_index_cache/manifest.json",
+    "provider": "8.6.18",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "output_sha256": "8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d",
+    "rows": 5,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-cshim/tests/data/native_index_cache/manifest.json",
+    "provider": "9.0.4",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "output_sha256": "2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614",
+    "rows": 6,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-cshim/tests/data/native_index_cache/manifest.json",
+    "provider": "9.1.0",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "output_sha256": "2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614",
+    "rows": 6,
+    "process_exit": 0
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_error_headers/manifest.json",
+    "provider": "8.4.20",
+    "source_sha256": "bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b",
+    "compile_exit": 0,
+    "process_exit": 0,
+    "raw_rows": 2,
+    "inline_stream_equals_projection": true
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_error_headers/manifest.json",
+    "provider": "8.5.19",
+    "source_sha256": "bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b",
+    "compile_exit": 0,
+    "process_exit": 0,
+    "raw_rows": 6,
+    "inline_stream_equals_projection": true
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_error_headers/manifest.json",
+    "provider": "8.6.18",
+    "source_sha256": "bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b",
+    "compile_exit": 0,
+    "process_exit": 0,
+    "raw_rows": 10,
+    "inline_stream_equals_projection": true
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_error_headers/manifest.json",
+    "provider": "9.0.4",
+    "source_sha256": "bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b",
+    "compile_exit": 0,
+    "process_exit": 0,
+    "raw_rows": 10,
+    "inline_stream_equals_projection": true
+  },
+  {
+    "manifest": "rust/tcl-registry/tests/data/native_error_headers/manifest.json",
+    "provider": "9.1.0",
+    "source_sha256": "bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b",
+    "compile_exit": 0,
+    "process_exit": 0,
+    "raw_rows": 10,
+    "inline_stream_equals_projection": true
+  }
+]

@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/r2286m-fixtures-v2/lab.conf
+There were warnings:
+Virtual address (/R2286_r2286m/192.168.9.24) shares address with non-floating self IP (/Common/self_1nic), so traffic-group is being kept at (/Common/traffic-group-local-only).

@@ -103,6 +103,12 @@ fn unit(body: &str) -> CompileUnit<'_> {
     }
 }
 
+fn script_message_contains(error: &EngineError, expected: &[u8]) -> bool {
+    error
+        .script_message_bytes()
+        .is_some_and(|message| message.windows(expected.len()).any(|part| part == expected))
+}
+
 fn no_arguments() -> [Value; 2] {
     [Value::list([]), Value::dict_of::<&str>([])]
 }
@@ -135,8 +141,8 @@ pub(crate) fn a_unit_compiles_once_and_invokes_with_structured_values<E: Engine>
         .invoke(&handle, &[Value::list([])])
         .expect_err("a unit takes its parameters");
     assert!(
-        matches!(&error, EngineError::Script { message, .. }
-            if message == "wrong # args: unit takes 2 argument(s), got 1"),
+        error.script_message_bytes()
+            == Some(b"wrong # args: unit takes 2 argument(s), got 1".as_slice()),
         "{error:?}"
     );
 }
@@ -174,8 +180,7 @@ pub(crate) fn a_host_command_receives_what_the_body_emits<E: Engine>(new: &dyn F
     assert_eq!(engine.remove_command("role"), Ok(false), "it is gone");
     let error = run(&mut engine, "role 2 x").expect_err("removed");
     assert!(
-        matches!(&error, EngineError::Script { message, .. }
-            if message == "invalid command name \"role\""),
+        error.script_message_bytes() == Some(b"invalid command name \"role\"".as_slice()),
         "{error:?}"
     );
 }
@@ -222,9 +227,14 @@ pub(crate) fn a_host_command_registers_another_and_provides_a_package_through_it
     );
     let conflict = engine.provide_package("factory", "2.0");
     assert!(
-        matches!(&conflict, Err(EngineError::Script { message, code })
-            if message == "conflicting versions provided for package \"factory\": 1.2, then 2.0"
-                && code.as_deref() == Some("TCL PACKAGE VERSIONCONFLICT")),
+        conflict
+            .as_ref()
+            .is_err_and(|error| error.script_message_bytes()
+                == Some(
+                    b"conflicting versions provided for package \"factory\": 1.2, then 2.0"
+                        .as_slice()
+                )
+                && error.script_code_bytes() == Some(b"TCL PACKAGE VERSIONCONFLICT".as_slice())),
         "{conflict:?}"
     );
 }
@@ -294,13 +304,8 @@ pub(crate) fn a_host_command_s_completion_is_the_one_it_names<E: Engine>(new: &d
         "a budget a host command's own work outran is the invocation's"
     );
     let error = run(&mut engine, "answer error v").expect_err("an uncaught error");
-    assert_eq!(
-        error,
-        EngineError::Script {
-            message: "refused".to_owned(),
-            code: Some("HOST REFUSED".to_owned()),
-        }
-    );
+    assert_eq!(error.script_message_bytes(), Some(b"refused".as_slice()));
+    assert_eq!(error.script_code_bytes(), Some(b"HOST REFUSED".as_slice()));
 }
 
 /// A host command that panics.
@@ -342,20 +347,14 @@ pub(crate) fn a_host_command_s_panic_reaches_the_embedder_and_the_engine_survive
 
 pub(crate) fn an_error_in_the_body_is_reported_with_its_code<E: Engine>(new: &dyn Fn() -> E) {
     let mut engine = new();
-    assert_eq!(
-        run(&mut engine, "error boom"),
-        Err(EngineError::Script {
-            message: "boom".to_owned(),
-            code: Some("NONE".to_owned()),
-        })
-    );
-    assert_eq!(
-        run(&mut engine, "error boom {} {MY CODE}"),
-        Err(EngineError::Script {
-            message: "boom".to_owned(),
-            code: Some("MY CODE".to_owned()),
-        })
-    );
+    for (body, code) in [
+        ("error boom", b"NONE".as_slice()),
+        ("error boom {} {MY CODE}", b"MY CODE".as_slice()),
+    ] {
+        let error = run(&mut engine, body).expect_err("a genuine guest error");
+        assert_eq!(error.script_message_bytes(), Some(b"boom".as_slice()));
+        assert_eq!(error.script_code_bytes(), Some(code));
+    }
 }
 
 pub(crate) fn the_command_budget_is_enforced_and_distinguishable<E: Engine>(new: &dyn Fn() -> E) {
@@ -489,8 +488,7 @@ pub(crate) fn a_restricted_engine_has_only_the_whitelist_and_the_host_commands<E
     ] {
         let error = run(&mut engine, body).expect_err("a command off the whitelist");
         assert!(
-            matches!(&error, EngineError::Script { message, .. }
-                if message.contains("invalid command name")),
+            script_message_contains(&error, b"invalid command name"),
             "{body}: {error:?}"
         );
     }
@@ -640,8 +638,9 @@ pub(crate) fn confine_stores_refuses_every_store_outside_the_activation<E: Engin
             "stores are confined to the activation"
         };
         assert!(
-            matches!(&answer, Err(EngineError::Script { message, .. })
-                if message.contains(expected)),
+            answer
+                .as_ref()
+                .is_err_and(|error| script_message_contains(error, expected.as_bytes())),
             "{body}: {answer:?}"
         );
         assert_eq!(
@@ -683,8 +682,10 @@ pub(crate) fn confine_stores_refuses_every_store_outside_the_activation<E: Engin
         engine.confine_stores().expect("confines");
         let answer = run(&mut engine, body);
         assert!(
-            matches!(&answer, Err(EngineError::Script { message, .. })
-                if message.contains("stores are confined to the activation")),
+            answer.as_ref().is_err_and(|error| script_message_contains(
+                error,
+                b"stores are confined to the activation"
+            )),
             "{body}: {answer:?}"
         );
     }
@@ -717,8 +718,10 @@ pub(crate) fn confine_stores_refuses_creation_and_unset_outside_the_activation<E
         engine.confine_stores().expect("confines");
         let answer = run(&mut engine, body);
         assert!(
-            matches!(&answer, Err(EngineError::Script { message, .. })
-                if message.contains("stores are confined to the activation")),
+            answer.as_ref().is_err_and(|error| script_message_contains(
+                error,
+                b"stores are confined to the activation"
+            )),
             "{body}: {answer:?}"
         );
         assert_eq!(run(&mut engine, left), Ok("0 1 1".to_owned()), "{body}");
@@ -755,7 +758,9 @@ pub(crate) fn a_confined_engine_reads_no_host_environment<E: Engine>(new: &dyn F
         "return $::env(PATH)",
     ] {
         assert!(
-            matches!(run(&mut confined, body), Err(EngineError::Script { .. })),
+            run(&mut confined, body)
+                .as_ref()
+                .is_err_and(|error| error.script_message_bytes().is_some()),
             "{body}"
         );
     }

@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.0",
+  "version": "9.0.4",
+  "original_path": "generic/tclCmdIL.c",
+  "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+  "lines": [
+    1807,
+    1832
+  ],
+  "function": "InfoPatchLevelCmd",
+  "snippet": "    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    const char *patchlevel;\n\n    if (objc != 1) {\n\tTcl_WrongNumArgs(interp, 1, objv, NULL);\n\treturn TCL_ERROR;\n    }\n\n    patchlevel = Tcl_GetVar2(interp, \"tcl_patchLevel\", NULL,\n\t    (TCL_GLOBAL_ONLY | TCL_LEAVE_ERR_MSG));\n    if (patchlevel != NULL) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(patchlevel, -1));\n\treturn TCL_OK;\n    }\n    return TCL_ERROR;\n}\n\f\n/*\n *----------------------------------------------------------------------\n *\n * InfoProcsCmd --\n",
+  "snippet_sha256": "52849671b701d2dc18f6134442f31ae33282d7e4d93241700dd226af53fd2fdf",
+  "source_association": "Exact restored pinned source used by the retained public header/library build; full source digest and actual excerpt, not a native result inference."
+}

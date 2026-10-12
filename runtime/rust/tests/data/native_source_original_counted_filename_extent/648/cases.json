@@ -1,0 +1,32 @@
+[
+  {
+    "label": "plain-existing",
+    "prefix": "existing",
+    "suffix_hex": ""
+  },
+  {
+    "label": "plain-absent",
+    "prefix": "absent",
+    "suffix_hex": ""
+  },
+  {
+    "label": "raw-zero-tail-existing",
+    "prefix": "existing",
+    "suffix_hex": "005441494c"
+  },
+  {
+    "label": "raw-zero-tail-absent",
+    "prefix": "absent",
+    "suffix_hex": "005441494c"
+  },
+  {
+    "label": "modified-zero-tail-existing",
+    "prefix": "existing",
+    "suffix_hex": "c0805441494c"
+  },
+  {
+    "label": "modified-zero-tail-absent",
+    "prefix": "absent",
+    "suffix_hex": "c0805441494c"
+  }
+]

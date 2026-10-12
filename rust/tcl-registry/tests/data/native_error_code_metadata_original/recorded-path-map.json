@@ -1,0 +1,1013 @@
+{
+  "scope": "Original absolute request/receipt paths and payload bytes are unchanged. This map locates their exact retained copies or byte-identical prior evidence; it creates no compile or execution provenance.",
+  "required_pins": [
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/probe.tcl",
+      "sha256": "11c9c5def98a57ede58c2814f742488628982fecf4e42c60967db0bf5992f6f2",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/probe.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/launch.py",
+      "sha256": "98ef4a56ddbca497f9b2838c10ba5e457997dff98052cdde96024090c999fa4d",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/launch.py"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tcl.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/libtcl8.4.a"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile",
+      "sha256": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/Makefile"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c",
+      "sha256": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclInterp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c",
+      "sha256": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclPkg.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.4.20/provider.elf"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h",
+      "sha256": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclInt.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIntDecls.h",
+      "sha256": "ef14c8b968a80d9d4b08b70419afbfcef4dc484d03fb5c3f6c729350e0c45a1e",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclIntDecls.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.h",
+      "sha256": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclCompile.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c",
+      "sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+      "published_path": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c",
+      "sha256": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclExecute.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.4.20/tclNamesp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclBasic.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c",
+      "sha256": "26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclUtil.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompCmds.c",
+      "sha256": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclCompCmds.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclProc.c",
+      "sha256": "bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879",
+      "published_path": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/8.4.20/tclProc.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c",
+      "sha256": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.4.20/tclObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c",
+      "sha256": "a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclStringObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/8.4.20/receipt.json",
+      "sha256": "0f7234e7d052215ad3586d3f98dbfe640c84868c10d915cda35c612b11dfcf63",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/receipt.json"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdAH.c",
+      "sha256": "4119b635cc3677728baa21df8ee8c683c3f37aa87bf9ca80fcab74eec948fd75",
+      "published_path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/tclCmdAH.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.4.20/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+      "sha256": "f9cde389a031a9c7ac2e8fc579448b08cbcd7061bcf60f2597d60c8e9c43d947",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.4.20/tclCmdAH.c.Tcl_ErrorObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclVar.c",
+      "sha256": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--generic--tclVar.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.4.20/tclVar.c.Tcl_SetObjCmd.txt",
+      "sha256": "95c053949276a7d26a3bf7745298321b570cbc28a5529e4e196473e12cc7acb8",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.4.20/tclVar.c.Tcl_SetObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIndexObj.c",
+      "sha256": "babe18e9f596d54d49f16c17b0576723d0d6c580ffb4356e1fca9b26ad6576da",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--generic--tclIndexObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.4.20/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+      "sha256": "8125161d96c388433cfd68cc8b7c730e7a2b3132c8ba6d1ebe2e3320aeb5f053",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.4.20/tclIndexObj.c.Tcl_WrongNumArgs.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tcl.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/libtcl8.5.a"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile",
+      "sha256": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/Makefile"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c",
+      "sha256": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclInterp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c",
+      "sha256": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclPkg.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.5.19/provider.elf"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h",
+      "sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/8.5.19/tclInt.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIntDecls.h",
+      "sha256": "e4efb75e3a479b8d816cba3eb4633a449276dc2ac2f1a86d2125cac32dfc0243",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclIntDecls.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h",
+      "sha256": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+      "published_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.c",
+      "sha256": "8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclCompile.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclExecute.c",
+      "sha256": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/failed-request225/original-source/tclExecute.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/8.5.19/tclNamesp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclBasic.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c",
+      "sha256": "67be2e4aed576288b31069a98a1ddacf8354c87ca1a8c8e85e53421364a989cd",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclUtil.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompCmds.c",
+      "sha256": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclCompCmds.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c",
+      "sha256": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6",
+      "published_path": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclObj.c",
+      "sha256": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/failed-request225/original-source/tclObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c",
+      "sha256": "d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclStringObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/8.5.19/receipt.json",
+      "sha256": "5c357fa1bd8f44e02b0b08fca76640fecbe85297493b116cb8e8e0a78aa617e7",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/receipt.json"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdAH.c",
+      "sha256": "cdd328ee0a0d0c3ec7b67da50c90ae22b40591cc52e9492f19d7b257355fcf43",
+      "published_path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/tclCmdAH.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.5.19/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+      "sha256": "9b02909051ff9f8faba2d3adc092620f73e028fcd8873fa2180d3878b154d908",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.5.19/tclCmdAH.c.Tcl_ErrorObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclVar.c",
+      "sha256": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/failed-request225/original-source/tclVar.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.5.19/tclVar.c.Tcl_SetObjCmd.txt",
+      "sha256": "375fd43683b9ebbe7921c2e2814068cdec1e9698cc008648fb8de7fdd31e3a49",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.5.19/tclVar.c.Tcl_SetObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIndexObj.c",
+      "sha256": "5ef48cf4d90044d6513c8b452ca7e9070cc3a14e42e83186f8be2d42e90129aa",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--generic--tclIndexObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.5.19/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+      "sha256": "1c0f94ce78433aee6e11452dc3a5eba65134a7d9602efcacaa0e49f748376b95",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.5.19/tclIndexObj.c.Tcl_WrongNumArgs.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/generic/tcl.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/libtcl8.6.a"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile",
+      "sha256": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+      "sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c",
+      "sha256": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclInterp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c",
+      "sha256": "83845b75b4da27d7ae67afd5b15135153d68557681cd9659f75d4d4e027135a2",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclPkg.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.6.18/provider.elf"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h",
+      "sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/8.6.18/tclInt.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntDecls.h",
+      "sha256": "dd303cab02a101f96109c96f626eb91fa5576fe21294a9d80816b06a8014ca26",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclIntDecls.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h",
+      "sha256": "be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9",
+      "published_path": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.c",
+      "sha256": "d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclCompile.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmdsGR.c",
+      "sha256": "edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d",
+      "published_path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclExecute.c",
+      "sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclExecute.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/8.6.18/tclNamesp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/8.6.18/tclBasic.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c",
+      "sha256": "452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclUtil.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmds.c",
+      "sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclCompCmds.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c",
+      "sha256": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+      "published_path": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclObj.c",
+      "sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.6.18/tclObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c",
+      "sha256": "d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclStringObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclDisassemble.c",
+      "sha256": "c116cb5cd9e30a9c48944443dd49e96ad33dcc4d9fb35f8dc824ff64745317fe",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclDisassemble.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/8.6.18/receipt.json",
+      "sha256": "9a89b544c51fe11d8dc302119e7047e0cdc0dceb183572c743c430a88c155af1",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/receipt.json"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdAH.c",
+      "sha256": "752473fb5c05d166602ed00b2afff8e123dafd34f4c585628e941b8c5691ae88",
+      "published_path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/tclCmdAH.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.6.18/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+      "sha256": "a19206fb4486172c4aa646ce80515e42b1963c81f9890793e065ba40b21dcffa",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.6.18/tclCmdAH.c.Tcl_ErrorObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclVar.c",
+      "sha256": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclVar.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.6.18/tclVar.c.Tcl_SetObjCmd.txt",
+      "sha256": "6426a93f26b10292570b9da50721fe64949f5498290b705ed76293ac9f92e105",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.6.18/tclVar.c.Tcl_SetObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIndexObj.c",
+      "sha256": "550096cdb69b26ddbcf459c07273db48ad8ed4f5cccd68133559483c4af67c17",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--generic--tclIndexObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/8.6.18/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+      "sha256": "6521cc4830fab0f2cc0cf206b252858fb1298a31c4a9acd4e5ade7d045d77203",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.6.18/tclIndexObj.c.Tcl_WrongNumArgs.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/generic/tcl.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/libtcl9.0.a"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile",
+      "sha256": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c",
+      "sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c",
+      "sha256": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclInterp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c",
+      "sha256": "c89585f9d38a913ce03b9a700987cfe18cb39dec2a24293336eb85b67cd67c8c",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclPkg.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.0.4/provider.elf"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h",
+      "sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/9.0.4/tclInt.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIntDecls.h",
+      "sha256": "96897750658753b43b3de554682bec7249c92e858dbe437eab7de0e26aba9a6a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclIntDecls.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.h",
+      "sha256": "22f512199d2e57370496d8a6713921d9ac57538497a3a64966fa1dee7a6a5dc5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclCompile.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.c",
+      "sha256": "51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclCompile.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmdsGR.c",
+      "sha256": "d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db",
+      "published_path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclExecute.c",
+      "sha256": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclExecute.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.0.4/tclNamesp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.0.4/tclBasic.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c",
+      "sha256": "13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclUtil.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmds.c",
+      "sha256": "9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclCompCmds.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c",
+      "sha256": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110",
+      "published_path": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclObj.c",
+      "sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.0.4/tclObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c",
+      "sha256": "d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclStringObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclDisassemble.c",
+      "sha256": "5cc6696914432fe44d8d604289313b5a424f234874018e58f5909be277f01bf5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclDisassemble.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/9.0.4/receipt.json",
+      "sha256": "adcdc0557f5279db1a62ff25ff750400f64280c9c6d0151614ed663aa8fe1fc3",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/receipt.json"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdAH.c",
+      "sha256": "b1fd4aec514b23bbca0a43d99e25a613ec570752e50fadf1caf5c499b1a54ec1",
+      "published_path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/tclCmdAH.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/9.0.4/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+      "sha256": "3aa71c1110953d8b9c577f83aa86f6d0da07dec66e70ebaa0b7111a58b9dbeb1",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.0.4/tclCmdAH.c.Tcl_ErrorObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclVar.c",
+      "sha256": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclVar.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/9.0.4/tclVar.c.Tcl_SetObjCmd.txt",
+      "sha256": "237f5aa94832d4839fcbcdbe9436c8a8b9ef15217649019293cbf984b8601fdd",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.0.4/tclVar.c.Tcl_SetObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIndexObj.c",
+      "sha256": "5ae0b7f7da756611674d4f80dd04a0646e64674fb3f829805ebebd73866d552a",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--generic--tclIndexObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/9.0.4/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+      "sha256": "77260f12eea3e8630d845887d77c26c2cbe74a04c085ad677caed22400698223",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.0.4/tclIndexObj.c.Tcl_WrongNumArgs.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/generic/tcl.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/libtcl9.1.a"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile",
+      "sha256": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+      "sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c",
+      "sha256": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclInterp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c",
+      "sha256": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclPkg.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.1.0/provider.elf"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h",
+      "sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/9.1.0/tclInt.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIntDecls.h",
+      "sha256": "78d549e7b85ed9e91df2d44e62db9f2a376b55deb98c55edbbbe53396d45b502",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclIntDecls.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.h",
+      "sha256": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclCompile.h"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c",
+      "sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclCompile.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmdsGR.c",
+      "sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+      "published_path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclExecute.c",
+      "sha256": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclExecute.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.1.0/tclNamesp.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.1.0/tclBasic.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c",
+      "sha256": "509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclUtil.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmds.c",
+      "sha256": "66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclCompCmds.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c",
+      "sha256": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+      "published_path": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.1.0/tclObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c",
+      "sha256": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclStringObj.c"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclDisassemble.c",
+      "sha256": "9471aba16fecccc2847d7604f2e408fbf2f737124ad5a8601de5f8c7ea911d98",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclDisassemble.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/9.1.0/receipt.json",
+      "sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/receipt.json"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdAH.c",
+      "sha256": "56db5fdd8c4bd688cb0beda3b91ad60111adb802fd63c28821055140b582fe04",
+      "published_path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/tclCmdAH.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/9.1.0/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+      "sha256": "21f43cea4236ecd1352f94273d382fde1ad522d66071bec48b53dc4abdcfdcad",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.1.0/tclCmdAH.c.Tcl_ErrorObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclVar.c",
+      "sha256": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclVar.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/9.1.0/tclVar.c.Tcl_SetObjCmd.txt",
+      "sha256": "8b5b37638e3ec44c85a380f7f5281fe239429d27b7694fa5f62cd1338ce2a218",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.1.0/tclVar.c.Tcl_SetObjCmd.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIndexObj.c",
+      "sha256": "fd9dfe1a261db55472f88ff9c1a7be53f9c0aee1ea597a6f96ace48b666d8487",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--generic--tclIndexObj.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/9.1.0/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+      "sha256": "656d54729128fdc35823bafa497d48f41c207dbd49175d34ca32a347bd68e182",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.1.0/tclIndexObj.c.Tcl_WrongNumArgs.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim.h"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+      "sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/libjim.a"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/Makefile",
+      "sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/Makefile"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c",
+      "sha256": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-interp.c",
+      "sha256": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+      "published_path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim-interp.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/oo.tcl",
+      "sha256": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/oo.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_oo.c",
+      "sha256": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_oo.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c",
+      "sha256": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+      "published_path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/source/_load-static-exts.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/jim-namespace.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/nshelper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_nshelper.c",
+      "sha256": "34b0622f8b6b30947e7409c9666d955fc4d3eb1c5ed8d67ae4699c919a8c4698",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_nshelper.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimautoconf.h",
+      "sha256": "aa112b883e9d9ad1ffc775431524cec57f23d34f643a56ce657951cfae8e3092",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/jimautoconf.h"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl",
+      "sha256": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_stdlib.c",
+      "sha256": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/_stdlib.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/jim/receipt.json",
+      "sha256": "006a4501536c0ae6e1919ef33f8cfcad38ebd8698b965f90abfcd6d364e32b54",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.Jim_ErrorCoreCommand.txt",
+      "sha256": "e79e6ae3d5c3a9621ceda39e254ce6877d97cfdbcfff13edc5758a2b00ab01c4",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.Jim_ErrorCoreCommand.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.Jim_SetCoreCommand.txt",
+      "sha256": "e8f21bbb126560de0e395aa7440c6f9d208ae5ae8bd39f3ab1bf3e077f284e16",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.Jim_SetCoreCommand.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.Jim_WrongNumArgs.txt",
+      "sha256": "6cd0209f78f0f655372489ee0e58af18248738ff71058abc5c3a129306b4f0fd",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.Jim_WrongNumArgs.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.ErrorCommandRegistration.txt",
+      "sha256": "ce5e996424bf79faadefbe6fd8f2882d9987d0a10b0cbfacfdc16e8530ddc94a",
+      "published_path": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.ErrorCommandRegistration.txt"
+    }
+  ],
+  "recorded_to_published": {
+    "/workspace/.proofs/native-error-code-metadata430/closure.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/closure.json",
+    "/workspace/.proofs/native-error-code-metadata430/launch.py": "rust/tcl-registry/tests/data/native_error_code_metadata_original/launch.py",
+    "/workspace/.proofs/native-error-code-metadata430/prepare.py": "rust/tcl-registry/tests/data/native_error_code_metadata_original/prepare.py",
+    "/workspace/.proofs/native-error-code-metadata430/probe.tcl": "rust/tcl-registry/tests/data/native_error_code_metadata_original/probe.tcl",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.4.20/execute.stderr": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.4.20/execute.stderr",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.4.20/execute.stdout": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.4.20/execute.stdout",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.4.20/receipt.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.4.20/receipt.json",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.5.19/execute.stderr": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.5.19/execute.stderr",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.5.19/execute.stdout": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.5.19/execute.stdout",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.5.19/receipt.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.5.19/receipt.json",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.6.18/execute.stderr": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.6.18/execute.stderr",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.6.18/execute.stdout": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.6.18/execute.stdout",
+    "/workspace/.proofs/native-error-code-metadata430/providers/8.6.18/receipt.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/8.6.18/receipt.json",
+    "/workspace/.proofs/native-error-code-metadata430/providers/9.0.4/execute.stderr": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/9.0.4/execute.stderr",
+    "/workspace/.proofs/native-error-code-metadata430/providers/9.0.4/execute.stdout": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/9.0.4/execute.stdout",
+    "/workspace/.proofs/native-error-code-metadata430/providers/9.0.4/receipt.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/9.0.4/receipt.json",
+    "/workspace/.proofs/native-error-code-metadata430/providers/9.1.0/execute.stderr": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/9.1.0/execute.stderr",
+    "/workspace/.proofs/native-error-code-metadata430/providers/9.1.0/execute.stdout": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/9.1.0/execute.stdout",
+    "/workspace/.proofs/native-error-code-metadata430/providers/9.1.0/receipt.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/9.1.0/receipt.json",
+    "/workspace/.proofs/native-error-code-metadata430/providers/jim/execute.stderr": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/jim/execute.stderr",
+    "/workspace/.proofs/native-error-code-metadata430/providers/jim/execute.stdout": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/jim/execute.stdout",
+    "/workspace/.proofs/native-error-code-metadata430/providers/jim/receipt.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/providers/jim/receipt.json",
+    "/workspace/.proofs/native-error-code-metadata430/request.json": "rust/tcl-registry/tests/data/native_error_code_metadata_original/request.json",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.4.20/tclCmdAH.c.Tcl_ErrorObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.4.20/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.4.20/tclIndexObj.c.Tcl_WrongNumArgs.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.4.20/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.4.20/tclVar.c.Tcl_SetObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.4.20/tclVar.c.Tcl_SetObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.5.19/tclCmdAH.c.Tcl_ErrorObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.5.19/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.5.19/tclIndexObj.c.Tcl_WrongNumArgs.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.5.19/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.5.19/tclVar.c.Tcl_SetObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.5.19/tclVar.c.Tcl_SetObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.6.18/tclCmdAH.c.Tcl_ErrorObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.6.18/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.6.18/tclIndexObj.c.Tcl_WrongNumArgs.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.6.18/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/8.6.18/tclVar.c.Tcl_SetObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/8.6.18/tclVar.c.Tcl_SetObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/9.0.4/tclCmdAH.c.Tcl_ErrorObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.0.4/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/9.0.4/tclIndexObj.c.Tcl_WrongNumArgs.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.0.4/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/9.0.4/tclVar.c.Tcl_SetObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.0.4/tclVar.c.Tcl_SetObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/9.1.0/tclCmdAH.c.Tcl_ErrorObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.1.0/tclCmdAH.c.Tcl_ErrorObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/9.1.0/tclIndexObj.c.Tcl_WrongNumArgs.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.1.0/tclIndexObj.c.Tcl_WrongNumArgs.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/9.1.0/tclVar.c.Tcl_SetObjCmd.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/9.1.0/tclVar.c.Tcl_SetObjCmd.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.ErrorCommandRegistration.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.ErrorCommandRegistration.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.Jim_ErrorCoreCommand.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.Jim_ErrorCoreCommand.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.Jim_SetCoreCommand.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.Jim_SetCoreCommand.txt",
+    "/workspace/.proofs/native-error-code-metadata430/source-windows/jim/jim.c.Jim_WrongNumArgs.txt": "rust/tcl-registry/tests/data/native_error_code_metadata_original/source-windows/jim/jim.c.Jim_WrongNumArgs.txt",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/libtcl8.4.a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.4.20/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclInt.h",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIntDecls.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclIntDecls.h",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclCompile.h",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclExecute.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.4.20/tclNamesp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclBasic.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclUtil.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompCmds.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclCompCmds.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclProc.c": "rust/tcl-registry/tests/data/native_child_colon_publication/full-source/8.4.20/tclProc.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.4.20/tclObj.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclStringObj.c",
+    "/workspace/.proofs/native-jim-class-source269/8.4.20/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/receipt.json",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdAH.c": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/tclCmdAH.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclVar.c": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--generic--tclVar.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIndexObj.c": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--generic--tclIndexObj.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/libtcl8.5.a",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.5.19/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/8.5.19/tclInt.h",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIntDecls.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclIntDecls.h",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclCompile.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclExecute.c": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/failed-request225/original-source/tclExecute.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/8.5.19/tclNamesp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclBasic.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclUtil.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompCmds.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclCompCmds.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclObj.c": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/failed-request225/original-source/tclObj.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclStringObj.c",
+    "/workspace/.proofs/native-jim-class-source269/8.5.19/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/receipt.json",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdAH.c": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/tclCmdAH.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclVar.c": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/failed-request225/original-source/tclVar.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIndexObj.c": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--generic--tclIndexObj.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/libtcl8.6.a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.6.18/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/8.6.18/tclInt.h",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntDecls.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclIntDecls.h",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h": "rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclCompile.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmdsGR.c": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclExecute.c": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclExecute.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/8.6.18/tclNamesp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/8.6.18/tclBasic.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclUtil.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmds.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclCompCmds.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclObj.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/8.6.18/tclObj.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclStringObj.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclDisassemble.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclDisassemble.c",
+    "/workspace/.proofs/native-jim-class-source269/8.6.18/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/receipt.json",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdAH.c": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/tclCmdAH.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclVar.c": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclVar.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIndexObj.c": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--generic--tclIndexObj.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/libtcl9.0.a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.0.4/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/9.0.4/tclInt.h",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIntDecls.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclIntDecls.h",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclCompile.h",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclCompile.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmdsGR.c": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclExecute.c": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclExecute.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.0.4/tclNamesp.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.0.4/tclBasic.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclUtil.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmds.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclCompCmds.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclObj.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.0.4/tclObj.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclStringObj.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclDisassemble.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclDisassemble.c",
+    "/workspace/.proofs/native-jim-class-source269/9.0.4/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/receipt.json",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdAH.c": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/tclCmdAH.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclVar.c": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclVar.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIndexObj.c": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--generic--tclIndexObj.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/libtcl9.1.a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.1.0/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/source-inspection208/9.1.0/tclInt.h",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIntDecls.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclIntDecls.h",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclCompile.h",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclCompile.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmdsGR.c": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclExecute.c": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclExecute.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.1.0/tclNamesp.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.1.0/tclBasic.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclUtil.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmds.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclCompCmds.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c": "rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/9.1.0/tclObj.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclStringObj.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclDisassemble.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclDisassemble.c",
+    "/workspace/.proofs/native-jim-class-source269/9.1.0/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/receipt.json",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdAH.c": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/tclCmdAH.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclVar.c": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclVar.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIndexObj.c": "rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--generic--tclIndexObj.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim.h",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/libjim.a",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/Makefile",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim-interp.c",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/oo.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_oo.c",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/source/_load-static-exts.c",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf",
+    "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/jim-namespace.c",
+    "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/nshelper.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_nshelper.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_nshelper.c",
+    "/workspace/.proofs/native-providers/jimtcl/jimautoconf.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/jimautoconf.h",
+    "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_stdlib.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/_stdlib.c",
+    "/workspace/.proofs/native-jim-class-source269/jim/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json",
+    "/workspace/.proofs/native-jim-class-source269/probe.tcl": "rust/tcl-registry/tests/data/native_jim_class_source269/probe.tcl",
+    "/workspace/.proofs/native-jim-class-source269/8.4.20/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/stdout",
+    "/workspace/.proofs/native-jim-class-source269/8.4.20/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr",
+    "/workspace/.proofs/native-jim-class-source269/8.5.19/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/stdout",
+    "/workspace/.proofs/native-jim-class-source269/8.5.19/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr",
+    "/workspace/.proofs/native-jim-class-source269/8.6.18/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/stdout",
+    "/workspace/.proofs/native-jim-class-source269/8.6.18/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr",
+    "/workspace/.proofs/native-jim-class-source269/9.0.4/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/stdout",
+    "/workspace/.proofs/native-jim-class-source269/9.0.4/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr",
+    "/workspace/.proofs/native-jim-class-source269/9.1.0/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/stdout",
+    "/workspace/.proofs/native-jim-class-source269/9.1.0/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr",
+    "/workspace/.proofs/native-jim-class-source269/jim/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/stdout",
+    "/workspace/.proofs/native-jim-class-source269/jim/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr"
+  }
+}

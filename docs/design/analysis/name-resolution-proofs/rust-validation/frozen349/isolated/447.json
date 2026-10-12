@@ -1,0 +1,19 @@
+{
+  "ordinal": 447,
+  "selector": "list::tests::native_dictionary_list_conversion_keeps_members_and_resident_spelling",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::native_dictionary_list_conversion_keeps_members_and_resident_spelling",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.042274136998457834,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.01s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/447.log",
+  "log_sha256": "4700469ce87dbe723c202d0e6d9205f5f8ae641fafbfe58ed6e68944758cdc67"
+}

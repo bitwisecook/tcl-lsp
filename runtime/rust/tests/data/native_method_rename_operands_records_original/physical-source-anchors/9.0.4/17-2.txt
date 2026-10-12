@@ -1,0 +1,112 @@
+ */
+
+size_t
+TclHashObjKey(
+    TCL_UNUSED(Tcl_HashTable *),
+    void *keyPtr)		/* Key from which to compute hash value. */
+{
+    Tcl_Obj *objPtr = (Tcl_Obj *)keyPtr;
+    Tcl_Size length;
+    const char *string = Tcl_GetStringFromObj(objPtr, &length);
+    size_t result = 0;
+
+    /*
+     * I tried a zillion different hash functions and asked many other people
+     * for advice. Many people had their own favorite functions, all
+     * different, but no-one had much idea why they were good ones. I chose
+     * the one below (multiply by 9 and add new character) because of the
+     * following reasons:
+     *
+     * 1. Multiplying by 10 is perfect for keys that are decimal strings, and
+     *    multiplying by 9 is just about as good.
+     * 2. Times-9 is (shift-left-3) plus (old). This means that each
+     *    character's bits hang around in the low-order bits of the hash value
+     *    for ever, plus they spread fairly rapidly up to the high-order bits
+     *    to fill out the hash value. This seems works well both for decimal
+     *    and non-decimal strings.
+     *
+     * Note that this function is very weak against malicious strings; it's
+     * very easy to generate multiple keys that have the same hashcode. On the
+     * other hand, that hardly ever actually occurs and this function *is*
+     * very cheap, even by comparison with industry-standard hashes like FNV.
+     * If real strength of hash is required though, use a custom hash based on
+     * Bob Jenkins's lookup3(), but be aware that it's significantly slower.
+     * Tcl does not use that level of strength because it typically does not
+     * need it (and some of the aspects of that strength are genuinely
+     * unnecessary given the rest of Tcl's hash machinery, and the fact that
+     * we do not either transfer hashes to another machine, use them as a true
+     * substitute for equality, or attempt to minimize work in rebuilding the
+     * hash table).
+     *
+     * See also HashStringKey in tclHash.c.
+     * See also HashString in tclLiteral.c.
+     *
+     * See [tcl-Feature Request #2958832]
+     */
+
+    if (length > 0) {
+	result = UCHAR(*string);
+	while (--length) {
+	    result += (result << 3) + UCHAR(*++string);
+	}
+    }
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetCommandFromObj --
+ *
+ *	Returns the command specified by the name in a Tcl_Obj.
+ *
+ * Results:
+ *	Returns a token for the command if it is found. Otherwise, if it can't
+ *	be found or there is an error, returns NULL.
+ *
+ * Side effects:
+ *	May update the internal representation for the object, caching the
+ *	command reference so that the next time this function is called with
+ *	the same object, the command can be found quickly.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+Tcl_GetCommandFromObj(
+    Tcl_Interp *interp,		/* The interpreter in which to resolve the
+				 * command and to report errors. */
+    Tcl_Obj *objPtr)	/* The object containing the command's name.
+				 * If the name starts with "::", will be
+				 * looked up in global namespace. Else, looked
+				 * up first in the current namespace, then in
+				 * global namespace. */
+{
+    ResolvedCmdName *resPtr;
+
+    /*
+     * Get the internal representation, converting to a command type if
+     * needed. The internal representation is a ResolvedCmdName that points to
+     * the actual command.
+     *
+     * Check the context namespace and the namespace epoch of the resolved
+     * symbol to make sure that it is fresh. Note that we verify that the
+     * namespace id of the context namespace is the same as the one we cached;
+     * this insures that the namespace wasn't deleted and a new one created at
+     * the same address with the same command epoch. Note that fully qualified
+     * names have a NULL refNsPtr, these checks needn't be made.
+     *
+     * Check also that the command's epoch is up to date, and that the command
+     * is not deleted.
+     *
+     * If any check fails, then force another conversion to the command type,
+     * to discard the old rep and create a new one.
+     */
+
+    resPtr = (ResolvedCmdName *)objPtr->internalRep.twoPtrValue.ptr1;
+    if (TclHasInternalRep(objPtr, &tclCmdNameType)) {
+	Command *cmdPtr = resPtr->cmdPtr;
+
+	if ((cmdPtr->cmdEpoch == resPtr->cmdEpoch)
+		&& (interp == cmdPtr->nsPtr->interp)
+		&& !(cmdPtr->nsPtr->flags & NS_DYING)) {

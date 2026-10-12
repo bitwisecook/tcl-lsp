@@ -77,7 +77,7 @@ use tcl_dialect::{BracedVarStyle, NumberSyntax};
 use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use super::{RefactorEdit, Refactoring, command_span_offsets, find_command_at, token_end_offset};
+use super::{RefactorEdit, Refactoring, command_span_offsets, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// Inline the proc called at byte offset `cursor`.
@@ -118,12 +118,12 @@ pub fn inline_proc_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<Refactoring> {
-    let registry = resolution.registry?;
-    // The document's own lexing grammar — `analysis.dialect` carries the
-    // name the host analysed this document under (issue: dialect-drift).
-    let config =
-        LexerConfig::from_grammar(crate::environment_for_dialect(&analysis.dialect).grammar());
-    let call = find_command_at(source, cursor, None, registry, config)?;
+    resolution.registry?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let registry = current.registry();
+    let config = current.config();
+    let resolution = resolution.with_registry(registry);
+    let call = super::find_original_command_at(source, cursor, analysis)?;
     let head = call.name();
     if head.is_empty() {
         return None;
@@ -172,43 +172,284 @@ fn plan_inline(
     call: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     analysis: &AnalysisResult,
-    registry: &CommandRegistry,
+    _registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Result<String, String> {
-    // The numeric-literal grammar of the dialect this document was analysed
-    // under — whether a substituted value reads as a number in an `expr`
-    // operand is release-dependent (`0o17` from 8.5, `0d99` and `1_000` from
-    // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
-    // `Analyser::analyse`; an empty (default-constructed) one resolves to the
-    // permissive `plain_tcl` profile, i.e. modern rules.
-    let numbers: NumberSyntax = crate::profile_for_dialect(&analysis.dialect)
-        .grammar
-        .numbers;
+    // Literal substitution uses the independently retained lexical grammar.
+    let profile = analysis
+        .resolved_profile()
+        .ok_or_else(|| "the original dialect is unavailable".to_owned())?;
+    let numbers: NumberSyntax = profile.grammar.numbers;
     // …and its `${…}` close rule, for the same reason: which bytes are the
     // variable's name is release-dependent, and this transform rewrites the
     // reference's own span.
-    let style: BracedVarStyle = super::braced_var_style(analysis);
+    let style: BracedVarStyle = config.braced_var;
     if proc_def.params_computed {
         return Err(
             "the proc's parameter list is computed at run time, so its formals are unknown"
                 .to_string(),
         );
     }
-    let body = single_command_body(source, proc_def, config)?;
-    let bindings = bind_arguments(source, call, proc_def)?;
-    // The body is one command, but that command carries a whole script: `if`,
-    // `foreach`, `catch`, and `switch` each hold theirs in a body argument.
-    // Every guard below asks its question of that statement tree, because a
-    // `set` or a `return` one level down moves into the caller's frame just as
-    // surely as one at the body's top level.  Spans are relative to
-    // `body.text`, which is what the substitution rewrites.
-    let walk = super::FrameWalk::new(&body.text, analysis);
+    let body = single_command_body(source, proc_def, analysis, config)?;
+    // Address every nested word in the full original document.
+    let walk = super::FrameWalk::new(source, analysis)
+        .ok_or_else(|| "the original document context is unavailable".to_owned())?;
     let mut nested = Vec::new();
-    walk.nested_same_frame_commands(&body.text, &body.command, &mut nested);
-    reject_frame_sensitive_body(&body, &nested, registry)?;
-    reject_body_variable_writes(&body, &nested, registry)?;
+    walk.nested_same_frame_commands(source, &body.command, &mut nested);
+    if !walk.complete() {
+        return Err(
+            "a nested command's original frame or operand grammar is unavailable".to_owned(),
+        );
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_inline_body(
+            source, call, proc_def, analysis, &walk, &body, &nested, numbers,
+        );
+    }
+    let bindings = bind_arguments(source, call, proc_def)?;
+    reject_frame_sensitive_body(source, &body, &nested, &walk)?;
+    reject_body_variable_writes(source, &body, &nested, &walk)?;
     reject_args_reference(&body, proc_def, style)?;
-    substitute_bindings(&body, &nested, &bindings, registry, numbers, style)
+    substitute_bindings(source, &body, &nested, &bindings, &walk, numbers, style)
+}
+
+/// Rewrite only the selected original allocation and exact formal/argv
+/// topology. Frozen values never erase a written variable or command read.
+fn original_inline_body(
+    source: &str,
+    call: &tcl_compiler::segmenter::SegmentedCommand,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+    analysis: &AnalysisResult,
+    walk: &super::FrameWalk<'_>,
+    body: &BodyCommand,
+    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    numbers: NumberSyntax,
+) -> Result<String, String> {
+    use tcl_compiler::registry_invocation::{
+        InvocationWordOrigin, effective_command_words, frozen_argument_words,
+    };
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    let unavailable =
+        || "the original parameter or call operand topology is unavailable".to_owned();
+    let record = analysis
+        .original_procedure_declarations()
+        .find(|record| std::ptr::eq(record.metadata(), proc_def))
+        .ok_or_else(unavailable)?;
+    let registry = analysis.resolved_registry().ok_or_else(unavailable)?;
+    let formals = analysis
+        .original_procedure_formals(record, registry)
+        .ok_or_else(unavailable)?;
+    let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
+    let image = tcl_lexer::SourceImage::document(source);
+    if !formals.matches_source(&image, config) {
+        return Err(unavailable());
+    }
+    let tokens = walk.tokens(source, call);
+    let binding = tokens.source_binding.as_ref().ok_or_else(unavailable)?;
+    let effective = effective_command_words(&tokens).ok_or_else(unavailable)?;
+    let frozen = frozen_argument_words(&tokens, &effective);
+    let mut arguments = Vec::with_capacity(frozen.len());
+    for (origin, value) in effective.origins.iter().skip(1).zip(&frozen) {
+        let bytes = value
+            .literal_bytes()
+            .ok_or_else(|| "an argument's complete native value is unknown".to_owned())?;
+        match origin {
+            InvocationWordOrigin::Written(written) => {
+                let input = binding
+                    .original_written_name_input(&tokens, *written)
+                    .ok_or_else(unavailable)?;
+                let key = input.original_word_key().ok_or_else(|| {
+                    "inlining would remove an observable written argument evaluation".to_owned()
+                })?;
+                if key.bytes() != bytes {
+                    return Err(unavailable());
+                }
+            }
+            InvocationWordOrigin::ExpandedElement { written, element } => {
+                let parent = binding
+                    .original_written_name_input(&tokens, *written)
+                    .ok_or_else(unavailable)?;
+                if parent.original_static_list_container().is_none() {
+                    return Err("inlining would remove a substituted list evaluation".to_owned());
+                }
+                let child = parent
+                    .original_list_element(*element)
+                    .ok_or_else(unavailable)?;
+                if child.bytes() != bytes {
+                    return Err(unavailable());
+                }
+            }
+            InvocationWordOrigin::BindingPrefix(_) => {}
+            InvocationWordOrigin::ResolvedHead => return Err(unavailable()),
+        }
+        arguments.push(bytes.to_vec());
+    }
+    if arguments.len() != effective.words.len().saturating_sub(1) {
+        return Err(unavailable());
+    }
+    let rows = formals.bindings(arguments.len()).map_err(|error| {
+        format!("the call's argument count does not bind its original formals: {error:?}")
+    })?;
+    let mut bindings = std::collections::BTreeMap::new();
+    let mut rest_names = std::collections::BTreeSet::new();
+    for row in rows {
+        match row {
+            FormalByteArgumentBinding::Value {
+                parameter,
+                argument,
+            } => {
+                bindings.insert(
+                    formals
+                        .parameters()
+                        .get(parameter)
+                        .ok_or_else(unavailable)?
+                        .name
+                        .clone(),
+                    arguments.get(argument).ok_or_else(unavailable)?.clone(),
+                );
+            }
+            FormalByteArgumentBinding::Default { parameter } => {
+                let parameter = formals
+                    .parameters()
+                    .get(parameter)
+                    .ok_or_else(unavailable)?;
+                bindings.insert(
+                    parameter.name.clone(),
+                    parameter.default.clone().ok_or_else(unavailable)?,
+                );
+            }
+            FormalByteArgumentBinding::Rest { name, .. } => {
+                rest_names.insert(name);
+            }
+            FormalByteArgumentBinding::CallerLink { .. } => {
+                return Err(
+                    "a caller-link formal would select a different frame after inlining".to_owned(),
+                );
+            }
+        }
+    }
+    let protocol = formals.original_input().policy().string_protocol();
+    let mut references = std::collections::BTreeMap::new();
+    let mut expression_ranges = Vec::new();
+    for command in std::iter::once(&body.command).chain(nested) {
+        let selected = walk
+            .structure(source, command)
+            .ok_or_else(|| "the original body command structure is unavailable".to_owned())?;
+        let body_tokens = walk.tokens(source, command);
+        let head = body_tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_written_name_input(&body_tokens, 0))
+            .and_then(|input| input.original_word_key().cloned())
+            .ok_or_else(|| "the copied command head has no original static producer".to_owned())?;
+        // This narrow proposal facade addresses authored Registry names. A
+        // body alias or qualified/opaque head needs its separate byte proposal
+        // lookup; re-encoding a displayed or resolved name would lose identity.
+        if !selected.facts.canonical_command.is_ascii()
+            || head.bytes() != selected.facts.canonical_command.as_bytes()
+            || !binding.original_proposed_registry_commands(
+                &tokens,
+                registry,
+                &[&selected.facts.canonical_command],
+            )
+        {
+            return Err(
+                "the copied command's implementation is not preserved in the caller namespace"
+                    .to_owned(),
+            );
+        }
+        if tcl_registry::traits::is_frame_sensitive(selected.facts.traits) {
+            return Err("the body calls a command that acts on the call frame".to_owned());
+        }
+        if selected
+            .facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| matches!(role, ArgRole::VarWrite | ArgRole::LoopVarList))
+        {
+            return Err("the body assigns or binds variables in its own frame".to_owned());
+        }
+        if selected.facts.body_kind != tcl_registry::BodyKind::Plain
+            && selected
+                .facts
+                .arg_roles
+                .iter()
+                .any(|(_, role)| matches!(role, ArgRole::Body | ArgRole::LambdaLiteral))
+        {
+            return Err("the body opens a distinct naming or variable frame".to_owned());
+        }
+        for (written, role) in selected.written_argument_roles() {
+            if role == ArgRole::Expr {
+                let token = command.argv.get(written + 1).ok_or_else(unavailable)?;
+                expression_ranges.push(token.span);
+            }
+            if matches!(role, ArgRole::VarRead) {
+                return Err("the body reads a variable through a name operand".to_owned());
+            }
+        }
+        for arena in walk.components(source, command).ok_or_else(unavailable)? {
+            for part in arena.all_parts() {
+                let tcl_lexer::ExecutablePart::Variable { name, index } = part.part else {
+                    continue;
+                };
+                let name = tcl_syntax::backslash::native_source_literal_bytes(
+                    arena.bytes(name).ok_or_else(unavailable)?,
+                    image.channel(),
+                    protocol,
+                )
+                .map_err(|_| unavailable())?
+                .into_owned();
+                if index.is_some() {
+                    return Err(
+                        "an array reference needs its original activation and index evaluation"
+                            .to_owned(),
+                    );
+                }
+                if rest_names.contains(&name) {
+                    return Err(
+                        "the body reads a variadic list whose word quoting cannot be preserved"
+                            .to_owned(),
+                    );
+                }
+                if !bindings.contains_key(&name) {
+                    return Err(
+                        "the body reads a variable outside its original formal bindings".to_owned(),
+                    );
+                }
+                references.insert((part.span.start(), part.span.end()), name);
+            }
+        }
+    }
+    let mut replacements = Vec::new();
+    for ((start, end), name) in references {
+        let bytes = bindings.get(&name).ok_or_else(unavailable)?;
+        let text =
+            tcl_syntax::backslash::native_literal_source_text(bytes, image.channel(), protocol)
+                .filter(|text| is_plain_word(text))
+                .ok_or_else(|| {
+                    "a bound native value cannot be written as an inert literal in the body"
+                        .to_owned()
+                })?;
+        if expression_ranges
+            .iter()
+            .any(|span| start >= span.start() && end <= span.end())
+            && !is_expr_literal(&text, numbers)
+        {
+            return Err(
+                "a nonnumeric bound value cannot replace an expression variable".to_owned(),
+            );
+        }
+        let start = start.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
+        let end = end.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
+        body.text.get(start..end).ok_or_else(unavailable)?;
+        replacements.push((start, end, text));
+    }
+    let mut rewritten = body.text.clone();
+    replacements.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+    for (start, end, value) in replacements {
+        rewritten.replace_range(start..end, &value);
+    }
+    Ok(rewritten)
 }
 
 /// One command's worth of proc body, re-segmented so its argument roles and
@@ -216,7 +457,9 @@ fn plan_inline(
 struct BodyCommand {
     /// The body text, braces stripped and trimmed.
     text: String,
-    /// The body's single command, with spans relative to `text`.
+    /// Exact original content origin in the full document.
+    origin: u32,
+    /// The body's single command, with absolute document spans.
     command: tcl_compiler::segmenter::SegmentedCommand,
 }
 
@@ -224,8 +467,62 @@ struct BodyCommand {
 fn single_command_body(
     source: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    analysis: &AnalysisResult,
     config: LexerConfig,
 ) -> Result<BodyCommand, String> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let image = tcl_lexer::SourceImage::document(source);
+        let input = analysis
+            .retained_command_realm()
+            .and_then(|realm| {
+                realm.original_written_name_input_at_span_in_source(
+                    &image,
+                    proc_def.body_span,
+                    config,
+                )
+            })
+            .ok_or_else(|| "the proc's original body word is unavailable".to_owned())?;
+        let word = input
+            .original_word_key()
+            .map(|key| key.original_word())
+            .filter(|word| {
+                word.image() == &image
+                    && word.config() == config
+                    && word.group().kind == tcl_lexer::WordKind::Braced
+                    && !word.group().expand
+                    && word
+                        .tokens()
+                        .first()
+                        .is_some_and(|token| token.span == proc_def.body_span)
+            })
+            .ok_or_else(|| "the proc body has no editable original literal word".to_owned())?;
+        let span = word
+            .content_span()
+            .map_err(|_| "the body content extent is unavailable".to_owned())?;
+        let raw = source
+            .get(span.as_range())
+            .ok_or_else(|| "the body content is unavailable".to_owned())?;
+        let text = raw.trim();
+        let origin = span.start()
+            + u32::try_from(raw.len() - raw.trim_start().len())
+                .map_err(|_| "the body is too large".to_owned())?;
+        let commands = segment_commands_with_offset_and_config(
+            text,
+            origin,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
+        let [command] = commands.as_slice() else {
+            return Err(format!("the proc body is {} commands", commands.len()));
+        };
+        if command.is_partial {
+            return Err("the proc body is incomplete".to_owned());
+        }
+        return Ok(BodyCommand {
+            text: text.to_owned(),
+            origin,
+            command: command.clone(),
+        });
+    }
     let span = proc_def.body_span;
     let raw = source
         .get(span.start() as usize..span.end() as usize)
@@ -246,10 +543,22 @@ fn single_command_body(
     if text.is_empty() {
         return Err("the proc body is empty".to_string());
     }
-    let commands: Vec<_> = segment_commands_with_offset_and_config(&text, 0, config)
-        .into_iter()
-        .filter(|command| !command.name().is_empty())
-        .collect();
+    let commands: Vec<_> = segment_commands_with_offset_and_config(
+        &text,
+        span.start()
+            + u32::try_from(
+                source
+                    .get(span.as_range())
+                    .unwrap_or("")
+                    .find(&text)
+                    .unwrap_or(0),
+            )
+            .unwrap_or(0),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .into_iter()
+    .filter(|command| !command.name().is_empty())
+    .collect();
     if commands.len() != 1 {
         return Err(format!(
             "the proc body is {} commands; inlining several commands into a \
@@ -258,7 +567,11 @@ fn single_command_body(
         ));
     }
     let command = commands.into_iter().next().expect("length checked above");
-    Ok(BodyCommand { text, command })
+    Ok(BodyCommand {
+        origin: command.span.start(),
+        text,
+        command,
+    })
 }
 
 /// A parameter bound to the value the call gives it.
@@ -384,52 +697,30 @@ fn argument_value(source: &str, token: Token) -> Result<(String, bool), String> 
 /// Refuse a body whose command is frame-sensitive.
 ///
 /// Membership comes from
-/// [`CommandRegistry::frame_sensitive_commands`] — the registry's own union of
+/// the central selected-traits frame predicate — the registry's own union of
 /// block terminators, control transfers, scope aliases, and barriers — so this
 /// never names a command.  Moving any of them out of the proc's frame changes
 /// what they return from, break out of, or bind against: `return` in an inlined
 /// body would return from the *caller*, and `upvar 1 x y` would alias the
 /// caller's caller instead of the caller.
 fn reject_frame_sensitive_body(
+    source: &str,
     body: &BodyCommand,
     nested: &[tcl_compiler::segmenter::SegmentedCommand],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
-    let unsafe_heads = registry.frame_sensitive_commands();
     for command in std::iter::once(&body.command).chain(nested) {
-        let head = command.name();
-        if unsafe_heads.contains(&head) {
+        let traits = walk
+            .source_traits(source, command)
+            .ok_or_else(|| "the body's original frame effects are unavailable".to_owned())?;
+        if tcl_registry::traits::is_frame_sensitive(traits) {
             return Err(format!(
-                "the body calls '{head}', which acts on the call frame — running it \
-                 in the caller's frame would change what it returns from, breaks out \
-                 of, or binds against"
+                "the body calls '{}', which acts on the call frame",
+                command.name()
             ));
-        }
-        // A frame-sensitive command nested in a `[…]` substitution inside an
-        // argument is just as frame-bound as one at the head.
-        for text in command.args() {
-            if let Some(inner) = nested_command_head(text)
-                && unsafe_heads.contains(&inner)
-            {
-                return Err(format!(
-                    "the body evaluates '{inner}', which acts on the call frame — \
-                     running it in the caller's frame would change what it binds \
-                     against"
-                ));
-            }
         }
     }
     Ok(())
-}
-
-/// The head word of a `[…]` command substitution embedded anywhere in `text`.
-fn nested_command_head(text: &str) -> Option<&str> {
-    let open = text.find('[')?;
-    let rest = text.get(open + 1..)?;
-    let head = rest
-        .split(|c: char| c.is_ascii_whitespace() || c == ']')
-        .next()?;
-    (!head.is_empty()).then_some(head)
 }
 
 /// Refuse a body that writes a variable.
@@ -441,42 +732,43 @@ fn nested_command_head(text: &str) -> Option<&str> {
 /// `lappend`, `append`, `dict set`, `lassign`, `regexp -inline`'s capture
 /// variables, and anything else a spec declares, without listing any of them.
 fn reject_body_variable_writes(
+    source: &str,
     body: &BodyCommand,
     nested: &[tcl_compiler::segmenter::SegmentedCommand],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
     for command in std::iter::once(&body.command).chain(nested) {
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        let writes: Vec<&str> = registry
-            .arg_indices_for_role(head, &args, ArgRole::VarWrite)
-            .iter()
-            .filter_map(|index| args.get(*index))
-            .copied()
-            .collect();
-        if !writes.is_empty() {
-            return Err(format!(
-                "the body assigns a variable ('{head}' writes to '{}'), which would \
-                 leak into — and could overwrite — a variable of the same name in \
-                 the caller",
-                writes.join("', '")
-            ));
-        }
-        // A loop's own binding leaks exactly as an assignment does, and it is
-        // a `LoopVarList` word rather than a `VarWrite` one: `foreach n {1 2 3}
-        // {…}` leaves `n` behind in whatever frame runs it.
-        for index in registry.arg_indices_for_role(head, &args, ArgRole::LoopVarList) {
-            let Some(word) = args.get(index) else {
+        let words = walk
+            .source_words(source, command)
+            .ok_or_else(|| "the body's original variable roles are unavailable".to_owned())?;
+        let roles = words
+            .roles()
+            .ok_or_else(|| "the body's original variable roles are incomplete".to_owned())?;
+        for &(ordinal, role) in roles {
+            if !matches!(role, ArgRole::VarWrite | ArgRole::LoopVarList) {
                 continue;
-            };
-            let Ok(names) = tcl_syntax::list::split_list(word) else {
-                continue;
+            }
+            let word = words
+                .arguments()
+                .get(ordinal)
+                .and_then(|word| word.literal_bytes())
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .ok_or_else(|| "the body's written variable name is unavailable".to_owned())?;
+            let names = if role == ArgRole::LoopVarList {
+                tcl_syntax::word_rules::WordValueRules::from_grammar(
+                    &walk.config.grammar_over(walk.dialect.grammar),
+                )
+                .split_list(word)
+                .map_err(|_| "the body's variable list is malformed".to_owned())?
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect()
+            } else {
+                vec![word.to_owned()]
             };
             if !names.is_empty() {
                 return Err(format!(
-                    "the body binds '{}' on every iteration of its '{head}', which \
-                     would leak into — and could overwrite — a variable of the same \
-                     name in the caller",
+                    "the body assigns or binds '{}', which would leak into the caller's frame",
                     names.join("', '")
                 ));
             }
@@ -518,10 +810,11 @@ fn reject_args_reference(
 /// refusing wherever the value cannot be written into that position without
 /// changing what it means.
 fn substitute_bindings(
+    source: &str,
     body: &BodyCommand,
     nested: &[tcl_compiler::segmenter::SegmentedCommand],
     bindings: &[Binding],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
     numbers: NumberSyntax,
     style: BracedVarStyle,
 ) -> Result<String, String> {
@@ -530,10 +823,18 @@ fn substitute_bindings(
     // positions have to as well: `puts [expr {$n eq "abc"}]` puts its operand
     // one level below the body's own command, and substituting a bareword
     // there would make `expr` read it as a function name.
-    let expr_ranges: Vec<(usize, usize)> = std::iter::once(&body.command)
-        .chain(nested)
-        .flat_map(|command| expr_argument_ranges(command, registry))
-        .collect();
+    let mut expr_ranges = Vec::new();
+    for command in std::iter::once(&body.command).chain(nested) {
+        for (start, end) in expr_argument_ranges(source, command, walk)? {
+            expr_ranges.push((
+                start
+                    .checked_sub(body.origin as usize)
+                    .ok_or("an expression lies outside the original body")?,
+                end.checked_sub(body.origin as usize)
+                    .ok_or("an expression lies outside the original body")?,
+            ));
+        }
+    }
     let mut replacements: Vec<(usize, usize, String)> = Vec::new();
     for binding in bindings {
         let occurrences: Vec<&(String, usize, usize)> = references
@@ -593,18 +894,26 @@ fn substitute_bindings(
 /// Read off the registry's [`ArgRole::Expr`], so `expr`, `if`, `while`, and
 /// `for`'s condition are all covered without this module naming any of them.
 fn expr_argument_ranges(
+    source: &str,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-) -> Vec<(usize, usize)> {
-    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-    registry
-        .arg_indices_for_role(command.name(), &args, ArgRole::Expr)
+    walk: &super::FrameWalk<'_>,
+) -> Result<Vec<(usize, usize)>, String> {
+    let words = walk
+        .source_words(source, command)
+        .ok_or_else(|| "the body's original expression roles are unavailable".to_owned())?;
+    words
+        .roles()
+        .ok_or_else(|| "the body's original expression roles are incomplete".to_owned())?;
+    words
+        .written_argument_roles()
         .into_iter()
-        .filter_map(|index| {
-            // `arg_indices_for_role` is 0-based over the post-name arguments;
-            // the representative argv token sits one further along.
-            let token = command.argv.get(index + 1)?;
-            Some((token.span.start() as usize, token.span.end() as usize))
+        .filter(|(_, role)| *role == ArgRole::Expr)
+        .map(|(ordinal, _)| {
+            command
+                .argv
+                .get(ordinal + 1)
+                .map(|token| (token.span.start() as usize, token.span.end() as usize))
+                .ok_or_else(|| "the original expression word is unavailable".to_owned())
         })
         .collect()
 }
@@ -1052,5 +1361,214 @@ mod tests {
         // The reference stops before `c}`, which stays ordinary word text.
         assert_eq!((eight[0].1, eight[0].2), (5, 11));
         assert_eq!(&text[eight[0].2..], "c}");
+    }
+}
+
+#[cfg(test)]
+mod original_inline_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn action(source: &str, call: &str, clear_reports: bool) -> Option<Refactoring> {
+        let mut analyser = Analyser::new();
+        let mut analysis = analyser.analyse(source, "tcl8.6").clone();
+        if clear_reports {
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+        }
+        let cursor = u32::try_from(source.rfind(call).unwrap()).unwrap();
+        inline_proc(
+            source,
+            cursor,
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+    }
+
+    #[test]
+    fn original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared() {
+        // Implementation contract: naming.refactor.original-procedure-inline-binding
+        // docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md
+        let source = r"proc p\uD800 {x} {puts $x}
+ p\uD800 VALUE
+";
+        let result = action(source, r"p\uD800 VALUE", true).expect("actual original call");
+        assert!(result.disabled.is_none(), "{:?}", result.disabled);
+        assert!(result.apply(source).ends_with(" puts VALUE\n"));
+    }
+
+    #[test]
+    fn original_inline_keeps_inert_braced_data_and_refuses_erased_reads_or_free_cells() {
+        // Implementation contract: naming.refactor.original-procedure-inline-binding
+        // docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md
+        let literal = "proc p {x} {puts {$x}}\np VALUE\n";
+        let result = action(literal, "p VALUE", false).unwrap();
+        assert!(result.disabled.is_none(), "{:?}", result.disabled);
+        assert!(result.apply(literal).ends_with("puts {$x}\n"));
+        for source in [
+            "proc p {unused} {puts SAFE}\nset value VALUE\np $value\n",
+            "proc p {x} {puts $outside}\np VALUE\n",
+        ] {
+            let call = if source.contains("p $value") {
+                "p $value"
+            } else {
+                "p VALUE"
+            };
+            let result = action(source, call, false).expect("actual original call");
+            assert!(result.disabled.is_some());
+            assert!(result.edits.is_empty());
+        }
+    }
+
+    #[test]
+    fn original_inline_bindings_keep_alias_prefix_expansion_defaults_and_arity() {
+        // Implementation contract: naming.refactor.original-procedure-inline-binding
+        // docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md
+        for (source, call, expected) in [
+            (
+                "proc p {x {y 2}} {expr {$x + $y}}\ninterp alias {} wrapped {} p 3\nwrapped\n",
+                "wrapped\n",
+                "expr {3 + 2}",
+            ),
+            (
+                "proc p {x y} {expr {$x + $y}}\np {*}{3 4}\n",
+                "p {*}",
+                "expr {3 + 4}",
+            ),
+        ] {
+            let result = action(source, call, true).expect("actual original call");
+            assert!(result.disabled.is_none(), "{:?}", result.disabled);
+            assert!(result.apply(source).contains(expected));
+        }
+        let arity = "proc p {x} {puts $x}\np 1 2\n";
+        let result = action(arity, "p 1 2", true).unwrap();
+        assert!(result.disabled.is_some());
+        assert!(result.edits.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_inline_destination_tests {
+    use super::*;
+    #[test]
+    fn original_inline_refuses_a_body_builtin_shadowed_at_the_call_destination() {
+        // Implementation contract: naming.refactor.original-inline-destination-command
+        // docs/design/analysis/name-resolution-proofs/refactor-original-inline-destination-command.md
+        let source = "proc p {x} {puts $x}\nnamespace eval Other {\nproc puts {x} {return SHADOW}\np VALUE\n}\n";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6").clone();
+        let cursor = u32::try_from(source.find("p VALUE").unwrap()).unwrap();
+        let result = inline_proc(
+            source,
+            cursor,
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+        .expect("actual original procedure call");
+        assert!(result.disabled.is_some());
+        assert!(result.edits.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod selected_source_body_tests {
+    use super::*;
+
+    #[test]
+    fn logical_inline_call_selection_uses_current_original_body_regions() {
+        // naming.source.original-refactor-command-selection
+        // docs/design/analysis/name-resolution-proofs/original-refactor-command-selection.md
+        let source = "interp alias {} run {} eval\nproc p {x} {expr {$x + 1}}\nrun {p 2}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let cursor = u32::try_from(source.rfind("p 2").unwrap()).unwrap();
+        let command = super::super::find_original_command_at(source, cursor, &analysis).unwrap();
+        assert_eq!(command.name(), "p");
+        assert_eq!(command.span.start(), cursor);
+        let registry = analysis.resolved_registry().unwrap();
+        let action = inline_proc(source, cursor, &analysis, registry).unwrap();
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert!(action.apply(source).ends_with("run {expr {2 + 1}}"));
+        let inert = "proc eval args {}; proc p {x} {expr {$x + 1}}; eval {p 2}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(inert, "tcl");
+        let cursor = u32::try_from(inert.rfind("p 2").unwrap()).unwrap();
+        let command = super::super::find_original_command_at(inert, cursor, &analysis).unwrap();
+        assert_ne!(command.span.start(), cursor);
+        assert_eq!(command.name(), "eval");
+    }
+
+    #[test]
+    fn original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "proc p {x} {expr {$x + 1}}
+p 2";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let registry = CommandRegistry::build_default();
+        let cursor = u32::try_from(source.rfind("p 2").unwrap()).unwrap();
+        let action = inline_proc(source, cursor, &analysis, &registry).unwrap();
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert!(action.apply(source).ends_with("expr {2 + 1}"));
+        analysis.resolved_input = None;
+        assert!(inline_proc(source, cursor, &analysis, &registry).is_none());
+        let source = "interp alias {} finish {} return
+proc p {} {finish 1}
+p";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let proc_def = analysis.all_procs.get("::p").unwrap();
+        let body = single_command_body(source, proc_def, &analysis, walk.config).unwrap();
+        assert!(reject_frame_sensitive_body(source, &body, &[], &walk).is_err());
+    }
+}
+
+#[cfg(test)]
+mod original_inline_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_inline_body_keeps_bom_head_and_retained_parent_correspondence() {
+        // naming.refactor.original-procedure-inline-binding
+        // docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md
+        // Original body syntax/geometry only; no complete inline edit permission.
+        let source = "\u{feff}proc p {x} {\u{feff}#prefix $x}\np VALUE";
+        let mut prepared = tcl_compiler::analyser::Analyser::new();
+        let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..base.lexer_config()
+        };
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            base.analyser_profile(),
+            base.unit_profile(),
+            base.context_registry(),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl9.1");
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let procedure = analysis
+            .all_procs
+            .get("::p")
+            .expect("actual original procedure header");
+        let body = single_command_body(source, procedure, &analysis, config).unwrap();
+        assert_eq!(body.command.name(), "\u{feff}#prefix");
+        assert_eq!(
+            body.origin,
+            u32::try_from(source.find("\u{feff}#prefix").unwrap()).unwrap()
+        );
+        assert_eq!(
+            source.get(body.command.argv[0].span.as_range()),
+            Some("\u{feff}#prefix")
+        );
+        assert_eq!(body.text, "\u{feff}#prefix $x");
+        assert!(
+            single_command_body("different original document", procedure, &analysis, config)
+                .is_err()
+        );
+        assert!(single_command_body(source, procedure, &analysis, config.nested()).is_err());
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
     }
 }

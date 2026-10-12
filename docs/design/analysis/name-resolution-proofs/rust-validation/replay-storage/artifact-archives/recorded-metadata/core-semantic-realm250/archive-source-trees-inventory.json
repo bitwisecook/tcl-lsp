@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/core-semantic-realm250.source-trees.tar.gz",
+  "archive_sha256": "f241fc0655efe882035534068cc36ea7924d19b66c940841d0b8a5c7a900b459",
+  "archive_bytes": 203631,
+  "uncompressed_bytes": 849696,
+  "source_manifest_sha256": "6b79e958600c3631f01385c4d30b2b05ce8c6ccf509c2acf519d8e500587bb8f",
+  "source_patch_sha256": "e2a7fb2ca536804c35fbc112bd34e05157c6eb40acbb6d5451e97b8150b129c1",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 10,
+  "members": {
+    "core-semantic-realm250/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6205318,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6205318,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6205318,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6205318,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587542.3304129,
+      "size": 424434,
+      "sha256": "7326b598be538e2a23aaa661297fc772a410cf1ec99c9212e6d1b8bde605398f"
+    },
+    "core-semantic-realm250/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6245317,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6245317,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/candidate/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6245317,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/candidate/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.6245317,
+      "size": 0,
+      "sha256": null
+    },
+    "core-semantic-realm250/candidate/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791594918.7885306,
+      "size": 425262,
+      "sha256": "2cbe82c99278572fe90d61bc6eb3fe2dc42b447d3d8a004952678d7f7ac235b4"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "2cbe82c99278572fe90d61bc6eb3fe2dc42b447d3d8a004952678d7f7ac235b4",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "hash_key": "base_sha256",
+      "sha256": "7326b598be538e2a23aaa661297fc772a410cf1ec99c9212e6d1b8bde605398f",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

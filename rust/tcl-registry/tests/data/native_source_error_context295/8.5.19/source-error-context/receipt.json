@@ -1,0 +1,55 @@
+{
+  "provider": "8.5.19",
+  "command": [
+    "/workspace/.proofs/native-source-error-context295-capture/8.5.19/probe.elf",
+    "-",
+    "/workspace/.proofs/native-source-error-context295-capture/source.tcl",
+    "-"
+  ],
+  "exit": 0,
+  "seconds": 0.004011179000372067,
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "source_boom.code\t31",
+    "source_boom.result\t6261642051",
+    "source_boom.errorInfo\t62616420510a202020207768696c6520657865637574696e670a226572726f72202262616420246122220a202020202870726f6365647572652022736f757263655f626f6f6d22206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22246e616d65205122",
+    "source_boom.errorCode\t4e4f4e45",
+    "source_boom.stackCode\t31",
+    "source_boom.stack\t756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420226572726f72737461636b223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+    "dynamic_boom.code\t31",
+    "dynamic_boom.result\t6261642051",
+    "dynamic_boom.errorInfo\t62616420510a202020207768696c6520657865637574696e670a2224636f6d6d616e64202262616420246122220a202020202870726f636564757265202264796e616d69635f626f6f6d22206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22246e616d65205122",
+    "dynamic_boom.errorCode\t4e4f4e45",
+    "dynamic_boom.stackCode\t31",
+    "dynamic_boom.stack\t756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420226572726f72737461636b223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f722076617273",
+    "missing.code\t31",
+    "missing.result\t696e76616c696420636f6d6d616e64206e616d652022646566696e6974656c795f6d697373696e675f636f6d6d616e6422",
+    "missing.errorCode\t4e4f4e45",
+    "ORIGINAL|0|"
+  ],
+  "executable_sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+  "compile_receipt_sha256": "0b87a3bfee064945e9f0d0eeaae952ed7ef45c5658b2e6cbb3b12723819b9955",
+  "source_sha256": {
+    "original": "f45133624091c7f1e1f7450d2abff682e14af522381b47ba15118ce8c482617f"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+    "/workspace/.proofs/native-source-error-context295-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c": "9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6"
+  },
+  "stdout_sha256": "3f7f2c5bdc389de3671bbcba98d1f3fb44132660a9fcddddc4ea525bece1942b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "reported_cli_provider_version_association": "version 8.5.19 initial_class {} alias_command {}",
+  "provider_version_receipt_sha256": "5c357fa1bd8f44e02b0b08fca76640fecbe85297493b116cb8e8e0a78aa617e7",
+  "channel": "External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only"
+}

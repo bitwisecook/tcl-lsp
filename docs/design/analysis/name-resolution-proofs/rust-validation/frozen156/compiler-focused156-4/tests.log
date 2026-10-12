@@ -1,0 +1,325 @@
+
+running 2 tests
+test command_binding::trusted_package_transfer::tests::attested_provider_entry_keeps_original_qualified_and_imported_slots ... ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=25 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=25 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=25 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=25 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=25 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=25 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=25 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=59 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=59 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=59 implementation=true route=Tcl(Ok) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=59 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=59 read_captured=false read_current=false write_current=false route=Tcl(Ok)
+ORIGINAL_HANDLER_RETURN site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=59 receiver=false selection=Some(Generic) arguments=Some(1) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=59 prefix_complete=false command_complete=false normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=25 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=25 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=25 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=25 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=25 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=25 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=25 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=59 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=59 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=59 implementation=true route=Tcl(Ok) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=59 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=59 read_captured=false read_current=false write_current=false route=Tcl(Ok)
+ORIGINAL_HANDLER_RETURN site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=59 receiver=false selection=Some(Generic) arguments=Some(1) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=59 prefix_complete=false command_complete=false normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=25 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=25 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=25 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=25 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=25 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=25 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=25 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=59 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=59 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=59 implementation=true route=Tcl(Ok) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=59 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=59 read_captured=false read_current=false write_current=false route=Tcl(Ok)
+ORIGINAL_HANDLER_RETURN site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=59 receiver=false selection=Some(Generic) arguments=Some(1) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=59 prefix_complete=false command_complete=false normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=25 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=25 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=25 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=25 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=25 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=25 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=25 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=59 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=59 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=59 implementation=true route=Tcl(Ok) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=59 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=59 read_captured=false read_current=false write_current=false route=Tcl(Ok)
+ORIGINAL_HANDLER_RETURN site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=59 receiver=false selection=Some(Generic) arguments=Some(1) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=59 prefix_complete=false command_complete=false normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=25 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=25 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=25 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=25 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=25 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=25 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=25 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=25 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=59 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=59 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=59 implementation=true route=Tcl(Ok) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=59 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=59 read_captured=false read_current=false write_current=false route=Tcl(Ok)
+ORIGINAL_HANDLER_RETURN site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=59 receiver=false selection=Some(Generic) arguments=Some(1) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=59 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=59 prefix_complete=false command_complete=false normal=true abrupt=0
+ok
+test command_binding::trusted_package_transfer::tests::attested_provider_transfer_declines_unknown_revoked_and_shadowed_preludes ... ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=true absent=true targets=0
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=false normal=true abrupt=2
+ORIGINAL_GENERIC_HEAD site=16 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=16 available=false unknown=false absent=false targets=0
+ORIGINAL_COMMAND_COMPLETION site=16 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=41 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=41 available=false unknown=false absent=false targets=0
+ORIGINAL_COMMAND_COMPLETION site=41 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=TclAlternatives([Ok, Error]) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=TclAlternatives([Ok, Error])
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(3) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=22 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=22 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=22 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=22 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=22 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=22 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=22 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=22 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_COMMAND_COMPLETION site=22 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=47 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=47 available=false unknown=false absent=false targets=0
+ORIGINAL_COMMAND_COMPLETION site=47 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_GENERIC_HEAD site=26 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=26 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=26 implementation=true route=TclAlternatives([Ok, Error]) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=26 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=26 read_captured=false read_current=false write_current=false route=TclAlternatives([Ok, Error])
+ORIGINAL_HANDLER_RETURN site=26 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=26 receiver=false selection=Some(Generic) arguments=Some(3) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=26 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=26 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(3) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=true normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=47 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=47 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=47 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=47 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=47 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=47 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=47 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=47 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_COMMAND_COMPLETION site=47 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=72 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=72 available=false unknown=false absent=false targets=0
+ORIGINAL_COMMAND_COMPLETION site=72 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(4) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=33 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=33 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=33 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=33 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=33 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=33 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=33 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=33 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_COMMAND_COMPLETION site=33 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=58 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=58 available=false unknown=false absent=false targets=0
+ORIGINAL_COMMAND_COMPLETION site=58 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(3) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=29 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=29 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=29 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=29 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=29 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=29 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=29 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=29 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=29 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=54 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=54 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=54 implementation=true route=Tcl(Ok) dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=54 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=54 read_captured=false read_current=false write_current=false route=Tcl(Ok)
+ORIGINAL_HANDLER_RETURN site=54 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=54 receiver=false selection=Some(Generic) arguments=Some(1) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=54 normal=true abrupt=0 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=54 prefix_complete=false command_complete=false normal=true abrupt=0
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(0)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=1 normal_dynamic=false
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=32 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=32 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=32 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=32 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=32 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=32 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=32 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=32 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_COMMAND_COMPLETION site=32 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=57 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=57 available=false unknown=false absent=false targets=0
+ORIGINAL_COMMAND_COMPLETION site=57 prefix_complete=false command_complete=false normal=true abrupt=1
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_COMMAND_COMPLETION site=0 prefix_complete=true command_complete=false normal=true abrupt=1
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8197 filtered out; finished in 21.10s
+

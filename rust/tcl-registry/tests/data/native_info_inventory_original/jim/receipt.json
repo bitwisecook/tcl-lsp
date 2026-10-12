@@ -1,0 +1,924 @@
+{
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "provider": "jim",
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "probe_sha256": "c1ead81dfd54f6a92a617c5d3ceaf3dff9105f6d75ac655bdaaba3d8e2c508ca",
+  "inputs_sha256": "87e3a0f8f387da4c457f3666e5c1a44e5953f44760cd5f44c1fc9ab7055ae1a3",
+  "source_anchors_sha256": "00759f8880f90d0d130a0d47eab05bfe812fe6fcf210ddd9831ebce6708d8dc6",
+  "runner_sha256": "129ca8eb7705820365855f379d3dbb5a314e55dbb8c4c444dc781f4cdd7d7017",
+  "queue_sha256": "3eb6871f7e4def2770d65bde01d20ccbe7e7840b3128da03ba072c473292db7e",
+  "compile_command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/native-info-inventory193/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-info-inventory193/jim/probe"
+  ],
+  "environment": {},
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cases": [
+    {
+      "id": "inventory-miss",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "0"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "948e3baf8620eeae6de18811d17340add068153cb217bb03a1cd3886aa79f986",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|293|696e666f2c20756e6b6e6f776e20636f6d6d616e6420225f5f72323238365f616273656e745f5f223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "inventory-jim-list",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "1"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "8e061a473e93c51c4dce580c1cd615d36fc2182d597f463a5f9b66a724c59006",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|0|215|616c69617320616c6961736573206172677320626f6479206368616e6e656c7320636f6d6d616e647320636f6d706c65746520657869737473206672616d6520676c6f62616c732068656c7020686f73746e616d65206c6576656c206c6f63616c73206e616d656f6665786563757461626c652070617463686c6576656c2070726f6373207265666572656e6365732072657475726e636f6465732073637269707420736f7572636520737461636b74726163652073746174696373207461696e74656420757361676520766172732076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "inventory-c-map",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "2"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "3ada506cb5851a3a0ad76b11d5e268851140a33e58928c5309ebbc69112c24dd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|45|6f6e6c79205b6e616d65737061636520656e73656d626c65206372656174655d20697320737570706f72746564"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exists-missing",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "3"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "72fe684335d16d01c52f24ebbae48b8ec7a5bd9644341999e239aabed70514c9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|0|1|30"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-alias",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "4"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "14101cb4d25a3345ae8433ef8d5dd022e6925e23f7ed71889084f9b41f962434",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20616c69617320636f6d6d616e6422"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-aliases",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "5"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c3c2b7616dca6f347708414f3787135161f44bd9100943a1e65e8ee65c55adfe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|55|77726f6e67202320617267733a2073686f756c642062652022696e666f20616c6961736573203f2d616c6c3f203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-args",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "6"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "34c5517f969e6c5cc5a6ef5ef54ef0f0a065868e774a1dcb8d5457fcac6aba4e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20617267732070726f636e616d6522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-body",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "7"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6b90aa79b3692d37ea0494ae4d776fa042791fa7433751ba63b11b6fad4f84af",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20626f64792070726f636e616d6522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-channels",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "8"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "63cb7afee36a6b6e4240c04ed472c67d1383329e803b00bc0cc737c6efa423d3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|56|77726f6e67202320617267733a2073686f756c642062652022696e666f206368616e6e656c73203f2d616c6c3f203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-class",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "9"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "53cbb401eed110957740d0914e43907bdff06ece0282a1644e574d0f721396d2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|282|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636c617373223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-cmdcount",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "10"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "4aa7f062b7cc60b88905ca3cd4b0fbc4c96a727f035f3678753dd1f00bafb545",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|285|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636d64636f756e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-cmdtype",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "11"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6a0ed4f116c0220f1a0939b1fda2e886d055fac1515957c0c4d4c2f3c67fbebd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|284|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636d6474797065223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-commands",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "12"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "0ed1a7d04a15dafb31a13128fa517ab65705c224f509030209d9b079bdb6869d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|56|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6d6d616e6473203f2d616c6c3f203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-complete",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "13"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "cafc46c9510ac0af2197a48138e26336092131ebde7ce1f167a3003452f8b23f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|56|77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6d706c65746520736372697074203f6d697373696e673f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-constant",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "14"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "ae2b2483bf4aa629865b073f61bca39e51f6d41cef77cc2b4b86a47f33ff0a71",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|285|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e7374616e74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-consts",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "15"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "ff15d2eda118e3c00335f58c31101ed491f2fe2e0540ce55665063ddd72854cb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|283|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f6e737473223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-coroutine",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "16"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5e652c2e01c38d5824ddfba188474b5a005d1794ad4b9df9eb893daf0475ccec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|286|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f726f7574696e65223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-default",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "17"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f1868bc634f9955d809894daa77390c5034c159ec37a4410fa35ba5a9cd7f444",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|284|696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-errorstack",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "18"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "9825a699028e5d3372bf84307ec05c83e3d4990ed02f433d967101f9af064baf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|287|696e666f2c20756e6b6e6f776e20636f6d6d616e6420226572726f72737461636b223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-exists",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "19"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "46b52519cd404afcab27db43316483c8facd06ecb3b72d35c63ee57e5adbd1b4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f20657869737473207661724e616d6522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-frame",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "20"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "0255d5a718c932b7fe239438d97cb5bc039879b67fb24c3b0992038e31b19a7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206672616d65203f6c6576656c4e756d3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-functions",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "21"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "bd8cccc5711e1516315073def664cbecfd118313dcab332aeb4ce715dd7fcfad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|286|696e666f2c20756e6b6e6f776e20636f6d6d616e64202266756e6374696f6e73223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-globals",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "22"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "9e2566da9c5714e461882b2b04e2be5a34d98d3bcb6563bdbd26150cb78ac28c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|48|77726f6e67202320617267733a2073686f756c642062652022696e666f20676c6f62616c73203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-help",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "23"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "32e78903a3c61ea1b07729adbcaa3c10b2def77d471234705e47c3f043bcf497",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|43|77726f6e67202320617267733a2073686f756c642062652022696e666f2068656c7020636f6d6d616e6422"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-hostname",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "24"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "1544678b0a45d8d9a84ca3081e927a475f74d1d3f39b30b4bb9963abbcaf77ec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|39|77726f6e67202320617267733a2073686f756c642062652022696e666f20686f73746e616d6522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-level",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "25"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "f02f93abaf2896a5fa39ed849d21e94057dfcb3a7f91201aa48af618a7824d87",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206c6576656c203f6c6576656c4e756d3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-library",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "26"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "15f49a1b89726a96e201d618c72ebf36ad1533e804adba05e68b83fadfa8d05f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|284|696e666f2c20756e6b6e6f776e20636f6d6d616e6420226c696272617279223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-loaded",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "27"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "33534f58c048ba63863320c95667d0c497bc408947ca6300344c42ef92a72116",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|283|696e666f2c20756e6b6e6f776e20636f6d6d616e6420226c6f61646564223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-locals",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "28"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "7079c72f1e7b8b93430e7c8cea27cf9ef7bead107d040e8acc64b05b25ee51f2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206c6f63616c73203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-nameofexecutable",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "29"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "aebd5b1aeeefddb26a71339e23a8fab4126742e602f05d261c6028a7b158a475",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f206e616d656f6665786563757461626c6522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-object",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "30"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "bd287d9921b1c1e414c7cef42c63f9bbfee37f28bff8283eb7efe11cf5f79b64",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|283|696e666f2c20756e6b6e6f776e20636f6d6d616e6420226f626a656374223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-patchlevel",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "31"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c5da2dfcbf432588bddfaef041d5a2b12220b07c687388ac2b870b46b1464ebc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|41|77726f6e67202320617267733a2073686f756c642062652022696e666f2070617463686c6576656c22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-procs",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "32"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "c192c8f3f119d6e7a5a24d2fb3d9479201f36608692e6cfd96b0827610b8af46",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|53|77726f6e67202320617267733a2073686f756c642062652022696e666f2070726f6373203f2d616c6c3f203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-references",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "33"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "dd893380e5183d73288fe14a692abed3cd32f4ffb5500ae3e8a6174acecf8b23",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|41|77726f6e67202320617267733a2073686f756c642062652022696e666f207265666572656e63657322"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-returncodes",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "34"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5c948b8feaf74e0fa3203a0b630dc2685016af67314cb26d3dfdbbce7cef50aa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|49|77726f6e67202320617267733a2073686f756c642062652022696e666f2072657475726e636f646573203f636f64653f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-script",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "35"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "0a0aa19ff36b5bfdfe4a863450b56122520228f9a88953605f63cc8d4470819b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|48|77726f6e67202320617267733a2073686f756c642062652022696e666f20736372697074203f66696c656e616d653f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-sharedlibextension",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "36"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "5d2a75959514e2283567a5f27fe1ad460d94a04be183313e5d10eb3491e724b1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|295|696e666f2c20756e6b6e6f776e20636f6d6d616e6420227368617265646c6962657874656e73696f6e223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-source",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "37"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "82c24a827654683b73f7b897830b0483e3b05a30b5f0473b48bd1ec1fbcdc886",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|60|77726f6e67202320617267733a2073686f756c642062652022696e666f20736f7572636520736f75726365203f66696c656e616d65206c696e653f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-stacktrace",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "38"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "00afc2922c20c805a4ad9e34fdfa2deb052940e8e3f02318f8045375128c392a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|41|77726f6e67202320617267733a2073686f756c642062652022696e666f20737461636b747261636522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-statics",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "39"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "3fa187324ef8043229a8a2210a520b856c3d196db7534f472fb9d6d7f0d2562c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|47|77726f6e67202320617267733a2073686f756c642062652022696e666f20737461746963732070726f636e616d6522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-tainted",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "40"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "3e7bd39a03bc81f2136fae7a29e42b410597d9109190a0c4df81edef81483e5d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f207461696e7465642076616c756522"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-tclversion",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "41"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "612e97221b37434ee035179e990110127d15014481ba9317239c8995581e4d67",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|287|696e666f2c20756e6b6e6f776e20636f6d6d616e64202274636c76657273696f6e223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-usage",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "42"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "b5a9a15e9abdac70b011f8399bfbfa9f1baa5c56e6ef04a91abf432adf2345d7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|44|77726f6e67202320617267733a2073686f756c642062652022696e666f20757361676520636f6d6d616e6422"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-vars",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "43"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "306c12afd636e115fc6e2eda5e2d9a0c3b189305d1e31e4c6842c15eda64b6f0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f2076617273203f7061747465726e3f22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "exact-version",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "44"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6889e2ecedc3281bb3a558c845de53f81692378906cfd822d13c98b33621910e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|38|77726f6e67202320617267733a2073686f756c642062652022696e666f2076657273696f6e22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-co",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "45"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "ecd3a634373d5e9093482bf60be061a2145fdcce33d1dd8e843d7217cfd2dd7a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|281|696e666f2c20616d626967756f757320636f6d6d616e642022636f223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-cor",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "46"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "cff0eb861a6420bf5ac1e2c0eb60c086e7829f1826cca107e8d204777f5f4b82",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|280|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636f72223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-cl",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "47"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "db55bcf2353ea8ada9385a332044e4e80c83ad9842ed59e556aac4d0aff4a3bb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|279|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636c223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-cm",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "48"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "a0ccaffbc05b5d90ebb866d1b86f31cfdc020f18ee40d20613aff49f23911d77",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|279|696e666f2c20756e6b6e6f776e20636f6d6d616e642022636d223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-sta",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "49"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "b33d306ab0ace17dd163e602f861c19feb565cc2f058f717d641eebca2dbeddb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|282|696e666f2c20616d626967756f757320636f6d6d616e642022737461223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-vers",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "50"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "6889e2ecedc3281bb3a558c845de53f81692378906cfd822d13c98b33621910e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|38|77726f6e67202320617267733a2073686f756c642062652022696e666f2076657273696f6e22"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    },
+    {
+      "id": "prefix-empty",
+      "command": [
+        "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+        "51"
+      ],
+      "timeout_seconds": 5,
+      "process_status": "completed",
+      "process_exit": 0,
+      "stdout_sha256": "47fadf914a357e30adeef7f0fc4316a14d6d8cd40eb4092b954765f6d27014ac",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": [
+        "VERSION|0|15|302e38342d392d6735626163376339",
+        "INFO|1|279|696e666f2c20616d626967756f757320636f6d6d616e642022223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e"
+      ],
+      "reported_version": "0.84-9-g5bac7c9"
+    }
+  ],
+  "executable_sha256": "4f7e714d9cfa42d3ae294b94cb849ef2f113d7c4bcdd2ec201b09c1ec1f37f54"
+}

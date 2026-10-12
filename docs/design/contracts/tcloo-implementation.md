@@ -58,6 +58,34 @@ being dropped as a flag.  Known limit: an unrecognised leading `-op` word
 aborts the whole definition in real Tcl; the fold conservatively leaves the
 slot unchanged rather than modelling the abort.
 
+### Manufactured-class visibility
+
+A registered metaclass command's `CommandSpec::manufacturer_methods` describes
+calls on that command. `CommandRegistry::manufacturer_method_for_descriptor`
+reads the authentic selected descriptor, preferring these own-command rows. Its
+`definition_body.manufacturers` describes the default
+manufacturer surface of the class it creates. `TCLOO_ABSTRACT_GRAMMAR` keeps
+`create`, `new` and `createWithNamespace` private on an abstract class, while
+`oo::abstract` itself retains its selected factory methods. A concrete subclass
+created by `oo::class` uses the ordinary class grammar.
+
+Original constructor-shape queries read this selected grammar and then apply
+original class-object export and unexport operations. An explicit
+`oo::objdefine Abstract export new` can therefore expose `new`. A retained
+factory attempt remains distinct from visible constructor syntax. Logical
+advice and Native source names retain their separate purposes; neither issues
+a Native constructor entry, runtime class identity or successful result.
+
+SpecTcl and Studio share the shipped `tcloo-abstract` grammar name, preserving
+these defaults when a selected command descriptor is imported or rendered.
+Custom definers must describe their actual manufactured-class visibility in
+the same grammar rather than relying on a metaclass reporting name.
+
+[The abstract manufacturer visibility proof](../analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md)
+records public C9.0 and C9.1 method visibility, concrete subclass construction
+and explicit export. C8.4, C8.5, C8.6 and Jim controls do not reach an abstract
+factory worker; those availability observations supply no abstract semantics.
+
 ### Member arguments that name commands (`record_member_command_references`)
 
 A member argument that *names a command* is a first-class command reference,
@@ -80,6 +108,34 @@ dynamic names (`superclass $base`).  Because these references land in the same
 go-to-definition, and call-hierarchy resolve them across files through the
 workspace index — and rename and references can never disagree about a
 `superclass` / `mixin` / `inherit` site.
+
+### Original member and configuration metadata
+
+`ClassDef::original_members` retains counted original method operands,
+canonical declaration occurrences, receiver side, visibility and forward
+inputs. `original_relations` retains superclass and mixin operands with their
+own caller lookup geometry. It joins providers before the shared
+`SlotSpec::apply_values` fold, so removal and deduplication compare provider
+identity. Instance and class-object mixins are separate lists. A no-argument
+slot query contributes no update; explicit empty `-set` and `-clear` remain
+updates. Unknown operand coverage withdraws the affected list until an exact
+replacement renews it.
+
+`AnalysisResult::original_class_configurations()` retains each configuration's
+own target receipt and member/relation delta. The target issuer authenticates
+the full original command, the Registry-selected configuration ordinal and
+operand effects at its retained point. Local deltas join an original class
+declaration by its full implementation allocation site. A moved class can keep
+that allocation; aliases and ordinary instances cannot borrow it. External
+targets retain an independent lookup obligation and receive no class identity
+from a reporting map. An unowned target withdraws effective original own views
+while preserving their birth declarations.
+
+These are source metadata inventories. They do not prove that a definition
+worker executed, that an object was manufactured, or that a method is selected
+at a later invocation. Positioned receiver state, worker admission, temporal
+configuration selection and native compiler/body permissions remain separate
+obligations. The String maps remain reporting and explicit compatibility data.
 
 ### Callback prefixes that name a method (`references.rs`)
 
@@ -335,3 +391,243 @@ Reference results captured from real tclsh 8.4–9.0 are queryable via the
 | `rust/tcl-compiler/src/analyser/class_hierarchy.rs` | Owner-aware hierarchy index + one-hop class resolution |
 | `rust/tcl-registry/src/definer.rs` | Definer body grammars (TclOO / snit / itcl as data) |
 | `rust/tcl-lsp-core/src/oo_body.rs` | Shared member walker (folding, semantic tokens) |
+
+### Original forward prefixes
+
+Runtime TclOO forwards retain an `obj::Owned` native List of the original
+prefix members. Definition builds that List after the selected method-name
+stage; it does not read each member's String. `info ... forward` returns the
+same List, and declaration cloning shares its retained List owner. Invocation
+uses the existing selected List accessor and
+`Interp::dispatch_in_lookup_namespace` with the object's actual namespace.
+The caller's variable frame remains in force and the prefix headers are not
+reconstructed from reported bytes. Currency checks and header leases remain
+independent of OO identity, namespace and List-protocol admission.
+
+The original C 8.6.18, 9.0.4 and 9.1.0 controls in
+[the OO operand-stage proof](../analysis/name-resolution-proofs/tcloo-original-operand-string-and-prefix-stages.md)
+separate declaration, raw List access, explicit presentation and invocation
+reads. They cover the fixed observed inputs. The initialized C 8.4.20, C 8.5.19
+and Jim providers have no TclOO command in those controls. No unsupported OO
+execution follows from their availability records.
+
+### Original definition-frame reports
+
+Definition and object-evaluation frames retain the original argument tape with
+allocation-only header leases. Installing a tape reads no argument String and
+adds no native object reference. The actual admitting caller still supplies
+live original headers. A retained lease cannot revive a header whose native
+roles have retired.
+
+The shared `Introspect::level_argv` query returns a fresh List when a report
+asks for the invocation. That List retains the same original members. Its
+outer typed execution error remains distinct from an absent frame, so a
+refused report cannot enter Guest bad-level formatting. Explicit presentation
+uses the existing checked original String producer outside frame borrows;
+frame or native-purpose authority does not follow from operation currency.
+
+### Original method-record cache ownership
+
+Runtime idle method-name primary and table caches keep weak observations of
+the original Method records. A validated call entry retains every original
+record in its reached chain; `next` frames share that entered owner. A missing
+record refuses that cached entry instead of finding a replacement by its
+reported name. Original receiver, table owner, mutation stamp and operation
+checks remain separate from these reference roles. Cache String extraction
+and primary retirement run outside the OO borrow and must preserve the
+original world before later cache publication. The original `StashCallChain`
+String/free stages precede the first `TclOOInvokeContext` ALL-record retain;
+cache construction does not acquire that entered role. A declaration deleted
+during cache installation cannot be revived for the pending entry.
+
+Same-record replacement changes the record's current payload. Retaining an
+entered record does not retain every old clientData payload; real procedure,
+forward and property execution owners keep their independently required
+roles. The original custom MethodType controls distinguish idle deletion,
+self-deletion, inherited `next`, same-record replacement and cache cleanup.
+Their observed native references do not attest a procedure-body activation or
+a generation from a printed method address.
+
+### Original method names and rename entries
+
+Each named Runtime Method record retains the genuine original name header.
+Its declaration table owns a separate native key reference to that header.
+Authored method and forward installers use the supplied operand; generated
+built-ins use their real generated String object. Constructors and destructors
+have no named table entry. A shallow Rust observation shares these owners,
+whereas declaration duplication acquires independent record-name and key
+references alongside its copied payload.
+
+Rename looks up the source before accessing the destination. It keeps the
+original target and exact source-entry observation across the checked
+original destination getter, and refuses deletion/recreation of that entry.
+The selected Registry policy distinguishes the same entry from an occupied
+different entry. It preserves counted keys, including NUL and literal colon
+bytes, while native diagnostic `%s` fields use their separate C string extent.
+A successful splice preserves the record and its visibility, installs the
+destination's two actual name references, then retires the old record-name
+and key owners outside the OO borrow. Reached callback effects remain visible;
+original currency and entry checks precede later cache or result publication.
+`self method` reads the current entered record's genuine name header, so an
+active rename does not report the old selector spelling. Unnamed reporting
+retains its existing separate sentinel path; native Foundation sentinel
+identity and aggregate self reports remain independent purposes.
+
+[The original rename proof](../analysis/name-resolution-proofs/tcloo-original-method-rename-operands-and-records.md)
+separates stock worker stages from public Eval error-context and code-reset
+stages for C 8.6.18, 9.0.4 and 9.1.0. Its custom MethodType payload does not
+attest Runtime procedure, forward or property execution. Initialised C 8.4.20,
+8.5.19 and Jim availability controls supply no supported OO rename purpose.
+
+The reached method chain carries a selected `Named`, `Constructor` or
+`Destructor` report role. The constructor and destructor entry producers issue
+those roles; `next` inherits the same chain context. A literal method name such
+as `<constructor>` or `<destructor>` stays `Named`.
+
+The actual OO bootstrap separately owns the constructor and destructor report
+headers selected by `NativeTclooMethodReportProtocol`. `self method` returns the
+current named Method's original header in Runtime, or the actual Foundation
+header for a special role. Unnamed Method records acquire no table-name hold.
+Missing Foundation ownership or unsupported selected semantics refuse instead
+of reconstructing a report header from a sentinel-looking name. The VM retains
+its actual Foundation values and reports the same selected roles; its value
+identity assertions make no physical C refcount claim.
+
+The inspected initialization, teardown, worker and call-context source joins
+are tracked by
+[naming.tcloo.original-selected-method-role-report](../analysis/name-resolution-proofs/tcloo-original-selected-method-role-report.md).
+Ordinary CLI report values are an independent observation channel. Method cache
+and mutable client-data lifetime observations do not establish these report
+header roles.
+
+### Native property slot replacement
+
+The selected C9.1 property slot worker releases its selected cached List, takes
+one genuine property-list reference for every incoming member, then retires the
+old member owners outside OO borrows. Only then does it obtain each original
+member's counted String and deduplicate through the object-hash key role. A
+unique member keeps its incoming property-list reference; the temporary hash
+key owns a separate reference until the unique list is adopted. A duplicate
+releases only its incoming property-list reference. A held old cached List
+retains its original members independently of replacement.
+
+The actual target and entered original-operation receipt are checked after
+reached getters and retirement callbacks and before later adoption or epoch
+publication. Reached String and retirement effects remain visible on refusal.
+Host/context callback controls establish this software transport only; the
+fixed original C9.1 property observer rows establish their separately matched
+incoming, hash-key and cached-List reference stages. Older C cores and Jim do
+not gain this property worker from those observations.
+
+### Original object publication
+
+Runtime object publication retains the actual allocated OO target and its
+instance namespace token before binding the public command. The fallible
+private-dispatcher installer checks that same target, namespace incarnation and
+entered operation after each reached replacement callback. Refusal stops later
+private bindings, constructor, definition and cloned-method work. Allocated
+partial objects still pass through mandatory teardown, preserving the first
+structured cause and reached callback effects. Foundation installation stops
+its remaining OO stages when publication refuses; currency conveys no object,
+namespace or creation-purpose permission.
+### Property owner retirement
+
+Runtime property registration and invalidation retain the original OO target and
+entered operation through reached member and cache releases. Extracted owners
+retire outside OO borrows; a structured refusal stops later direction, metadata,
+epoch and result publication. Mandatory cleanup enters before extraction and
+records an entry refusal on the actual interpreter before any payload callback.
+Every captured original role still retires after refusal, preserving the first
+cause and reached effects.
+
+Each actual property producer stores its pure C9.1 release recipe with the
+facet. Cleanup uses that originating recipe after a profile change, releasing
+readable and writable cached Lists before either member array as inspected in
+`TclOOReleasePropertyStorage`. Unissued compatibility storage uses ordinary
+ownership cleanup. This selected source order conveys no header or invocation
+authority and carries no external teardown callback measurement.
+
+Property report construction retains the original operation, target, Foundation
+epoch, existing method-world mutation facts and selected member identities. It
+pins allocations without adding native references, sorts and reads private
+variable operands outside OO borrows, and stops later getters after refusal.
+Private-variable comparison also checks the original declaration headers and
+names because declaration replacement need not change method mutation facts.
+Cached List replacement releases extracted owners before adoption; a changed
+world cannot be stamped onto a report still being constructed.
+
+A materialized property report retains its original operation, target and header
+lifetime while ordinary accessor mutations remain legal. Read-all owns the
+source-authentic working List reference and traverses that frozen snapshot. A
+multi-write name table keeps its original copied List and frozen Strings; each
+later old-table index selects the corresponding member of the current property
+header, as the selected C worker does. Neither role derives fresh authority for
+an old table. Both report phases transport full structured errors through every
+actual consumer and result transfer.
+
+Whole Runtime Object and Class records are extracted before their owning method,
+forward-prefix, declaration and name payloads retire outside OO borrows. The
+actual target is marked torn down before payload retirement; callbacks cannot
+adopt it as a live definition or invocation receiver. Destruction retains its
+original operation before result or callback stages. A first refusal suppresses
+optional destructor, result and rename-name publication, while original command,
+namespace and registry cleanup still completes. Reached effects remain visible.
+Active entered method records retain their independent real call-chain owners;
+idle Weak cache observations add no owning role. These software cleanup stages
+carry no aggregate Native payload or hash-iteration chronology claim.
+
+Declaration replacement retains the caller's original operation and exact OO
+target. The actual new declaration vector is adopted before the extracted old
+headers retire outside the OO borrow. Reached callback effects remain visible;
+a first refusal or target withdrawal stops later result publication. A callback
+may legitimately replace the newly adopted declaration roster without a method
+world or old-inventory veto. This software replacement order carries no Native
+variable-map hash or retirement chronology claim.
+
+Definition mutations retain the original target before name and option getters,
+then check it before class, namespace, method-removal and result stages. A
+withdrawn target cannot receive a new class facet or a successful namespace
+publication. Each method removal retires its actual owning record outside the
+OO borrow before a later operand or invalidation stage. The selected C9.1
+export recipe interleaves each original name getter with its flag effect; a
+later refusal preserves earlier reached flags. Other releases retain their
+explicit compatibility schedule without an original chronology claim.
+
+A Class continuation observes the actual class facet's birth independently of
+its object's creation identity. New Class allocation and genuine class copying
+issue a fresh birth; shallow Rust observations preserve the existing one. A
+class demotion followed by promotion cannot make an earlier Class continuation
+current, even when the same object and operation context survive. Replaced
+facets refuse through the structured execution transport; ordinary method or
+property mutations do not invalidate this lifecycle observation. This Runtime
+owner supplies no Native Class pointer, payload lifetime or source authority.
+Class introspection checks its retained facet after reached option and pattern
+getters before later class access or report derivation.
+
+Method-specific introspection retains the selected Object or Class before its
+method-name getter. Object method, property, membership and variable reports
+also keep their original receiver through later operands; instance-variable
+reports join its namespace to the existing namespace ledger before reading the
+table. Withdrawn receivers cannot become missing-method reports or successful
+relation results. An initially absent `isa` receiver remains a false
+precondition and leaves the later relation operand unread. Materialized reports
+remain independent of subsequent ordinary metadata changes.
+
+
+### Original class relation candidates
+
+`ClassRelation` retains the enclosing definer and member source vectors with
+selected target/body ordinals. The method barrier rejoins the original Module,
+Registry and source purpose before reading ancestry. Source factory publication
+or the canonical class configuration operand supplies the declaring allocation;
+the shared completed class receipt and existing dependency-currentness owner
+supply the inherited allocation candidates. Source and member geometry remain
+independent of entered receiver and method dispatch facts.
+
+The local graph unions those allocation candidates as MAY edges. A missing
+source, unavailable target or dependency, conflicting class projection or
+unmapped external ancestor widens the whole barrier before an empty local effect
+set can enable propagation. Reporting tails cannot recover an edge. Braced
+operand punctuation stays original source data; the source owner forms its value
+and selects any class target. This projection supplies no Native class lifetime,
+lookup absence, method entry or physical variable-cell licence.

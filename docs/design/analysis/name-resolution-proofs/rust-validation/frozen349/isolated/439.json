@@ -1,0 +1,19 @@
+{
+  "ordinal": 439,
+  "selector": "list::tests::append_invalidates_string_rep",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::append_invalidates_string_rep",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.01426725002238527,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/439.log",
+  "log_sha256": "02277fa0966b68663e5dcc4795086881b0613b6e8d650c4b81fa40defdc391aa"
+}

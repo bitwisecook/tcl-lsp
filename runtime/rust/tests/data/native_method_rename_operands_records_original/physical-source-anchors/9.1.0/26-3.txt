@@ -1,0 +1,111 @@
+ */
+
+int
+TclCompareObjKeys(
+    void *keyPtr,		/* New key to compare. */
+    Tcl_HashEntry *hPtr)	/* Existing key to compare. */
+{
+    Tcl_Obj *objPtr1 = (Tcl_Obj *)keyPtr;
+    Tcl_Obj *objPtr2 = (Tcl_Obj *)hPtr->key.oneWordValue;
+    const char *p1, *p2;
+    size_t l1, l2;
+
+    /*
+     * If the object pointers are the same then they match.
+     * OPT: this comparison was moved to the caller
+
+	if (objPtr1 == objPtr2) {
+	    return 1;
+	}
+     */
+
+    /*
+     * Don't use Tcl_GetStringFromObj as it would prevent l1 and l2 being
+     * in a register.
+     */
+
+    p1 = TclGetString(objPtr1);
+    l1 = objPtr1->length;
+    p2 = TclGetString(objPtr2);
+    l2 = objPtr2->length;
+
+    /*
+     * Only compare if the string representations are of the same length.
+     */
+
+    if (l1 == l2) {
+	for (;; p1++, p2++, l1--) {
+	    if (*p1 != *p2) {
+		break;
+	    }
+	    if (l1 == 0) {
+		return 1;
+	    }
+	}
+    }
+
+    return 0;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclFreeObjEntry --
+ *
+ *	Frees space for a Tcl_HashEntry containing the Tcl_Obj * key.
+ *
+ * Results:
+ *	The return value is a pointer to the created entry.
+ *
+ * Side effects:
+ *	Decrements the reference count of the object.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TclFreeObjEntry(
+    Tcl_HashEntry *hPtr)	/* Hash entry to free. */
+{
+    Tcl_Obj *objPtr = (Tcl_Obj *) hPtr->key.oneWordValue;
+
+    Tcl_DecrRefCount(objPtr);
+    Tcl_Free(hPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclHashObjKey --
+ *
+ *	Compute a one-word summary of the string representation of the
+ *	Tcl_Obj, which can be used to generate a hash index.
+ *
+ * Results:
+ *	The return value is a one-word summary of the information in the
+ *	string representation of the Tcl_Obj.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+size_t
+TclHashObjKey(
+    TCL_UNUSED(Tcl_HashTable *),
+    void *keyPtr)		/* Key from which to compute hash value. */
+{
+    Tcl_Obj *objPtr = (Tcl_Obj *)keyPtr;
+    Tcl_Size length;
+    const char *string = Tcl_GetStringFromObj(objPtr, &length);
+    size_t result = 0;
+
+    /*
+     * I tried a zillion different hash functions and asked many other people
+     * for advice. Many people had their own favorite functions, all
+     * different, but no-one had much idea why they were good ones. I chose
+     * the one below (multiply by 9 and add new character) because of the
+     * following reasons:
+     *
+     * 1. Multiplying by 10 is perfect for keys that are decimal strings, and

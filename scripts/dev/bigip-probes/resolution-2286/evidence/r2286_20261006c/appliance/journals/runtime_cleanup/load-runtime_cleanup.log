@@ -1,0 +1,6 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/runtime_cleanup.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup:1: error: [braces are required around the expression][when HTTP_REQUEST {
+    set u [TMM::cmp_unit]
+    set script "set outcomes \{\}\nlappend outcomes \[list unset ::__tcl_lsp_probe_2286_r2286_20261006c_g \[catch \{unset ::__tcl_lsp_probe_2286_r2286_20261006c_g\} e\] \$e\]\nlappend outcomes \[list unset ::__tcl_lsp_probe_2286_r2286_20261006c_events \[catch \{unset ::__tcl_lsp_probe_2286_r2286_20261006c_events\} e\] \$e\]\nlappend outcomes \[list unset ::__tcl_lsp_probe_2286_r2286_20261006c_x \[catch \{unset ::__tcl_lsp_probe_2286_r2286_20261006c_x\} e\] \$e\]\nlappend outcomes \[list unset ::__tcl_lsp_probe_2286_r2286_20261006c_arr \[catch \{unset ::__tcl_lsp_probe_2286_r2286_20261006c_arr\} e\] \$e\]\nlappend outcomes \[list unset ::__tcl_lsp_probe_2286_r2286_20261006c_é \[catch \{unset ::__tcl_lsp_probe_2286_r2286_20261006c_é\} e\] \$e\]\nlappend outcomes \[
+Unexpected Error: Loading configuration process failed.

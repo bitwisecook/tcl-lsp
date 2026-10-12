@@ -1,0 +1,5 @@
+    {"proc",		Tcl_ProcObjCmd,		NULL,			1},
+    {"regexp",		Tcl_RegexpObjCmd,	TclCompileRegexpCmd,	1},
+    {"regsub",		Tcl_RegsubObjCmd,	NULL,			1},
+    {"rename",		Tcl_RenameObjCmd,	NULL,			1},
+    {"return",		Tcl_ReturnObjCmd,	TclCompileReturnCmd,	1},

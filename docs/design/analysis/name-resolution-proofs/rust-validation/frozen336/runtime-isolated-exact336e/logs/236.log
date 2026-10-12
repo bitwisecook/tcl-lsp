@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::bootstrap_context_tests::original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observer ... 
+thread 'interp::bootstrap_context_tests::original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observer' (1255765) panicked at src/interp/bootstrap_context_tests.rs:529:5:
+assertion `left == right` failed
+  left: Ok(())
+ right: Err(Error)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::bootstrap_context_tests::original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.21s
+

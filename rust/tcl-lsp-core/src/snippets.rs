@@ -35,13 +35,14 @@ pub struct SnippetContext<'a> {
     pub profile: &'static tcl_dialect::DialectProfile,
     /// One indent level (e.g. `"    "` or `"\t"`).
     pub indent_unit: &'a str,
-    /// Variable names accessible at the cursor (for `${n|choices|}`).
-    pub scope_vars: &'a [String],
+    /// Complete variable reference spellings accessible at the source cursor.
+    /// These are source candidates, without a live-cell or successful-read grant.
+    pub variable_references: &'a [String],
     /// Text typed so far (the `tcl-…` prefix filter).
     pub partial: &'a str,
-    /// The enclosing `when` event at the cursor, or `None` at the top
-    /// level. iRules event templates only offer at the top level.
-    pub current_event: Option<&'a str>,
+    /// Actual source script is the document root. Event templates require
+    /// this authoring placement, independently of any entered event context.
+    pub at_top_level: bool,
     /// `when` events already declared in the file — iRules event
     /// templates decline when their event is already present (avoids
     /// offering a duplicate `when HTTP_REQUEST`).
@@ -74,7 +75,7 @@ pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
         if tmpl.irules_only && !ctx.profile.is_irules() {
             continue;
         }
-        if tmpl.requires_top_level && ctx.current_event.is_some() {
+        if tmpl.requires_top_level && !ctx.at_top_level {
             continue;
         }
         if !ctx.partial.is_empty() && !tmpl.prefix.starts_with(ctx.partial) {
@@ -105,16 +106,17 @@ pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
 /// Build a snippet placeholder offering the in-scope variables as
 /// choices, or a plain default.
 fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
-    if ctx.scope_vars.is_empty() {
+    if ctx.variable_references.is_empty() {
         return format!("${{{tabstop}:{default}}}");
     }
     let choices = ctx
-        .scope_vars
+        .variable_references
         .iter()
         .take(10)
         .map(|v| {
-            let escaped = v.replace(',', "\\,").replace('|', "\\|");
-            format!("\\${escaped}")
+            v.replace('\\', "\\\\")
+                .replace(',', "\\,")
+                .replace('|', "\\|")
         })
         .collect::<Vec<_>>()
         .join(",");
@@ -466,9 +468,9 @@ mod tests {
         SnippetContext {
             profile: tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             indent_unit: "    ",
-            scope_vars: vars,
+            variable_references: vars,
             partial,
-            current_event: None,
+            at_top_level: true,
             file_events: &[],
         }
     }
@@ -479,9 +481,9 @@ mod tests {
         SnippetContext {
             profile: tcl_dialect::DialectProfile::irules(),
             indent_unit: "    ",
-            scope_vars: &[],
+            variable_references: &[],
             partial,
-            current_event: None,
+            at_top_level: true,
             file_events: events,
         }
     }
@@ -517,10 +519,10 @@ mod tests {
 
     #[test]
     fn foreach_offers_scope_var_choices() {
-        let vars = vec!["items".to_string(), "list".to_string()];
+        let vars = vec!["$items".to_string(), "$list".to_string()];
         let items = snippet_completions(&ctx("tcl-foreach", &vars));
         // The list placeholder becomes a choice list of in-scope vars.
-        assert!(items[0].insert_text.contains("${2|\\$items,\\$list|}"));
+        assert!(items[0].insert_text.contains("${2|$items,$list|}"));
     }
 
     #[test]
@@ -578,9 +580,9 @@ mod tests {
         let nested = SnippetContext {
             profile: tcl_dialect::DialectProfile::irules(),
             indent_unit: "    ",
-            scope_vars: &[],
+            variable_references: &[],
             partial: "irule",
-            current_event: Some("HTTP_REQUEST"),
+            at_top_level: false,
             file_events: &events,
         };
         // Inside a `when` block none of the event templates are offered.

@@ -1,0 +1,15 @@
+void Jim_AppendString(Jim_Interp *interp, Jim_Obj *objPtr, const char *str, int len)
+{
+    JimPanic((Jim_IsShared(objPtr), "Jim_AppendString called with shared object"));
+    SetStringFromAny(interp, objPtr);
+    StringAppendString(objPtr, str, len);
+}
+
+void Jim_AppendObj(Jim_Interp *interp, Jim_Obj *objPtr, Jim_Obj *appendObjPtr)
+{
+    int len;
+    const char *str = Jim_GetString(appendObjPtr, &len);
+    Jim_AppendString(interp, objPtr, str, len);
+    objPtr->taint |= appendObjPtr->taint;
+}
+

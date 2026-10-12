@@ -1,0 +1,7 @@
+
+running 2 tests
+test command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry ... ok
+test command_binding::source_declared_method_template::tests::original_declared_receiver_traits_refuse_shadowed_and_foreign_layouts ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8202 filtered out; finished in 7.98s
+

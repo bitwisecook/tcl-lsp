@@ -1,0 +1,184 @@
+{
+  "source_anchors": [
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "function": "TclOODefineForwardObjCmd",
+      "lines": [
+        1488,
+        1535
+      ],
+      "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "snippet": "TclOODefineForwardObjCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    int isInstanceForward = (clientData != NULL);\n    Object *oPtr;\n    Method *mPtr;\n    int isPublic;\n    Tcl_Obj *prefixObj;\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name cmdName ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceForward && !oPtr->classPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to misuse API\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"OO\", \"MONKEY_BUSINESS\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t    ? PUBLIC_METHOD : 0;\n\n    /*\n     * Create the method structure.\n     */\n\n    prefixObj = Tcl_NewListObj(objc - 2, objv + 2);\n    if (isInstanceForward) {\n\tmPtr = TclOONewForwardInstanceMethod(interp, oPtr, isPublic, objv[1],\n\t\tprefixObj);\n    } else {\n\tmPtr = TclOONewForwardMethod(interp, oPtr->classPtr, isPublic,\n\t\tobjv[1], prefixObj);\n    }\n    if (mPtr == NULL) {\n\tTcl_DecrRefCount(prefixObj);\n\treturn TCL_ERROR;\n    }\n    return TCL_OK;\n}",
+      "snippet_sha256": "f140566a374c781a058d1a738c81d6fb02126ca5e78478a2bee25f82188a3196",
+      "evidence": "forward-source-0"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "function": "TclOONewForwardMethod",
+      "lines": [
+        1356,
+        1382
+      ],
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "snippet": "TclOONewForwardMethod(\n    Tcl_Interp *interp,\t\t/* Interpreter for error reporting. */\n    Class *clsPtr,\t\t/* The class to attach the method to. */\n    int flags,\t\t\t/* Whether the method is public or not. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method. */\n    Tcl_Obj *prefixObj)\t\t/* List of arguments that form the command\n\t\t\t\t * prefix to forward to. */\n{\n    int prefixLen;\n    ForwardMethod *fmPtr;\n\n    if (TclListObjLength(interp, prefixObj, &prefixLen) != TCL_OK) {\n\treturn NULL;\n    }\n    if (prefixLen < 1) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"method forward prefix must be non-empty\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"OO\", \"BAD_FORWARD\", (char *)NULL);\n\treturn NULL;\n    }\n\n    fmPtr = (ForwardMethod *)ckalloc(sizeof(ForwardMethod));\n    fmPtr->prefixObj = prefixObj;\n    Tcl_IncrRefCount(prefixObj);\n    return (Method *) Tcl_NewMethod(interp, (Tcl_Class) clsPtr, nameObj,\n\t    flags, &fwdMethodType, fmPtr);\n}",
+      "snippet_sha256": "316b599ae175155cbe15b162cb51c3a39dc5a530e4ec1a9a13e37f0e7d9e417a",
+      "evidence": "forward-source-1"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "function": "InvokeForwardMethod",
+      "lines": [
+        1396,
+        1427
+      ],
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "snippet": "InvokeForwardMethod(\n    void *clientData,\t/* Pointer to some per-method context. */\n    Tcl_Interp *interp,\n    Tcl_ObjectContext context,\t/* The method calling context. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Arguments as actually seen. */\n{\n    CallContext *contextPtr = (CallContext *) context;\n    ForwardMethod *fmPtr = (ForwardMethod *)clientData;\n    Tcl_Obj **argObjs, **prefixObjs;\n    int numPrefixes, len, skip = contextPtr->skip;\n\n    /*\n     * Build the real list of arguments to use. Note that we know that the\n     * prefixObj field of the ForwardMethod structure holds a reference to a\n     * non-empty list, so there's a whole class of failures (\"not a list\") we\n     * can ignore here.\n     */\n\n    TclListObjGetElements(NULL, fmPtr->prefixObj, &numPrefixes, &prefixObjs);\n    argObjs = InitEnsembleRewrite(interp, objc, objv, skip,\n\t    numPrefixes, prefixObjs, &len);\n    Tcl_NRAddCallback(interp, FinalizeForwardCall, argObjs, NULL, NULL, NULL);\n    /*\n     * NOTE: The combination of direct set of iPtr->lookupNsPtr and the use\n     * of the TCL_EVAL_NOERR flag results in an evaluation configuration\n     * very much like TCL_EVAL_INVOKE.\n     */\n    ((Interp *)interp)->lookupNsPtr\n\t    = (Namespace *) contextPtr->oPtr->namespacePtr;\n    return TclNREvalObjv(interp, len, argObjs, TCL_EVAL_NOERR, NULL);\n}",
+      "snippet_sha256": "645960a0e61e355fafe3989b70911ab19ffa4410d8a91ecfd3108fde1cc66137",
+      "evidence": "forward-source-2"
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "function": "DeleteForwardMethod",
+      "lines": [
+        1452,
+        1459
+      ],
+      "source_sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "snippet": "DeleteForwardMethod(\n    void *clientData)\n{\n    ForwardMethod *fmPtr = (ForwardMethod *)clientData;\n\n    Tcl_DecrRefCount(fmPtr->prefixObj);\n    ckfree(fmPtr);\n}",
+      "snippet_sha256": "b63ce720bcfafdae58aa3d84710ff03016991218d062bbfa87fe5e942c7715db",
+      "evidence": "forward-source-3"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "function": "TclOODefineForwardObjCmd",
+      "lines": [
+        2166,
+        2216
+      ],
+      "source_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "snippet": "TclOODefineForwardObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    int isInstanceForward = (clientData != NULL);\n    Object *oPtr;\n    Method *mPtr;\n    int isPublic;\n    Tcl_Obj *prefixObj;\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name cmdName ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceForward && !oPtr->classPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to misuse API\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t    ? PUBLIC_METHOD : 0;\n    if (IsPrivateDefine(interp)) {\n\tisPublic = TRUE_PRIVATE_METHOD;\n    }\n\n    /*\n     * Create the method structure.\n     */\n\n    prefixObj = Tcl_NewListObj(objc - 2, objv + 2);\n    if (isInstanceForward) {\n\tmPtr = TclOONewForwardInstanceMethod(interp, oPtr, isPublic, objv[1],\n\t\tprefixObj);\n    } else {\n\tmPtr = TclOONewForwardMethod(interp, oPtr->classPtr, isPublic,\n\t\tobjv[1], prefixObj);\n    }\n    if (mPtr == NULL) {\n\tTcl_DecrRefCount(prefixObj);\n\treturn TCL_ERROR;\n    }\n    return TCL_OK;\n}",
+      "snippet_sha256": "ef487a11221432f53f4232e26c938c8ad2c62f8693d7a085de8ce5ade61b058d",
+      "evidence": "forward-source-4"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "function": "TclOONewForwardMethod",
+      "lines": [
+        1530,
+        1556
+      ],
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "snippet": "TclOONewForwardMethod(\n    Tcl_Interp *interp,\t\t/* Interpreter for error reporting. */\n    Class *clsPtr,\t\t/* The class to attach the method to. */\n    int flags,\t\t\t/* Whether the method is public or not. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method. */\n    Tcl_Obj *prefixObj)\t\t/* List of arguments that form the command\n\t\t\t\t * prefix to forward to. */\n{\n    Tcl_Size prefixLen;\n    ForwardMethod *fmPtr;\n\n    if (TclListObjLength(interp, prefixObj, &prefixLen) != TCL_OK) {\n\treturn NULL;\n    }\n    if (prefixLen < 1) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"method forward prefix must be non-empty\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, BAD_FORWARD);\n\treturn NULL;\n    }\n\n    fmPtr = (ForwardMethod *) Tcl_Alloc(sizeof(ForwardMethod));\n    fmPtr->prefixObj = prefixObj;\n    Tcl_IncrRefCount(prefixObj);\n    return (Method *) TclNewMethod((Tcl_Class) clsPtr, nameObj,\n\t    flags, &fwdMethodType, fmPtr);\n}",
+      "snippet_sha256": "472d26670e36190b8d987a92bcf89eaf802bfac766e3748ac3a7baa64917411b",
+      "evidence": "forward-source-5"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "function": "InvokeForwardMethod",
+      "lines": [
+        1570,
+        1602
+      ],
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "snippet": "InvokeForwardMethod(\n    void *clientData,\t\t/* Pointer to some per-method context. */\n    Tcl_Interp *interp,\n    Tcl_ObjectContext context,\t/* The method calling context. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Arguments as actually seen. */\n{\n    CallContext *contextPtr = (CallContext *) context;\n    ForwardMethod *fmPtr = (ForwardMethod *) clientData;\n    Tcl_Obj **argObjs, **prefixObjs;\n    Tcl_Size numPrefixes, skip = contextPtr->skip;\n    int len;\n\n    /*\n     * Build the real list of arguments to use. Note that we know that the\n     * prefixObj field of the ForwardMethod structure holds a reference to a\n     * non-empty list, so there's a whole class of failures (\"not a list\") we\n     * can ignore here.\n     */\n\n    TclListObjGetElements(NULL, fmPtr->prefixObj, &numPrefixes, &prefixObjs);\n    argObjs = InitEnsembleRewrite(interp, objc, objv, skip,\n\t    numPrefixes, prefixObjs, &len);\n    TclNRAddCallback(interp, FinalizeForwardCall, argObjs, NULL, NULL, NULL);\n    /*\n     * NOTE: The combination of direct set of iPtr->lookupNsPtr and the use\n     * of the TCL_EVAL_NOERR flag results in an evaluation configuration\n     * very much like TCL_EVAL_INVOKE.\n     */\n    ((Interp *) interp)->lookupNsPtr = (Namespace *)\n\t    contextPtr->oPtr->namespacePtr;\n    return TclNREvalObjv(interp, len, argObjs, TCL_EVAL_NOERR, NULL);\n}",
+      "snippet_sha256": "ecbc33a80d9ed9812a1afef72ca6fed0cb1bbf441d0311a406c783596c85c105",
+      "evidence": "forward-source-6"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "function": "DeleteForwardMethod",
+      "lines": [
+        1627,
+        1634
+      ],
+      "source_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "snippet": "DeleteForwardMethod(\n    void *clientData)\n{\n    ForwardMethod *fmPtr = (ForwardMethod *) clientData;\n\n    Tcl_DecrRefCount(fmPtr->prefixObj);\n    Tcl_Free(fmPtr);\n}",
+      "snippet_sha256": "02a93f58efaf4653d025310ef0f48d1e07e27aeb8f4ffa05c5637fcfbcbade33",
+      "evidence": "forward-source-7"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "function": "TclOODefineForwardObjCmd",
+      "lines": [
+        2129,
+        2176
+      ],
+      "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "snippet": "TclOODefineForwardObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    bool isInstanceForward = (clientData != NULL);\n    Object *oPtr;\n    Method *mPtr;\n    int flags;\n    Tcl_Obj *prefixObj;\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name cmdName ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceForward && !oPtr->classPtr) {\n\treturn ReportAbuse(interp);\n    }\n    flags = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t    ? PUBLIC_METHOD : 0;\n    if (IsPrivateDefine(interp)) {\n\tflags = TRUE_PRIVATE_METHOD;\n    }\n\n    /*\n     * Create the method structure.\n     */\n\n    prefixObj = Tcl_NewListObj(objc - 2, objv + 2);\n    if (isInstanceForward) {\n\tmPtr = TclOONewForwardInstanceMethod(interp, oPtr, flags, objv[1],\n\t\tprefixObj);\n    } else {\n\tmPtr = TclOONewForwardMethod(interp, oPtr->classPtr, flags,\n\t\tobjv[1], prefixObj);\n    }\n    if (mPtr == NULL) {\n\tTcl_DecrRefCount(prefixObj);\n\treturn TCL_ERROR;\n    }\n    return TCL_OK;\n}",
+      "snippet_sha256": "66d60d360674ddeed47a8e1120f97aa400499f5f3da85854d9e4fce4782f9337",
+      "evidence": "forward-source-8"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "function": "TclOONewForwardMethod",
+      "lines": [
+        1593,
+        1619
+      ],
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "snippet": "TclOONewForwardMethod(\n    Tcl_Interp *interp,\t\t/* Interpreter for error reporting. */\n    Class *clsPtr,\t\t/* The class to attach the method to. */\n    int flags,\t\t\t/* Whether the method is public or not. */\n    Tcl_Obj *nameObj,\t\t/* The name of the method. */\n    Tcl_Obj *prefixObj)\t\t/* List of arguments that form the command\n\t\t\t\t * prefix to forward to. */\n{\n    Tcl_Size prefixLen;\n    ForwardMethod *fmPtr;\n\n    if (TclListObjLength(interp, prefixObj, &prefixLen) != TCL_OK) {\n\treturn NULL;\n    }\n    if (prefixLen < 1) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"method forward prefix must be non-empty\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, BAD_FORWARD);\n\treturn NULL;\n    }\n\n    fmPtr = (ForwardMethod *) Tcl_Alloc(sizeof(ForwardMethod));\n    fmPtr->prefixObj = prefixObj;\n    Tcl_IncrRefCount(prefixObj);\n    return (Method *) TclNewMethod((Tcl_Class) clsPtr, nameObj,\n\t    flags, &fwdMethodType, fmPtr);\n}",
+      "snippet_sha256": "472d26670e36190b8d987a92bcf89eaf802bfac766e3748ac3a7baa64917411b",
+      "evidence": "forward-source-9"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "function": "InvokeForwardMethod",
+      "lines": [
+        1633,
+        1665
+      ],
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "snippet": "InvokeForwardMethod(\n    void *clientData,\t\t/* Pointer to some per-method context. */\n    Tcl_Interp *interp,\n    Tcl_ObjectContext context,\t/* The method calling context. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Arguments as actually seen. */\n{\n    CallContext *contextPtr = (CallContext *) context;\n    ForwardMethod *fmPtr = (ForwardMethod *) clientData;\n    Tcl_Obj **argObjs, **prefixObjs;\n    Tcl_Size numPrefixes, skip = contextPtr->skip;\n    Tcl_Size len;\n\n    /*\n     * Build the real list of arguments to use. Note that we know that the\n     * prefixObj field of the ForwardMethod structure holds a reference to a\n     * non-empty list, so there's a whole class of failures (\"not a list\") we\n     * can ignore here.\n     */\n\n    TclListObjGetElements(NULL, fmPtr->prefixObj, &numPrefixes, &prefixObjs);\n    argObjs = InitEnsembleRewrite(interp, objc, objv, skip,\n\t    numPrefixes, prefixObjs, &len);\n    TclNRAddCallback(interp, FinalizeForwardCall, argObjs, NULL, NULL, NULL);\n    /*\n     * NOTE: The combination of direct set of iPtr->lookupNsPtr and the use\n     * of the TCL_EVAL_NOERR flag results in an evaluation configuration\n     * very much like TCL_EVAL_INVOKE.\n     */\n    ((Interp *) interp)->lookupNsPtr = (Namespace *)\n\t    contextPtr->oPtr->namespacePtr;\n    return TclNREvalObjv(interp, len, argObjs, TCL_EVAL_NOERR, NULL);\n}",
+      "snippet_sha256": "dd7c33d60cff74780fba8384066b2e0cfd1eea87adc603fa199bfa5cd0bdb8b7",
+      "evidence": "forward-source-10"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "Exact full-file SHA retained; source revision not separately recorded by this probe.",
+      "original_path": "tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "function": "DeleteForwardMethod",
+      "lines": [
+        1690,
+        1697
+      ],
+      "source_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "snippet": "DeleteForwardMethod(\n    void *clientData)\n{\n    ForwardMethod *fmPtr = (ForwardMethod *) clientData;\n\n    Tcl_DecrRefCount(fmPtr->prefixObj);\n    Tcl_Free(fmPtr);\n}",
+      "snippet_sha256": "02a93f58efaf4653d025310ef0f48d1e07e27aeb8f4ffa05c5637fcfbcbade33",
+      "evidence": "forward-source-11"
+    }
+  ]
+}

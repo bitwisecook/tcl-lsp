@@ -1,0 +1,16 @@
+
+running 1 test
+test analyser::diagnostics::unresolved::require_ordering_tests::possible_consumed_names_preserve_navigation_without_absence_or_rename_authority ... POSSIBLE_SOURCE_ROLES lookup=[] unknown=true absent=false actual=Some([]) source=None
+
+thread 'analyser::diagnostics::unresolved::require_ordering_tests::possible_consumed_names_preserve_navigation_without_absence_or_rename_authority' (645979) panicked at rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs:840:14:
+possible native role retains navigation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::unresolved::require_ordering_tests::possible_consumed_names_preserve_navigation_without_absence_or_rename_authority
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8255 filtered out; finished in 1.01s
+

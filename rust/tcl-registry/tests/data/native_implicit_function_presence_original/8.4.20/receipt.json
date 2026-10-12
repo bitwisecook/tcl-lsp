@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/current-native-implicit-function-presence156/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.0052152539865346625,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "52606ff182cbccd8125c7be37bea2397fe93285047cc37a8cb6adfbe7c190332",
+  "runner_sha256": "379080da40335d5f4e57c0bd411249eb81253d6994b82533c6c1d52cc0f48222",
+  "stdout_sha256": "48804c7abb6a21d7d08dfd81534b11e2882a358e1101c3f82da6183aae12bdaa",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "VERSION|8.4.20",
+    "initial-slot|0|",
+    "initial-call|1|756e6b6e6f776e206d6174682066756e6374696f6e2022506922",
+    "namespace-control|0|",
+    "install-control|0|",
+    "installed-slot|0|3a3a74636c3a3a6d61746866756e633a3a5069",
+    "installed-call|1|756e6b6e6f776e206d6174682066756e6374696f6e2022506922"
+  ],
+  "input_channel": "ASCII LF source-file CLI; six sequential independently caught implicit-function/slot control cases",
+  "boundary": "Question: distinguish implicit expression-function dispatch from original written command-head lookup, before and after a counted ASCII procedure-name control. Hex is binary scan H* presentation, no native getter, allocation identity, cache or compiler admission. Cases execute sequentially in a fresh CLI process per provider; namespace creation and installation results are independently caught, not assumed."
+}

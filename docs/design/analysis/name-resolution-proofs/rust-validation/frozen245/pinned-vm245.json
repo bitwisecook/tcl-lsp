@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-vm245.elf",
+  "sha256": "66c9668ecf0d1dfac418ece49da8e917fcbe5aa7fb0ad19843a29e75f7f4440b",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-vm-build245.json",
+  "build_receipt_sha256": "3d503c2be4bb76d131fa23d8299cdfd6316eb9ae892e91fd68f135dee9618934",
+  "source_snapshot_sha256": "97d2935c7816388654eac33b5e28092aef9fbfa924c4578fac10671167c67f2a"
+}

@@ -55,7 +55,10 @@ Learned the hard way; all of these cost a cycle.
 - Stubbing `unknown` in a tclsh control silently swallows misuse of *builtins*
   too — an `else` command, for instance — and manufactures false agreement.
   Stub only the iRule-specific commands.
-- `RULE_INIT` runs once per TMM, so expect four identical log lines.
+- Measure `RULE_INIT` execution and subsequent per-TMM state independently. Do
+  not infer an initialization count or broadcast from the number of log lines.
+  The [resolution appliance handoff](resolution-2286/README.md) provides isolated
+  static/global controls and actual responding-TMM coverage.
 
 ## Traffic lab
 

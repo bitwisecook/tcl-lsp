@@ -1,0 +1,51 @@
+{
+  "compile": {
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/native-property-clientdata/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/native-property-clientdata/probe"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "seconds": 0.11026703502284363,
+    "stdout": "",
+    "stderr": "",
+    "original_budget": 60,
+    "global_slots": 2,
+    "explicit_environment": {}
+  },
+  "sha256": {
+    "/workspace/.proofs/2286-packages-dialects/native-property-clientdata/probe.c": "3104127ec7a6553d9506914baf25c8fc7365dfe5d09a4cf63ded6f6c0492f783",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/.proofs/2286-packages-dialects/native-property-clientdata/probe": "9fd78abba4e737bad78f4f3049ab22833bee9e2501b2083254b203d1101f13be"
+  },
+  "run": {
+    "command": [
+      "/workspace/.proofs/2286-packages-dialects/native-property-clientdata/probe"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "seconds": 0.004083864972926676,
+    "stdout": "decl-0\t1\t1\t3\tnone\nwrite-0\t3\tnone\t1\nread-0\t3\tnone\t1\tnone\ndecl-1\t1\t1\t3\tnone\nwrite-1\t3\tnone\t1\nread-1\t3\tnone\t1\tnone\ndecl-2\t1\t1\t3\tnone\nwrite-2\t3\tnone\t1\nread-2\t3\tnone\t1\tnone\n",
+    "stderr": "",
+    "original_budget": 60,
+    "global_slots": 2,
+    "explicit_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+    }
+  }
+}

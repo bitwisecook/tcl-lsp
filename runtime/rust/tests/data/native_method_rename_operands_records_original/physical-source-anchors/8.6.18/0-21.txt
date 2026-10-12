@@ -1,0 +1,113 @@
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    int superc, i, j;
+    Tcl_Obj **superv;
+    Class **superclasses, *superPtr;
+
+    if (Tcl_ObjectContextSkippedArgs(context) + 1 != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		"superclassList");
+	return TCL_ERROR;
+    }
+    objv += Tcl_ObjectContextSkippedArgs(context);
+
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    } else if (oPtr == oPtr->fPtr->objectCls->thisPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"may not modify the superclass of the root object", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    } else if (TclListObjGetElements(interp, objv[0], &superc,
+	    &superv) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Allocate some working space.
+     */
+
+    superclasses = (Class **) ckalloc(sizeof(Class *) * superc);
+
+    /*
+     * Parse the arguments to get the class to use as superclasses.
+     *
+     * Note that zero classes is special, as it is equivalent to just the
+     * class of objects. [Bug 9d61624b3d]
+     */
+
+    if (superc == 0) {
+	superclasses = ckrealloc(superclasses, sizeof(Class *));
+	if (TclOOIsReachable(oPtr->fPtr->classCls, oPtr->classPtr)) {
+	    superclasses[0] = oPtr->fPtr->classCls;
+	} else {
+	    superclasses[0] = oPtr->fPtr->objectCls;
+	}
+	superc = 1;
+	AddRef(superclasses[0]->thisPtr);
+    } else {
+	for (i = 0; i < superc; i++) {
+	    superclasses[i] = GetClassInOuterContext(interp, superv[i],
+		    "only a class can be a superclass");
+	    if (superclasses[i] == NULL) {
+		goto failedAfterAlloc;
+	    }
+	    for (j = 0; j < i; j++) {
+		if (superclasses[j] == superclasses[i]) {
+		    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			    "class should only be a direct superclass once",
+			    -1));
+		    Tcl_SetErrorCode(interp, "TCL", "OO", "REPETITIOUS", (char *)NULL);
+		    goto failedAfterAlloc;
+		}
+	    }
+	    if (TclOOIsReachable(oPtr->classPtr, superclasses[i])) {
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"attempt to form circular dependency graph", -1));
+		Tcl_SetErrorCode(interp, "TCL", "OO", "CIRCULARITY", (char *)NULL);
+	    failedAfterAlloc:
+		for (; i-- > 0 ;) {
+		    TclOODecrRefCount(superclasses[i]->thisPtr);
+		}
+		ckfree(superclasses);
+		return TCL_ERROR;
+	    }
+
+	    /*
+	     * Corresponding TclOODecrRefCount() is near the end of this
+	     * function.
+	     */
+
+	    AddRef(superclasses[i]->thisPtr);
+	}
+    }
+
+    /*
+     * Install the list of superclasses into the class. Note that this also
+     * involves splicing the class out of the superclasses' subclass list that
+     * it used to be a member of and splicing it into the new superclasses'
+     * subclass list.
+     */
+
+    if (oPtr->classPtr->superclasses.num != 0) {
+	FOREACH(superPtr, oPtr->classPtr->superclasses) {
+	    TclOORemoveFromSubclasses(oPtr->classPtr, superPtr);
+	    TclOODecrRefCount(superPtr->thisPtr);
+	}
+	ckfree((char *) oPtr->classPtr->superclasses.list);
+    }
+    oPtr->classPtr->superclasses.list = superclasses;
+    oPtr->classPtr->superclasses.num = superc;
+    FOREACH(superPtr, oPtr->classPtr->superclasses) {
+	TclOOAddToSubclasses(oPtr->classPtr, superPtr);
+    }
+    BumpGlobalEpoch(interp, oPtr->classPtr);
+
+    return TCL_OK;

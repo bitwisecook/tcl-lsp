@@ -64,7 +64,7 @@
 //! `property … -get/-set …` (flag-keyed bodies).
 
 use tcl_dialect::model::SurfaceQuery;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
@@ -80,16 +80,7 @@ pub fn outer_definition_grammar(
     args: &[&str],
     registry: &CommandRegistry,
 ) -> Option<&'static DefinitionBodyGrammar> {
-    let grammar = registry.get(command)?.definition_body?;
-    if matches!(command, "oo::define" | "oo::objdefine") {
-        // The script form resolves its definition body at argument index 1;
-        // every member form resolves a (method) body at index ≥ 2.
-        return registry
-            .arg_indices_for_role(command, args, ArgRole::Body)
-            .contains(&1)
-            .then_some(grammar);
-    }
-    Some(grammar)
+    registry.outer_definition_body_grammar(command, args)
 }
 
 pub use tcl_compiler::realm::HeadWords;
@@ -112,7 +103,11 @@ pub fn next_definition_grammar(
 ) -> Option<&'static DefinitionBodyGrammar> {
     let HeadWords { written, resolved } = head;
     let command = written;
-    if let Some(g) = outer_definition_grammar(resolved, args, registry) {
+    if let Some(g) =
+        cur.and_then(|grammar| registry.authored_document_member_grammar(grammar, command))
+    {
+        Some(g)
+    } else if let Some(g) = outer_definition_grammar(resolved, args, registry) {
         Some(g)
     } else if let Some(g) = cur.filter(|g| is_member(g, command)) {
         // A member command inside a definition body normally drops out of
@@ -386,21 +381,7 @@ pub fn member_ref_indices(
     command: &str,
     args: &[&str],
 ) -> Option<(MemberRefKind, Vec<usize>)> {
-    let member = grammar.member(command)?;
-    match member.kind {
-        MemberKind::Flat => {
-            let kind = member.all_args_ref?;
-            Some((kind, (slot_value_start(member, args)..args.len()).collect()))
-        }
-        // `self mixin M` / itcl `public method …` — resolve through the inner
-        // member and shift its indices past the wrapper word.
-        MemberKind::Wrapper => {
-            let inner = args.first()?;
-            let (kind, idx) = member_ref_indices(grammar, inner, args.get(1..)?)?;
-            Some((kind, idx.into_iter().map(|i| i + 1).collect()))
-        }
-        MemberKind::FlagKeyed => None,
-    }
+    grammar.member_ref_indices_in(command, args, None)
 }
 
 /// Declared-variable argument indices for a member call under `grammar` — the
@@ -485,122 +466,7 @@ fn member_role_indices(
     dialect: Option<SurfaceQuery<'_>>,
     role: ArgRole,
 ) -> Vec<usize> {
-    let Some(member) = grammar.member(command) else {
-        return Vec::new();
-    };
-    if member.unavailable_option_for(args, dialect).is_some() {
-        return Vec::new();
-    }
-    match member.kind {
-        MemberKind::Flat => flat_member_indices(member, args, dialect, role),
-        MemberKind::Wrapper => wrapper_member_indices(grammar, member, args, dialect, role),
-        MemberKind::FlagKeyed => match role {
-            ArgRole::Body => collect_property_body_indices(args),
-            // `property NAME… ?-get script? ?-set script?` — every leading bare
-            // word before the first flag is a declared property name.  Without
-            // this the name fell through to the default literal classifier and
-            // painted as a plain string, unlike every other member's name.
-            ArgRole::Name => args
-                .iter()
-                .take_while(|a| !a.starts_with('-'))
-                .enumerate()
-                .map(|(i, _)| i)
-                .collect(),
-            _ => Vec::new(),
-        },
-    }
-}
-
-/// The `role`-carrying argument indices for a flat member, given `args`
-/// (0-based *after* the member keyword).  Handles the unbounded `variable a b
-/// c` form (`all_args_var`) as well as the fixed `arg_roles` layout.
-fn flat_member_indices(
-    member: &MemberSpec,
-    args: &[&str],
-    dialect: Option<SurfaceQuery<'_>>,
-    role: ArgRole,
-) -> Vec<usize> {
-    if member.unavailable_option_for(args, dialect).is_some() {
-        return Vec::new();
-    }
-    if role == ArgRole::VarWrite && member.all_args_var {
-        (slot_value_start(member, args)..args.len()).collect()
-    } else {
-        let indices: Vec<usize> = dialect.map_or_else(
-            || member.indices_for_call(args, role).collect(),
-            |dialect| {
-                member
-                    .indices_for_call_in(args, Some(dialect), role)
-                    .collect()
-            },
-        );
-        indices.into_iter().filter(|&i| i < args.len()).collect()
-    }
-}
-
-/// The index of the first *value* argument of a slot member call — `1` when
-/// the member is a slot ([`MemberSpec::slot`]) and `args[0]` is
-/// an explicit slot-operation word (`variable -set c`, `filter -append f`),
-/// else `0`.  The operation word names no variable / method / class, so the
-/// walker must not paint it as one; a `-word` that is *not* a recognised
-/// operation stays classified as data, exactly as real Tcl treats it past
-/// argument 0.
-fn slot_value_start(member: &MemberSpec, args: &[&str]) -> usize {
-    usize::from(
-        member.slot.is_some()
-            && args
-                .first()
-                .is_some_and(|a| tcl_registry::definer::SlotOp::parse(a).is_some()),
-    )
-}
-
-/// A [`MemberKind::Wrapper`] member (`self method …`, itcl `public method …`)
-/// nests an inner member keyword at `args[0]`; the inner member's own roles
-/// (including its `variable a b c` unbounded form) apply shifted one place
-/// right (past the wrapper word).  `args` is the wrapper call minus the wrapper
-/// word itself (so `args[0]` is `method`/`constructor`/`variable`/…).
-///
-/// When the following word is *not* a recognised inner member and the wrapper
-/// declares [`MemberSpec::wrapper_block_body`] (`TclOO`'s `private { … }` /
-/// `self { … }`), the wrapper's own roles apply directly — `args[0]` is the
-/// definition-script body — rather than resolving nothing.
-fn wrapper_member_indices(
-    grammar: &DefinitionBodyGrammar,
-    member: &MemberSpec,
-    args: &[&str],
-    dialect: Option<SurfaceQuery<'_>>,
-    role: ArgRole,
-) -> Vec<usize> {
-    let Some((inner, rest)) = args.split_first() else {
-        return Vec::new();
-    };
-    if let Some(m) = grammar.member(inner) {
-        // Shift the inner member's indices one place right, past the wrapper.
-        return flat_member_indices(m, rest, dialect, role)
-            .into_iter()
-            .map(|i| i + 1)
-            .collect();
-    }
-    if member.wrapper_block_body {
-        // Bare script-block form: the wrapper's own roles (a single body at
-        // arg 0) apply unshifted.
-        return flat_member_indices(member, args, dialect, role);
-    }
-    Vec::new()
-}
-
-/// Collect the `-set BODY` / `-get BODY` flag-value indices of an inner
-/// `property NAME ?-set BODY? ?-get BODY?` invocation.
-fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
-    let n = args.len();
-    if n == 0 {
-        return Vec::new();
-    }
-    args.iter()
-        .enumerate()
-        .take(n.saturating_sub(1))
-        .filter_map(|(i, &a)| ((a == "-set" || a == "-get") && i + 1 < n).then_some(i + 1))
-        .collect()
+    grammar.member_arg_indices_for_role_in(command, args, dialect, role)
 }
 
 #[cfg(test)]

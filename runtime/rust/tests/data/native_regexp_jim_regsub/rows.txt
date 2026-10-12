@@ -1,0 +1,71 @@
+case	0	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	586258
+case	1	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	58
+case	2	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	58
+case	3	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	58
+case	4	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	616261
+case	5	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	6161626161
+case	6	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	586158625861
+case	7	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+object	index	index	1	1
+bytes	616258
+case	8	0
+code	0
+object	pattern	none	1	1
+object	subject	none	1	1
+object	replacement	list	1	1
+object	result	string	1	1
+bytes	416261
+case	9	-6
+code	0
+object	pattern	regexp	1	1
+object	subject	none	1	1
+object	replacement	none	1	1
+object	result	string	1	1
+bytes	586258

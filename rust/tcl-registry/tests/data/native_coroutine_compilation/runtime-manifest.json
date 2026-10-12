@@ -1,0 +1,38 @@
+{
+  "8.4": {
+    "executable": "/tmp/2286-oracles/bin/tclsh8.4",
+    "executable_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+    "stdout_sha256": "bd5f9259ba06e6989a588b77a3bdddf0bbd298d4048058e454e8ca9236ff0920",
+    "rows": 13
+  },
+  "8.5": {
+    "executable": "/tmp/2286-oracles/bin/tclsh8.5",
+    "executable_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+    "stdout_sha256": "c744e39292aa5fdc5bc6c4a313a150c6f2f2df6c5adc84da486357c13555f7ca",
+    "rows": 13
+  },
+  "8.6": {
+    "executable": "/tmp/2286-oracles/bin/tclsh8.6",
+    "executable_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+    "stdout_sha256": "a57effe128791e026355079bf1bd64a4759a4d0c19a2a50c6d98a7adcf24e008",
+    "rows": 13
+  },
+  "9.0": {
+    "executable": "/tmp/2286-oracles/bin/tclsh9.0",
+    "executable_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+    "stdout_sha256": "a57effe128791e026355079bf1bd64a4759a4d0c19a2a50c6d98a7adcf24e008",
+    "rows": 13
+  },
+  "9.1": {
+    "executable": "/tmp/2286-oracles/bin/tclsh9.1",
+    "executable_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+    "stdout_sha256": "a57effe128791e026355079bf1bd64a4759a4d0c19a2a50c6d98a7adcf24e008",
+    "rows": 13
+  },
+  "jim": {
+    "executable": "/tmp/2286-oracles/jimtcl/jimsh",
+    "executable_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+    "stdout_sha256": "2b516577179e6b384c2a680eee8632966eb2e92375448a85f495b293bc5baf34",
+    "rows": 13
+  }
+}

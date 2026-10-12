@@ -1,0 +1,37 @@
+provider	C-Tcl
+case	2	stride-integer-index1
+operation	lsort
+mode	integer
+index	1
+input-roles	key-holds=sole-containing-list	additional-key-observer-holds=0	argv-caller-hold=1	returned-original-explicit-hold=0	flat-length=4
+input-key0	counted-string	32
+input-key1	counted-string	41
+input-key2	counted-string	31
+input-key3	counted-string	42
+input-callback-return	absent
+before-key0	none	1	1	1
+before-key1	none	1	1	1
+before-key2	none	1	1	1
+before-key3	none	1	1	1
+before-container	list	0	1	0
+before-prefix	absent
+before-callback-return	absent
+before-pattern	absent
+code	1
+callback-count	0
+reached-key0	none	1	1	1
+reached-key1	none	1	1	1
+reached-key2	none	1	1	1
+reached-key3	none	1	1	1
+reached-container	list	1	1	7
+reached-prefix	absent
+reached-callback-return	absent
+reached-pattern	absent
+reached-result	string	1	1	28
+result-alias	container=0	callback-return=0
+result-bytes	657870656374656420696e74656765722062757420676f7420224122
+materialised-result	string	1	1	28
+after-result-getter-container	list	1	1	7
+after-result-getter-callback-return	absent
+error-code-bytes	54434c2056414c5545204e554d424552
+error-info-bytes	657870656374656420696e74656765722062757420676f74202241220a202020207768696c6520657865637574696e670a226c736f7274202d696e7465676572202d7374726964652032202d696e6465782031207b322041203120427d22

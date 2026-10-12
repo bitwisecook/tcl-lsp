@@ -1,0 +1,14 @@
+ByteCode 0x55b10aaa0200, refCt 1, epoch 24, interp 0x55b10aa39880 (epoch 24)
+  Source "info commands ::N::target"
+  Cmds 1, src 25, inst 19, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x55b10aab1650, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-17, src 0-24
+  Command 1: "info commands ::N::target"
+    (0) push 0 	# "::N::target"
+    (5) resolveCmd 
+    (6) dup 
+    (7) strlen 
+    (8) jumpFalse +10 	# pc 18
+    (13) list 1 
+    (18) done 

@@ -1,0 +1,51 @@
+TclCompileYieldToCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    Tcl_Size i, numWords = parsePtr->numWords, build;
+    int concat = 0;
+
+    OP(				NS_CURRENT);
+    for (build = i = 1; i < numWords; i++) {
+	if (tokenPtr->type == TCL_TOKEN_EXPAND_WORD && build > 0) {
+	    OP4(		LIST, build);
+	    if (concat) {
+		OP(		LIST_CONCAT);
+	    }
+	    build = 0;
+	    concat = 1;
+	}
+	PUSH_TOKEN(		tokenPtr, i);
+	if (tokenPtr->type == TCL_TOKEN_EXPAND_WORD) {
+	    if (concat) {
+		OP(		LIST_CONCAT);
+	    } else {
+		concat = 1;
+	    }
+	} else {
+	    build++;
+	}
+	if (build > LIST_CONCAT_THRESHOLD) {
+	    OP4(		LIST, build);
+	    if (concat) {
+		OP(		LIST_CONCAT);
+	    }
+	    build = 0;
+	    concat = 1;
+	}
+	tokenPtr = TokenAfter(tokenPtr);
+    }
+    if (build > 0) {
+	OP4(			LIST, build);
+	if (concat) {
+	    OP(			LIST_CONCAT);
+	}
+    }
+    INVOKE(			YIELD_TO_INVOKE);
+    return TCL_OK;
+}

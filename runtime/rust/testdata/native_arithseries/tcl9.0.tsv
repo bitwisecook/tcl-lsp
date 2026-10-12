@@ -1,0 +1,98 @@
+R	0	0
+S	0	original	arithseries	0	1	5	1	0
+L	0	0	5
+S	0	afterlength	arithseries	0	1	5	1	0
+S	0	dup-original	arithseries	0	1	5	2	0
+S	0	duplicate	arithseries	0	1	5	2	0
+I	0	int	0	0	0
+V	0	0
+S	0	afterindex	arithseries	0	1	5	2	0
+S	0	afterdrop	arithseries	0	1	5	1	0
+S	0	afterelements	arithseries	0	1	5	1	1
+C	0	1	0	0
+T	0	0 1 2 3 4
+S	0	afterstring	arithseries	1	1	5	1	1
+R	1	0
+S	1	original	arithseries	0	1	0	1	0
+L	1	0	0
+S	1	afterlength	arithseries	0	1	0	1	0
+S	1	dup-original	arithseries	0	1	0	2	0
+S	1	duplicate	arithseries	0	1	0	2	0
+S	1	afterdrop	arithseries	0	1	0	1	0
+S	1	afterelements	arithseries	0	1	0	1	0
+T	1	
+S	1	afterstring	arithseries	1	1	0	1	0
+R	2	0
+S	2	original	none	1	1	-1	-1	0
+L	2	0	0
+S	2	afterlength	none	1	1	-1	-1	0
+S	2	dup-original	none	1	1	-1	-1	0
+S	2	duplicate	none	1	1	-1	-1	0
+S	2	afterdrop	none	1	1	-1	-1	0
+S	2	afterelements	list	1	1	-1	-1	0
+T	2	
+S	2	afterstring	list	1	1	-1	-1	0
+R	3	0
+S	3	original	arithseries	0	1	5	1	0
+L	3	0	5
+S	3	afterlength	arithseries	0	1	5	1	0
+S	3	dup-original	arithseries	0	1	5	2	0
+S	3	duplicate	arithseries	0	1	5	2	0
+I	3	int	0	0	0
+V	3	1
+S	3	afterindex	arithseries	0	1	5	2	0
+S	3	afterdrop	arithseries	0	1	5	1	0
+S	3	afterelements	arithseries	0	1	5	1	1
+C	3	1	0	0
+T	3	1 3 5 7 9
+S	3	afterstring	arithseries	1	1	5	1	1
+R	4	0
+S	4	original	arithseries	0	1	6	1	0
+L	4	0	6
+S	4	afterlength	arithseries	0	1	6	1	0
+S	4	dup-original	arithseries	0	1	6	2	0
+S	4	duplicate	arithseries	0	1	6	2	0
+I	4	double	0	0	0
+V	4	0.0
+S	4	afterindex	arithseries	0	1	6	2	0
+S	4	afterdrop	arithseries	0	1	6	1	0
+S	4	afterelements	arithseries	0	1	6	1	1
+C	4	1	0	0
+T	4	0.0 0.1 0.2 0.3 0.4 0.5
+S	4	afterstring	arithseries	1	1	6	1	1
+R	5	0
+S	5	original	arithseries	0	1	4	1	0
+L	5	0	4
+S	5	afterlength	arithseries	0	1	4	1	0
+S	5	dup-original	arithseries	0	1	4	2	0
+S	5	duplicate	arithseries	0	1	4	2	0
+I	5	int	0	0	0
+V	5	3
+S	5	afterindex	arithseries	0	1	4	2	0
+S	5	afterdrop	arithseries	0	1	4	1	0
+S	5	afterelements	arithseries	0	1	4	1	1
+C	5	1	0	0
+T	5	3 3 3 3
+S	5	afterstring	arithseries	1	1	4	1	1
+R	6	0
+S	6	original	arithseries	0	1	100000001	1	0
+L	6	0	100000001
+S	6	afterlength	arithseries	0	1	100000001	1	0
+S	6	dup-original	arithseries	0	1	100000001	2	0
+S	6	duplicate	arithseries	0	1	100000001	2	0
+I	6	int	0	0	0
+V	6	0
+S	6	afterindex	arithseries	0	1	100000001	2	0
+S	6	afterdrop	arithseries	0	1	100000001	1	0
+R	7	1
+E	7	invalid arithmetic series parameter values
+R	8	0
+S	8	original	arithseries	0	1	0	1	0
+L	8	0	0
+S	8	afterlength	arithseries	0	1	0	1	0
+S	8	dup-original	arithseries	0	1	0	2	0
+S	8	duplicate	arithseries	0	1	0	2	0
+S	8	afterdrop	arithseries	0	1	0	1	0
+S	8	afterelements	arithseries	0	1	0	1	0
+T	8	
+S	8	afterstring	arithseries	1	1	0	1	0

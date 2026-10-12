@@ -1,0 +1,4 @@
+version 8.5.19
+package 0 2.3.8
+package_ifneeded {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}
+auto_path {/workspace/tcl-lsp/tmp/tcl8.5.19/library /workspace/tcl-lsp/tmp/tcl8.5.19 /workspace/tcl-lsp/tmp/tcl8.5.19/lib /workspace/.proofs/native-providers/gcc14-compatibility/8.5.19/install/lib}

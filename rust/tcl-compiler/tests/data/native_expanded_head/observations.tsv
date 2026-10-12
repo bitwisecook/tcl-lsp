@@ -1,0 +1,6 @@
+8.4|0|0|1|{extra characters after close-brace}|1|{extra characters after close-brace}|0|A|1|{extra characters after close-brace}|1|{extra characters after close-brace}
+8.5|1|1|0|A|0|A|0|A|1|{too many nested evaluations (infinite loop?)}|0|A
+8.6|1|1|0|A|0|A|0|A|1|{too many nested evaluations (infinite loop?)}|0|A
+9.0|1|1|0|A|0|A|0|A|1|{too many nested evaluations (infinite loop?)}|0|A
+9.1|1|1|0|A|0|A|0|A|1|{too many nested evaluations (infinite loop?)}|0|A
+jim|0|0|0|A|1|{invalid command name "set"}|1|{invalid command name "set"}|1|{invalid command name "set"}|0|A

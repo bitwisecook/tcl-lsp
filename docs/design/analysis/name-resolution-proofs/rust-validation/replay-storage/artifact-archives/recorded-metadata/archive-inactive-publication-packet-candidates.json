@@ -1,0 +1,407 @@
+{
+  "policy": "Separate Root-requested proposal only. Inactive publication-* review packet directories with trailing publication number<310; only base/files copies, never primary repository/native capture/request roots. Full original leaf manifest hashes and patch SHA verified. Duplicated canonical native fixture/build-receipt copies inside these review packets can be losslessly archived while all original manifests/patches/scripts and primary evidence stay untouched. No applied-state claim if journal absent. Symlinks and unsealed/mismatched packet leaves rejected. No archiving/deletion performed under this proposal.",
+  "candidates": [
+    {
+      "directory": "/workspace/.proofs/publication-archive192258",
+      "number": 258,
+      "bytes": 36178115,
+      "file_count": 76,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "1a250177768530fa98695b0964e9cf5a157088db7a4cf32019e2856c2c9118d9",
+      "patch_sha256": "77c7973129891ece54d03ca35a84efeb9b00f4ebcc20a6f25123272e3eb29d02",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive171-173202",
+      "number": 202,
+      "bytes": 33831090,
+      "file_count": 76,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "40f470558935230dee78586b83ba0bcb0b77204fd09a6c94a5ddce7400031a3f",
+      "patch_sha256": "ed05df024a0af467cfb6eb13f5235c9522a7dcd252b3992ac01d62361ba05682",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive201292",
+      "number": 292,
+      "bytes": 25601675,
+      "file_count": 30,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "054cdd13dc947ee59012d82c7482c175e962208b667b8458c3e1a43f98cb98e4",
+      "patch_sha256": "a856004f00ce6bf7fef934100855589f97299a16f5dba6b5e69e651476af7a93",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive179215",
+      "number": 215,
+      "bytes": 21443823,
+      "file_count": 46,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "2f31f68f3b85b6eea7153885b1aafc43d4c44867d5e69dbe77493940901b2439",
+      "patch_sha256": "661a468f06872230c67374a2582f289ebfbd10c1691583903ea0c258935c874c",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive174205",
+      "number": 205,
+      "bytes": 16182182,
+      "file_count": 34,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "b7f36f6ce264130fe98cc8a2d9d7c5e3316e14d1cf78c73c3b9030ca7002a88b",
+      "patch_sha256": "5709f654974d74030e88e2053de4eed05429f13d6d22cfa95ac144f42b4ae2a5",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive195269",
+      "number": 269,
+      "bytes": 16156366,
+      "file_count": 27,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "8db63d7dca3649bf30358ae904cef30ce7981c9f04a2070586093d4205487bc6",
+      "patch_sha256": "3e6280bd2140fa983053b79f2c088c08ff09234d857ec6037191417a4e784115",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive203298",
+      "number": 298,
+      "bytes": 15734910,
+      "file_count": 20,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "57b0902510343b56df2921ece5b7da90feadb8d3456e342faed5c6e5dfb163e1",
+      "patch_sha256": "da488f32b7ea5bc6859479b3a92e97fd94a0d808e3210b91953fb3e1c23f6a99",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive198199282",
+      "number": 282,
+      "bytes": 15357409,
+      "file_count": 19,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "f17c49348b4d2e2dd32d664a7cf7281f4261e7933b71adce17a88bf40b4a5fbf",
+      "patch_sha256": "b3f474b3ae51249a55393870b3d016245efdbaf5ea94457768dc64d8ea8880e9",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive205309",
+      "number": 309,
+      "bytes": 14106468,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "5967dfe9bc662c73fb4c0a6cef335e7e31570fe8b02f932bfd3f5f5f6e0d8886",
+      "patch_sha256": "10ed4371fd167e40887246b0461ecc2564055b466beb5fbf2e17d6053bac6c34",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive188-189251",
+      "number": 251,
+      "bytes": 12851714,
+      "file_count": 24,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "39f812a4929a5f784fae6223c278588cb42952693dba39b360270734084154ba",
+      "patch_sha256": "5e6a8f85fc39b6359af021e5c23f7acc509b13ade5e28fb64a7c9e3053c9ca8e",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive197277",
+      "number": 277,
+      "bytes": 12672427,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "609d359b7eef76cd6b97c043b25ee8f4906b1a4456acf5d5ffe8841b5dd62f88",
+      "patch_sha256": "747613a09c8723400b6776e75d8b3824a636b894ab1712c6a5fd2a86a3f163d7",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive204304",
+      "number": 304,
+      "bytes": 10957511,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6acc9a868cd7231aaf4eda4bb3ef2cdc516fda680aa545770fdd08c4d4fdc8f2",
+      "patch_sha256": "c333793ed8a7d66fea132ff0c7d9e1228e49aed3d68f12ed51f2e61308c61ea6",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive202293",
+      "number": 293,
+      "bytes": 10781923,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "61f632208eb26d7b5d3a35ea9d8be35c42a0a324aa7d4d2804e2416f9225b0e8",
+      "patch_sha256": "6d0dc5c0d649a1af980e433cd65085d7e8b08087d1f3a6602f83b6ff1be0c520",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive200286",
+      "number": 286,
+      "bytes": 10540844,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "8c1987f74956e4318cf039b1609ffcb056fbeba686cead2874333feb085d7eea",
+      "patch_sha256": "70ec6fc719d9ac56fa8ae38feaa05fe87a0594b5cfc052c08afb7fa81d962476",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive193194264",
+      "number": 264,
+      "bytes": 10241484,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "f55f5f4d992008520ee9d509ac2e14e219aa90acfd2c953c2b184a443999b5d3",
+      "patch_sha256": "87b619b02fa2d748e462d11b1510a8e7316ac4d40ae2910ee56cc5bf12a1f438",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive196274",
+      "number": 274,
+      "bytes": 10222497,
+      "file_count": 10,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "6c29d804e0ca7b328bdf0f830ed455bc805b6eb0598fff6fa993423fee76b7cb",
+      "patch_sha256": "bbec571aed6db0dd90fbc91a9dbf847278335951af8cf3637c79b495396c2896",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive191254",
+      "number": 254,
+      "bytes": 9341764,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "0b49dbabfcb1105953c5bb6c126fc26b29a4be05e8ecf6cbe4b1105bf82b0160",
+      "patch_sha256": "ba57755bd76dfb0c11505a47f4da18341a64baac6a7765b5559d03407a22bac1",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive186239",
+      "number": 239,
+      "bytes": 9115726,
+      "file_count": 15,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "fe2bbdd73516133dc8611c80d0bee8f3264914a0cc2d3a331b7500c0123392f4",
+      "patch_sha256": "fddbae0d2ac2a9cdf0bcc997644b0985f11030c1887c9fbb5e30b77d32aeac45",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive180-181218",
+      "number": 218,
+      "bytes": 8258209,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "b9959eb98d1ee7a2a755708a1c64fe06023217362d58e7b085ea390d738c2e46",
+      "patch_sha256": "883bc773850f7e6bd5e7042ab5a1f48a3148290594eb8af8e3881a30ef493432",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive182-183220",
+      "number": 220,
+      "bytes": 8246901,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "bc21467d023f8a3890efe8f959e37a47330b28170b45ab60150c4cb70f826f9b",
+      "patch_sha256": "636ce3e345cdb813414e0f0ec785ad0139898a65c34b5299d0c7e62a951c3623",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive175-176208",
+      "number": 208,
+      "bytes": 7991995,
+      "file_count": 12,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "e4992bf322929f722d35760cac5c801e9344b364d7042b6c41ad177a0efb135b",
+      "patch_sha256": "f44ebc5b5afcc93f681d14ac558d5c66e99e871362725266202dba901e02af59",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive187245",
+      "number": 245,
+      "bytes": 6459864,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "773c845eb81f30395504930307f921ec927e618523461782d87e3315b76ea7d3",
+      "patch_sha256": "72bf9c09f4a1b50a7adead1cdb6aeb34314e87b90ce115cbd01091dbe4de69b6",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive185230",
+      "number": 230,
+      "bytes": 6410136,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "01e3ed487d8635dd29e60fed30f1d6c916545414c71420534492d21f95364c26",
+      "patch_sha256": "9db56037f49042abf0a62786386e1d98a9e760432a7dfd0123a3918819367d6d",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive184224",
+      "number": 224,
+      "bytes": 6407383,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "91f9b6fa8aa351e395a8326561c90932549c0cfdd2fa36d4d065d421f23ac0e3",
+      "patch_sha256": "ae3808f433957341c8e8166667063fa07cb1c6d748ba7085428119f07241ec54",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    },
+    {
+      "directory": "/workspace/.proofs/publication-archive178213",
+      "number": 213,
+      "bytes": 6187669,
+      "file_count": 8,
+      "trees": [
+        "base",
+        "files"
+      ],
+      "manifest_sha256": "0f3013b43eef746212fe73513b82364816fe04f55dd02d22e981f5954f496200",
+      "patch_sha256": "1fa97b7eeb35c80c4102acef69ba93030b5611bf916e4e90a14f69e9403306b8",
+      "exact_application_journal_available": false,
+      "classification": "inactive sealed publication packet copy; no applied-state assertion without journal",
+      "contains_duplicate_validation_receipts": true,
+      "contains_duplicate_native_fixture_copies": false
+    }
+  ],
+  "total_bytes": 341280085,
+  "rejected_counts": {}
+}

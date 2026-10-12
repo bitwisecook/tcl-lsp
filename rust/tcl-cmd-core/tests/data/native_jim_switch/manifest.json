@@ -1,0 +1,188 @@
+{
+  "cases": 32,
+  "runs": [
+    {
+      "version": "8.4.20",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.4.20"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "original_budget": 60,
+      "seconds": 0.0030478439875878394,
+      "result_rows": 32,
+      "sha256": {
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c": "2e9a59b374125a8a4982d86df9dd7de0f5f330ab47a47974d2ff9faa66343c93",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.4.20": "06760b523639badc3878f80b3d024a848307a08fb76a111afa83971e71fde4ed",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.4.20.tsv": "29ea6d053e406fd7e4a170457a4b71ededcd7a3ae327f15b3d1bf42755a9ad47"
+      }
+    },
+    {
+      "version": "8.5.19",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.5.19"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "original_budget": 60,
+      "seconds": 0.005936905043199658,
+      "result_rows": 32,
+      "sha256": {
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c": "2e9a59b374125a8a4982d86df9dd7de0f5f330ab47a47974d2ff9faa66343c93",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.5.19": "77713abd88bbc5e8ddfbaa917e827e9131e04bf713749dbbbf94a0f957a239aa",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.5.19.tsv": "a9bbf20052f1111ea151732079e38223e75334a9a6cc074bc1c1af5abbeaf464"
+      }
+    },
+    {
+      "version": "8.6.18",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.6.18"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "original_budget": 60,
+      "seconds": 0.010320811998099089,
+      "result_rows": 32,
+      "sha256": {
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c": "2e9a59b374125a8a4982d86df9dd7de0f5f330ab47a47974d2ff9faa66343c93",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.6.18": "c206fd4f2f1e523781ad40bc9696b2f49e7586abfab423f8e1bb24ba52729e1d",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/8.6.18.tsv": "02ac0f1618edb14f0dbb26f23b0b269f0bf46fc750e4ccc48ca949f649597d79"
+      }
+    },
+    {
+      "version": "9.0.4",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/9.0.4"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "original_budget": 60,
+      "seconds": 0.012772223039064556,
+      "result_rows": 32,
+      "sha256": {
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c": "2e9a59b374125a8a4982d86df9dd7de0f5f330ab47a47974d2ff9faa66343c93",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/9.0.4": "aba4452abe239cb017bab9ce52c95fb2f1bf260b159396e1dfe0bc1f4fd4954d",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/9.0.4.tsv": "02ac0f1618edb14f0dbb26f23b0b269f0bf46fc750e4ccc48ca949f649597d79"
+      }
+    },
+    {
+      "version": "9.1.0",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/9.1.0"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "original_budget": 60,
+      "seconds": 0.01267942099366337,
+      "result_rows": 32,
+      "sha256": {
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c": "2e9a59b374125a8a4982d86df9dd7de0f5f330ab47a47974d2ff9faa66343c93",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/9.1.0": "04e29f1a231a619e67ad4b5a02c1eec83224876bbc3ce0d93df61840f434d84f",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/9.1.0.tsv": "83d647fb2dfb908b3cebffd797f876b612405787a1cd31952559b275556be640"
+      }
+    },
+    {
+      "version": "jim0.84",
+      "compile_command": [
+        "cc",
+        "-DJIM_PROBE",
+        "-I/tmp/2286-oracles/jimtcl",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c",
+        "/tmp/2286-oracles/jimtcl/libjim.a",
+        "-lm",
+        "-ldl",
+        "-lssl",
+        "-lcrypto",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/jim0.84"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "original_budget": 60,
+      "seconds": 0.01634954201290384,
+      "result_rows": 32,
+      "sha256": {
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/probe.c": "2e9a59b374125a8a4982d86df9dd7de0f5f330ab47a47974d2ff9faa66343c93",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/jim0.84": "14d95a5f16649d08134b2452101914d02af58dd3f437e2375d184583d5527b69",
+        "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+        "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+        "/tmp/2286-oracles/jimtcl/jimregexp.c": "97cff9c0d8f2b0b6e09c40b46e77d09b80e667ea50aa2382e5e9b74552692acf",
+        "/workspace/.proofs/2286-packages-dialects/jim-switch-original/jim0.84.tsv": "18770df73c342d32e5d2819a4086abd2d98ec1769f45a45d4e3362a657c07217"
+      }
+    }
+  ],
+  "physical_observer": "Original Objv invocation from real dispatch script frame; direct standalone Objv lacking C switch command frame crashes are retained under attempt-2. Original fields after real command; no pattern/argument getter added before primary snapshot. Jim callback List shimmer uses genuine Jim_Utf8Length; matching command replacement uses actual Jim_CreateCommand.",
+  "note": "CALL identity subject/pattern columns are exact only plain -command argv case; other option geometries remain raw recorded diagnostics."
+}

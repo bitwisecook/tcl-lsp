@@ -1,0 +1,192 @@
+[
+  {
+    "id": "naming.variable.trace-source-receiver-purpose",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md",
+    "problem_statement": "Trace variable names use a trace-specific ingress before root/index parsing. A nominal VarWrite effect role can otherwise turn trace registration into a source declaration, and requiring every argument to have a Unicode value loses opaque original subject references.",
+    "question": "Can one Registry-selected trace subject descriptor preserve modern and legacy variable-reference grammar, exact original byte geometry and authoring parity without granting registration, successful access or ordinary combined lookup?",
+    "conclusion": "Registry variable trace forms select TraceSubject at the exact modern or legacy subject ordinal. The structured role selector requires the type word and complete argument count; an original native byte selector uses the independently selected index-input extent and the shared trace type table, while command and execution traces remain command references. TraceSubject consumes the shared native trace-query ingress before combined root/index parsing. Source namespace, local, alias and rename geometry use that same purpose; ignored original suffix bytes remain retained, and trace effects never become variable declaration cards. Trace subject naming roles are excluded from value-read and contents-write projections; ordinary selected reads retain their observers. SpecTcl and Studio preserve the receiver form, inheritance and explicit withdrawal; malformed draft forms, positions and duplicates cannot silently default to Combined or argument zero. Missing context, unknown applicability and unavailable Jim trace purpose remain terminal. This descriptor supplies no trace installation, entered alias, observer closure, live cell, successful access, normal completion or edit authority.",
+    "scope": "Rust Registry, Syntax, Compiler, SpecTcl and Studio source naming contract. Fixed tests cover C Tcl 8.4–9.1 modern forms, supported C8 legacy forms, exact worker offsets, unknown selectors/expansion counts, opaque subjects, raw-zero versus encoded-zero address geometry, arrays, authentic alias context, unknown bare namespace targets and complete source currency, and the separation of trace subject naming from observed value reads and contents writes. Jim trace naming remains unavailable under the selected protocol. The separately retained native trace-subject observation motivates the address projection; it does not execute the Rust consumers.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::original_trace_receiver_forms_select_variable_grammar_ordinals_and_release",
+        "assertion": "Selects modern and supported legacy subject coordinates, separates command/execution roles, admits counted opaque subjects and declines unknown type or expansion count.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "selector": "signature_scan::variable_symbol::tests::original_trace_source_geometry_and_rename_preserve_ignored_original_suffix",
+        "assertion": "Keeps exact C namespace trace geometry, original suffix bytes and rename extent independently of trace registration; no trace declaration or Jim trace purpose is issued.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "selector": "analyser::scope::tests::original_trace_references_use_selected_subject_and_preserve_source_currency",
+        "assertion": "Original opaque array-subject reference shares its scalar root symbol, does not create a write card and withdraws on changed complete source.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "selector": "analyser::scope::tests::original_trace_reference_aliases_and_unknown_scope_remain_independent",
+        "assertion": "A genuine global alias maps the subject to its independently retained remote source symbol; unknown bare namespace targets stay unavailable and conditional absolute references retain rename barriers.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "selector": "loader::tests::trace_subject_receiver_metadata_preserves_form_and_rejects_ambiguous_fields",
+        "assertion": "Parses explicit trace-subject form at command/member/form scope and rejects unknown forms, duplicate coordinates and malformed byte-sized positions.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+        "selector": "render_spectcl::tests::trace_subject_receiver_metadata_round_trips_commands_members_and_forms",
+        "assertion": "Draft, Rust renderer, SpecTcl renderer and loader preserve Combined versus TraceSubject forms without executable handler or compiler grants.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "selector": "variable_bindings::tests::original_trace_subject_roles_do_not_read_or_overwrite_value_contents",
+        "assertion": "With a traced subject, modern and legacy query/install/remove naming roles project no value read or contents write, including an invalid operation list; an ordinary selected Set read remains observed under both exact original and compatibility operand projections.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+        "selector": "render_spectcl::tests::trace_subject_receiver_drafts_reject_invalid_forms_and_positions_without_defaulting",
+        "assertion": "Malformed, missing, duplicated or out-of-range draft positions/forms produce explicit invalid output through both renderers instead of selecting Combined or argument zero.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/trace.rs",
+        "selector": "commands::tcl::trace::tests::original_trace_type_roles_use_selected_native_index_extent_without_cache_authority",
+        "assertion": "C native byte selectors use the independently selected index extent: a raw-zero suffix may be ignored while an encoded-zero suffix is rejected. Command/execution subjects remain command roles; missing byte policy, Jim trace and unknown expansion count remain unavailable.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "symbol": "NativeNameProjection",
+        "purpose": "Borrowed selected original geometry comes from the existing purpose-specific native trace projection."
+      },
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "symbol": "VariableReceiverOperandForm",
+        "purpose": "Retain selected subject naming form independently from roles, effects and successful access."
+      },
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/trace.rs",
+        "symbol": "trace_subject_layout_roles",
+        "purpose": "Select subject roles from the actual type discriminator and exact original argument count; opaque name bytes do not select the type."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "OriginalVariableSymbolReceiver",
+        "purpose": "Use one source-purpose root projection for namespace, local, alias and independent written rename geometry."
+      },
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "symbol": "variable_receivers_value",
+        "purpose": "Validate the typed authored receiver form and reject ambiguous or unrecognised descriptors."
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/schema.rs",
+        "symbol": "FieldKind",
+        "purpose": "Expose the same receiver-purpose axis to the Studio draft and editor without reducing it to an index list."
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "symbol": "source_variable_read_places_with_original_operands_impl",
+        "purpose": "Separate selected TraceSubject naming from actual value-read and contents-write observer projections."
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/draft.rs",
+        "symbol": "selected_variable_receivers",
+        "purpose": "One typed draft validator feeds both renderers without silently reinterpreting invalid receiver forms or positions."
+      },
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/trace.rs",
+        "symbol": "resolve_trace_type_at",
+        "purpose": "Project actual native selector bytes through the selected shared index extent and trace table, separately from original object/cache, registration and successful handler execution."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust selectors are linked implementation bindings; no execution receipt is attached to this contract. The existing native trace-subject-counted-zero-address record remains a separate measured address/result law, not a successful source handler or observer lifetime proof."
+    }
+  }
+]

@@ -1,0 +1,6 @@
+
+running 1 test
+test typed_value::native_boolean_truth::tests::original_jim_public_truth_preserves_exact_cached_value_and_intermediate_diagnostic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.36s
+

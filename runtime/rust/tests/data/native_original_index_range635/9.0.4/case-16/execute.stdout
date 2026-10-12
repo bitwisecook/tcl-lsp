@@ -1,0 +1,23 @@
+provider	C-Tcl
+case	16	proper-binary-resident-shared-range
+operation	range
+input-subject	00ff41
+input-first	30
+input-last	31
+input-roles	producer=1	materialise=1	first=subject:0	last=first:0	extra-subject=1
+before-preparation-subject	bytearray	0	2	0
+preparation-subject-bytes	c080c3bf41
+after-preparation-subject	bytearray	1	2	5
+before-arg2	bytearray	1	2	5
+before-arg3	none	1	1	1
+before-arg4	none	1	1	1
+code	0
+reached-arg2	bytearray	1	2	5
+reached-arg3	int	1	1	1
+reached-arg4	int	1	1	1
+reached-result	bytearray	0	1	0
+result-alias	subject=0	first=0	last=0
+result-bytes	c080c3bf
+materialised-result	bytearray	1	1	4
+subject-bytes	c080c3bf41
+materialised-subject	bytearray	1	2	5

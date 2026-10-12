@@ -1,0 +1,32 @@
+{
+  "original_trace_request": "/workspace/.proofs/compiler-original-source-trace-request346.json",
+  "original_trace_request_sha256": "3dfe6d62ebdad1ba7f4177789827a9dd6e2f14bc312db2a8fa51e80844839b82",
+  "current_source_snapshot": "/workspace/.checkpoints/naming347/snapshot.json",
+  "current_source_snapshot_sha256": "2646b0fe8116cf0ebe0ede682f11ad4abcbdfbd82115997ffd70602b72ca9ed2",
+  "own_image": "/workspace/.pins/naming-owned347/pinned-compiler347.elf",
+  "own_image_sha256": "48367ddfb8e66b7d5a81e91b2657580723414154a19aeefb5265f1a183144ffd",
+  "own_inventory": "/workspace/.proofs/integration-compiler-own-list347.log",
+  "own_inventory_sha256": "07e8ae27d71386efa8de5c483a3217940b0ad0c15e3f7923d34ea32aaa1a7c78",
+  "literal_selectors": [
+    "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+    "native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity",
+    "unit_scope::tests::original_argument_caller_phase_keeps_real_return_and_direct_argument_counts",
+    "unit_scope::tests::original_argument_caller_child_keeps_its_own_expression_roles",
+    "unit_scope::tests::original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty",
+    "command_binding::original_body_namespace::tests::original_body_word_extent_keeps_inner_and_whole_geometry_separate",
+    "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+    "lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace",
+    "registry_invocation::source_structure::original_selected_command_purpose_tests::original_selected_commands_keep_the_parent_prologue_and_complete_vector_separate",
+    "word_subst::tests::original_nested_word_parser_keeps_body_bom_parent_metadata_and_child_geometry",
+    "registry_invocation::native_compilation_source::tests::original_compiler_geometry_preserves_delimiters_channels_and_provenance",
+    "codegen::structured::tests::return_diverges_and_suppresses_dead_code",
+    "codegen::structured::tests::if_else_two_arms",
+    "place_bridge::original_read_source::tests::original_argument_inventory_keeps_full_config_and_excludes_enclosing_roles"
+  ],
+  "literal_count": 14,
+  "inventory_count": 9411,
+  "environment": {
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+  },
+  "scope": "Owned Compiler347 original source guard diagnostics;523b/524/525 exact source is present. This is independent of later LIVE Runtime458/arithmetic source and of Native provider execution."
+}

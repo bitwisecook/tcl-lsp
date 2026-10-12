@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_arguments ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 5.16s
+

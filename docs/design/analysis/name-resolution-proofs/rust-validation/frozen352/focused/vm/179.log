@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::family_b_tests::jim_expression_preparation_uses_native_tree_and_eager_fixed_function_pass ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.63s
+

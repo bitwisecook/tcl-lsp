@@ -1,0 +1,32 @@
+provider	C-Tcl
+case	25	original-list-first-invalid
+operation	lsort
+input-first	626164
+input-last	30
+input-roles	path-kind=3	nested=1	empty=0	repeat-option=0	observed-child-extra-owner=1
+before-path	list	0	1	0
+before-path-member0	none	1	2	3
+before-path-member1	none	1	2	1
+before-container	list	0	1	0
+before-key0	none	1	2	1
+before-key1	none	1	2	1
+before-key2	none	1	2	1
+before-key3	none	1	2	1
+code	1
+reached-path	list	1	1	5
+reached-path-member0	none	1	2	3
+reached-path-member1	none	1	2	1
+reached-container	list	1	1	27
+reached-key0	none	1	2	1
+reached-key1	none	1	2	1
+reached-key2	none	1	2	1
+reached-key3	none	1	2	1
+reached-result	string	1	1	65
+result-alias	container=0	path=0
+result-bytes	62616420696e6465782022626164223a206d75737420626520696e74656765723f5b2b2d5d696e74656765723f206f7220656e643f5b2b2d5d696e74656765723f
+materialised-result	string	1	1	65
+error-code-bytes	4e4f4e45
+error-info-bytes	62616420696e6465782022626164223a206d75737420626520696e74656765723f5b2b2d5d696e74656765723f206f7220656e643f5b2b2d5d696e74656765723f0a20202020282d696e646578206f7074696f6e206974656d206e756d6265722030290a20202020696e766f6b65642066726f6d2077697468696e0a226c736f7274202d696e646578207b62616420307d207b7b7b4220417d207461696c307d207b7b4120427d207461696c317d7d22
+path-bytes	6261642030
+path-member0-bytes	626164
+path-member1-bytes	30

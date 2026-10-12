@@ -1,0 +1,12 @@
+# Original global procedure declaration operands, counted hexadecimal.
+-
+3a
+6c656166
+6e3a3a6c656166
+6e3a3a3a6c656166
+6e3a3a3a3a6c656166
+6f757465723a3a3a696e6e65723a3a6c656166
+6c656166007461696c
+6e3a3a6c656166007461696c
+c3a9
+65cc81

@@ -1583,21 +1583,21 @@ function updateBadges() {
   const counts = {
     'ir': data.ir.procedures ? Object.keys(data.ir.procedures).length + 1 : 1,
     'cfg-pre': data.cfgPreSsa.length,
-    'cfg-post': data.cfgPostSsa.length,
+    'cfg-post': explorerArrayCount(data.cfgPostSsa),
     'interproc': data.interprocedural.length,
     'types': data.types.reduce((n, f) => n + f.entries.length, 0),
     'rendered': (data.renderedProperties||[]).reduce((n, f) => n + f.entries.length, 0),
-    'opt': data.optimisations.length,
-    'optimiser-passes': (data.optimiserPasses||[]).reduce((n, p) => n + p.count, 0),
-    'gvn': data.gvn.length,
-    'shimmer': data.shimmer.length,
-    'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),
+    'opt': explorerArrayCount(data.optimisations),
+    'optimiser-passes': Array.isArray(data.optimiserPasses) ? data.optimiserPasses.reduce((n, p) => n + p.count, 0) : undefined,
+    'gvn': explorerArrayCount(data.gvn),
+    'shimmer': explorerArrayCount(data.shimmer),
+    'taint': Array.isArray(data.taintWarnings) ? explorerArrayCount(data.taintWarnings) + data.taintTracking.reduce((n, f) => n + f.entries.length, 0) : undefined,
     'loops': (data.loops || []).reduce((n, f) => n + f.loops.length, 0),
     'intervals': (data.intervals || []).reduce((n, f) => n + f.entries.length, 0),
-    'bounds': (data.bounds || []).reduce((n, f) => n + f.findings.length + f.divzero.length, 0),
-    'irules-flow': (data.eventOrder || []).length + data.irulesFlow.length,
-    'event-order': (data.eventOrder || []).length,
-    'callouts': data.annotations.length,
+    'bounds': Array.isArray(data.bounds) ? data.bounds.reduce((n, f) => n + f.findings.length + f.divzero.length, 0) : undefined,
+    'irules-flow': Array.isArray(data.eventOrder) && Array.isArray(data.irulesFlow) ? explorerArrayCount(data.eventOrder) + explorerArrayCount(data.irulesFlow) : undefined,
+    'event-order': explorerArrayCount(data.eventOrder),
+    'callouts': explorerArrayCount(data.annotations),
     'segments': (data.segments || []).length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
@@ -1779,6 +1779,7 @@ function setupOptDiffHover(pane) {
 // no per-warning-code colour rules.
 function renderShimmer() {
   const pane=$('#pane-shimmer');
+  if(!Array.isArray(data.shimmer)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
   let html='<div class="section-header">Warnings</div>';
   for(const w of data.shimmer){
@@ -1891,18 +1892,18 @@ async function renderEventFlowGraph(container, events) {
 
 function renderIrulesFlow() {
   const pane=$('#pane-irules-flow');
-  const events = data.eventOrder || [];
-  const warnings = data.irulesFlow || [];
+  const events = Array.isArray(data.eventOrder) ? data.eventOrder : null;
+  const warnings = Array.isArray(data.irulesFlow) ? data.irulesFlow : null;
 
-  if (!events.length && !warnings.length) {
+  if (events && warnings && !events.length && !warnings.length) {
     pane.innerHTML = '<div class="empty-state">No events detected</div>';
     return;
   }
 
-  let html = '';
+  let html = events && warnings ? '' : explorerViewUnavailableHtml();
 
   // Event flow graph section
-  if (events.length) {
+  if (events && events.length) {
     html += '<div class="event-flow-section-label">Event Flow</div>';
     html += '<div class="event-flow-graph" id="eventFlowGraphContainer"></div>';
     // Store ranges for click navigation
@@ -1913,7 +1914,7 @@ function renderIrulesFlow() {
   }
 
   // Warnings section
-  if (warnings.length) {
+  if (warnings && warnings.length) {
     html += '<div class="event-flow-section-label">Warnings</div>';
     for (const w of warnings) {
       html += `<div class="irules-flow-item"${sourceRangeAttrs(w.range)}><span class="irules-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
@@ -1924,7 +1925,7 @@ function renderIrulesFlow() {
   setupHoverHighlighting(pane);
 
   // Render mermaid graph asynchronously
-  if (events.length) {
+  if (events && events.length) {
     const graphContainer = $('#eventFlowGraphContainer');
     renderEventFlowGraph(graphContainer, events);
   }

@@ -1,0 +1,77 @@
+
+running 55 tests
+test cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::c86_dictionary_with_write_error_retains_independent_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... ok
+test cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally ... ok
+test cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... ok
+test command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier ... ok
+test command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default ... ok
+test command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects ... ok
+test command::tests::c84_primitive_failure_keeps_direct_code_and_eval_completion_supplies_none ... ok
+test command::tests::original_command_core_refusal_keeps_typed_first_host_cause ... ok
+test embed::embedding_settlement_tests::public_completion_option_bytes_preserves_first_host_before_any_getter ... ok
+test embed::embedding_settlement_tests::public_completion_option_bytes_retains_opaque_empty_and_absent_members ... ok
+test error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values ... ok
+test error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising ... ok
+test error::tests::typed_access_refusal_bypasses_catch_and_finally ... ok
+test exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors ... ok
+test exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims ... ok
+test exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity ... ok
+test exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch ... ok
+test interp::byte_array_result_tests::binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate ... ok
+test interp::byte_array_result_tests::unsupported_declared_binary_purpose_refuses_without_native_fallback ... ok
+test interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate ... ok
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... 
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (1087690) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:35:5:
+assertion `left == right` failed: jim: imported-command: counted resident bytes before getter
+  left: Some([58, 58, 58, 58, 73, 58, 58, 116, 97, 114, 103, 101, 116])
+ right: Some([58, 58, 73, 58, 58, 116, 97, 114, 103, 101, 116])
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore ... ok
+test interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes ... ok
+test interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol ... ok
+test interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release ... ok
+test interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal ... ok
+test interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile ... ok
+test interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter ... ok
+test interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose ... ok
+test interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal ... ok
+test interp::object_materialization::tests::actual_object_materialization_survives_unknown_source_without_losing_original_members ... ok
+test interp::object_materialization::tests::selected_authored_materialization_refuses_without_physical_fallback ... ok
+test interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe ... ok
+test value::native_scalar_target_tests::descriptive_target_does_not_admit_retired_or_foreign_original_cache ... ok
+test value::native_scalar_target_tests::operand_dependent_scalar_failure_uses_original_getter_after_a_single_neutral_probe ... ok
+test value::native_scalar_target_tests::original_cached_getter_refuses_missing_or_unsupported_target_before_mutation ... ok
+test value::native_scalar_target_tests::original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fields ... ok
+test value::native_scalar_target_tests::original_jim_cached_boolean_uses_independent_target_without_string_access ... ok
+test value::native_scalar_target_tests::retained_jim_context_queries_its_actual_host_target_without_default_width ... ok
+test value::native_scalar_tests::neutral_probe_retains_absent_string_and_exact_nan_payload ... ok
+test value::native_scalar_tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures ... 
+thread 'value::native_scalar_tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures' (1087937) panicked at rust/tcl-vm/src/value_scalar_tests.rs:360:13:
+assertion `left == right` failed: engine 5: case=5 boolcode=1 bool=0 booltype=string widecode=0 wide=2: Err(ScalarNumericInputUnavailable)
+  left: false
+ right: true
+FAILED
+test value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script ... ok
+test value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers ... ok
+test value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit ... ok
+test value::tests::byte_array_carrier_retains_original_storage_and_string_presence ... ok
+test value::tests::native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members ... ok
+test value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion ... ok
+test value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal ... ok
+test value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table ... ok
+
+failures:
+
+failures:
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+    value::native_scalar_tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures
+
+test result: FAILED. 53 passed; 2 failed; 0 ignored; 0 measured; 723 filtered out; finished in 410.88s
+

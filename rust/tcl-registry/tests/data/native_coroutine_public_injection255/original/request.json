@@ -1,0 +1,27 @@
+{
+  "question": "For independently initialised C Tcl 8.4-9.1 and current Jim, is coroinject available and what original public completion, callback chronology, suspension kind and passed value occur for two queued injections, including newest Error?",
+  "scope": "Four exact ASCII LF source controls per provider. Actual fresh original counted source evaluation, no catch/eval wrapper around the whole source. The one explicit inner catch is part of the fixed control. Public counted final result only; no object identity/header/frame/cache/Normal claim. Older unavailable providers explicitly report UNAVAILABLE.",
+  "cases": [
+    {
+      "id": "yield-ok",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-public255/yield-ok.tcl",
+      "source_sha256": "8ce65c2cdf27a578bfdf547d0f16b797aa16a2133f9d7fabb15dcd6cf208ca9f"
+    },
+    {
+      "id": "yield-error",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-public255/yield-error.tcl",
+      "source_sha256": "3684774e6de50513ee4349ce436e76aefd890a18f6cb0ec783208f50ee0d02f7"
+    },
+    {
+      "id": "yieldto-ok",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-public255/yieldto-ok.tcl",
+      "source_sha256": "31510951e891666fbc524bf1a3695d03fe8c191f504e8da334e4dbcd39374ed2"
+    },
+    {
+      "id": "yieldto-error",
+      "source_file": "/workspace/.proofs/native-coroutine-injection-public255/yieldto-error.tcl",
+      "source_sha256": "81aecb1c126a8a804c0fb0963b45bd9aa037d5ba1e5ee8e5f19e5a62ff42d909"
+    }
+  ],
+  "probe_sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759"
+}

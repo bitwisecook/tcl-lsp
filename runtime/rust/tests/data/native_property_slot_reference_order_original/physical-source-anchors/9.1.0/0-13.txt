@@ -1,0 +1,107 @@
+    return TCL_OK;
+}
+
+int
+TclOOInfoObjectPropCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr;
+    Tcl_Size i;
+    bool all = false, writable = false;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "objName ?options...?");
+	return TCL_ERROR;
+    }
+    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    for (i = 2; i < objc; i++) {
+	int idx;
+	if (Tcl_GetIndexFromObj(interp, objv[i], propOptNames, "option", 0,
+		&idx) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+	switch (idx) {
+	case PROP_ALL:
+	    all = true;
+	    break;
+	case PROP_READABLE:
+	    writable = false;
+	    break;
+	case PROP_WRITABLE:
+	    writable = true;
+	    break;
+	default:
+	    TCL_UNREACHABLE();
+	}
+    }
+
+    /*
+     * Get the properties.
+     */
+
+    Tcl_Obj *result;
+    if (all) {
+	result = GetAllObjectProperties(oPtr, writable);
+    } else {
+	if (writable) {
+	    result = TclOOGetPropertyList(&oPtr->properties.writable);
+	} else {
+	    result = TclOOGetPropertyList(&oPtr->properties.readable);
+	}
+	SortPropList(result);
+    }
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOReleasePropertyStorage --
+ *
+ *	Delete the memory associated with a class or object's properties.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+ReleasePropertyList(
+    PropertyList *propList)
+{
+    Tcl_Obj *propertyObj;
+    Tcl_Size i;
+
+    FOREACH(propertyObj, *propList) {
+	Tcl_DecrRefCount(propertyObj);
+    }
+    Tcl_Free(propList->list);
+    propList->list = NULL;
+    propList->num = 0;
+}
+
+void
+TclOOReleasePropertyStorage(
+    PropertyStorage *propsPtr)
+{
+    if (propsPtr->allReadableCache) {
+	Tcl_DecrRefCount(propsPtr->allReadableCache);
+    }
+    if (propsPtr->allWritableCache) {
+	Tcl_DecrRefCount(propsPtr->allWritableCache);
+    }
+    if (propsPtr->readable.num) {
+	ReleasePropertyList(&propsPtr->readable);
+    }
+    if (propsPtr->writable.num) {
+	ReleasePropertyList(&propsPtr->writable);
+    }
+}
+
+/*
+ * Local Variables:

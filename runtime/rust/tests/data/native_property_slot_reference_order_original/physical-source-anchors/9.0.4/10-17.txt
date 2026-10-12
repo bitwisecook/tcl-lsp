@@ -1,0 +1,107 @@
+			    int objc, Tcl_Obj *const *objv);
+static int		Configurable_ObjectReadableProps_Get(void *clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		Configurable_ObjectReadableProps_Set(void *clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		Configurable_ObjectWritableProps_Get(void *clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		Configurable_ObjectWritableProps_Set(void *clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+static int		Slot_ResolveClass(void *clientData,
+			    Tcl_Interp *interp, Tcl_ObjectContext context,
+			    int objc, Tcl_Obj *const *objv);
+
+/*
+ * Now define the slots used in declarations.
+ */
+
+static const DeclaredSlot slots[] = {
+    SLOT("define::filter",      ClassFilter_Get, ClassFilter_Set, NULL, NULL),
+    SLOT("define::mixin",       ClassMixin_Get,  ClassMixin_Set, Slot_ResolveClass, "-set"),
+    SLOT("define::superclass",  ClassSuper_Get,  ClassSuper_Set, Slot_ResolveClass, "-set"),
+    SLOT("define::variable",    ClassVars_Get,   ClassVars_Set, NULL, NULL),
+    SLOT("objdefine::filter",   ObjFilter_Get,   ObjFilter_Set, NULL, NULL),
+    SLOT("objdefine::mixin",    ObjMixin_Get,    ObjMixin_Set, Slot_ResolveClass, "-set"),
+    SLOT("objdefine::variable", ObjVars_Get,     ObjVars_Set, NULL, NULL),
+    SLOT("configuresupport::readableproperties",
+	    Configurable_ClassReadableProps_Get,
+	    Configurable_ClassReadableProps_Set, NULL, NULL),
+    SLOT("configuresupport::writableproperties",
+	    Configurable_ClassWritableProps_Get,
+	    Configurable_ClassWritableProps_Set, NULL, NULL),
+    SLOT("configuresupport::objreadableproperties",
+	    Configurable_ObjectReadableProps_Get,
+	    Configurable_ObjectReadableProps_Set, NULL, NULL),
+    SLOT("configuresupport::objwritableproperties",
+	    Configurable_ObjectWritableProps_Get,
+	    Configurable_ObjectWritableProps_Set, NULL, NULL),
+    {NULL, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, 0}
+};
+
+static const DeclaredSlotMethod slotMethods[] = {
+    SLOT_METHOD("Get",		Slot_Unimplemented, 0),
+    SLOT_METHOD("Resolve",	Slot_Resolve,	0),
+    SLOT_METHOD("Set",		Slot_Unimplemented, 0),
+    SLOT_METHOD("-append",	Slot_Append,	PUBLIC_METHOD),
+    SLOT_METHOD("-appendifnew",	Slot_AppendNew,	PUBLIC_METHOD),
+    SLOT_METHOD("-clear",	Slot_Clear,	PUBLIC_METHOD),
+    SLOT_METHOD("-prepend",	Slot_Prepend,	PUBLIC_METHOD),
+    SLOT_METHOD("-remove",	Slot_Remove,	PUBLIC_METHOD),
+    SLOT_METHOD("-set",		Slot_Set,	PUBLIC_METHOD),
+    SLOT_METHOD("unknown",	Slot_Unknown,	0),
+    {NULL, 0, {0, 0, 0, 0, 0}}
+};
+
+/*
+ * How to build the in-namespace name of a private variable. This is a pattern
+ * used with Tcl_ObjPrintf().
+ */
+
+#define PRIVATE_VARIABLE_PATTERN "%d : %s"
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * IsPrivateDefine --
+ *
+ *	Extracts whether the current context is handling private definitions.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline int
+IsPrivateDefine(
+    Tcl_Interp *interp)
+{
+    Interp *iPtr = (Interp *) interp;
+
+    if (!iPtr->varFramePtr) {
+	return 0;
+    }
+    return iPtr->varFramePtr->isProcCallFrame == PRIVATE_FRAME;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * BumpGlobalEpoch --
+ *
+ *	Utility that ensures that call chains that are invalid will get thrown
+ *	away at an appropriate time. Note that exactly which epoch gets
+ *	advanced will depend on exactly what the class is tangled up in; in
+ *	the worst case, the simplest option is to advance the global epoch,
+ *	causing *everything* to be thrown away on next usage.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+BumpGlobalEpoch(
+    Tcl_Interp *interp,
+    Class *classPtr)
+{
+    if (classPtr != NULL

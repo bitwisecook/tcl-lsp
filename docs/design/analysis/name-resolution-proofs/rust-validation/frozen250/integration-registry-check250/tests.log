@@ -1,0 +1,229 @@
+    Checking tcl-dialect v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-dialect)
+    Checking cpufeatures v0.3.1
+    Checking sha1 v0.11.0
+    Checking sha2 v0.11.0
+    Checking md-5 v0.11.0
+    Checking tcl-platform v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-platform)
+    Checking smallvec v1.16.2
+    Checking rustc-hash v2.1.3
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lexer)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+error[E0599]: no method named `as_str` found for mutable reference `&mut O` in the current scope
+  --> rust/tcl-cmd-core/src/case.rs:69:23
+   |
+69 |     let subject = ops.as_str(value);
+   |                       ^^^^^^
+   |
+help: there is a method `try_as_str` with a similar name
+   |
+69 |     let subject = ops.try_as_str(value);
+   |                       ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut O` in the current scope
+  --> rust/tcl-cmd-core/src/case.rs:76:24
+   |
+76 |         let text = ops.as_str(pattern);
+   |                        ^^^^^^
+   |
+help: there is a method `try_as_str` with a similar name
+   |
+76 |         let text = ops.try_as_str(pattern);
+   |                        ++++
+
+error[E0599]: no method named `as_str` found for mutable reference `&mut O` in the current scope
+  --> rust/tcl-cmd-core/src/case.rs:87:31
+   |
+87 |             let element = ops.as_str(&element);
+   |                               ^^^^^^
+   |
+help: there is a method `try_as_str` with a similar name
+   |
+87 |             let element = ops.try_as_str(&element);
+   |                               ++++
+
+error[E0599]: no method named `is_some` found for enum `RegexpPrecision<V>` in the current scope
+   --> rust/tcl-cmd-core/src/lsearch.rs:217:52
+    |
+217 |             Ok(E::exec(compiled, &units, 0, false).is_some())
+    |                                                    ^^^^^^^ method not found in `RegexpPrecision<RegMatch>`
+    |
+   ::: rust/tcl-cmd-core/src/regex.rs:60:1
+    |
+ 60 | pub enum RegexpPrecision<V> {
+    | --------------------------- method `is_some` not found for this enum
+
+error[E0277]: `?` couldn't convert the error to `SelectFailure`
+   --> rust/tcl-cmd-core/src/switch.rs:391:45
+    |
+376 | ) -> Result<Selection<V>, SelectFailure>
+    |      ----------------------------------- expected `SelectFailure` because of this
+...
+391 |         Some(wide_int(&ops.try_as_str(value)?, version)?)
+    |                            -----------------^ the trait `From<UnicodeAccessError>` is not implemented for `SelectFailure`
+    |                            |
+    |                            this can't be annotated with `?` because it has type `Result<_, UnicodeAccessError>`
+    |
+note: `SelectFailure` needs to implement `From<UnicodeAccessError>`
+   --> rust/tcl-cmd-core/src/switch.rs:351:1
+    |
+351 | enum SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+help: `SelectFailure` implements trait `From<T>`
+   --> rust/tcl-cmd-core/src/switch.rs:356:1
+    |
+356 | impl From<CmdError> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<CmdError>`
+...
+362 | impl From<RegexFailure> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<RegexFailure>`
+
+error[E0277]: `?` couldn't convert the error to `SelectFailure`
+   --> rust/tcl-cmd-core/src/switch.rs:396:61
+    |
+376 | ) -> Result<Selection<V>, SelectFailure>
+    |      ----------------------------------- expected `SelectFailure` because of this
+...
+396 |         let pattern_bytes = ops.native_string_bytes(pat_val)?;
+    |                                 ----------------------------^ the trait `From<ValueError>` is not implemented for `SelectFailure`
+    |                                 |
+    |                                 this can't be annotated with `?` because it has type `Result<_, ValueError>`
+    |
+note: `SelectFailure` needs to implement `From<ValueError>`
+   --> rust/tcl-cmd-core/src/switch.rs:351:1
+    |
+351 | enum SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+help: `SelectFailure` implements trait `From<T>`
+   --> rust/tcl-cmd-core/src/switch.rs:356:1
+    |
+356 | impl From<CmdError> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<CmdError>`
+...
+362 | impl From<RegexFailure> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<RegexFailure>`
+
+error[E0277]: `?` couldn't convert the error to `SelectFailure`
+   --> rust/tcl-cmd-core/src/switch.rs:404:61
+    |
+376 | ) -> Result<Selection<V>, SelectFailure>
+    |      ----------------------------------- expected `SelectFailure` because of this
+...
+404 |                 let subject = ops.native_string_bytes(value)?;
+    |                                   --------------------------^ the trait `From<ValueError>` is not implemented for `SelectFailure`
+    |                                   |
+    |                                   this can't be annotated with `?` because it has type `Result<_, ValueError>`
+    |
+note: `SelectFailure` needs to implement `From<ValueError>`
+   --> rust/tcl-cmd-core/src/switch.rs:351:1
+    |
+351 | enum SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+help: `SelectFailure` implements trait `From<T>`
+   --> rust/tcl-cmd-core/src/switch.rs:356:1
+    |
+356 | impl From<CmdError> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<CmdError>`
+...
+362 | impl From<RegexFailure> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<RegexFailure>`
+
+error[E0277]: `?` couldn't convert the error to `SelectFailure`
+   --> rust/tcl-cmd-core/src/switch.rs:419:61
+    |
+376 | ) -> Result<Selection<V>, SelectFailure>
+    |      ----------------------------------- expected `SelectFailure` because of this
+...
+419 |                 let subject = ops.native_string_bytes(value)?;
+    |                                   --------------------------^ the trait `From<ValueError>` is not implemented for `SelectFailure`
+    |                                   |
+    |                                   this can't be annotated with `?` because it has type `Result<_, ValueError>`
+    |
+note: `SelectFailure` needs to implement `From<ValueError>`
+   --> rust/tcl-cmd-core/src/switch.rs:351:1
+    |
+351 | enum SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+help: `SelectFailure` implements trait `From<T>`
+   --> rust/tcl-cmd-core/src/switch.rs:356:1
+    |
+356 | impl From<CmdError> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<CmdError>`
+...
+362 | impl From<RegexFailure> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<RegexFailure>`
+
+error[E0277]: `?` couldn't convert the error to `SelectFailure`
+   --> rust/tcl-cmd-core/src/switch.rs:438:65
+    |
+376 | ) -> Result<Selection<V>, SelectFailure>
+    |      ----------------------------------- expected `SelectFailure` because of this
+...
+438 |                 let value_bytes = ops.native_string_bytes(value)?;
+    |                                       --------------------------^ the trait `From<ValueError>` is not implemented for `SelectFailure`
+    |                                       |
+    |                                       this can't be annotated with `?` because it has type `Result<_, ValueError>`
+    |
+note: `SelectFailure` needs to implement `From<ValueError>`
+   --> rust/tcl-cmd-core/src/switch.rs:351:1
+    |
+351 | enum SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+help: `SelectFailure` implements trait `From<T>`
+   --> rust/tcl-cmd-core/src/switch.rs:356:1
+    |
+356 | impl From<CmdError> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<CmdError>`
+...
+362 | impl From<RegexFailure> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<RegexFailure>`
+
+error[E0277]: `?` couldn't convert the error to `SelectFailure`
+   --> rust/tcl-cmd-core/src/switch.rs:453:69
+    |
+376 | ) -> Result<Selection<V>, SelectFailure>
+    |      ----------------------------------- expected `SelectFailure` because of this
+...
+453 |                 if val_int == Some(wide_int(&ops.try_as_str(pat_val)?, version)?) {
+    |                                                  -------------------^ the trait `From<UnicodeAccessError>` is not implemented for `SelectFailure`
+    |                                                  |
+    |                                                  this can't be annotated with `?` because it has type `Result<_, UnicodeAccessError>`
+    |
+note: `SelectFailure` needs to implement `From<UnicodeAccessError>`
+   --> rust/tcl-cmd-core/src/switch.rs:351:1
+    |
+351 | enum SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+help: `SelectFailure` implements trait `From<T>`
+   --> rust/tcl-cmd-core/src/switch.rs:356:1
+    |
+356 | impl From<CmdError> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<CmdError>`
+...
+362 | impl From<RegexFailure> for SelectFailure {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `From<RegexFailure>`
+
+error[E0310]: the associated type `<E as RegexEngine>::Regex` may not live long enough
+   --> rust/tcl-cmd-core/src/switch.rs:540:16
+    |
+540 |         return select::<O, E, V>(ops, opts, value, patterns, version);
+    |                ^^^^^^^^^^^^^^^^^
+    |                |
+    |                the associated type `<E as RegexEngine>::Regex` must be valid for the static lifetime...
+    |                ...so that the type `<E as RegexEngine>::Regex` will meet its required lifetime bounds
+    |
+help: consider adding an explicit lifetime bound
+    |
+537 |     V: Clone, <E as RegexEngine>::Regex: 'static
+    |               ++++++++++++++++++++++++++++++++++
+
+Some errors have detailed explanations: E0277, E0310, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `tcl-cmd-core` (lib) due to 11 previous errors

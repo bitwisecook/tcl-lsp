@@ -1,0 +1,389 @@
+{
+  "question": "How does the actual original return worker consume evaluated argv through a newly created alias with no bound operands, independently from direct original-source compiler selection?",
+  "channel": "Original ASCII source creates public C interp alias or Jim alias targeting original return and records catch fields for literal source calls. Alias target prefix has no bound operands; actual worker argv values correspond to original379/380 cases, without a command-table/header or compiled-body claim.",
+  "cases": [
+    {
+      "label": "empty",
+      "source": "original_return_worker",
+      "compared_original_source": "return"
+    },
+    {
+      "label": "result",
+      "source": "original_return_worker RESULT",
+      "compared_original_source": "return RESULT"
+    },
+    {
+      "label": "ordinary_pair",
+      "source": "original_return_worker foo bar",
+      "compared_original_source": "return foo bar"
+    },
+    {
+      "label": "ordinary_pair_result",
+      "source": "original_return_worker foo bar RESULT",
+      "compared_original_source": "return foo bar RESULT"
+    },
+    {
+      "label": "ordinary_pairs",
+      "source": "original_return_worker foo bar baz quux",
+      "compared_original_source": "return foo bar baz quux"
+    },
+    {
+      "label": "lone_code",
+      "source": "original_return_worker -code",
+      "compared_original_source": "return -code"
+    },
+    {
+      "label": "lone_level",
+      "source": "original_return_worker -level",
+      "compared_original_source": "return -level"
+    },
+    {
+      "label": "lone_options",
+      "source": "original_return_worker -options",
+      "compared_original_source": "return -options"
+    },
+    {
+      "label": "lone_dashdash",
+      "source": "original_return_worker --",
+      "compared_original_source": "return --"
+    },
+    {
+      "label": "dashdash_pair",
+      "source": "original_return_worker -- VALUE",
+      "compared_original_source": "return -- VALUE"
+    },
+    {
+      "label": "code_ok",
+      "source": "original_return_worker -code ok RESULT",
+      "compared_original_source": "return -code ok RESULT"
+    },
+    {
+      "label": "code_error",
+      "source": "original_return_worker -code error RESULT",
+      "compared_original_source": "return -code error RESULT"
+    },
+    {
+      "label": "code_return",
+      "source": "original_return_worker -code original_return_worker RESULT",
+      "compared_original_source": "return -code return RESULT"
+    },
+    {
+      "label": "code_break",
+      "source": "original_return_worker -code break RESULT",
+      "compared_original_source": "return -code break RESULT"
+    },
+    {
+      "label": "code_continue",
+      "source": "original_return_worker -code continue RESULT",
+      "compared_original_source": "return -code continue RESULT"
+    },
+    {
+      "label": "code_signal",
+      "source": "original_return_worker -code signal RESULT",
+      "compared_original_source": "return -code signal RESULT"
+    },
+    {
+      "label": "code_exit",
+      "source": "original_return_worker -code exit RESULT",
+      "compared_original_source": "return -code exit RESULT"
+    },
+    {
+      "label": "code_eval",
+      "source": "original_return_worker -code eval RESULT",
+      "compared_original_source": "return -code eval RESULT"
+    },
+    {
+      "label": "code_prefix",
+      "source": "original_return_worker -code o RESULT",
+      "compared_original_source": "return -code o RESULT"
+    },
+    {
+      "label": "code_010",
+      "source": "original_return_worker -code 010 RESULT",
+      "compared_original_source": "return -code 010 RESULT"
+    },
+    {
+      "label": "code_uintmax",
+      "source": "original_return_worker -code 4294967295 RESULT",
+      "compared_original_source": "return -code 4294967295 RESULT"
+    },
+    {
+      "label": "code_negative_uintmax",
+      "source": "original_return_worker -code -4294967295 RESULT",
+      "compared_original_source": "return -code -4294967295 RESULT"
+    },
+    {
+      "label": "code_over_uintmax",
+      "source": "original_return_worker -code 4294967296 RESULT",
+      "compared_original_source": "return -code 4294967296 RESULT"
+    },
+    {
+      "label": "code_intmin",
+      "source": "original_return_worker -code -2147483648 RESULT",
+      "compared_original_source": "return -code -2147483648 RESULT"
+    },
+    {
+      "label": "code_bad_then_ok",
+      "source": "original_return_worker -code BAD -code ok RESULT",
+      "compared_original_source": "return -code BAD -code ok RESULT"
+    },
+    {
+      "label": "code_ok_then_bad",
+      "source": "original_return_worker -code ok -code BAD RESULT",
+      "compared_original_source": "return -code ok -code BAD RESULT"
+    },
+    {
+      "label": "level_zero",
+      "source": "original_return_worker -level 0 RESULT",
+      "compared_original_source": "return -level 0 RESULT"
+    },
+    {
+      "label": "level_two",
+      "source": "original_return_worker -level 2 RESULT",
+      "compared_original_source": "return -level 2 RESULT"
+    },
+    {
+      "label": "level_negative",
+      "source": "original_return_worker -level -1 RESULT",
+      "compared_original_source": "return -level -1 RESULT"
+    },
+    {
+      "label": "level_010",
+      "source": "original_return_worker -level 010 RESULT",
+      "compared_original_source": "return -level 010 RESULT"
+    },
+    {
+      "label": "level_intmax",
+      "source": "original_return_worker -level 2147483647 RESULT",
+      "compared_original_source": "return -level 2147483647 RESULT"
+    },
+    {
+      "label": "level_over_intmax",
+      "source": "original_return_worker -level 2147483648 RESULT",
+      "compared_original_source": "return -level 2147483648 RESULT"
+    },
+    {
+      "label": "level_uintmax",
+      "source": "original_return_worker -level 4294967295 RESULT",
+      "compared_original_source": "return -level 4294967295 RESULT"
+    },
+    {
+      "label": "level_bad_then_zero",
+      "source": "original_return_worker -level BAD -level 0 RESULT",
+      "compared_original_source": "return -level BAD -level 0 RESULT"
+    },
+    {
+      "label": "level_negative_then_zero",
+      "source": "original_return_worker -level -1 -level 0 RESULT",
+      "compared_original_source": "return -level -1 -level 0 RESULT"
+    },
+    {
+      "label": "errorcode_valid",
+      "source": "original_return_worker -code error -errorcode {A B} RESULT",
+      "compared_original_source": "return -code error -errorcode {A B} RESULT"
+    },
+    {
+      "label": "errorcode_bad",
+      "source": "original_return_worker -errorcode \\{ RESULT",
+      "compared_original_source": "return -errorcode \\{ RESULT"
+    },
+    {
+      "label": "errorcode_bad_then_good",
+      "source": "original_return_worker -errorcode \\{ -errorcode {A B} RESULT",
+      "compared_original_source": "return -errorcode \\{ -errorcode {A B} RESULT"
+    },
+    {
+      "label": "errorinfo_any",
+      "source": "original_return_worker -errorinfo \\{ RESULT",
+      "compared_original_source": "return -errorinfo \\{ RESULT"
+    },
+    {
+      "label": "errorstack_odd",
+      "source": "original_return_worker -errorstack {INNER} RESULT",
+      "compared_original_source": "return -errorstack {INNER} RESULT"
+    },
+    {
+      "label": "errorstack_even",
+      "source": "original_return_worker -errorstack {INNER command} RESULT",
+      "compared_original_source": "return -errorstack {INNER command} RESULT"
+    },
+    {
+      "label": "errorstack_bad",
+      "source": "original_return_worker -errorstack \\{ RESULT",
+      "compared_original_source": "return -errorstack \\{ RESULT"
+    },
+    {
+      "label": "errorstack_bad_then_good",
+      "source": "original_return_worker -errorstack \\{ -errorstack {INNER command} RESULT",
+      "compared_original_source": "return -errorstack \\{ -errorstack {INNER command} RESULT"
+    },
+    {
+      "label": "custom_dash",
+      "source": "original_return_worker -custom VALUE RESULT",
+      "compared_original_source": "return -custom VALUE RESULT"
+    },
+    {
+      "label": "custom_bare",
+      "source": "original_return_worker custom VALUE RESULT",
+      "compared_original_source": "return custom VALUE RESULT"
+    },
+    {
+      "label": "custom_dynamic_value",
+      "source": "set value V; original_return_worker -custom $value RESULT",
+      "compared_original_source": "set value V; return -custom $value RESULT"
+    },
+    {
+      "label": "options_empty",
+      "source": "original_return_worker -options {} RESULT",
+      "compared_original_source": "return -options {} RESULT"
+    },
+    {
+      "label": "options_code_ok",
+      "source": "original_return_worker -options {-code ok -level 0} RESULT",
+      "compared_original_source": "return -options {-code ok -level 0} RESULT"
+    },
+    {
+      "label": "options_odd",
+      "source": "original_return_worker -options {-code} RESULT",
+      "compared_original_source": "return -options {-code} RESULT"
+    },
+    {
+      "label": "options_bad_code",
+      "source": "original_return_worker -options {-code BAD} RESULT",
+      "compared_original_source": "return -options {-code BAD} RESULT"
+    },
+    {
+      "label": "options_bad_overridden",
+      "source": "original_return_worker -options {-code BAD} -code ok RESULT",
+      "compared_original_source": "return -options {-code BAD} -code ok RESULT"
+    },
+    {
+      "label": "options_bad_level_overridden",
+      "source": "original_return_worker -options {-level -1} -level 0 RESULT",
+      "compared_original_source": "return -options {-level -1} -level 0 RESULT"
+    },
+    {
+      "label": "options_overrides_bad_code",
+      "source": "original_return_worker -code BAD -options {-code ok} RESULT",
+      "compared_original_source": "return -code BAD -options {-code ok} RESULT"
+    },
+    {
+      "label": "options_nested",
+      "source": "original_return_worker -options {-options {-code ok -level 0}} RESULT",
+      "compared_original_source": "return -options {-options {-code ok -level 0}} RESULT"
+    },
+    {
+      "label": "options_code_key_bare",
+      "source": "original_return_worker -options {code error} RESULT",
+      "compared_original_source": "return -options {code error} RESULT"
+    },
+    {
+      "label": "code_return_level_zero",
+      "source": "original_return_worker -code original_return_worker -level 0 RESULT",
+      "compared_original_source": "return -code return -level 0 RESULT"
+    },
+    {
+      "label": "code_return_level_two",
+      "source": "original_return_worker -code original_return_worker -level 2 RESULT",
+      "compared_original_source": "return -code return -level 2 RESULT"
+    },
+    {
+      "label": "code_break_level_zero",
+      "source": "original_return_worker -code break -level 0 RESULT",
+      "compared_original_source": "return -code break -level 0 RESULT"
+    },
+    {
+      "label": "nul_key_code",
+      "source": "set key [binary format H* 2d636f6465007461696c]; original_return_worker $key error RESULT",
+      "compared_original_source": "set key [binary format H* 2d636f6465007461696c]; return $key error RESULT"
+    },
+    {
+      "label": "nul_code_ok",
+      "source": "set value [binary format H* 6f6b007461696c]; original_return_worker -code $value RESULT",
+      "compared_original_source": "set value [binary format H* 6f6b007461696c]; return -code $value RESULT"
+    },
+    {
+      "label": "nul_custom_key",
+      "source": "set key [binary format H* 637573746f6d007461696c]; original_return_worker $key VALUE RESULT",
+      "compared_original_source": "set key [binary format H* 637573746f6d007461696c]; return $key VALUE RESULT"
+    },
+    {
+      "label": "level_negative_uintmax",
+      "source": "original_return_worker -level -4294967295 RESULT",
+      "compared_original_source": "return -level -4294967295 RESULT"
+    },
+    {
+      "label": "level_negative_over_intmin",
+      "source": "original_return_worker -level -2147483649 RESULT",
+      "compared_original_source": "return -level -2147483649 RESULT"
+    },
+    {
+      "label": "level_negative_over_uintmax",
+      "source": "original_return_worker -level -4294967296 RESULT",
+      "compared_original_source": "return -level -4294967296 RESULT"
+    },
+    {
+      "label": "level_over_uintmax",
+      "source": "original_return_worker -level 4294967296 RESULT",
+      "compared_original_source": "return -level 4294967296 RESULT"
+    },
+    {
+      "label": "level_named_ok",
+      "source": "original_return_worker -level ok RESULT",
+      "compared_original_source": "return -level ok RESULT"
+    },
+    {
+      "label": "options_nested_before_outer_code",
+      "source": "original_return_worker -options {-options {-code error} -code ok} RESULT",
+      "compared_original_source": "return -options {-options {-code error} -code ok} RESULT"
+    },
+    {
+      "label": "options_nested_after_outer_code",
+      "source": "original_return_worker -options {-code ok -options {-code error}} RESULT",
+      "compared_original_source": "return -options {-code ok -options {-code error}} RESULT"
+    },
+    {
+      "label": "options_repeated_nested_bad_then_good",
+      "source": "original_return_worker -options {-options {-code BAD} -options {-code ok}} RESULT",
+      "compared_original_source": "return -options {-options {-code BAD} -options {-code ok}} RESULT"
+    },
+    {
+      "label": "options_repeated_nested_invalid_then_good",
+      "source": "original_return_worker -options {-options \\{ -options {-code ok}} RESULT",
+      "compared_original_source": "return -options {-options \\{ -options {-code ok}} RESULT"
+    },
+    {
+      "label": "options_repeated_code_bad_then_good",
+      "source": "original_return_worker -options {-code BAD -code ok} RESULT",
+      "compared_original_source": "return -options {-code BAD -code ok} RESULT"
+    },
+    {
+      "label": "options_odd_then_empty",
+      "source": "original_return_worker -options {-code} -options {} RESULT",
+      "compared_original_source": "return -options {-code} -options {} RESULT"
+    },
+    {
+      "label": "options_bad_list_then_empty",
+      "source": "original_return_worker -options \\{ -options {} RESULT",
+      "compared_original_source": "return -options \\{ -options {} RESULT"
+    },
+    {
+      "label": "options_errorcode_origin",
+      "source": "original_return_worker -options {-code error -level 0 -errorcode {MERGED CODE}} RESULT",
+      "compared_original_source": "return -options {-code error -level 0 -errorcode {MERGED CODE}} RESULT"
+    },
+    {
+      "label": "nul_numeric_code",
+      "source": "set value [binary format H* 31007461696c]; original_return_worker -code $value RESULT",
+      "compared_original_source": "set value [binary format H* 31007461696c]; return -code $value RESULT"
+    },
+    {
+      "label": "nul_numeric_level",
+      "source": "set value [binary format H* 31007461696c]; original_return_worker -level $value RESULT",
+      "compared_original_source": "set value [binary format H* 31007461696c]; return -level $value RESULT"
+    }
+  ],
+  "source_sha256": "2718a583f6a4d1599688f886df4ffc55417179e5a2bcc81d50c3f2cada87fe83",
+  "created_utc": "2026-10-10T12:31:29.520753+00:00",
+  "wrapper": "Same eval-of-list catch3 adapter as379; NUL operands generated by binary format, not source characters."
+}

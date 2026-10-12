@@ -1,0 +1,6 @@
+
+running 1 test
+test exec::tests::unknown_handler_lookup_mutates_its_original_command_object ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 8.29s
+

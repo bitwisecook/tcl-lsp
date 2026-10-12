@@ -1,0 +1,294 @@
+[
+  {
+    "id": "naming.property.opaque-name-custom-getter-option-cache",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-opaque-name-custom-getter-option-cache.md",
+    "problem_statement": "An original property name may include invalid FF or counted zero/tail bytes. Passing the full counted management operand can succeed without installing a cache on that caller object. Treating success as proof of a value-type getter or a distinct post-zero property identity would exceed this probe.",
+    "question": "Can the two counted original names xFF and x00tail select a custom property getter while leaving the caller management-option primary absent?",
+    "conclusion": "C9.1 completes both original object-vector definitions/configure calls and prints opaque-0 RAW none and opaque-1 RAW none. The custom getter body is return RAW, and the observed caller option has no primary at the sampled point. This does not measure a custom opaque value ObjType, value getter callbacks, distinction between x and x00tail declarations, or absence of a cache on the independently selected original enumeration member.",
+    "scope": "Two counted Tcl_NewStringObj property names: xFF length2 and x00tail length6; dashed caller options are length3/7. An oo::configurable class and object are created through source setup, then properties and management reads run through public original-object Tcl_EvalObjv flags0. Only C9.1 is run; other C releases, Jim and BIG-IP are not-tested for this exact program. Full original probe/status/stdout and capture-time source/build hashes are retained; the exact Runtime/VM fixture copies are one capture, not independent confirmations.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (original build/source association; probe does not query runtime patchlevel)",
+        "build": "Exact original source/header/library/executable SHA-256 map in receipt; compiler command/status0 retained, compiler version not recorded.",
+        "input_channel": "compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Original full rows are opaque-0 RAW none and opaque-1 RAW none. Compile/process status0, empty stderr, no timeout; original TCL_LIBRARY is recorded. Each helper fails the process if an original definition/configure invocation is not code0.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_property_opaque/probe.c",
+        "sha256": "04294ffd4e1b4ba00693f23b1e570260b16587ba62d36c5d1bc3a172396c4679",
+        "description": "Exact original-object constructors, invocation and pre-render cache observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_property_opaque/manifest.json",
+        "sha256": "f3440403a0c3fae844c59052acc5d5754fffdbfa409f228b70244b3db21456de",
+        "description": "Original compile/process status, original source/header/library/executable digests, environment and full streams."
+      },
+      {
+        "id": "rows",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_property_opaque/native.tsv",
+        "sha256": "5346337dee62ff9f9af8f5bdf5e0cf376435cb0e033346afaf0848728f9cd004",
+        "description": "Exact full original stdout retained separately."
+      },
+      {
+        "id": "capture",
+        "role": "limitation",
+        "path": "runtime/rust/tests/data/native_property_opaque/capture.py",
+        "sha256": "dcd2625f990e870186919efc794031323dcfdacfca83fdddeb182925376e0934",
+        "description": "Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+        "selector": "tests::opaque_property_lookup_uses_original_accessor_members",
+        "assertion": "Recreates the exact counted xFF/x00tail property/caller management inputs and compares RAW plus absent caller cache. The separate selected-member cache assertion is an implementation obligation, not sampled by this native probe.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+        "selector": "tests::opaque_property_lookup_uses_original_accessor_members",
+        "assertion": "Recreates the exact counted xFF/x00tail property/caller management inputs and compares RAW plus absent caller cache. The separate selected-member cache assertion is an implementation obligation, not sampled by this native probe.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+        "symbol": "configure_native",
+        "purpose": "Consumes the original counted caller management option and independently selected property member under the native property lookup recipe."
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+        "symbol": "configure_native",
+        "purpose": "Consumes the original counted caller management option and independently selected property member under the native property lookup recipe."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The retained capture.py requires its fixed /workspace native paths and writes new outputs into the fixture directory. It is not run by this record. A fresh replay must independently select the release headers/library/source hashes, preserve the original observation order, and retain the new source/status/streams separately; no executed Rust parity follows from the captured native rows."
+    }
+  },
+  {
+    "id": "naming.property.original-accessor-name-cache-children",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/property-original-accessor-name-cache-children.md",
+    "problem_statement": "Selecting a property can cache reader/writer method-name objects on the original enumeration member. Duplicating that name can either retain those same child objects or recreate them; equal accessor spelling alone cannot establish child ownership or release behavior.",
+    "question": "Does duplicate/free of the selected C9.1 property-name primary retain and release the same original reader/writer child objects?",
+    "conclusion": "After property read, the original member has tcl::oo property name primary with refcount3. Its cached reader/writer children have counts2/1, and the reader primary is TclOO method name. Duplicating the member shares both exact child pointers, raises their counts to3/2 and keeps the property-name primary; releasing the duplicate restores2/1. These are actual private original-child pointer/reference windows. The ASCII selected property name is independent of the opaque-name management probe and of any claim about a Rust cache being live.",
+    "scope": "The exact C9.1 property-name TU retains an11-row full output; this question selects property-read/accessor-reader/name-duplicate/duplicate-release (rows7–10). Earlier enumeration/header/epoch/structure rows0–6 remain independent shared owner questions. The probe inspects private PNames layout after an entered configure read, then calls Tcl_DuplicateObj and decrements the copy. No initial child count1 invariant, raw opaque accessor-name conversion, string invalidation or other release/provider behavior is established by these rows.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (original build/source association; probe does not query runtime patchlevel)",
+        "build": "Exact original source/header/library/executable SHA-256 map in receipt; compiler command/status0 retained, compiler version not recorded.",
+        "input_channel": "compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated",
+        "dialect": "tcl9.1",
+        "status": "observed",
+        "answer": "Selected original rows: [[\"property-read\",\"34\",\"0\",\"1\",\"0\",\"3\",\"tcl::oo property name\"],[\"accessor-reader\",\"34\",\"0\",\"1\",\"2\",\"1\",\"TclOO method name\"],[\"name-duplicate\",\"34\",\"0\",\"1\",\"3\",\"2\",\"tcl::oo property name\"],[\"duplicate-release\",\"34\",\"0\",\"1\",\"2\",\"1\",\"none\"]]. Columns are label,Foundation epoch,delta,pointer predicate,first count,second count,type; the counts/types refer to the property member or accessor children according to the exact row producer. Compile/process status0, empty stderr, no timeout. Earlier seven native rows are retained prerequisites and have their own shared header/epoch questions.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "This exact original-object C9.1 probe has no observation for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_property_names/probe.c",
+        "sha256": "d8d45219397efbb3ace20232576030f87b77d06b7f2ab9b9787283eecbd9c5e4",
+        "description": "Exact original-object constructors, invocation and pre-render cache observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_property_names/manifest.json",
+        "sha256": "62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8",
+        "description": "Original compile/process status, original source/header/library/executable digests, environment and full streams."
+      },
+      {
+        "id": "rows",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_property_names/native.tsv",
+        "sha256": "9e9b96d1fe13e4267e47425ae247b3355dc438fad86aa43c144f2b81b8bdbafd",
+        "description": "Exact full original stdout retained separately."
+      },
+      {
+        "id": "capture",
+        "role": "limitation",
+        "path": "rust/tcl-registry/tests/data/native_property_names/capture.py",
+        "sha256": "39cca46544d8c83baa597fcc2babe2e5611f8020b577b4708215585f1d3fb7c3",
+        "description": "Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/obj/native_property_name.rs",
+        "selector": "tests::original_property_name_duplicate_reuses_and_releases_accessor_children",
+        "assertion": "Compares identity-preserving duplicate retain/release deltas for actual original accessor children. Its raw-FF/zero input and missing string/provider refusal assertions are separate Rust contract controls, not observed in this ASCII native child-pointer probe.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/value/native_property_name.rs",
+        "selector": "tests::original_property_name_duplicate_reuses_and_releases_accessor_children",
+        "assertion": "Compares identity-preserving duplicate retain/release deltas for actual original accessor children. Its raw-FF/zero input and missing string/provider refusal assertions are separate Rust contract controls, not observed in this ASCII native child-pointer probe.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/obj/native_property_name.rs",
+        "symbol": "accessor",
+        "purpose": "Owns the original cached reader/writer child objects independently of the optional caller management-name cache."
+      },
+      {
+        "path": "rust/tcl-vm/src/value/native_property_name.rs",
+        "symbol": "native_property_accessor",
+        "purpose": "Owns the original cached reader/writer child objects independently of the optional caller management-name cache."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The retained capture.py requires its fixed /workspace native paths and writes new outputs into the fixture directory. It is not run by this record. A fresh replay must independently select the release headers/library/source hashes, preserve the original observation order, and retain the new source/status/streams separately; no executed Rust parity follows from the captured native rows."
+    }
+  }
+]

@@ -1,0 +1,339 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/current-diagnostic-edit-currency108.base-files.tar.gz",
+  "archive_sha256": "febe25e12057212c23db21456f395601dde8d5fbf4b23ff7c96f1ebce9a787a8",
+  "archive_bytes": 1472308,
+  "uncompressed_bytes": 6366046,
+  "source_manifest_sha256": "104fcfb59d5dd59ec7977469fd4c7343022503350b244dc39fc7c0c273ad732d",
+  "source_patch_sha256": "bf7da0e0db314b1c97322bf1883b140dd001482e05fea90a128788ecc6106477",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/bf7da0e0db314b1c97322bf1883b140dd001482e05fea90a128788ecc6106477.patch",
+  "original_application_journal_sha256": "bf7da0e0db314b1c97322bf1883b140dd001482e05fea90a128788ecc6106477",
+  "member_count": 36,
+  "members": {
+    "current-diagnostic-edit-currency108/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9374964,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.00572,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9523113,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9523113,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-compiler/src/compiler_checks.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.95297,
+      "size": 43192,
+      "sha256": "c1302d7d5cfe82c0c1d278ae24cdc2e51ef14d26b66aa9fa343cf336cafef0e6"
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544766.156245,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9388206,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core/src/code_actions": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9374964,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9374964,
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core/src/code_actions.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.939895,
+      "size": 168890,
+      "sha256": "58b8370f69a0eb266d6be43247bfa141eb991abdd1ef5819f2ebcc4b11fcbc2c"
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core/tests": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544766.156245,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-core/tests/code_actions_depth.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544766.1568995,
+      "size": 50116,
+      "sha256": "f19138eb77dbbb6a2f958fe058b393c6960948ea1dfa68740dbc166d8f330b5d"
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-db": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9557712,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-db/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9557712,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-db/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9569657,
+      "size": 381769,
+      "sha256": "236954d69aa815c49fad8e94cddebc2a3d8b27f0b12f8f967004791d4fd8eda0"
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.00572,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.00572,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.0096245,
+      "size": 2531032,
+      "sha256": "d07e321b8ce2540e97cca7a072c25a9bfd933ccd54ac428bfeb8f8fba38b1654"
+    },
+    "current-diagnostic-edit-currency108/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.932024,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.0000236,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.948024,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.948024,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-compiler/src/compiler_checks.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9523113,
+      "size": 43656,
+      "sha256": "4ac83d359b156d7c6fbcb500016fdebe4c6ffce5b8c38567f02e10670ccb4ace"
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544766.1520145,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9374964,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core/src/code_actions": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.932024,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9374964,
+      "size": 10302,
+      "sha256": "22047a43ec45738bc4fff7ab6d5e2a308704c5d79d45f384e258889076d9dbda"
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core/src/code_actions.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9388206,
+      "size": 172299,
+      "sha256": "3a2d87d1b5d97d5337f07116d6549e6e99e9825e8ac8b0332f98f37e28b74a9b"
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core/tests": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544766.1520145,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-core/tests/code_actions_depth.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544766.156245,
+      "size": 51120,
+      "sha256": "d549c811f950af78a5ab87fb11bc5ce3595a454032bf068a2b9cd87dd7bd7e5b"
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-db": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.95297,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-db/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.95297,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-db/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544764.9557712,
+      "size": 381866,
+      "sha256": "6b3889a41faa41e1adc2533746eed0d16b8a256660ed69462b2df0e18658da2b"
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.0000236,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.0000236,
+      "size": 0,
+      "sha256": null
+    },
+    "current-diagnostic-edit-currency108/files/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791544765.00572,
+      "size": 2531804,
+      "sha256": "da97a6afe46ef52f9dea3e5c4fd1a53e038bdd6c6c031864ac1fa6de8682d31b"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

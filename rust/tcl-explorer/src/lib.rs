@@ -56,10 +56,7 @@ pub use tcl_compiler::semantic_optimisation::{
 pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
-// The pack-carrying registry, not the plain one: since the EDA vendor
-// libraries became `.tclspec` loadables they exist nowhere else, so an
-// explorer on the plain registry reports every `synth_design` unknown while
-// the diagnostic on the same line resolves it.
+// Bundled SpecTcl loadables share the registry used by source diagnostics.
 use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 /// Per-function compilation artefacts surfaced by the explorer.
@@ -219,11 +216,6 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
     let profile = environment::profile_for_dialect(dialect);
-    // One resolved environment drives the whole deep-inspection build,
-    // rather than passing `profile.surface_query()` directly.
-    let semantic_context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-        profile,
-    ));
     // The document's own `# tcl-lsp: stub` declarations, so the views show the
     // IR the diagnostics path actually built: a stub-declared `script:body`
     // word lowers to a barrier carrying a script, a `var` word to a def. The
@@ -236,19 +228,19 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
             dialect: Some(profile),
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
     )
     .with_interprocedural(registry, Some(profile))
-    .with_memory_ssa(registry, semantic_context)
+    .with_retained_memory_ssa(registry)
     // The ordinary compiler path builds world SSA only when interactive
     // GVN can consume it. Explorer is an explicit inspection surface, so
     // it asks for the complete source-faithful sidecar and displays typed
     // declines rather than silently presenting an empty graph.
-    .with_deep_semantic_analysis(registry, semantic_context);
+    .with_retained_deep_semantic_analysis(registry);
 
     ExplorerResult {
         source: source.to_owned(),
@@ -260,6 +252,84 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_document_pipeline_keeps_root_and_later_bom_roles() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original document carriers supply no Native handler receipt.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::ingress::resolve_known_environment(name)
+                .expect("actual known provider source policy");
+            let grammar = environment.grammar();
+            let result = run_pipeline(source, name);
+            let module = &result.unit.ir_module;
+            assert_eq!(
+                module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(
+                module.lexer_config,
+                tcl_lexer::LexerConfig::for_file_grammar(grammar),
+                "{name}"
+            );
+            assert_eq!(
+                module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap()
+                    .lexer_config(),
+                module.lexer_config,
+                "{name}"
+            );
+            assert!(
+                crate::serialise::retained_explorer_source(&result, source).is_some(),
+                "{name}"
+            );
+            assert_eq!(module.top_level.statements.len(), 2, "{name}");
+            let first = module.top_level.statements[0]
+                .tokens()
+                .expect("original root command");
+            let expected = if grammar.script_skips_leading_bom {
+                "probe"
+            } else {
+                "\u{feff}probe"
+            };
+            assert_eq!(first.argv_texts[0], expected, "{name}");
+            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+            let later = module.top_level.statements[1]
+                .tokens()
+                .expect("original later command");
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+        }
+    }
+
+    #[test]
+    fn original_document_pipeline_keeps_config_withdrawal_terminal() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = "\u{feff}probe root";
+        let mut result = run_pipeline(source, "tcl9.1");
+        assert!(crate::serialise::retained_explorer_source(&result, source).is_some());
+        result.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Content;
+        assert!(crate::serialise::retained_explorer_source(&result, source).is_none());
+        assert!(
+            crate::serialise::retained_explorer_source(&result, &format!("{source} ")).is_none()
+        );
+    }
 
     #[test]
     fn run_pipeline_top_level_only() {
@@ -284,6 +354,43 @@ mod tests {
         let mut sorted = procs.to_vec();
         sorted.sort_unstable();
         assert_eq!(procs, sorted.as_slice());
+    }
+
+    #[test]
+    fn deep_pipeline_preserves_the_actual_source_metadata_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let result = run_pipeline(
+            "::puts TOP; proc p {} {::puts PROC}; namespace eval n {::puts BODY}",
+            "tcl8.6",
+        );
+        let snapshots = result.all_snapshots();
+        assert!(
+            snapshots
+                .iter()
+                .any(|snapshot| snapshot.kind == FunctionSnapshotKind::Procedure)
+        );
+        assert!(
+            snapshots
+                .iter()
+                .any(|snapshot| snapshot.kind == FunctionSnapshotKind::BodyUnit)
+        );
+        for snapshot in snapshots {
+            let input = snapshot.unit.source_metadata_input().unwrap();
+            assert_eq!(
+                snapshot.unit.semantic_facts.metadata_context(),
+                Some(input.availability_context())
+            );
+            assert!(snapshot.unit.semantic_facts.context().is_none());
+        }
+        let procedure = &result.unit.procedures["::p"];
+        assert!(
+            procedure
+                .semantic_facts
+                .executable()
+                .world_state_ssa()
+                .is_some()
+        );
     }
 
     #[test]

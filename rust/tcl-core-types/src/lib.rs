@@ -35,6 +35,32 @@
 
 #![no_std]
 
+extern crate alloc;
+
+mod native_value;
+pub use native_value::{
+    NativeCVersion, NativeIntegerRadix, NativeScalarCache, NativeStringStorageIdentity,
+};
+
+mod native_hash_order;
+pub use native_hash_order::{
+    NativeEntryLedger, NativeHashAbi, NativeHashBytePromotion, NativeHashOrder, NativeHashRecipe,
+    NativeHashWordWidth,
+};
+
+mod native_index;
+pub use native_index::{
+    NativeIndexCache, NativeIndexLookupFlags, NativeIndexTable, NativeIndexUnavailable,
+};
+
+mod resident_string_mutation;
+pub use resident_string_mutation::ResidentStringMutation;
+
+mod name_bytes;
+pub use name_bytes::{
+    ByteCommandSlot, ByteNamespacePath, NameBytes, NativeByteCommandSlot, c_string_extent,
+};
+
 mod diag_code;
 pub use diag_code::{
     DiagCode, DiagFamily, DiagSection, DiagTag, DocRow, OptCategory, UnknownDiagCode,
@@ -53,7 +79,7 @@ pub mod naming;
 /// produced by `return -code N`. It propagates like an exception until a
 /// `catch`/`try` reports it, and is never `0..=4` (those canonicalise to the
 /// named variants via [`Code::from_int`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Code {
     /// `TCL_OK` — normal completion.
     Ok,
@@ -108,6 +134,19 @@ impl Code {
     }
 }
 
+/// Provenance of the dictionary transported with a completion.
+/// Native private error fields are not an installed `return -options` dictionary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionOptionOrigin {
+    /// An actual carried return-options dictionary, preserving its insertion order.
+    NativeReturnOptions,
+    /// An actual merged private header, whose control keys were removed.
+    /// These fields are native out parameters, not inferred dictionary text.
+    MergedReturnOptions { code: i32, level: i64 },
+    /// Transport of private primitive error fields, with no carried dictionary.
+    ErrorMetadata,
+}
+
 /// A command/script completion: a code, the result value, and the return
 /// options dict. The "result is not a bare string" contract — every dispatch
 /// yields this. Generic over the runtime's value type `V`.
@@ -119,6 +158,8 @@ pub struct Completion<V> {
     pub result: V,
     /// The return-options dict (carries `-code`/`-level`/`-errorinfo`/…).
     pub options: V,
+    /// Whether the transported pairs are an actual carried dictionary.
+    pub option_origin: CompletionOptionOrigin,
 }
 
 impl<V> Completion<V> {
@@ -128,6 +169,17 @@ impl<V> Completion<V> {
             code,
             result,
             options,
+            option_origin: CompletionOptionOrigin::NativeReturnOptions,
+        }
+    }
+
+    /// Transport primitive error fields without inventing a native carried dict.
+    pub fn new_error_metadata(code: Code, result: V, options: V) -> Self {
+        Self {
+            code,
+            result,
+            options,
+            option_origin: CompletionOptionOrigin::ErrorMetadata,
         }
     }
 
@@ -178,7 +230,10 @@ impl core::fmt::Display for OoId {
 /// and render it only at Tcl-facing boundaries. `N` is the consumer's stable
 /// namespace identity (`NsId` in a runtime, a segment path in static analysis)
 /// and `S` is its owned or interned simple command name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Storage ordering compares retained namespace and simple-name fields when
+/// those fields have an order. It does not select a Tcl lookup order, naming
+/// purpose, namespace incarnation or current command binding.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CommandSlot<S, N = NsId> {
     /// Stable namespace-table owner.
     pub namespace: N,
@@ -193,7 +248,7 @@ impl<S, N> CommandSlot<S, N> {
     }
 }
 /// A variable-cell handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(pub u32);
 
 /// The global call frame (level 0).
@@ -357,3 +412,11 @@ mod tests {
         assert_ne!(Severity::Hint, Severity::Error);
     }
 }
+/// Native array-search cache vocabulary and persistent cursor storage.
+pub mod native_array_search;
+pub use native_array_search::{
+    NativeArraySearchAbi, NativeArraySearchCache, NativeArraySearchChain,
+};
+
+mod native_jim_enum;
+pub use native_jim_enum::NativeJimOptionCache;

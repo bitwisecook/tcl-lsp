@@ -1,0 +1,56 @@
+
+running 1 test
+test codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion ... 
+thread 'codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion' (1216298) panicked at src/codegen_abi.rs:4495:17:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion' (1216298) panicked at src/interp/native_operation_currency.rs:175:9:
+assertion `left == right` failed
+  left: 128
+ right: 1
+
+thread 'codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion' (1216298) panicked at src/interp/native_operation_currency.rs:175:9:
+assertion `left == right` failed
+  left: 128
+ right: 2
+stack backtrace:
+   0:     0x563d37978b61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x563d3799178a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x563d3797fb6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x563d37950906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x563d3796e7c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x563d3796eaeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x563d379509b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x563d37949229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x563d3795187d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x563d3799202c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x563d37991ec3 - core[a9090a07a7fa7517]::panicking::assert_failed_inner
+  11:     0x563d3798c77d - core[a9090a07a7fa7517]::panicking::assert_failed::<usize, usize>
+  12:     0x563d364769d2 - <tcl_runtime[a8162d2466741ade]::interp::native_operation_currency::NativeOperationScope as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  13:     0x563d36b859fd - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::native_operation_currency::NativeOperationScope>
+  14:     0x563d36b7d38b - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::codegen_abi::CodegenOperation>
+  15:     0x563d36b68e58 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::codegen_abi::CodegenOperation>>
+  16:     0x563d36b82bed - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry>
+  17:     0x563d365bae34 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry>>::drop_slow
+  18:     0x563d3661df34 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  19:     0x563d36b6d456 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry>>
+  20:     0x563d36b8831b - core[a9090a07a7fa7517]::ptr::drop_glue::<[alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry>]>
+  21:     0x563d36b2cc51 - <alloc[12ca63220423dfc2]::vec::Vec<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry>> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  22:     0x563d36b6e22d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Entry>>>
+  23:     0x563d36b82c3d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Ledger>
+  24:     0x563d36b65c06 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Ledger>>
+  25:     0x563d36b6724a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Ledger>>
+  26:     0x563d3665a131 - std[c29fa2d9dbea2b0e]::sys::thread_local::native::lazy::destroy::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Ledger>>::{closure#0}
+  27:     0x563d36db2019 - std[c29fa2d9dbea2b0e]::sys::thread_local::abort_on_dtor_unwind::<std[c29fa2d9dbea2b0e]::sys::thread_local::native::lazy::destroy<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Ledger>>::{closure#0}>
+  28:     0x563d36646dad - std[c29fa2d9dbea2b0e]::sys::thread_local::native::lazy::destroy::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::codegen_abi::original_frame_owner::Ledger>>
+  29:     0x7fa38f10ff1f - __call_tls_dtors
+  30:     0x7fa38f160a49 - <unknown>
+  31:     0x7fa38f1de7f8 - <unknown>
+  32:                0x0 - <unknown>
+
+thread 'codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion' (1216298) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:233:5:
+panic in a destructor during cleanup
+thread caused non-unwinding panic. aborting.

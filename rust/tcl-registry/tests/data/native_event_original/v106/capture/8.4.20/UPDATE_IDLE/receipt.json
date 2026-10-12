@@ -1,0 +1,19 @@
+{
+  "id": "UPDATE_IDLE",
+  "command": [
+    "/workspace/.proofs/captured-native-event-original106/8.4.20/probe",
+    "13"
+  ],
+  "timeout_seconds": 10,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "2636cf0a2b9b6bafe1968f58f58272a9bc8849d52cfef8868310f113fb7dfd82",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "UPDATE_IDLE_INPUT|0|7365742078204f4c443b2061667465722030207b73657420782054494d45527d3b2061667465722069646c65207b73657420782049444c457d3b207570646174652069646c657461736b733b207365742078",
+    "UPDATE_IDLE|0|49444c45",
+    "UPDATE_IDLE_OPTIONS_NOT_TESTED|0|no-Tcl_GetReturnOptions"
+  ],
+  "reported_version": "8.4.20"
+}

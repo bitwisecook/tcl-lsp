@@ -1,0 +1,110 @@
+ */
+
+static Tcl_HashEntry *
+AllocObjEntry(
+    Tcl_HashTable *tablePtr,	/* Hash table. */
+    void *keyPtr)		/* Key to store in the hash table entry. */
+{
+    Tcl_Obj *objPtr = (Tcl_Obj *)keyPtr;
+    Tcl_HashEntry *hPtr = (Tcl_HashEntry *)ckalloc(sizeof(Tcl_HashEntry));
+
+    hPtr->key.objPtr = objPtr;
+    Tcl_IncrRefCount(objPtr);
+    hPtr->clientData = NULL;
+
+    return hPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclCompareObjKeys --
+ *
+ *	Compares two Tcl_Obj * keys.
+ *
+ * Results:
+ *	The return value is 0 if they are different and 1 if they are the
+ *	same.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclCompareObjKeys(
+    void *keyPtr,		/* New key to compare. */
+    Tcl_HashEntry *hPtr)	/* Existing key to compare. */
+{
+    Tcl_Obj *objPtr1 = (Tcl_Obj *)keyPtr;
+    Tcl_Obj *objPtr2 = (Tcl_Obj *)hPtr->key.oneWordValue;
+    const char *p1, *p2;
+    size_t l1, l2;
+
+    /*
+     * If the object pointers are the same then they match.
+     * OPT: this comparison was moved to the caller
+
+       if (objPtr1 == objPtr2) {
+	   return 1;
+       }
+    */
+
+    /*
+     * Don't use Tcl_GetStringFromObj as it would prevent l1 and l2 being
+     * in a register.
+     */
+
+    p1 = TclGetString(objPtr1);
+    l1 = objPtr1->length;
+    p2 = TclGetString(objPtr2);
+    l2 = objPtr2->length;
+
+    /*
+     * Only compare if the string representations are of the same length.
+     */
+
+    if (l1 == l2) {
+	for (;; p1++, p2++, l1--) {
+	    if (*p1 != *p2) {
+		break;
+	    }
+	    if (l1 == 0) {
+		return 1;
+	    }
+	}
+    }
+
+    return 0;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclFreeObjEntry --
+ *
+ *	Frees space for a Tcl_HashEntry containing the Tcl_Obj * key.
+ *
+ * Results:
+ *	The return value is a pointer to the created entry.
+ *
+ * Side effects:
+ *	Decrements the reference count of the object.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TclFreeObjEntry(
+    Tcl_HashEntry *hPtr)	/* Hash entry to free. */
+{
+    Tcl_Obj *objPtr = (Tcl_Obj *) hPtr->key.oneWordValue;
+
+    Tcl_DecrRefCount(objPtr);
+    ckfree(hPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *

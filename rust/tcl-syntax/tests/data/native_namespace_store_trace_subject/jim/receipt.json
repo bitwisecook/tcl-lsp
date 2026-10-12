@@ -1,0 +1,63 @@
+{
+  "provider": "jim",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+  "source_owner_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "TCL_LIBRARY": null,
+  "namespace": {
+    "purpose": "bare namespace store versus explicit variable declaration",
+    "input_channel": "ASCII file bytes supplied to native shell stdin",
+    "source_sha256": "f920581da05d2bd8e52dfd325c86ec5b0aa3c54e219f3d491ab440af00b56469",
+    "process_exit": 0,
+    "stdout_sha256": "2e327cfdf9f5cd6209eb251d7d984a9d66327288efcb7beed980e401e93922d9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh"
+    ],
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "reported_version": "VERSION|0.84-9-g5bac7c9",
+    "rows": [
+      "VERSION|0.84-9-g5bac7c9",
+      "CASE|EXISTING_ROOT|0|56414c55452031207b63616e2774207265616420223a3a4e3a3a78223a206e6f2073756368207661726961626c657d20524f4f54",
+      "CASE|FRESH_NO_ROOT|0|56414c55452031207b63616e2774207265616420223a3a46726573683a3a78223a206e6f2073756368207661726961626c657d2031207b63616e2774207265616420223a3a78223a206e6f2073756368207661726961626c657d",
+      "CASE|EXPLICIT_VARIABLE|0|56414c554520302056414c554520524f4f54"
+    ]
+  },
+  "trace": {
+    "purpose": "trace subject registration CString address versus counted raw-zero/numeric-zero/binary name ingress",
+    "input_channel": "explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations",
+    "probe_sha256": "f8f469dc3047bcdccad5842e591a829088d6d304583761f57a7e71462bc807ae",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-DJIM_PROBE=1",
+      "-I/workspace/.proofs/native-providers/jimtcl",
+      "/workspace/.proofs/native-namespace-store-trace-subject/trace-subject-probe.c",
+      "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+      "-lm",
+      "-lssl",
+      "-lcrypto",
+      "-lz",
+      "-ldl",
+      "-o",
+      "/workspace/.proofs/native-namespace-store-trace-subject/jim/trace-probe"
+    ],
+    "compile_exit": 0,
+    "executable_sha256": "a89489ca13323bbfa54a0e5ed3c2f8e0c13ec4cedb7baff63d084dc9c9551cb8",
+    "process_exit": 0,
+    "stdout_sha256": "c3024f81691501b7199d23e92e497f8bacfd208ca66ae93fd3d2b50447476032",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      "VERSION|RAW_COUNTED|0|302e38342d392d6735626163376339",
+      "SUBJECT|RAW_COUNTED|none|76007461696c286b29",
+      "ADD|RAW_COUNTED|1|696e76616c696420636f6d6d616e64206e616d652022747261636522",
+      "VERSION|NUMERIC_ESCAPE|0|302e38342d392d6735626163376339",
+      "SUBJECT|NUMERIC_ESCAPE|source|76007461696c286b29",
+      "ADD|NUMERIC_ESCAPE|1|696e76616c696420636f6d6d616e64206e616d652022747261636522",
+      "VERSION|BINARY00|0|302e38342d392d6735626163376339",
+      "SUBJECT|BINARY00|string|76007461696c286b29",
+      "ADD|BINARY00|1|696e76616c696420636f6d6d616e64206e616d652022747261636522"
+    ]
+  }
+}

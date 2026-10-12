@@ -1,0 +1,98 @@
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-dialect)
+    Checking tcl-core-types v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-core-types)
+    Checking tcl-platform v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-platform)
+    Checking tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-host-c-abi)
+   Compiling tcl-runtime v0.1.0 (/workspace/.checkpoints/runtime-naming080/runtime/rust)
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-lexer)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-bytecode)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-regex)
+    Checking tcl-host-native v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-host-native)
+    Checking tcl-test-support v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-test-support)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/runtime-naming080/rust/tcl-registry)
+warning: function `is_leading_option` is never used
+   --> /workspace/.checkpoints/runtime-naming080/rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: type `ResumeValue` is more private than the item `ToCoro::Resume::0`
+   --> src/cmd_coro.rs:122:16
+    |
+122 |         Resume(ResumeValue),
+    |                ^^^^^^^^^^^ field `ToCoro::Resume::0` is reachable at visibility `pub(in crate::cmd_coro)`
+    |
+note: but type `ResumeValue` is only usable at visibility `pub(self)`
+   --> src/cmd_coro.rs:98:5
+    |
+ 98 |     enum ResumeValue {
+    |     ^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `ResumeValue` is more private than the item `FromCoro::Yield::0`
+   --> src/cmd_coro.rs:132:15
+    |
+132 |         Yield(ResumeValue),
+    |               ^^^^^^^^^^^ field `FromCoro::Yield::0` is reachable at visibility `pub(in crate::cmd_coro)`
+    |
+note: but type `ResumeValue` is only usable at visibility `pub(self)`
+   --> src/cmd_coro.rs:98:5
+    |
+ 98 |     enum ResumeValue {
+    |     ^^^^^^^^^^^^^^^^
+
+warning: type `OriginalHandoff` is more private than the item `FromCoro::YieldTo::0`
+   --> src/cmd_coro.rs:133:17
+    |
+133 |         YieldTo(OriginalHandoff),
+    |                 ^^^^^^^^^^^^^^^ field `FromCoro::YieldTo::0` is reachable at visibility `pub(in crate::cmd_coro)`
+    |
+note: but type `OriginalHandoff` is only usable at visibility `pub(self)`
+   --> src/cmd_coro.rs:93:5
+    |
+ 93 |     struct OriginalHandoff(obj::Owned);
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `OriginalHandoff` is more private than the item `FromCoro::Done::1`
+   --> src/cmd_coro.rs:134:20
+    |
+134 |         Done(Code, OriginalHandoff),
+    |                    ^^^^^^^^^^^^^^^ field `FromCoro::Done::1` is reachable at visibility `pub(in crate::cmd_coro)`
+    |
+note: but type `OriginalHandoff` is only usable at visibility `pub(self)`
+   --> src/cmd_coro.rs:93:5
+    |
+ 93 |     struct OriginalHandoff(obj::Owned);
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `lindex_command` is never used
+   --> src/native_arithseries.rs:260:15
+    |
+260 | pub(crate) fn lindex_command(
+    |               ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `resolved_var_full_name` is never used
+    --> src/interp.rs:5260:19
+     |
+1558 | impl Interp {
+     | ----------- method in this implementation
+...
+5260 |     pub(crate) fn resolved_var_full_name(&self, base_ns: NsId, name: &[u8]) -> Option<Vec<u8>> {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolved_full_name` is never used
+   --> src/vars.rs:990:15
+    |
+990 | pub(crate) fn resolved_full_name(
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-runtime` (lib) generated 7 warnings
+warning: `tcl-runtime` (lib test) generated 7 warnings (7 duplicates)
+    Finished `dev` profile [unoptimized] target(s) in 41.95s

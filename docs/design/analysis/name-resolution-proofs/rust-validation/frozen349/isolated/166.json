@@ -1,0 +1,19 @@
+{
+  "ordinal": 166,
+  "selector": "cmd_oo::tests::public_delete_callback_can_relocate_a_private_dispatcher",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::public_delete_callback_can_relocate_a_private_dispatcher",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.4364017010084353,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.37s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/166.log",
+  "log_sha256": "2c9da474e72b35ecadf34474be53270c92c2e8a88f1c56e6e7be6282d56bd1a6"
+}

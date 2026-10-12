@@ -939,7 +939,7 @@ proc f {} {
 /// own `global x; set x …` (reached through a call whose relative order
 /// isn't statically known) or a write trace's callback can rewrite it
 /// between any two statements here, including the loop's own. Reusing
-/// `crate::sccp::is_externally_mutable` — the same predicate
+/// `crate::ssa::SsaSourceView::externally_mutable_by` — the same predicate
 /// `sccp_with_extra_escaping` and O102 load-forwarding already apply to
 /// their own (separate) lattices — for the type lattice closes this: no
 /// literal-driven def of an aliased name is trusted, so S102 must not fire.
@@ -1578,8 +1578,8 @@ fn fp_sh_23_three_way_same_type_merge_silent() {
 }
 
 /// FP-SH-23: exact bignum folding — `expr {2**64}` and a chained `$big + 1`
-/// fold to C Tcl's exact values, so the SCCP-driven checks see real
-/// constants, never a wrapped or declined value (values tclsh-verified).
+/// retain C Tcl's exact mathematical values for diagnostics. The second
+/// expression's conversion still belongs to its original producer.
 #[test]
 fn fp_sh_23_bignum_folds_are_exact() {
     use crate::compilation_unit::CompilationUnit;
@@ -1592,8 +1592,8 @@ fn fp_sh_23_bignum_folds_are_exact() {
     );
     let fu = cu.function("::top").unwrap();
     let next_const = fu
-        .sccp
-        .values
+        .diagnostic_value_facts()
+        .values()
         .iter()
         .find(|((sym, ver), _)| fu.ssa.var_name(*sym) == "next" && *ver > 0)
         .map(|(_, v)| v.clone());
@@ -1603,6 +1603,14 @@ fn fp_sh_23_bignum_folds_are_exact() {
             crate::analyses::ConstValue::String("18446744073709551617".to_owned())
         )),
         "the chained bignum fold must land the exact decimal"
+    );
+    assert!(
+        fu.sccp.values.iter().any(|((sym, ver), value)| {
+            fu.ssa.var_name(*sym) == "next"
+                && *ver > 0
+                && *value == crate::analyses::LatticeValue::Overdefined
+        }),
+        "known numeric contents must not erase the retained bignum conversion"
     );
 }
 

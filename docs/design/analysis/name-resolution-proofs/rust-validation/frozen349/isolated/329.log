@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_return_instruction::tests::syntax_options_capture_uses_native_info_header_copy_and_numerical_controls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 15.61s
+

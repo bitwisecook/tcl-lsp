@@ -16,22 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The iRules object-reference walker.
-//!
-//! Segments an iRule body, asks [`resolve_object_ref_args`] which argument
-//! positions name BIG-IP objects for each command, and resolves those positions
-//! to literal object names — including names propagated through `set <var>
-//! <literal>` bindings, tracked per event-handler / nested-body scope.
+//! Readonly object-reference candidates from the shared original source context.
+//! Literal source values remain candidates; no set-value propagation, live
+//! handler, evaluated target or deletion-safety proof is issued here.
 
-use std::collections::{HashMap, HashSet};
-
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::LexerConfig;
-use tcl_lexer::{Span, Token, TokenType};
+use std::collections::HashSet;
+use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::arg_role::ArgRole;
-
-use crate::resolve_object_ref_args;
 
 fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
     let tables = crate::tables();
@@ -39,11 +30,8 @@ fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
         tables
             .ltm_pool_kinds
             .iter()
+            .chain(&tables.gtm_pool_kinds)
             .any(|candidate| candidate == kind)
-            || tables
-                .gtm_pool_kinds
-                .iter()
-                .any(|candidate| candidate == kind)
     }) {
         IrulesObjectReferenceCategory::Pool
     } else if kinds.iter().any(|kind| {
@@ -58,19 +46,7 @@ fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
     }
 }
 
-/// Depth cap for [`walk`]'s (and [`recurse_token`]'s) recursion over nested
-/// bodies / `[…]` command substitutions.
-///
-/// This crate is reachable from a WASM host with no stack-size guarantee
-/// (via `bigip-query-wasm`, transitively through `tcl-bigip`), so, like
-/// `tcl_lsp_core::formatting::engine::MAX_FORMAT_DEPTH` /
-/// `tcl_lsp_core::minify::MAX_MINIFY_DEPTH`, this must be safe on a small
-/// ambient stack, not just a generously-sized one — same value and
-/// reasoning; see those constants' doc comments.
-pub(crate) const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit =
-    tcl_core_types::RecursionLimit(128);
-
-/// Consumer-safe semantic category for an iRules object reference.
+/// Configuration-reference presentation category; no object identity is issued.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IrulesObjectReferenceCategory {
     Pool,
@@ -78,85 +54,104 @@ pub enum IrulesObjectReferenceCategory {
     Other,
 }
 
-/// One iRules object reference resolved from a literal command argument
-/// (mirrors `IrulesObjectReference`).
+/// One readonly literal source-reference candidate, with original geometry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrulesObjectReference {
-    /// The referenced object name (a literal, or a `set`-propagated constant).
+    /// Actual supported literal source value, not a propagated runtime value.
     pub name: String,
-    /// Candidate registry kinds the reference can resolve to.
+    /// Shared declarative object-kind candidates.
     pub kinds: Vec<&'static str>,
-    /// The iRule command the reference came from (e.g. `"pool"`).
+    /// Actual selected source-schema label for presentation.
     pub command: String,
-    /// Registry-resolved command identity used for semantic classification.
-    /// Unlike `command`, this follows proven aliases, renames, and qualified
-    /// spellings.
+    /// Source-schema label; this field supplies no live command identity.
     pub effective_command: String,
-    /// Typed semantic category, derived by the registry-backed walker.
+    /// Category derived from the exact shared object-kind template.
     pub category: IrulesObjectReferenceCategory,
-    /// 0-based argument index (after the command name).
+    /// Original post-head argument ordinal.
     pub argument_index: usize,
-    /// Byte span of the reference token in the source.
+    /// Genuine original operand source extent.
     pub range: Span,
 }
 
-/// Variable → constant-literal bindings carried through linear copy-propagation
-/// within a scope. `None` marks an overdefined (re-assigned from non-literal)
-/// binding so later lookups fail closed.
-#[derive(Clone, Default)]
-struct BindingScope {
-    bindings: HashMap<String, Option<String>>,
+/// Literal source-reference candidates from an independently retained context.
+#[must_use]
+pub fn extract_original_irules_source_object_references(
+    source: &str,
+    context: &crate::OriginalIrulesSourceContext,
+    rule_module: Option<&str>,
+) -> Vec<IrulesObjectReference> {
+    // Implementation contract: naming.consumer.original-source-attachment-candidates
+    // docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md
+    if !context.matches_source(source) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for command in context.commands() {
+        let Some(operands) = command
+            .words()
+            .with_source_schema(context.context_registry(), |schema| {
+                crate::original_source_object_operands(schema, rule_module)
+            })
+        else {
+            continue;
+        };
+        for operand in operands {
+            let ordinal = operand.argument();
+            let Some(name) = command
+                .words()
+                .arguments()
+                .get(ordinal)
+                .and_then(|value| value.literal_bytes())
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .filter(|name| !name.contains('\0'))
+            else {
+                continue;
+            };
+            let Some(range) = command.words().operands().get(ordinal).and_then(Option::as_ref).map(tcl_compiler::registry_invocation::source_structure::OriginalOperandSource::span) else { continue; };
+            let label = command.words().command().to_owned();
+            out.push(IrulesObjectReference {
+                name: name.to_owned(),
+                kinds: operand.kinds().to_vec(),
+                command: label.clone(),
+                effective_command: label,
+                category: category_for_kinds(operand.kinds()),
+                argument_index: ordinal,
+                range,
+            });
+        }
+    }
+    out.sort_by(|a, b| {
+        (a.range.start(), a.range.end(), &a.name).cmp(&(b.range.start(), b.range.end(), &b.name))
+    });
+    out.dedup();
+    out
 }
 
-impl BindingScope {
-    fn child(&self) -> Self {
-        self.clone()
-    }
-    fn set_const(&mut self, var: &str, value: String) {
-        self.bindings.insert(var.to_owned(), Some(value));
-    }
-    fn widen(&mut self, var: &str) {
-        self.bindings.insert(var.to_owned(), None);
-    }
-    fn lookup(&self, var: &str) -> Option<&String> {
-        self.bindings.get(var).and_then(Option::as_ref)
-    }
-}
-
-/// The sorted, de-duplicated byte spans of every referenced object name — the
-/// name-range-only view the semantic-tokens layer consumes. Uses
-/// `rule_module = None` so every LTM/GTM reference is recognised.
+/// Source-name ranges for presentation; no runtime object lookup is performed.
 #[must_use]
 pub fn object_ref_spans(source: &str, registry: &CommandRegistry) -> Vec<Span> {
-    let mut spans: Vec<Span> = extract_irules_object_references(source, None, registry)
+    let mut spans = extract_irules_object_references(source, None, registry)
         .into_iter()
-        .map(|r| r.range)
-        .collect();
-    spans.sort_by_key(|s| (s.start(), s.end()));
+        .map(|reference| reference.range)
+        .collect::<Vec<_>>();
+    spans.sort_by_key(|span| (span.start(), span.end()));
     spans.dedup();
     spans
 }
 
-/// Extract every BIG-IP object reference from iRules `source`, resolving both
-/// literal arguments (`pool /Common/foo`) and constants propagated through
-/// `set` (`set p /Common/foo; pool $p`). Results are sorted by source position
-/// then name.
+/// Current event-associated literal source-reference candidates.
 #[must_use]
 pub fn extract_irules_object_references(
     source: &str,
     rule_module: Option<&str>,
     registry: &CommandRegistry,
 ) -> Vec<IrulesObjectReference> {
-    let executable = crate::irules_executable_commands(source, registry);
-    extract_irules_object_references_in_closure(source, rule_module, registry, &executable)
+    crate::OriginalIrulesSourceContext::capture(source, registry).map_or_else(Vec::new, |context| {
+        extract_original_irules_source_object_references(source, &context, rule_module)
+    })
 }
 
-/// Extract object references in the executable closure of one iRules event.
-///
-/// Every valid matching handler is a root.  Only procedure bodies reached by
-/// registry-declared user-procedure invocation edges participate; unrelated
-/// event handlers, dormant procedures, direct procedure-looking calls, and
-/// lambda literals do not.
+/// Literal candidates associated with an actual current event source descriptor.
 #[must_use]
 pub fn extract_irules_event_object_references(
     source: &str,
@@ -164,14 +159,27 @@ pub fn extract_irules_event_object_references(
     rule_module: Option<&str>,
     registry: &CommandRegistry,
 ) -> Vec<IrulesObjectReference> {
-    let executable = crate::irules_event_executable_closure(source, event, registry);
-    extract_irules_object_references_in_closure(source, rule_module, registry, &executable)
+    let Some(context) = crate::OriginalIrulesSourceContext::capture(source, registry) else {
+        return Vec::new();
+    };
+    let spans = context
+        .commands()
+        .iter()
+        .filter(|command| command.event_source().event().eq_ignore_ascii_case(event))
+        .map(crate::source_context::OriginalIrulesSourceCommand::span)
+        .collect::<Vec<_>>();
+    extract_original_irules_source_object_references(source, &context, rule_module)
+        .into_iter()
+        .filter(|reference| {
+            spans.iter().any(|span| {
+                span.start() <= reference.range.start() && reference.range.end() <= span.end()
+            })
+        })
+        .collect()
 }
 
-/// Extract object references selected by an already-computed executable
-/// closure.  This is useful to consumers that need the same closure for a
-/// command inventory and its object references, without reinterpreting source
-/// ranges as event-body membership.
+/// Compatibility source-range filter. DTO labels never select source schema;
+/// every accepted extent is revalidated against the genuine current inventory.
 #[must_use]
 pub fn extract_irules_object_references_in_closure(
     source: &str,
@@ -179,454 +187,27 @@ pub fn extract_irules_object_references_in_closure(
     registry: &CommandRegistry,
     executable: &[crate::IrulesExecutableCommand],
 ) -> Vec<IrulesObjectReference> {
-    let executable_spans: HashSet<(u32, u32)> = executable
-        .iter()
-        .map(|command| (command.span.start(), command.span.end()))
-        .collect();
-    let mut out = Vec::new();
-    let mut scope = BindingScope::default();
-    // The document's statically proven command-identity facts
-    // ([`tcl_compiler::realm`]), computed once for the whole rule: a
-    // reference-bearing command reached through a proven `interp alias` /
-    // `rename` is still a reference, and a spelling whose binding was provably
-    // taken over is not.  Empty — and lookup-free — unless the
-    // rule binds something.
-    let config = crate::irules_lexer_config();
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
-    let ctx = WalkCtx {
-        full: source,
-        rule_module,
-        registry,
-        config,
-        identities: &identities,
-        executable_spans: &executable_spans,
-    };
-    walk(&ctx, source, 0, &mut scope, &mut out, 0);
-    out.sort_by(|a, b| {
-        (a.range.start(), a.range.end(), &a.name).cmp(&(b.range.start(), b.range.end(), &b.name))
-    });
-    out
-}
-
-/// Everything the object-reference walk needs that does not change as it
-/// recurses into nested bodies, lambdas, and `[…]` substitutions.
-struct WalkCtx<'a> {
-    /// The whole rule, so a nested slice's token spans stay absolute.
-    full: &'a str,
-    /// `"ltm"` / `"gtm"`, selecting the pool-kind family.
-    rule_module: Option<&'a str>,
-    /// The dialect registry the argument roles and clause-list shape come from.
-    registry: &'a CommandRegistry,
-    /// The iRules grammar this walk reads under, resolved once at the entry
-    /// point ([`crate::irules_lexer_config`]) and never re-derived here.
-    config: LexerConfig,
-    /// The rule's statically proven command-identity facts, so every head is
-    /// resolved to the command it *is* rather than the one it is spelled as.
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-    /// Exact segmented commands proven reachable from a valid known event.
-    executable_spans: &'a HashSet<(u32, u32)>,
-}
-
-/// One segmented command's *effective* head — the registry name its spelling
-/// resolves to at its own byte offset, or the spelling itself when the rule
-/// binds nothing.  Empty for a head whose binding was provably taken over,
-/// which every table and registry lookup then answers "unknown" for.
-pub(crate) fn resolve_head<'a>(
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-    cmd: &'a SegmentedCommand,
-) -> &'a str {
-    let at = cmd.argv.first().map_or(0, |t| t.span.start());
-    identities.head_words(cmd.name(), at).resolved
-}
-
-/// The registry name a resolved head is looked up under.
-///
-/// Tcl's leading `::` is an absolute-namespace marker, not a distinct command
-/// identity, so `::pool` and `pool` are one command — but only for the global
-/// iRules commands the registry actually holds: `::tcl::dict::*` is a distinct
-/// qualified core command whose declarations must stay visible under its own
-/// name.  Shared with the ILX walk ([`crate::ilx`]) so the two agree about
-/// which spelling a registry lookup uses.
-pub(crate) fn semantic_head(registry: &CommandRegistry, head: &str) -> String {
-    let canonical = tcl_syntax::naming::canonical_written_command(head);
-    if registry.get_exact(&canonical).is_some() {
-        return canonical;
-    }
-    if canonical.starts_with("::") {
-        let rooted_name = canonical.trim_start_matches("::");
-        if registry.get_exact(rooted_name).is_some() {
-            return rooted_name.to_owned();
-        }
-    }
-    canonical
-}
-
-/// Segment `slice` (a substring of the rule starting at byte `base`) and
-/// collect references, recursing into body / expr / command-substitution
-/// arguments with child scopes. Token spans are absolute into `ctx.full`.
-/// `depth` is this call's nesting level — see [`MAX_WALK_DEPTH`].
-#[allow(clippy::too_many_lines)] // recursive registry-body walk is intentionally local
-fn walk(
-    ctx: &WalkCtx<'_>,
-    slice: &str,
-    base: u32,
-    scope: &mut BindingScope,
-    out: &mut Vec<IrulesObjectReference>,
-    depth: u32,
-) {
-    let WalkCtx {
-        full,
-        rule_module,
-        registry,
-        config,
-        identities,
-        executable_spans,
-    } = *ctx;
-    // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment. Past the
-    // cap, stop descending — the references collected up to this nesting
-    // level still stand.
-    if MAX_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    // Always the iRules dialect: segment with the f5-irules preset so an iRule's
-    // `if {expr}{body}` (`}{` valid in TMM) splits into distinct words and its
-    // pool/node references are attributed to the right command, not swallowed by
-    // the stock-Tcl "extra characters after close-brace" mis-segmentation.
-    for cmd in segment_commands_with_offset_and_config(slice, base, config) {
-        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        // The head's *effective command identity*, resolved exactly as the
-        // semantic-token walk resolves it.  Every table and
-        // registry lookup below reads it, so `::pool`, a proven
-        // `interp alias {} p {} pool`, and a `rename pool p` all find the same
-        // object-reference argument, while a `pool` whose binding was provably
-        // taken over by a user `proc` finds none.
-        let head = resolve_head(identities, &cmd);
-        // Registry command specs are canonical unqualified iRules names;
-        // Tcl's leading `::` is an absolute-namespace marker, not a distinct
-        // command identity.
-        // Canonicalised to the name the registry holds — see `semantic_head`
-        // for why `::tcl::dict::*` is deliberately left alone.
-        let semantic_head = semantic_head(registry, head);
-
-        let executable = executable_spans.contains(&(cmd.span.start(), cmd.span.end()));
-        if executable {
-            // Resolve declared references *before* mutating the binding table,
-            // so a same-command `set` re-bind doesn't leak into this call's
-            // refs. Inert declaration/data regions cannot seed bindings.
-            for (argument_index, kinds) in
-                resolve_object_ref_args(&semantic_head, &args, rule_module)
-            {
-                if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
-                    out.push(IrulesObjectReference {
-                        name,
-                        category: category_for_kinds(&kinds),
-                        kinds,
-                        command: cmd.name().to_owned(),
-                        effective_command: semantic_head.clone(),
-                        argument_index,
-                        range,
-                    });
-                }
-            }
-            record_set_binding(full, &semantic_head, &cmd, scope);
-        }
-
-        let body_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Body);
-        let mut recursed: HashSet<(u32, u32)> = HashSet::new();
-        for body_idx in body_indices {
-            let word_index = body_idx + 1;
-            if let Some(tok) = cmd.argv.get(word_index)
-                && matches!(tok.kind, TokenType::Str | TokenType::Cmd)
-                && !inner_is_empty(full, tok)
-            {
-                if tok.kind == TokenType::Cmd {
-                    // A command substitution supplying a body runs now, in
-                    // the caller's frame; only the script value it returns is
-                    // later evaluated as the body.  Running the substitution
-                    // in a child scope loses Tcl-visible writes such as
-                    // `catch [set p new]`.
-                    recurse_token(ctx, tok, scope, out, depth + 1);
-                    recursed.insert((tok.span.start(), tok.span.end()));
-                } else {
-                    let mut child = scope.child();
-                    recurse_token(ctx, tok, &mut child, out, depth + 1);
-                }
-            }
-        }
-
-        // EXPR-role words (`if`/`while`/`expr` conditions) are braced/quoted
-        // words whose `[…]` substitutions aren't separate `Cmd` tokens; recurse
-        // into the expression text so refs nested in a condition are found.
-        let expr_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Expr);
-        for expr_idx in expr_indices {
-            let word_index = expr_idx + 1;
-            if let Some(tok) = cmd.argv.get(word_index)
-                && matches!(tok.kind, TokenType::Str | TokenType::Esc)
-                && !inner_is_empty(full, tok)
-            {
-                // Expr command substitutions are evaluated once, before the
-                // command runs, and in the caller's live frame.  Record any
-                // same-span lexer tokens so the generic substitution pass
-                // below cannot visit them a second time.
-                recurse_token(ctx, tok, scope, out, depth + 1);
-                for nested in cmd.all_tokens.iter().filter(|nested| {
-                    nested.kind == TokenType::Cmd
-                        && tok.span.start() <= nested.span.start()
-                        && nested.span.end() <= tok.span.end()
-                }) {
-                    recursed.insert((nested.span.start(), nested.span.end()));
-                }
-            }
-        }
-
-        // A clause-list word (`switch … {pat body …}`) is **not** an
-        // `ArgRole::Body`, so the recursion above never reached inside it: an
-        // object referenced only from a `switch` arm — `switch [HTTP::uri] {
-        // "/api/*" { pool /Common/api_pool } }`, an entirely ordinary iRule —
-        // was invisible to this walker.  For highlighting that meant the pool
-        // name read as a plain string; for the *reference graph* it meant a live
-        // pool looked unreferenced, which is what `bigip-cleanup` decides
-        // deletions from.  The clause-list shape is registry data
-        // (`CommandSpec::case_list`), the same entry the token walker reads.
-        if let Some((tok, spec)) = case_list_word(&cmd, &semantic_head, &args, registry)
-            && !inner_is_empty(full, &tok)
-        {
-            for body in case_list_body_tokens(full, &tok, &spec) {
-                let mut child = scope.child();
-                recurse_token(ctx, &body, &mut child, out, depth + 1);
-            }
-        }
-
-        // `[…]` command substitutions anywhere else in the command.
-        for tok in &cmd.all_tokens {
-            if !matches!(tok.kind, TokenType::Cmd) {
-                continue;
-            }
-            let key = (tok.span.start(), tok.span.end());
-            if recursed.contains(&key) || inner_is_empty(full, tok) {
-                continue;
-            }
-            recursed.insert(key);
-            // Tcl evaluates substitutions left-to-right in the caller's
-            // frame. A set inside a command substitution therefore changes
-            // the value a following command (or sibling substitution) sees.
-            recurse_token(ctx, tok, scope, out, depth + 1);
-        }
-    }
-}
-
-/// The clause-list word of `cmd` (`switch … {pat body …}`), per the registry's
-/// [`CaseListSpec`]: skip the command's options (and any that take a value),
-/// then its subject words; the clause list is the final braced word.
-pub(crate) fn case_list_word(
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
-    name: &str,
-    args: &[&str],
-    registry: &CommandRegistry,
-) -> Option<(Token, tcl_registry::CaseListSpec)> {
-    let dialect = registry
-        .profile()
-        .map(tcl_dialect::DialectProfile::surface_query);
-    let (spec, invocation) = registry.case_invocation(name, args, dialect)?;
-    let case_idx = invocation.clause_list_index?;
-    let tok = *cmd.argv.get(case_idx + 1)?;
-    matches!(tok.kind, TokenType::Str).then_some((tok, spec))
-}
-
-/// The **body** elements of a clause list — the scripts to recurse.
-///
-/// The clause split is `tcl-syntax`'s, shared with the semantic-token walker: if
-/// the two disagreed about where a clause body is, they would disagree about
-/// what the code says.
-pub(crate) fn case_list_body_tokens(
-    full: &str,
-    tok: &Token,
-    spec: &tcl_registry::CaseListSpec,
-) -> Vec<Token> {
-    let (cstart, cend) = content_range(full, tok);
-    let Some(inner) = full.get(cstart..cend) else {
+    let Some(context) = crate::OriginalIrulesSourceContext::capture(source, registry) else {
         return Vec::new();
     };
-    let shape = tcl_syntax::case_list::CaseListShape {
-        clause_flags: spec.clause_flags,
-        clause_value_flags: spec.clause_value_flags,
-    };
-    tcl_syntax::case_list::split_case_list(inner, &shape)
+    let selected = executable
+        .iter()
+        .map(|command| command.span)
+        .collect::<HashSet<_>>();
+    let spans = context
+        .commands()
+        .iter()
+        .filter(|command| selected.contains(&command.span()))
+        .map(crate::source_context::OriginalIrulesSourceCommand::span)
+        .collect::<Vec<_>>();
+    extract_original_irules_source_object_references(source, &context, rule_module)
         .into_iter()
-        .filter_map(|c| c.body)
-        // Only a braced body is a script.
-        .filter(|b| b.braced)
-        .map(|b| {
-            let range = b.token_range();
-            Token::with_content_offset(
-                TokenType::Str,
-                tcl_lexer::Span::new(
-                    u32::try_from(cstart + range.start).unwrap_or(0),
-                    u32::try_from(cstart + range.end).unwrap_or(0),
-                ),
-                1,
-            )
+        .filter(|reference| {
+            spans.iter().any(|span| {
+                span.start() <= reference.range.start() && reference.range.end() <= span.end()
+            })
         })
         .collect()
-}
-
-/// The content byte range of a token (offset past its opening delimiter).
-pub(crate) fn content_range(full: &str, tok: &Token) -> (usize, usize) {
-    let start = tok.span.start() as usize + tok.content_offset as usize;
-    let end = (tok.span.end() as usize).min(full.len());
-    (start, end)
-}
-
-pub(crate) fn inner_is_empty(full: &str, tok: &Token) -> bool {
-    let (start, end) = content_range(full, tok);
-    start >= end || full[start..end].trim().is_empty()
-}
-
-/// Recurse into a token's inner content (offset-adjusted to absolute spans).
-fn recurse_token(
-    ctx: &WalkCtx<'_>,
-    tok: &Token,
-    scope: &mut BindingScope,
-    out: &mut Vec<IrulesObjectReference>,
-    depth: u32,
-) {
-    let (start, end) = content_range(ctx.full, tok);
-    if start >= end {
-        return;
-    }
-    let inner = &ctx.full[start..end];
-    if inner.trim().is_empty() {
-        return;
-    }
-    walk(
-        ctx,
-        inner,
-        u32::try_from(start).unwrap_or(0),
-        scope,
-        out,
-        depth,
-    );
-}
-
-/// The trimmed literal `(name, span)` of argument `arg_index`, or `None` when it
-/// isn't a usable single-token literal (`$var` / `[cmd]` / multi-token /
-/// whitespace). + `_normalise_literal_name`.
-pub(crate) fn literal_arg_value(
-    full: &str,
-    cmd: &SegmentedCommand,
-    arg_index: usize,
-) -> Option<(String, Span)> {
-    let word_index = arg_index + 1;
-    if !cmd
-        .single_token_word
-        .get(word_index)
-        .copied()
-        .unwrap_or(false)
-    {
-        return None;
-    }
-    let tok = cmd.argv.get(word_index)?;
-    if !matches!(tok.kind, TokenType::Esc | TokenType::Str) {
-        return None;
-    }
-    let (start, end) = content_range(full, tok);
-    let raw = full.get(start..end)?;
-    let trimmed = raw.trim();
-    if trimmed.is_empty() || trimmed.starts_with('$') || trimmed.starts_with('[') {
-        return None;
-    }
-    if trimmed.chars().any(char::is_whitespace) {
-        return None;
-    }
-    let lead = raw.len() - raw.trim_start().len();
-    let abs_start = start + lead;
-    let abs_end = abs_start + trimmed.len();
-    let span = Span::new(
-        u32::try_from(abs_start).unwrap_or(0),
-        u32::try_from(abs_end).unwrap_or(0),
-    );
-    Some((trimmed.to_owned(), span))
-}
-
-/// The variable name of a single `$var` substitution token (mirrors
-/// `_var_token_name`): `None` for array elements (`foo(bar)`).
-pub(crate) fn var_token_name(full: &str, tok: &Token) -> Option<String> {
-    if !matches!(tok.kind, TokenType::Var) {
-        return None;
-    }
-    let (start, end) = content_range(full, tok);
-    let raw = full.get(start..end)?.trim();
-    let mut name = raw;
-    if name.starts_with('{') && name.ends_with('}') {
-        name = &name[1..name.len() - 1];
-    }
-    if name.is_empty() || name.contains('(') {
-        return None;
-    }
-    Some(name.to_owned())
-}
-
-/// Resolve argument `arg_index` to `(name, span)`: the literal value first, then
-/// a `$var` substitution's most recent constant binding. Mirrors
-/// `_resolve_arg_value`.
-fn resolve_arg_value(
-    full: &str,
-    cmd: &SegmentedCommand,
-    arg_index: usize,
-    scope: &BindingScope,
-) -> Option<(String, Span)> {
-    if let Some(literal) = literal_arg_value(full, cmd, arg_index) {
-        return Some(literal);
-    }
-    let word_index = arg_index + 1;
-    if !cmd
-        .single_token_word
-        .get(word_index)
-        .copied()
-        .unwrap_or(false)
-    {
-        return None;
-    }
-    let tok = cmd.argv.get(word_index)?;
-    let var = var_token_name(full, tok)?;
-    let value = scope.lookup(&var)?.clone();
-    // Anchor the resolved reference to the use site (the `$var` token).
-    let (start, end) = content_range(full, tok);
-    let span = Span::new(
-        u32::try_from(start).unwrap_or(0),
-        u32::try_from(end).unwrap_or(0),
-    );
-    Some((value, span))
-}
-
-/// Record a `set <var> <literal>` constant binding, or widen on a non-literal
-/// RHS.
-fn record_set_binding(
-    full: &str,
-    resolved_head: &str,
-    cmd: &SegmentedCommand,
-    scope: &mut BindingScope,
-) {
-    // The head is the *resolved* one, so `::set` and a proven alias / rename of
-    // it propagate constants exactly as the bare spelling does, and a `set`
-    // whose binding was provably taken over propagates none.
-    if resolved_head != "set" || cmd.args().len() < 2 {
-        return;
-    }
-    let var = &cmd.args()[0];
-    if var.is_empty()
-        || var.chars().any(char::is_whitespace)
-        || var.starts_with('$')
-        || var.contains('(')
-    {
-        return;
-    }
-    if let Some((value, _span)) = literal_arg_value(full, cmd, 1) {
-        scope.set_const(var, value);
-    } else {
-        scope.widen(var);
-    }
 }
 
 #[cfg(test)]
@@ -678,16 +259,7 @@ mod tests {
         assert!(by_name.contains(&("pool".to_owned(), "/Common/web_pool".to_owned())));
     }
 
-    /// The object-reference walk must resolve a command head's *effective
-    /// identity*, not its written spelling.
-    ///
-    /// This is not cosmetic for iRules: the reference graph is what
-    /// `bigip-cleanup` decides deletions from, so a pool reached only through
-    /// an aliased or renamed `pool` command must still count as referenced.
-    ///
-    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} p {}
-    /// pool` makes `p` run `pool`; `rename pool p` moves it and leaves `pool`
-    /// gone; a top-level `proc pool …` takes the name over.
+    /// Return readonly candidates; configuration object selection is independent.
     fn ref_names(source: &str) -> Vec<String> {
         refs(source).into_iter().map(|r| r.name).collect()
     }
@@ -739,12 +311,11 @@ mod tests {
     }
 
     #[test]
-    fn unavailable_irules_rename_does_not_change_object_ref_command() {
+    fn authored_nominal_tombstone_withdraws_object_source_schema() {
         assert!(ref_names(&pool_rule("rename pool p\n", "p")).is_empty());
-        assert_eq!(
-            ref_names(&pool_rule("rename pool p\n", "pool")),
-            vec!["/Common/web_pool".to_owned()],
-            "F5 K36322151 disables `rename`, so pool remains available"
+        assert!(
+            ref_names(&pool_rule("rename pool p\n", "pool")).is_empty(),
+            "source metadata cannot donate the old nominal schema after an explicit source cell barrier"
         );
     }
 
@@ -792,7 +363,10 @@ mod tests {
                       puts [set p /Common/new]\n\
                       pool $p\n\
                       }\n";
-        assert_eq!(ref_names(source), vec!["/Common/new".to_owned()]);
+        assert!(
+            ref_names(source).is_empty(),
+            "source values do not certify runtime set/read continuity"
+        );
     }
 
     #[test]
@@ -802,7 +376,10 @@ mod tests {
                       puts [set p /Common/first] [set p /Common/second]\n\
                       pool $p\n\
                       }\n";
-        assert_eq!(ref_names(source), vec!["/Common/second".to_owned()]);
+        assert!(
+            ref_names(source).is_empty(),
+            "source values do not certify sibling observer/mutation ordering"
+        );
     }
 
     #[test]
@@ -812,7 +389,10 @@ mod tests {
                       catch [set p /Common/new]\n\
                       pool $p\n\
                       }\n";
-        assert_eq!(ref_names(source), vec!["/Common/new".to_owned()]);
+        assert!(
+            ref_names(source).is_empty(),
+            "source values do not certify runtime set/read continuity"
+        );
     }
 
     #[test]
@@ -823,10 +403,7 @@ mod tests {
                       if [string length [active_members /Common/expr_pool]] { set seen 1 }\n\
                       pool $p\n\
                       }\n";
-        assert_eq!(
-            ref_names(source),
-            vec!["/Common/expr_pool".to_owned(), "/Common/new".to_owned()]
-        );
+        assert_eq!(ref_names(source), vec!["/Common/expr_pool".to_owned()]);
     }
 
     #[test]
@@ -883,13 +460,14 @@ mod tests {
 #[cfg(test)]
 mod case_list_tests {
     use super::extract_irules_object_references;
-    use tcl_dialect::model::{Family, SurfaceLayer};
+    use crate::{
+        extract_irules_object_references_in_closure,
+        extract_original_irules_source_object_references,
+    };
     use tcl_registry::CommandRegistry;
 
     fn reg() -> CommandRegistry {
-        let mut r = CommandRegistry::build_default();
-        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        r
+        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules())
     }
 
     /// An object referenced only from a `switch` arm must still be found.
@@ -919,5 +497,38 @@ mod case_list_tests {
                 "`{want}` must be a resolved reference; got {names:?}"
             );
         }
+    }
+    #[test]
+    fn original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses() {
+        // Implementation contract: naming.consumer.original-source-attachment-candidates
+        // docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md
+        let source = "when HTTP_REQUEST {pool /Common/literal; set p /Common/guess; pool $p}";
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let context = crate::OriginalIrulesSourceContext::capture(source, registry).unwrap();
+        let original = extract_original_irules_source_object_references(source, &context, None);
+        assert_eq!(
+            original
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["/Common/literal"]
+        );
+        let mut displayed = context.presentation_commands(source);
+        for command in &mut displayed {
+            command.command = "counterfactual".to_owned();
+            command.args = vec!["fake".to_owned()];
+        }
+        assert_eq!(
+            extract_irules_object_references_in_closure(source, None, registry, &displayed),
+            original
+        );
+        assert!(
+            extract_original_irules_source_object_references(
+                &format!("#changed\n{source}"),
+                &context,
+                None
+            )
+            .is_empty()
+        );
     }
 }

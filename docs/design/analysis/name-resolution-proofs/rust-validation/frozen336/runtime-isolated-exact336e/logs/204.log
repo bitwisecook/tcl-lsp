@@ -1,0 +1,6 @@
+
+running 1 test
+test engine_abi::value_carriers::tests::scalar_issuer_keeps_recorded_resident_spelling_and_refuses_foreign_origin ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.46s
+

@@ -1,0 +1,103 @@
+{
+  "request_id": "naming.class.original-command-slot-collision",
+  "question": "Does C TclOO original create or copy reject an existing ordinary procedure at its original selected holder and tail, and what original public caught result and retained procedure/object observations follow?",
+  "problem": "OO collision must query the actual selected command slot independently of whether its occupant is an OO object. The original-holder a:/p case also distinguishes collision checking from parsing rendered object labels.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native236/245 original counted C API driver and independently verified provider build pins. Fresh full Tcl_Init or Jim static extensions per source. Emit VERSION and original whole code/result bytes with no outer catch/eval normalization, plus stdout/stderr/exit and exact source hashes. Capability branch checks actual info commands ::oo::object; no C label or package require substitutes availability.",
+  "cases": [
+    {
+      "id": "create-over-ordinary-command-in-original-holder",
+      "source_file": "/workspace/.proofs/native-oo-original-collision249-request/create-over-ordinary-command-in-original-holder.tcl",
+      "source_sha256": "8eca6e09d9b0f8fc841854a15d8157896483eba11174b24bd0b7cf9d8bbf98e0",
+      "source_encoding": "ASCII LF. a: ends with one literal colon. p is original unqualified spelling inside that current namespace; no returned report is used to call the target."
+    },
+    {
+      "id": "copy-over-ordinary-command-in-original-holder",
+      "source_file": "/workspace/.proofs/native-oo-original-collision249-request/copy-over-ordinary-command-in-original-holder.tcl",
+      "source_sha256": "e59c07652739aec7cbc96f8623be67482064f7d5f59fadbcbbddc641dfd92b98",
+      "source_encoding": "ASCII LF. a: ends with one literal colon. p is original unqualified spelling inside that current namespace; no returned report is used to call the target."
+    }
+  ],
+  "source_anchors": [
+    {
+      "provider": "8.6.18",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/8.6.18/tclOO.c",
+      "sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "8.6.18",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/8.6.18/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "8.6.18",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/8.6.18/tclNamesp.c",
+      "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "9.0.4",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/9.0.4/tclOO.c",
+      "sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "9.0.4",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/9.0.4/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "9.0.4",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/9.0.4/tclNamesp.c",
+      "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "9.1.0",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/9.1.0/tclOO.c",
+      "sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "9.1.0",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/9.1.0/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    },
+    {
+      "provider": "9.1.0",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "retained_file": "/workspace/.proofs/native-oo-original-holder248-request/source-anchors/9.1.0/tclNamesp.c",
+      "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "channel": "Independent selected-provider source inspection; public observations remain separate.",
+      "question": "Original TclNewObjectInstanceCommon keeps the original namespace holder and simple tail; AllocObject publishes directly through TclCreateObjCommandInNs. TclGetNamespaceForQualName interprets original name in actual current namespace. No returned label is reparsed to establish the slot."
+    }
+  ],
+  "scope": "Whole original captured completion result and status, original relative p call, public object introspection, and source object marker. No private lifetime/dispatcher/cache inference or other TclOO API admission; actual C84/85/Jim unavailability remains separate."
+}

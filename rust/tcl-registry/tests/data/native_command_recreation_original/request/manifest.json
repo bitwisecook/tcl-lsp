@@ -1,0 +1,21 @@
+{
+  "status": "READY-request-only-uncompiled-unexecuted",
+  "question_id": "naming.embedding.original-command-recreation-discard",
+  "request_sha256": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+  "probe_sha256": "dd26f86bae7adc7ae0e9f62e00b7dd94b17412b1dc580ae1e9b30cb48b17422d",
+  "launcher_sha256": "9b6d71b3f8596e7c6a87f85202e78e67fe5f1133e18431539a57511470fff108",
+  "launch_plan_sha256": "bc5f3a8920b93bead01bad4b4c9eb0b69b240636c8f6fea6ff6e5da8401c1dbc",
+  "launcher_argv": [
+    "python3",
+    "/tmp/receiver-command-recreation-request486/capture.py"
+  ],
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "scope": "Each selected actual original provider independently executes its unchanged public object-command recreation source. Headers/config/library/current original source/CLI/compiler and external linker files are retained by exact byte pins before and after. Prior build receipts are provenance only, not a manufactured historical configure/compiler process. Native callbacks and raw addresses are observations, not generation, procedure, active-retirement, application issuer or semantic equivalence authority. External BIG-IP is not tested."
+}

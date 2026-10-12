@@ -1,0 +1,18 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 2m 00s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 2 tests
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct ... ok
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_shadow_and_produced_script_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8117 filtered out; finished in 3.63s
+

@@ -1,0 +1,5 @@
+PACKAGE 0 1.0
+WRAPPERS 0 1
+GLOBAL_CALLER 0 {{setup body READY cleanup READY} READY}
+GLOBAL_SETUP_ERROR 0 {setup body cleanup}
+C_ALIAS_LIFECYCLE_UNAVAILABLE no-qualified-wrapper

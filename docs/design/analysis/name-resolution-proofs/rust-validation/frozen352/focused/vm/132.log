@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::authored_math::tests::authored_math_capability_cache_children_and_host_state_stay_separate ... 
+thread 'interp::authored_math::tests::authored_math_capability_cache_children_and_host_state_stay_separate' (1359496) panicked at rust/tcl-vm/src/interp/authored_math.rs:323:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::authored_math::tests::authored_math_capability_cache_children_and_host_state_stay_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 6.15s
+

@@ -1,0 +1,21 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.elf.gz",
+  "stored_sha256": "3b63a82a7657d0f7e6a2809e55a911d47d147a6c153c0bb7a109de6b37131664",
+  "stored_bytes": 39947052,
+  "original_sha256": "eb61994952379f9df6ec9cd5f0ae3ce3ca3fd13fea689f1ee92e52bf7c5ed939",
+  "original_bytes": 206975000,
+  "original_mode": 448,
+  "original_recorded_executable": "/workspace/.proofs/pinned-compiler316.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.json",
+  "pin_metadata_sha256": "c4d771bf0ca4102b088dc2d40d5d86f97b371bd5a54875a18a85229c9eb55ba5",
+  "build_receipt_id": "rust.frozen316.integration-compiler-own-test-build316",
+  "build_receipt_sha256": "4e0954b4930d7ede0ec57946f72bd245c94b0cd2d098766db1e42089b420ac46",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/source-snapshot.json.gz",
+    "sha256": "4fdb08702a001bdd93e9ae64bff6200a3051bf3312a3c04dc7cebf0db49abee8",
+    "compression": "gzip",
+    "uncompressed_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830"
+  },
+  "verification": "Exact independent successful owned Compiler no-run producer, produced Cargo artifact, strict original pin and source association; full decompressed byte SHA/size and unchanged original before/after. No assertion launch or original file replacement."
+}

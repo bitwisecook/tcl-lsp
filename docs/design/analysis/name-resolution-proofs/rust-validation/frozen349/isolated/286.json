@@ -1,0 +1,19 @@
+{
+  "ordinal": 286,
+  "selector": "interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 6.764475043979473,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 6.76s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/286.log",
+  "log_sha256": "c5f68b737cc802422d104f711db6811ce83a56ff9e4204cd5c6afb560bb56ac4"
+}

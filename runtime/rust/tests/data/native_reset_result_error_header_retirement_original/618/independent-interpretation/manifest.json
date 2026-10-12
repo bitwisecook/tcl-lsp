@@ -1,0 +1,15 @@
+{
+  "interpretation_sha256": "a753f58b3127f9aa66fd8e099fc71f0dcbb4ebef1ef11338fd64b2be6e76c99f",
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "closure_sha256": "e0e0dbacb79e1812d97fd7c35103d8b5a7220fe7c855c22dee61fd2a04c571b8",
+  "own_processes": 16,
+  "cases": 25,
+  "rows": 100,
+  "events": 78,
+  "getters": 25,
+  "all_current_declared_pins_verified": true,
+  "all_original_receipts_and_own_producers_rejoined": true,
+  "source_windows": 10,
+  "no_new_native_launch": true,
+  "no_Rust_assertion_claim": true
+}

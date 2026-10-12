@@ -22,9 +22,9 @@
 //! at its statement ([`crate::value_transfer::proven_word_value`]).
 //!
 //! The walk keeps every call with such a word ([`ProvenSite`]); the pass
-//! substitutes each proven word — its text as a braced literal at the
-//! word's own span — and runs each check the site's words could have
-//! drawn. What a check reports is kept only at a word the lattice proved,
+//! retains each original operand and supplies its lattice value separately
+//! to the selected source descriptor. It never manufactures an original
+//! literal token or Native argument vector. What a check reports is kept only at a word the lattice proved,
 //! so nothing the walk reported is reported twice and nothing lands at a
 //! span the user did not write; the index checks, which report at the
 //! literal index a proven list or string makes checkable, keep what they
@@ -44,8 +44,8 @@ use tcl_lexer::{Span, Token, TokenType};
 use crate::analyser::state::Analyser;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::value_transfer::{
-    StatementId, SubstitutionHost, proven_return_word_value, proven_substituted_word_value,
-    proven_word_value, return_command_tokens, substitution_calls,
+    OriginalDiagnosticValues, StatementId, SubstitutionHost, proven_return_word_value,
+    proven_substituted_word_value, proven_word_value, return_command_tokens, substitution_calls,
 };
 use crate::word_subst::LiftedCall;
 
@@ -66,34 +66,42 @@ const PROVEN_CODES: [DiagCode; 10] = [
 /// A dispatch site's words as the walk reads them, borrowed.
 #[derive(Clone, Copy)]
 pub(in crate::analyser) struct CallWords<'a> {
-    pub cmd_name: &'a str,
     pub cmd_tok: Token,
     pub args: &'a [String],
     pub arg_tokens: &'a [Token],
     pub arg_single: &'a [bool],
     /// Parallel to the whole argv, the command word at `0`.
     pub arg_expand_in: &'a [bool],
-    pub scope_path: &'a [usize],
 }
 
 /// A call the walk dispatched with a word a literal-only check could not
 /// read, owned until the pass reads the words' proven values.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub(in crate::analyser) struct ProvenSite {
-    cmd_name: String,
     cmd_tok: Token,
     args: Vec<String>,
     arg_tokens: Vec<Token>,
     arg_single: Vec<bool>,
     arg_expand_in: Vec<bool>,
-    scope_path: Vec<usize>,
+}
+
+impl ProvenSite {
+    /// Syntax-only coordinate adjustment for a memoised body fragment. The
+    /// whole-source invocation and actual CU revalidate every eventual value.
+    pub(in crate::analyser) fn rebase(&mut self, delta: u32) {
+        self.cmd_tok.span = tcl_lexer::Span::new(
+            self.cmd_tok.span.start() + delta,
+            self.cmd_tok.span.end() + delta,
+        );
+        for token in &mut self.arg_tokens {
+            token.span = tcl_lexer::Span::new(token.span.start() + delta, token.span.end() + delta);
+        }
+    }
 }
 
 /// A site's words with every proven word substituted.
 struct ProvenWords {
     args: Vec<String>,
-    arg_tokens: Vec<Token>,
-    arg_single: Vec<bool>,
     /// The spans of the substituted words: the only places a finding over
     /// the proven words is kept.
     proven: Vec<Span>,
@@ -123,6 +131,9 @@ enum WordAddress {
 /// substitutions their words and their blocks' terminators perform, and of
 /// the `return` commands their blocks end with, by its absolute span.
 struct WordIndex<'u> {
+    /// Identity of this borrowed function is only local index bookkeeping;
+    /// each value owner validates its actual Module and projection inputs.
+    logical_values: FxHashMap<*const FunctionUnit, OriginalDiagnosticValues<'u>>,
     words: FxHashMap<(u32, u32), (&'u FunctionUnit, WordAddress)>,
     /// Each host's command substitutions, as [`substitution_calls`] lifts
     /// them, with the host's absolute span.
@@ -142,6 +153,7 @@ impl<'u> WordIndex<'u> {
         surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     ) -> Self {
         let mut index = Self {
+            logical_values: FxHashMap::default(),
             words: FxHashMap::default(),
             hosts: Vec::new(),
             returns: Vec::new(),
@@ -156,17 +168,73 @@ impl<'u> WordIndex<'u> {
             .chain(cu.procedures.values())
             .chain(cu.methods.values())
             .chain(cu.body_units.values());
+        let registry = surface.commands();
+        if !cu
+            .ir_module
+            .retained_source_bindings
+            .as_ref()
+            .is_some_and(|owner| owner.matches_module(&cu.ir_module, registry))
+        {
+            return index;
+        }
+
+        let Some(module_metadata) =
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                registry,
+                &cu.ir_module,
+            )
+        else {
+            return index;
+        };
+        let Some(input) = module_metadata.source_analysis_input() else {
+            return index;
+        };
+        if input.lexer_config().normalized() != config.normalized()
+            || cu.ir_module.source.bytes() != source.as_bytes()
+        {
+            return index;
+        }
         for fu in units {
-            for &block in &fu.sccp.executable_blocks {
+            let Some(metadata) = fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
+            else {
+                continue;
+            };
+            if cu
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata)
+                == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            {
+                let Some(values) =
+                    OriginalDiagnosticValues::for_module_function(&cu.ir_module, fu, registry)
+                else {
+                    continue;
+                };
+                index.logical_values.insert(std::ptr::from_ref(fu), values);
+            }
+            let config = fu.source_lexer_config();
+            let blocks: Vec<_> = fu
+                .cfg
+                .blocks
+                .keys()
+                .copied()
+                .filter(|block| {
+                    index
+                        .logical_values
+                        .get(&std::ptr::from_ref(fu))
+                        .map_or_else(
+                            || fu.sccp.executable_blocks.contains(block),
+                            |values| values.reaches(*block),
+                        )
+                })
+                .collect();
+            for block in blocks {
                 let Some(cfg_block) = fu.cfg.blocks.get(&block) else {
                     continue;
                 };
                 for (at, statement) in cfg_block.statements.iter().enumerate() {
                     let id = StatementId { block, index: at };
-                    if let crate::ir::Statement::Call {
-                        tokens: Some(tokens),
-                        ..
-                    } = statement
+                    if matches!(statement, crate::ir::Statement::Call { .. })
+                        && let Some(tokens) = fu.cfg.source_tokens_at(block, at)
                         && tokens.synthetic.is_none()
                     {
                         for (word, &span) in tokens.argv.iter().enumerate() {
@@ -212,7 +280,14 @@ impl<'u> WordIndex<'u> {
         source: &str,
         config: tcl_lexer::LexerConfig,
     ) {
-        let Some(tokens) = return_command_tokens(fu, block, source, config) else {
+        let tokens = self
+            .logical_values
+            .get(&std::ptr::from_ref(fu))
+            .map_or_else(
+                || return_command_tokens(fu, block, source, config),
+                |values| values.return_tokens(block),
+            );
+        let Some(tokens) = tokens else {
             return;
         };
         let at = self.returns.len();
@@ -245,7 +320,13 @@ impl<'u> WordIndex<'u> {
             &tcl_registry::model::DocumentCommandSurface<'_>,
         ),
     ) {
-        let calls = substitution_calls(fu, host, config, surface);
+        let calls = self
+            .logical_values
+            .get(&std::ptr::from_ref(fu))
+            .map_or_else(
+                || substitution_calls(fu, host, config, surface),
+                |values| values.substitution_calls(host).unwrap_or_default(),
+            );
         if calls.is_empty() {
             return;
         }
@@ -275,8 +356,10 @@ impl<'u> WordIndex<'u> {
         &self,
         fu: &FunctionUnit,
         address: WordAddress,
-        config: tcl_lexer::LexerConfig,
-    ) -> Option<(tcl_registry::value_transfer::ExactValue, Option<Span>)> {
+        _config: tcl_lexer::LexerConfig,
+    ) -> Option<(String, Option<Span>)> {
+        let config = fu.source_lexer_config();
+        let logical = self.logical_values.get(&std::ptr::from_ref(fu));
         match address {
             WordAddress::Statement(id, word) => {
                 let host = fu
@@ -285,17 +368,36 @@ impl<'u> WordIndex<'u> {
                     .get(&id.block)
                     .and_then(|block| block.statements.get(id.index))
                     .map(|statement| fu.abs_span(statement.span()));
-                proven_word_value(fu, id, word, config).map(|(value, _)| (value, host))
+                let value = logical.map_or_else(
+                    || {
+                        proven_word_value(fu, id, word, config)
+                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                    },
+                    |values| values.word_contents(id, word),
+                )?;
+                Some((value, host))
             }
             WordAddress::Substituted { host, call, word } => {
                 let (at, calls, span) = self.hosts.get(host)?;
-                proven_substituted_word_value(fu, *at, calls, (call, word), config)
-                    .map(|(value, _)| (value, *span))
+                let value = logical.map_or_else(
+                    || {
+                        proven_substituted_word_value(fu, *at, calls, (call, word), config)
+                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                    },
+                    |values| values.substituted_word_contents(*at, calls, (call, word)),
+                )?;
+                Some((value, *span))
             }
             WordAddress::Return { at, word } => {
                 let (block, tokens, span) = self.returns.get(at)?;
-                proven_return_word_value(fu, *block, tokens, word, config)
-                    .map(|(value, _)| (value, Some(*span)))
+                let value = logical.map_or_else(
+                    || {
+                        proven_return_word_value(fu, *block, tokens, word, config)
+                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                    },
+                    |values| values.return_word_contents(*block, tokens, word),
+                )?;
+                Some((value, Some(*span)))
             }
         }
     }
@@ -335,8 +437,6 @@ impl ProvenSite {
     fn proven(&self, index: &WordIndex<'_>, config: tcl_lexer::LexerConfig) -> Option<ProvenWords> {
         let mut words = ProvenWords {
             args: self.args.clone(),
-            arg_tokens: self.arg_tokens.clone(),
-            arg_single: self.arg_single.clone(),
             proven: Vec::new(),
             at: Vec::new(),
             host: None,
@@ -375,16 +475,10 @@ impl ProvenSite {
             let Some((value, host)) = index.proven(fu, address, config) else {
                 continue;
             };
-            let Ok(text) = String::from_utf8(value.bytes) else {
-                continue;
-            };
+            let text = value;
             site = Some(call);
             words.host = host;
             words.args[at] = text;
-            words.arg_tokens[at] = Token::new(TokenType::Str, token.span);
-            if let Some(single) = words.arg_single.get_mut(at) {
-                *single = true;
-            }
             words.proven.push(token.span);
             words.at.push(at);
         }
@@ -411,13 +505,11 @@ impl Analyser {
             return;
         }
         self.proven_sites.push(ProvenSite {
-            cmd_name: call.cmd_name.to_owned(),
             cmd_tok: call.cmd_tok,
             args: call.args.to_vec(),
             arg_tokens: call.arg_tokens.to_vec(),
             arg_single: call.arg_single.to_vec(),
             arg_expand_in: call.arg_expand_in.to_vec(),
-            scope_path: call.scope_path.to_vec(),
         });
     }
 
@@ -429,10 +521,8 @@ impl Analyser {
             return;
         }
         let config = self.file_lexer_config();
-        let registry = self.registry.clone();
-        let registry = registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::default_registry());
+        let generation = self.analysis_context();
+        let registry = generation.commands();
         let surface = self.command_surface(registry);
         let mut wanted: Vec<u32> = sites.iter().flat_map(ProvenSite::candidates).collect();
         wanted.sort_unstable();
@@ -457,50 +547,48 @@ impl Analyser {
         words: &ProvenWords,
         facts: &super::validity::UserResolutionFacts,
     ) {
+        let Some(written) = self.original_diagnostic_call_at(site.cmd_tok, &site.arg_tokens) else {
+            return;
+        };
+        let literals = words
+            .at
+            .iter()
+            .filter_map(|&index| words.args.get(index).map(|value| (index, value.clone())))
+            .collect::<Vec<_>>();
+        let Some(original) = written.with_supplemental_literals(&literals) else {
+            return;
+        };
+        self.refine_original_path_arguments(&written, &original);
+        self.refine_original_pattern_arguments(&written, &original);
         let marks = (
             self.result.diagnostics.len(),
             self.dsl_gate_sites.len(),
             self.pending_arity.len(),
         );
-        let cmd_name = site.cmd_name.as_str();
-        self.emit_binary_field_version_gates(
-            cmd_name,
-            site.cmd_tok,
-            &words.args,
-            &words.arg_tokens,
-            &words.arg_single,
-        );
-        self.record_dsl_format_sites(cmd_name, site.cmd_tok, &words.args, &words.arg_tokens);
-        self.emit_w121_invalid_subnet_mask(&words.args, &words.arg_tokens);
-        self.emit_w303_redos(cmd_name, &words.args, &words.arg_tokens);
-        self.emit_w127_closed_value_args(cmd_name, &words.args, &words.arg_tokens, site.cmd_tok);
-        self.emit_w127_closed_option_values(cmd_name, &words.args, &words.arg_tokens, site.cmd_tok);
-        self.emit_w146_literal_argument_validation(
-            cmd_name,
-            &words.args,
-            &words.arg_tokens,
-            &words.arg_single,
-            site.arg_expand_in.get(1..).unwrap_or(&[]),
-            &site.scope_path,
-        );
+        let cmd_name = original.command();
+        let Some((arguments, argument_tokens, _single)) = original.source_arguments() else {
+            return;
+        };
+        let formats = Self::original_format_templates(Some(&original));
+        self.emit_binary_field_version_gates(&formats);
+        self.record_dsl_format_sites(cmd_name, &formats);
+        self.emit_w121_invalid_subnet_mask(&arguments, &argument_tokens);
+        self.emit_w127_closed_value_args(Some(&original));
+        self.emit_w127_closed_option_values(Some(&original));
+        self.emit_w146_literal_argument_validation(Some(&original));
         if words.at.first() == Some(&0) {
-            self.emit_w145_for_proven_word(
-                cmd_name,
-                &words.args[0],
-                site.cmd_tok,
-                &words.arg_tokens,
-            );
+            self.emit_w001_unknown_subcommand(Some(&original));
         }
-        // W145 at an option word, from the option walk W004 shares.
-        self.emit_w004_dialect_invalid_option(
-            cmd_name,
-            &words.args,
-            &words.arg_tokens,
-            site.arg_expand_in.get(1..).unwrap_or(&[]),
-            &site.scope_path,
-        );
+        self.emit_w004_dialect_invalid_option(Some(&original), cmd_name);
+        self.emit_proven_source_option_relationships(&original, cmd_name);
+        let original_proven_spans = original
+            .supplemental_literals()
+            .iter()
+            .filter_map(|(ordinal, _)| original.word(*ordinal).map(|word| word.span()))
+            .collect::<Vec<_>>();
         let at_proven = |code: DiagCode, span: Span| {
-            PROVEN_CODES.contains(&code) && words.proven.contains(&span)
+            PROVEN_CODES.contains(&code)
+                && (words.proven.contains(&span) || original_proven_spans.contains(&span))
         };
         let found = self.result.diagnostics.split_off(marks.0);
         self.result.diagnostics.extend(
@@ -525,44 +613,23 @@ impl Analyser {
             })
             .collect();
         self.settle_builtin_verdicts(facts, verdicts);
-        let relations = self.proven_option_relations(&super::validity::ProvenCall {
-            cmd_name,
-            cmd_tok: site.cmd_tok,
-            written: (&site.args, &site.arg_tokens),
-            proven: (&words.args, &words.arg_tokens),
-            arg_expand_in: &site.arg_expand_in,
-            scope_path: &site.scope_path,
-        });
-        self.settle_builtin_verdicts(facts, relations);
-        self.rerun_index_checks(site, words);
+        self.rerun_index_checks(site, words, &written, &original);
     }
 
     /// W230 and W232 over the proven words: an index the written list or
     /// string could not be checked against is checked against the proven
     /// one, and what the written words or the interval checks already drew
     /// is not drawn again.
-    fn rerun_index_checks(&mut self, site: &ProvenSite, words: &ProvenWords) {
-        let numbers = self.grammar().numbers;
-        let rules = self.word_rules();
-        let run = |args: &[String], tokens: &[Token]| {
-            let mut found = super::super::bounds_checks::list_index_diagnostics(
-                &site.cmd_name,
-                args,
-                tokens,
-                numbers,
-                rules,
-            );
-            found.extend(super::super::bounds_checks::string_index_diagnostics(
-                &site.cmd_name,
-                args,
-                tokens,
-                numbers,
-            ));
-            found
-        };
-        let written = run(&site.args, &site.arg_tokens);
-        for diagnostic in run(&words.args, &words.arg_tokens) {
-            let drawn = written.iter().any(|seen| {
+    fn rerun_index_checks(
+        &mut self,
+        site: &ProvenSite,
+        words: &ProvenWords,
+        written: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+        proven: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+    ) {
+        let written_diagnostics = super::super::bounds_checks::original_index_diagnostics(written);
+        for diagnostic in super::super::bounds_checks::original_index_diagnostics(proven) {
+            let drawn = written_diagnostics.iter().any(|seen| {
                 seen.code == diagnostic.code
                     && seen.span == diagnostic.span
                     && seen.message == diagnostic.message
@@ -594,5 +661,89 @@ impl Analyser {
                 self.interval_index_sites
                     .contains(&(diagnostic.code, host, name))
             })
+    }
+}
+
+#[cfg(test)]
+mod source_value_projection_tests {
+    use super::*;
+
+    #[test]
+    fn supplemental_values_preserve_original_alias_operands_and_source_subjects() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        // Source/API correspondence only: no native argv or completion follows.
+        let source = "interp alias {} classify {} string is; classify $kind value";
+        let mut analyser = Analyser::new();
+        let result = analyser
+            .analyse_and_retain_result_for_test(source, "tcl")
+            .clone();
+        assert!(result.analysis_context_unavailable.is_none());
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analyser.lexer_config(),
+        )
+        .pop()
+        .expect("the original alias call");
+        let original = analyser
+            .original_diagnostic_call_at(command.argv[0], command.arg_tokens())
+            .expect("the retained source alias selection");
+        assert_eq!(original.command(), "string");
+        assert_eq!(original.literal(0), Some("is"));
+        assert_eq!(original.literal(1), None);
+        let projection = original
+            .with_supplemental_literals(&[(0, "integer".to_owned())])
+            .expect("a value on the original written operand");
+        assert_eq!(projection.words(), original.words());
+        assert_eq!(projection.literal(0), Some("is"));
+        assert_eq!(projection.literal(1), Some("integer"));
+        assert!(projection.word(0).unwrap().span().end() < projection.head().span().start());
+        let subject = projection
+            .subject(
+                crate::analyser::RegistrySourceDiagnosticKind::LiteralArgument,
+                Some(1),
+            )
+            .expect("the original written operand subject");
+        let crate::analyser::DiagnosticSubject::RegistrySource(subject) = subject else {
+            panic!("a structured registry source subject");
+        };
+        assert_eq!(subject.written_argument(), Some(0));
+        assert_eq!(
+            subject.supplemental_literals(),
+            &[(1, "integer".to_owned())]
+        );
+        assert_eq!(subject.span(), original.word(1).unwrap().span());
+        assert!(
+            original
+                .with_supplemental_literals(&[(8, "integer".to_owned())])
+                .is_none()
+        );
+        assert!(
+            original
+                .with_supplemental_literals(&[(0, "integer".to_owned()), (0, "dict".to_owned())])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn supplemental_values_cannot_resurrect_a_source_replaced_command() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let source = "proc string args {return CUSTOM}; string is $kind value";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analyser.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert!(
+            analyser
+                .original_diagnostic_call_at(command.argv[0], command.arg_tokens())
+                .is_none()
+        );
     }
 }

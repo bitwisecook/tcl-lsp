@@ -1,0 +1,58 @@
+{
+  "request_id": "naming.alias.jim-original-query-and-inventory",
+  "question": "What original prefix values and errors do current Jim info alias return, and how do info aliases exact -all and -nons grammar, original rooted/spaced names, and actual namespace forwarding behave?",
+  "problem": "Both Rust backends currently refuse these selected Jim handlers, and Runtime alias definition eagerly materialises original prefix strings. Prefix object storage and readonly query/listing must share the actual alias owner instead of a byte-report reconstruction.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "cases": [
+    {
+      "id": "original-flat-alias-inventory",
+      "source_file": "/workspace/.proofs/native-jim-alias-introspection274-request/original-flat-alias-inventory.tcl",
+      "source_sha256": "1ce819227a4010d77366690566c1738b31e24a7eac8b7c90fad37887fddae3a2",
+      "source_encoding": "ASCII LF; the alias named ::r2286 spaced alias contains literal spaces inside braces; selectors -all and -nons are exact original words."
+    },
+    {
+      "id": "original-missing-and-nonalias",
+      "source_file": "/workspace/.proofs/native-jim-alias-introspection274-request/original-missing-and-nonalias.tcl",
+      "source_sha256": "a687e0e6a85d0600fdcfb28f5fa5cd821127915afda05aa56ac3c26f9e4db625",
+      "source_encoding": "ASCII LF; the alias named ::r2286 spaced alias contains literal spaces inside braces; selectors -all and -nons are exact original words."
+    },
+    {
+      "id": "original-namespace-alias-inventory",
+      "source_file": "/workspace/.proofs/native-jim-alias-introspection274-request/original-namespace-alias-inventory.tcl",
+      "source_sha256": "c202e66e094c2ad14ef52e6b8c4709d170fc4ab255d81df474e46983f1220d2f",
+      "source_encoding": "ASCII LF; the alias named ::r2286 spaced alias contains literal spaces inside braces; selectors -all and -nons are exact original words."
+    },
+    {
+      "id": "original-prefix-query",
+      "source_file": "/workspace/.proofs/native-jim-alias-introspection274-request/original-prefix-query.tcl",
+      "source_sha256": "3940ae143aceb410f88f19cda62e7b898605704f44c17efe0f0b087a6b99908c",
+      "source_encoding": "ASCII LF; the alias named ::r2286 spaced alias contains literal spaces inside braces; selectors -all and -nons are exact original words."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-jim-alias-introspection274-request/jim.c"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c",
+      "source_sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "copy_file": "/workspace/.proofs/native-jim-alias-introspection274-request/jim-namespace.c"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "copy_file": "/workspace/.proofs/native-jim-alias-introspection274-request/nshelper.tcl"
+    }
+  ],
+  "driver": "Reuse the unchanged original-counted fullInit Native236/245 CAPI source driver and exact six header/archive/source build pins. Run one fresh full Tcl_Init or Jim core+Jim_InitStaticExtensions interpreter per original source file. Record complete source code/result hex and all stdout/stderr/exit/version/pins. Original info -commands capability guard is kept verbatim; C unsupported NOT_APPLICABLE is not an interp-alias substitute. No outer catch/eval/puts wrapper, source edits, stack override, or result normalization.",
+  "scope": "Four original public source windows only; flat and namespace-forwarded inventories are independent outcomes, including actual helper errors. No native object/pointer/cache/lifetime identity follows from public bytes. Dedicated273 object API observer is a separate question; no builtin roster, C equivalence, name command-table identity, Rust/VM pass, BIGIP or TMM claim."
+}

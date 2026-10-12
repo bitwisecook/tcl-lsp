@@ -1,0 +1,19 @@
+{
+  "ordinal": 132,
+  "selector": "cmd_oo::tests::isa_typeof_traverses_mixins_and_subclass_pattern",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::isa_typeof_traverses_mixins_and_subclass_pattern",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.7905759049754124,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.78s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/132.log",
+  "log_sha256": "405d15761a037dfafac49b89bd99fd1aff7916d39fec3ec091a489f82e400fb7"
+}

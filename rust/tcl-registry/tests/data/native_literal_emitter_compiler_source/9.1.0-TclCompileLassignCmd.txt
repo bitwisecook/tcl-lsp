@@ -1,0 +1,84 @@
+TclCompileLassignCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    int isScalar;
+    Tcl_Size numWords = parsePtr->numWords, idx;
+    Tcl_LVTIndex localIndex;
+    /* TODO: Consider support for compiling expanded args. */
+
+    /*
+     * Check for command syntax error, but we'll punt that to runtime.
+     */
+
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Generate code to push list being taken apart by [lassign].
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PUSH_TOKEN(			tokenPtr, 1);
+
+    /*
+     * Generate code to assign values from the list to variables.
+     */
+
+    for (idx=0 ; idx<numWords-2 ; idx++) {
+	/*
+	 * Generate the next variable name.
+	 */
+
+	tokenPtr = TokenAfter(tokenPtr);
+	PushVarNameWord(tokenPtr, 0, &localIndex, &isScalar, idx + 2);
+	if (OutOfUintRangeUpper(localIndex)) {
+	    return TCL_ERROR;
+	}
+
+	/*
+	 * Emit instructions to get the idx'th item out of the list value on
+	 * the stack and assign it to the variable.
+	 */
+
+	if (isScalar) {
+	    if (localIndex >= 0) {
+		OP(		DUP);
+		OP4(		LIST_INDEX_IMM, idx);
+		OP4(		STORE_SCALAR, localIndex);
+		OP(		POP);
+	    } else {
+		OP4(		OVER, 1);
+		OP4(		LIST_INDEX_IMM, idx);
+		OP(		STORE_STK);
+		OP(		POP);
+	    }
+	} else {
+	    if (localIndex >= 0) {
+		OP4(		OVER, 1);
+		OP4(		LIST_INDEX_IMM, idx);
+		OP4(		STORE_ARRAY, localIndex);
+		OP(		POP);
+	    } else {
+		OP4(		OVER, 2);
+		OP4(		LIST_INDEX_IMM, idx);
+		OP(		STORE_ARRAY_STK);
+		OP(		POP);
+	    }
+	}
+    }
+
+    /*
+     * Generate code to leave the rest of the list on the stack.
+     */
+
+    OP44(		LIST_RANGE_IMM, idx, TCL_INDEX_END);
+
+    return TCL_OK;
+}

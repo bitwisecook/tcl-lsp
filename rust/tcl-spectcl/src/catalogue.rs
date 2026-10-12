@@ -54,6 +54,22 @@ const fn v(key: &'static str, doc: &'static str) -> Variant {
     Variant { key, doc }
 }
 
+/// Independently declared frame at executable argument entry.
+pub const SCRIPT_LOOKUP_SCOPES: &[Variant] = &[
+    v(
+        "InvokingFrame",
+        "Current invoking frame when the executable argument runs",
+    ),
+    v(
+        "GlobalFrame",
+        "Global interpreter frame at a deferred callback entry",
+    ),
+    v(
+        "TriggerFrame",
+        "Frame of the operation that triggers an installed trace",
+    ),
+];
+
 /// [`ArgRole`] — how a consumer should treat an argument position.
 pub const ARG_ROLES: &[Variant] = &[
     v("Body", "Tcl script body, recursed into by the analyser"),
@@ -198,6 +214,40 @@ pub const BYTE_ARRAY_EFFECTS: &[Variant] = &[
     ),
 ];
 
+/// [`tcl_registry::ChannelConfigurationSpec`] conditional source option relationships.
+pub const CHANNEL_CONFIGURATIONS: &[Variant] = &[v(
+    "EncodingTranslation",
+    "original encoding and translation option values",
+)];
+
+/// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
+pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
+    v("ListIndex", "literal list index descent"),
+    v("ListRange", "literal list slice bounds"),
+    v("ListReplace", "literal list replacement bounds"),
+    v("StringIndex", "literal string character index"),
+    v("StringRange", "literal string slice bounds"),
+    v("StringReplace", "literal string replacement bounds"),
+    v("StringInsert", "literal string insertion bounds"),
+];
+
+/// [`tcl_registry::SourcePathOperation`] conditional source path algebra.
+pub const SOURCE_PATH_OPERATIONS: &[Variant] = &[
+    v("Join", "join exact source argument values"),
+    v("Dirname", "parent directory in the explicit path algebra"),
+    v(
+        "Normalize",
+        "lexical normalisation of an anchored source path",
+    ),
+    v("ScriptPath", "explicit caller-supplied document filename"),
+];
+
+/// [`tcl_registry::deprecation::SourceDeprecationAdvice`] source review plans.
+pub const SOURCE_DEPRECATION_ADVICE: &[Variant] = &[v(
+    "IruleMatchclass",
+    "review proposal replacing the declared legacy shape with class match",
+)];
+
 /// [`CommandTableEffect`] — how a command rebinds command names.
 pub const COMMAND_TABLE_EFFECTS: &[Variant] = &[
     v("DefinesProcedure", "defines a new procedure (`proc`)"),
@@ -321,6 +371,7 @@ pub const CODEGEN_HOOKS: &[Variant] = &[
     v("Concat", "concat"),
     v("Global", "global"),
     v("Upvar", "upvar"),
+    v("Uplevel", "uplevel"),
 ];
 
 /// [`InlineCodegenHookId`] — the value-position / catch-body emitter.
@@ -328,6 +379,11 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Expr", "expr"),
     v("Incr", "incr"),
     v("InfoExists", "info exists"),
+    v("InfoLevel", "info level"),
+    v("NamespaceCurrent", "namespace current"),
+    v("NamespaceOrigin", "namespace origin name"),
+    v("NamespaceCode", "namespace code literal-script"),
+    v("InfoCommandsResolve", "info commands absolute literal"),
     v("String", "string"),
     v("Lindex", "lindex"),
     v("Lrange", "lrange"),
@@ -343,6 +399,8 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Break", "break"),
     v("Continue", "continue"),
     v("Try", "try"),
+    v("Yield", "yield"),
+    v("YieldTo", "yieldto"),
 ];
 
 /// [`ReturnTypeHookId`] — the algorithm that types a call whose result shape
@@ -1093,7 +1151,8 @@ mod tests {
             | CodegenHookId::Tailcall
             | CodegenHookId::Concat
             | CodegenHookId::Global
-            | CodegenHookId::Upvar => true,
+            | CodegenHookId::Upvar
+            | CodegenHookId::Uplevel => true,
         }
     }
 
@@ -1103,6 +1162,11 @@ mod tests {
             InlineCodegenHookId::Expr
             | InlineCodegenHookId::Incr
             | InlineCodegenHookId::InfoExists
+            | InlineCodegenHookId::InfoLevel
+            | InlineCodegenHookId::NamespaceCurrent
+            | InlineCodegenHookId::NamespaceOrigin
+            | InlineCodegenHookId::NamespaceCode
+            | InlineCodegenHookId::InfoCommandsResolve
             | InlineCodegenHookId::String
             | InlineCodegenHookId::Lindex
             | InlineCodegenHookId::Lrange
@@ -1117,7 +1181,9 @@ mod tests {
             | InlineCodegenHookId::Error
             | InlineCodegenHookId::Break
             | InlineCodegenHookId::Continue
-            | InlineCodegenHookId::Try => true,
+            | InlineCodegenHookId::Try
+            | InlineCodegenHookId::Yield
+            | InlineCodegenHookId::YieldTo => true,
         }
     }
 
@@ -1158,8 +1224,66 @@ mod tests {
         }
     }
 
+    fn covered_source_index_bounds(operation: tcl_registry::SourceIndexBounds) -> bool {
+        use tcl_registry::SourceIndexBounds as Kind;
+        match operation {
+            Kind::ListIndex
+            | Kind::ListRange
+            | Kind::ListReplace
+            | Kind::StringIndex
+            | Kind::StringRange
+            | Kind::StringReplace
+            | Kind::StringInsert => true,
+        }
+    }
+
+    fn covered_source_path_operation(operation: tcl_registry::SourcePathOperation) -> bool {
+        match operation {
+            tcl_registry::SourcePathOperation::Join
+            | tcl_registry::SourcePathOperation::Dirname
+            | tcl_registry::SourcePathOperation::Normalize
+            | tcl_registry::SourcePathOperation::ScriptPath => true,
+        }
+    }
+
+    fn covered_channel_configuration(descriptor: tcl_registry::ChannelConfigurationSpec) -> bool {
+        match descriptor {
+            tcl_registry::ChannelConfigurationSpec::EncodingTranslation => true,
+        }
+    }
+
+    fn covered_source_deprecation_advice(advice: tcl_registry::SourceDeprecationAdvice) -> bool {
+        match advice {
+            tcl_registry::SourceDeprecationAdvice::IruleMatchclass => true,
+        }
+    }
+
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        for descriptor in tcl_registry::ChannelConfigurationSpec::ALL {
+            assert!(covered_channel_configuration(*descriptor));
+            let name = variant_name(descriptor);
+            assert!(
+                CHANNEL_CONFIGURATIONS
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
+        for operation in tcl_registry::SourceIndexBounds::ALL {
+            assert!(covered_source_index_bounds(*operation));
+            let name = variant_name(operation);
+            assert!(
+                SOURCE_INDEX_BOUNDS
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
+        for operation in tcl_registry::SourcePathOperation::ALL {
+            assert!(covered_source_path_operation(*operation));
+        }
+        assert!(covered_source_deprecation_advice(
+            tcl_registry::SourceDeprecationAdvice::IruleMatchclass
+        ));
         assert!(covered_arg_role(ArgRole::Value));
         assert!(covered_tcl_type(TclType::String));
         assert!(covered_side_effect_target(SideEffectTarget::Unknown));
@@ -1177,10 +1301,15 @@ mod tests {
             TCL_TYPES,
             BODY_KINDS,
             SCRIPT_TIMINGS,
+            SCRIPT_LOOKUP_SCOPES,
             VARIABLE_SCOPES,
             ARG_PRESENTATIONS,
             STORAGE_TYPES,
             BYTE_ARRAY_EFFECTS,
+            SOURCE_DEPRECATION_ADVICE,
+            SOURCE_PATH_OPERATIONS,
+            SOURCE_INDEX_BOUNDS,
+            CHANNEL_CONFIGURATIONS,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,

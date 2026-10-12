@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.10s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-7785890902098edc)
+
+running 1 test
+test command_binding::native_result::tests::original_root_entry_retains_selected_frame_and_withdraws_after_unknown_observer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8032 filtered out; finished in 2.08s
+

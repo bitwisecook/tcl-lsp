@@ -41,7 +41,6 @@
 //!   may therefore have a wider command link until its closer is written.
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span};
 
 use crate::definition::{LspRange, byte_offset_at, utf16_len};
@@ -90,7 +89,9 @@ pub fn selection_range(
         line,
         character,
         analysis,
-        crate::profile_for_dialect("tcl9.0"),
+        analysis
+            .and_then(AnalysisResult::resolved_profile)
+            .unwrap_or_else(|| crate::profile_for_dialect("tcl9.0")),
     )
 }
 
@@ -106,6 +107,9 @@ pub fn selection_range_for_dialect(
     analysis: Option<&AnalysisResult>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<SelectionRange> {
+    // Implementation contract: naming.source.original-editor-body-structure
+    // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+
     let mut ranges: Vec<LspRange> = Vec::new();
 
     if let Some((_, start, end)) = find_word_span_at_position(source, line, character) {
@@ -135,12 +139,32 @@ pub fn selection_range_for_dialect(
     let line_index = LineIndex::new(source);
     let cursor_offset = byte_offset_at(&line_index, source, line, character);
     let mut command_is_multiline = false;
-    if let Some(span) = command_span_at(
-        source,
-        cursor_offset,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        dialect,
-    ) {
+    let owned_analysis = analysis.is_none().then(|| {
+        crate::source_structure::analyse_document(
+            source,
+            dialect,
+            crate::registry_for_dialect_profile(dialect),
+            tcl_lexer::LexerConfig::for_profile(Some(dialect)),
+        )
+    });
+    let current_analysis = analysis.or(owned_analysis.as_ref()).filter(|analysis| {
+        analysis
+            .resolved_profile()
+            .is_some_and(|profile| profile.cache_key() == dialect.cache_key())
+            && analysis.body_lexer_config.is_some_and(|config| {
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config,
+                )
+            })
+    });
+    let command_config = current_analysis
+        .and_then(|analysis| analysis.body_lexer_config)
+        .unwrap_or_else(|| tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar));
+    if let Some(span) =
+        crate::source_structure::SourceStructure::capture(source, current_analysis, command_config)
+            .and_then(|structure| structure.command_at(cursor_offset))
+    {
         let seg_range = span_to_range(source, &line_index, span);
         command_is_multiline = seg_range.start_line != seg_range.end_line;
         let coincident_with_line = line_range.as_ref().is_some_and(|lr| {
@@ -163,8 +187,8 @@ pub fn selection_range_for_dialect(
     // Enclosing-body links — one per proc / class body whose
     // span contains the cursor's byte offset.  Order is
     // innermost first so the chain stays outward-growing.
-    if let Some(analysis) = analysis {
-        for span in enclosing_body_spans(analysis, cursor_offset) {
+    if let Some(analysis) = current_analysis {
+        for span in enclosing_body_spans(source, analysis, cursor_offset).unwrap_or_default() {
             ranges.push(span_to_range(source, &line_index, span));
         }
     }
@@ -226,50 +250,141 @@ pub fn selection_range_for_dialect(
         .collect()
 }
 
-/// Collect every proc / class / method body span that
-/// strictly contains the cursor byte offset, ordered
-/// innermost first.  Innermost == smallest span; we sort by
-/// `span.end - span.start` ascending after filtering.
-fn enclosing_body_spans(analysis: &AnalysisResult, cursor_offset: u32) -> Vec<Span> {
+/// Current readonly declaration-body geometry. Each original declaration owns
+/// its own source site; names, installed tables and later routes supply no join.
+/// Missing currency or non-nested containing spans declines semantic links.
+fn enclosing_body_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+) -> Option<Vec<Span>> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
     let contains = |s: Span| s.start() < cursor_offset && cursor_offset < s.end();
     let mut spans: Vec<Span> = Vec::new();
-    for proc_def in analysis.all_procs.values() {
-        if contains(proc_def.body_span) {
-            spans.push(proc_def.body_span);
+    let mut retain = |span: Span| {
+        if span.start() > span.end() || source.get(span.as_range()).is_none() {
+            return None;
         }
-    }
-    for class_def in analysis.all_classes.values() {
-        if contains(class_def.body_span) {
-            spans.push(class_def.body_span);
+        if contains(span) {
+            spans.push(span);
         }
-        // Method / classmethod / constructor / destructor
-        // bodies live inside the class body — surface them
-        // independently so the chain can step from method
-        // body → class body.
-        for method in class_def.methods.values() {
-            if contains(method.body_span) {
-                spans.push(method.body_span);
+        Some(())
+    };
+    if !analysis.allows_lexical_declaration_advice() {
+        use crate::original_declaration::OriginalDeclarationIdentity;
+        for declaration in analysis.original_procedure_declarations() {
+            OriginalDeclarationIdentity::for_procedure("", source, analysis, declaration)?;
+            retain(declaration.metadata().body_span)?;
+        }
+        for class in analysis.original_class_declarations() {
+            OriginalDeclarationIdentity::for_class("", source, analysis, class)?;
+            retain(class.metadata().body_span)?;
+            for method in class.metadata().original_members.declarations() {
+                OriginalDeclarationIdentity::for_method("", source, analysis, class, method)?;
+                if method.forward_prefix().is_none() {
+                    retain(method.metadata().body_span)?;
+                }
+            }
+            for special in class.metadata().original_special_members.declarations() {
+                OriginalDeclarationIdentity::for_special("", source, analysis, class, special)?;
+                let body = special.body_word();
+                (body.image() == &image && body.config() == config).then_some(())?;
+                retain(body.content_span().ok()?)?;
             }
         }
-        for method in class_def.class_methods.values() {
-            if contains(method.body_span) {
-                spans.push(method.body_span);
-            }
+        // Independently selected definition workers own their body syntax even
+        // when the target remains an external declaration obligation. Their
+        // body spans do not select a class, object allocation or native entry.
+        for configuration in analysis.original_class_configurations() {
+            (configuration.target().site().source.source_image() == &image).then_some(())?;
+            retain_original_member_bodies(
+                configuration.members(),
+                configuration.special_members(),
+                &image,
+                config,
+                &mut retain,
+            )?;
         }
-        for ctor in &class_def.constructors {
-            if contains(ctor.body_span) {
-                spans.push(ctor.body_span);
-            }
+        for configuration in analysis.original_object_configurations() {
+            (configuration.target().site().source.source_image() == &image).then_some(())?;
+            retain_original_member_bodies(
+                configuration.members(),
+                configuration.special_members(),
+                &image,
+                config,
+                &mut retain,
+            )?;
         }
-        if let Some(dtor) = &class_def.destructor
-            && contains(dtor.body_span)
-        {
-            spans.push(dtor.body_span);
-        }
+    } else {
+        // Explicit logical compatibility, independently selected at ingress.
+        // A missing original/native inventory cannot enable this branch.
+        retain_logical_body_spans(analysis, &mut retain)?;
     }
     // Innermost first — sort by span width ascending.
     spans.sort_by_key(|s| s.end() - s.start());
-    spans
+    spans.dedup();
+    if spans
+        .windows(2)
+        .any(|pair| pair[1].start() > pair[0].start() || pair[1].end() < pair[0].end())
+    {
+        return None;
+    }
+    Some(spans)
+}
+
+fn retain_logical_body_spans(
+    analysis: &AnalysisResult,
+    retain: &mut impl FnMut(Span) -> Option<()>,
+) -> Option<()> {
+    for proc_def in analysis.all_procs.values() {
+        retain(proc_def.body_span)?;
+    }
+    for class_def in analysis.all_classes.values() {
+        retain(class_def.body_span)?;
+        for method in class_def
+            .methods
+            .values()
+            .chain(class_def.class_methods.values())
+            .chain(class_def.constructors.iter())
+            .chain(class_def.destructor.iter())
+        {
+            retain(method.body_span)?;
+        }
+    }
+    Some(())
+}
+
+fn retain_original_member_bodies(
+    methods: &tcl_compiler::analyser::types::OriginalSourceMemberLedger,
+    specials: &tcl_compiler::analyser::types::OriginalSourceSpecialMemberLedger,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    retain: &mut impl FnMut(Span) -> Option<()>,
+) -> Option<()> {
+    for method in methods.declarations() {
+        let declaration = method.declaration();
+        let word = declaration.original_word();
+        (word.image() == image
+            && word.config() == config
+            && declaration.site().source.source_image() == image)
+            .then_some(())?;
+        if method.forward_prefix().is_none() {
+            retain(method.metadata().body_span)?;
+        }
+    }
+    for special in specials.declarations() {
+        let body = special.body_word();
+        (body.image() == image
+            && body.config() == config
+            && special.site().source.source_image() == image)
+            .then_some(())?;
+        retain(body.content_span().ok()?)?;
+    }
+    Some(())
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
@@ -283,258 +398,45 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
     }
 }
 
-/// The segmented command span containing `cursor_offset`.
-#[allow(clippy::too_many_lines)] // registry bodies and generic substitutions share one recursive walk
+/// Explicit test/API compatibility ingress with the same actual full grammar
+/// and store as public analysis-free selection. Geometry never grants dispatch.
+#[cfg(test)]
 fn command_span_at(
     source: &str,
     cursor_offset: u32,
     config: tcl_lexer::LexerConfig,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<Span> {
-    #[allow(clippy::too_many_arguments)] // immutable traversal context plus changing slice/base/depth/result
-    fn visit(
-        script: &str,
-        base: u32,
-        cursor: u32,
-        profile: &'static tcl_dialect::DialectProfile,
-        config: tcl_lexer::LexerConfig,
-        registry: &tcl_registry::CommandRegistry,
-        identities: &tcl_compiler::realm::CommandBindingRealm,
-        depth: u32,
-        definition_grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
-        best: &mut Option<Span>,
-    ) {
-        if depth > 64 {
-            return;
-        }
-        for command in segment_commands_with_offset_and_config(script, 0, config.at_depth(depth)) {
-            let span = Span::new(
-                base.saturating_add(command.span.start()),
-                base.saturating_add(command.span.end()),
-            );
-            if !(span.start() <= cursor && cursor < span.end()) {
-                continue;
-            }
-            if best.is_none_or(|old| (span.end() - span.start()) < (old.end() - old.start())) {
-                *best = Some(span);
-            }
-            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            let head_offset =
-                base.saturating_add(command.argv.first().map_or(0, |token| token.span.start()));
-            let resolved = identities.head_words(command.name(), head_offset).resolved;
-            let canonical = tcl_syntax::naming::canonical_written_command(resolved);
-            let semantic_head = if registry.get_exact(&canonical).is_some() {
-                canonical
-            } else if canonical.starts_with("::") {
-                let rooted_name = canonical.trim_start_matches("::");
-                if registry.get(rooted_name).is_some() {
-                    rooted_name.to_owned()
-                } else {
-                    canonical
-                }
-            } else {
-                canonical
-            };
-            let head = tcl_compiler::realm::HeadWords {
-                written: command.name(),
-                resolved: &semantic_head,
-            };
-            let availability = Some(crate::document_context_for_profile(profile).authoring_query());
-            let body_indices = definition_grammar
-                .filter(|grammar| grammar.is_member(head.written))
-                .map_or_else(
-                    || {
-                        registry.arg_indices_for_role(
-                            &semantic_head,
-                            &args,
-                            tcl_registry::ArgRole::Body,
-                        )
-                    },
-                    |grammar| grammar.member_body_indices_in(head.written, &args, availability),
-                );
-            let next_grammar =
-                crate::oo_body::next_definition_grammar(head, &args, definition_grammar, registry);
-            let case_list = registry
-                .case_invocation(&semantic_head, &args, availability)
-                .and_then(|(case, invocation)| {
-                    invocation.clause_list_index.map(|index| (case, index))
-                });
-            let mut recursed = std::collections::HashSet::new();
-            for index in body_indices {
-                let Some(token) = command.arg_tokens().get(index) else {
-                    continue;
-                };
-                if token.kind != tcl_lexer::TokenType::Str {
-                    continue;
-                }
-                let word = tcl_lexer::word_span_at(script, token.span);
-                let (Ok(start), Ok(end)) =
-                    (usize::try_from(word.start()), usize::try_from(word.end()))
-                else {
-                    continue;
-                };
-                if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
-                    continue;
-                }
-                let Some(body) = script.get(start + 1..end - 1) else {
-                    continue;
-                };
-                // Case-list bodies are data containing separately-braced arm
-                // scripts. Descend into those arms below, never as one script.
-                if case_list.is_some_and(|(_, case_index)| case_index == index) {
-                    continue;
-                }
-                visit(
-                    body,
-                    base.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
-                    cursor,
-                    profile,
-                    config,
-                    registry,
-                    identities,
-                    depth + 1,
-                    next_grammar,
-                    best,
-                );
-                recursed.insert((token.span.start(), token.span.end()));
-            }
-
-            if let Some((case, index)) = case_list
-                && let Some(token) = command.arg_tokens().get(index)
-                && token.kind == tcl_lexer::TokenType::Str
-            {
-                let whole = tcl_lexer::word_span_at(script, token.span);
-                let start = usize::try_from(whole.start()).unwrap_or(script.len());
-                let end = usize::try_from(whole.end()).unwrap_or(script.len());
-                if end > start + 1
-                    && script.as_bytes().get(start) == Some(&b'{')
-                    && let Some(list) = script.get(start + 1..end - 1)
-                {
-                    let shape = tcl_syntax::case_list::CaseListShape {
-                        clause_flags: case.clause_flags,
-                        clause_value_flags: case.clause_value_flags,
-                    };
-                    for clause in tcl_syntax::case_list::split_case_list(list, &shape) {
-                        let Some(body) = clause.body.filter(|body| body.braced) else {
-                            continue;
-                        };
-                        let body_range = body.content_range();
-                        let arm_start = start + 1 + body_range.start;
-                        let arm_end = start + 1 + body_range.end;
-                        let Some(arm) = script.get(arm_start..arm_end) else {
-                            continue;
-                        };
-                        visit(
-                            arm,
-                            base.saturating_add(u32::try_from(arm_start).unwrap_or(u32::MAX)),
-                            cursor,
-                            profile,
-                            config,
-                            registry,
-                            identities,
-                            depth + 1,
-                            None,
-                            best,
-                        );
-                    }
-                }
-            }
-
-            for index in registry.arg_indices_for_role(
-                &semantic_head,
-                &args,
-                tcl_registry::ArgRole::LambdaLiteral,
-            ) {
-                let Some(token) = command.arg_tokens().get(index) else {
-                    continue;
-                };
-                let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(script, *token)
-                    .and_then(|literal| literal.braced_body())
-                else {
-                    continue;
-                };
-                let start = usize::try_from(body.start()).unwrap_or(script.len());
-                let end = usize::try_from(body.end()).unwrap_or(script.len());
-                let Some(lambda) = script.get(start..end) else {
-                    continue;
-                };
-                visit(
-                    lambda,
-                    base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
-                    cursor,
-                    profile,
-                    config,
-                    registry,
-                    identities,
-                    depth + 1,
-                    None,
-                    best,
-                );
-            }
-
-            // Command substitutions execute Tcl scripts regardless of the
-            // surrounding command's registry roles. Descend every substitution
-            // that contains the cursor, including nested/multiline forms. A
-            // span already visited through a registry Body role is skipped so
-            // the same command cannot contribute duplicate selection links.
-            for token in command.all_tokens.iter().filter(|token| {
-                token.kind == tcl_lexer::TokenType::Cmd
-                    && !recursed.contains(&(token.span.start(), token.span.end()))
-            }) {
-                let absolute_start = base.saturating_add(token.span.start());
-                let absolute_end = base.saturating_add(token.span.end());
-                if !(absolute_start <= cursor && cursor < absolute_end) {
-                    continue;
-                }
-                let start = token
-                    .span
-                    .start()
-                    .saturating_add(u32::from(token.content_offset));
-                let end = token.span.end();
-                let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end)) else {
-                    continue;
-                };
-                let Some(inner) = script.get(start..end) else {
-                    continue;
-                };
-                visit(
-                    inner,
-                    base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
-                    cursor,
-                    profile,
-                    config,
-                    registry,
-                    identities,
-                    depth + 1,
-                    None,
-                    best,
-                );
-            }
-        }
-    }
-    let profile = dialect;
-    let registry = crate::registry_for_dialect_profile(profile);
-    let identities =
-        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
-    let mut best = None;
-    visit(
+    let analysis = crate::source_structure::analyse_document(
         source,
-        0,
-        cursor_offset,
-        profile,
+        dialect,
+        crate::registry_for_dialect_profile(dialect),
         config,
-        registry,
-        &identities,
-        0,
-        None,
-        &mut best,
     );
-    best
+    crate::source_structure::SourceStructure::capture(source, Some(&analysis), config)?
+        .command_at(cursor_offset)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_selection_uses_retained_bodies_and_declines_stale_body_roles() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "proc p {} {\n puts [list inner]\n}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let ranges = selection_range(source, 1, 13, Some(&analysis));
+        assert!(ranges.iter().any(|range| range.range.start_line == 1
+            && range.range.start_character == 7
+            && range.range.end_character == 17));
+        let stale = source.replace("inner", "other");
+        let ranges = selection_range(&stale, 1, 13, Some(&analysis));
+        assert!(!ranges.iter().any(|range| range.range.start_line == 1
+            && range.range.start_character == 7
+            && range.range.end_character == 17));
+    }
 
     #[test]
     fn selection_range_chain_grows_outward() {
@@ -714,6 +616,117 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = tcl_compiler::analyser::Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn original_body_ranges_keep_opaque_and_repeated_declaration_owners() {
+        // Implementation contract: naming.editor.original-selection-body-ranges
+        // docs/design/analysis/name-resolution-proofs/original-selection-body-ranges.md
+        let source = "proc p\\uD800 {} {\n set first 1\n}\nproc p\\uD801 {} {\n set second 2\n}\nproc repeated {} {\n set earlier 3\n}\nproc repeated {} {\n set later 4\n}\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let bodies = analysis
+                .original_procedure_declarations()
+                .map(|row| row.metadata().body_span)
+                .collect::<Vec<_>>();
+            assert_eq!(bodies.len(), 4, "{dialect}");
+            analysis.all_procs.clear();
+            analysis.superseded_procs.clear();
+            analysis.proc_declaration_sites.clear();
+            for (marker, body) in ["first", "second", "earlier", "later"]
+                .into_iter()
+                .zip(bodies)
+            {
+                let cursor = u32::try_from(source.find(marker).unwrap()).unwrap();
+                assert_eq!(
+                    enclosing_body_spans(source, &analysis, cursor),
+                    Some(vec![body]),
+                    "{dialect} {marker}"
+                );
+                let index = LineIndex::new(source);
+                let position = index.position_at_utf16(cursor, source);
+                let ranges = selection_range(
+                    source,
+                    position.line,
+                    position.character.get(),
+                    Some(&analysis),
+                );
+                assert!(
+                    ranges
+                        .iter()
+                        .any(|range| range.range == span_to_range(source, &index, body)),
+                    "{dialect} {marker} {ranges:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_body_ranges_keep_named_and_nameless_class_workers() {
+        // Implementation contract: naming.editor.original-selection-body-ranges
+        // docs/design/analysis/name-resolution-proofs/original-selection-body-ranges.md
+        let source = "oo::class create C\\uD800 {\n method m\\uD800 {} {\n  set methodBody 1\n }\n constructor {} {\n  set constructorBody 2\n }\n destructor {\n  set destructorBody 3\n }\n}\n";
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let class = analysis.original_class_declarations().next().unwrap();
+            let class_body = class.metadata().body_span;
+            let mut workers = class
+                .metadata()
+                .original_members
+                .declarations()
+                .map(|row| row.metadata().body_span)
+                .collect::<Vec<_>>();
+            workers.extend(
+                class
+                    .metadata()
+                    .original_special_members
+                    .declarations()
+                    .map(|row| row.body_word().content_span().unwrap()),
+            );
+            assert_eq!(workers.len(), 3, "{dialect}");
+            analysis.all_classes.clear();
+            analysis.superseded_classes.clear();
+            for (marker, worker) in ["methodBody", "constructorBody", "destructorBody"]
+                .into_iter()
+                .zip(workers)
+            {
+                let cursor = u32::try_from(source.find(marker).unwrap()).unwrap();
+                let spans = enclosing_body_spans(source, &analysis, cursor).unwrap();
+                assert_eq!(spans, [worker, class_body], "{dialect} {marker}");
+            }
+        }
+    }
+
+    #[test]
+    fn original_body_ranges_refuse_stale_configuration_and_foreign_headers() {
+        // Implementation contract: naming.editor.original-selection-body-ranges
+        // docs/design/analysis/name-resolution-proofs/original-selection-body-ranges.md
+        let source = "proc p {} {\n set value 1\n}\n";
+        let analysis = analyse(source);
+        let cursor = u32::try_from(source.find("value").unwrap()).unwrap();
+        assert_eq!(
+            enclosing_body_spans(source, &analysis, cursor)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            enclosing_body_spans(&source.replace("value", "other"), &analysis, cursor).is_none()
+        );
+        let mut changed_config = analysis.clone();
+        let mut config = changed_config.body_lexer_config.unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        changed_config.body_lexer_config = Some(config);
+        assert!(enclosing_body_spans(source, &changed_config, cursor).is_none());
+        let foreign = analyse("proc foreign {} {set value 9}");
+        let mut contaminated = analysis.clone();
+        contaminated
+            .original_procedure_metadata
+            .extend(foreign.original_procedure_declarations().cloned());
+        assert!(enclosing_body_spans(source, &contaminated, cursor).is_none());
+        let mut assistance = AnalysisResult::default();
+        assistance.all_procs = analysis.all_procs.clone();
+        assert!(enclosing_body_spans(source, &assistance, cursor).is_none());
     }
 
     #[test]

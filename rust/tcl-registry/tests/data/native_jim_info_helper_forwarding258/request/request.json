@@ -1,0 +1,42 @@
+{
+  "request_id": "naming.info.original-namespace-helper-declaration-and-current-forwarding",
+  "question": "Which original NamespaceInfo declaration is loaded by current Jim, and do ordinary/rooted inventory calls forward their unchanged vector and actual caller namespace through a replaced helper while -nons or root -all bypasses that helper?",
+  "problem": "A synthetic namespace-aware listing cannot establish execution of the current mutable namespace info procedure. The backend must retain the selected namespace-aware versus direct-core purpose, invoke the real helper when selected, and preserve exact original argument objects and caller scope. Its vendored formal/body asset needs direct public declaration confirmation independently of source inspection.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged fullInit236/245 counted C API driver with independently verified provider pins. Fresh full Tcl_Init or Jim core/static extensions per exact original; retain source bytes/hashes, VERSION, whole ORIGINAL completion/result hex, all stdout/stderr/exit/build pins. No outer eval/catch wrapper or stack override.",
+  "cases": [
+    {
+      "id": "original-helper-formals-and-body",
+      "source_file": "/workspace/.proofs/native-jim-info-helper-forwarding258-request/original-helper-formals-and-body.tcl",
+      "source_sha256": "e1ea16e55cb782e3e1f71df688cdfe1fe454936fb140bcebb393c5d994387d97",
+      "source_encoding": "ASCII LF. The braced namespace info token is one exact multiword command name. Actual root versus ::r2286_holder execution and unchanged ordinary/rooted/-nons vectors remain distinct. Namespace-helper support guard produces an ordinary NOT_APPLICABLE list rather than an embedding-specific return."
+    },
+    {
+      "id": "original-helper-replacement-caller-and-vector",
+      "source_file": "/workspace/.proofs/native-jim-info-helper-forwarding258-request/original-helper-replacement-caller-and-vector.tcl",
+      "source_sha256": "b52aae67c55a30d223accc64288532a35413052cc879f83a23695afb49b93845",
+      "source_encoding": "ASCII LF. The braced namespace info token is one exact multiword command name. Actual root versus ::r2286_holder execution and unchanged ordinary/rooted/-nons vectors remain distinct. Namespace-helper support guard produces an ordinary NOT_APPLICABLE list rather than an embedding-specific return."
+    },
+    {
+      "id": "original-root-qualified-pattern-forwards-current-helper",
+      "source_file": "/workspace/.proofs/native-jim-info-helper-forwarding258-request/original-root-qualified-pattern-forwards-current-helper.tcl",
+      "source_sha256": "aea3740e5c8ece00d79d5b70d41bfa6677e2ecb8c8d9c749fcf2b07fcd74c36e",
+      "source_encoding": "ASCII LF. The braced namespace info token is one exact multiword command name. Actual root versus ::r2286_holder execution and unchanged ordinary/rooted/-nons vectors remain distinct. Namespace-helper support guard produces an ordinary NOT_APPLICABLE list rather than an embedding-specific return."
+    }
+  ],
+  "inspected_source": [
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "scope": "Exact original namespace info formal declaration and body in nshelper.tcl; direct public declaration and current replacement outcomes remain independent evidence channels."
+    }
+  ],
+  "scope": "Original helper formals/body bytes and the authored reached helper replacement vectors/caller reports. C unavailable guards, root qualified-pattern forwarding, root -all and -nons bypasses stay separate. No private object cache/command identity, arbitrary Unicode/NUL, other helper behavior, native frame allocation or source-provider equality follows."
+}

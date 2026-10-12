@@ -1,0 +1,23 @@
+{
+  "version": "9.1.0",
+  "request_sha256": "0c2292045cf2ec422dd29efca2cf39febb38acc27e12c4b748b93b4bea64da42",
+  "launcher_sha256": "2bff9be8657c5badb2b5a0eebc887ab694d89b8ccf76d8c6b7ccd7805e2d9c8b",
+  "commands": 13,
+  "original_source_unchanged": true,
+  "separate_instrumented_archive": true,
+  "exits": [
+    0,
+    0,
+    0,
+    -4,
+    0,
+    -4,
+    0,
+    0,
+    0,
+    0,
+    -4,
+    0,
+    -4
+  ]
+}

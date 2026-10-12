@@ -1,0 +1,16 @@
+
+running 1 test
+test minify::original::tests::lexical_minifier_keeps_explicit_authoring_compaction_separate ... LOGICAL_FORMAL_COMMAND offset=25 schema_closed=false references_closed=true
+
+thread 'minify::original::tests::lexical_minifier_keeps_explicit_authoring_compaction_separate' (576444) panicked at rust/tcl-lsp-core/src/minify/original.rs:961:9:
+assertion failed: !result.symbol_map.variables.is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    minify::original::tests::lexical_minifier_keeps_explicit_authoring_compaction_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2631 filtered out; finished in 0.86s
+

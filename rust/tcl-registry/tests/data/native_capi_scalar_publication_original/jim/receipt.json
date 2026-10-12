@@ -1,0 +1,68 @@
+{
+  "question": "naming.numeric.original-capi-scalar-publication-width",
+  "provider": "jim",
+  "request_sha256": "c2a087d6106866479e665a0cc006dfa2204df4711fd1d7adf3dd7ca2db197a4b",
+  "source_sha256": "fdc84725bcc14b05047411b032ccd5cae4b29310f694245ed743600c465c8071",
+  "compile": {
+    "command": [
+      "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "-std=c99",
+      "-O0",
+      "-DJIM_PROBE",
+      "-I/workspace/.proofs/native-providers/jimtcl",
+      "/workspace/.proofs/native-capi-scalar-publication456/probe.c",
+      "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+      "-lm",
+      "-ldl",
+      "-o",
+      "/workspace/.proofs/native-capi-scalar-publication456/jim/probe.elf"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "seconds": 0.061956135992659256,
+    "stdout_file": "/workspace/.proofs/native-capi-scalar-publication456/jim/compile.stdout",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_file": "/workspace/.proofs/native-capi-scalar-publication456/jim/compile.stderr",
+    "stderr_sha256": "31469af28361ba9abb22c9d9100deab3e9bc5b8c0ccd6ab3779a785a6e826c4d"
+  },
+  "cli_version": {
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/tmp/receiver-capi-scalar-getter-request456/jim-version.tcl"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "seconds": 0.007956875022500753,
+    "stdout_file": "/workspace/.proofs/native-capi-scalar-publication456/jim/cli-version.stdout",
+    "stdout_sha256": "f061a4141f0c4f07220cc8a8656910dd43801c0e2f4672f43bb50aa93ca31f73",
+    "stderr_file": "/workspace/.proofs/native-capi-scalar-publication456/jim/cli-version.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "source_sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21"
+  },
+  "executions": [],
+  "selected_environment": {},
+  "prior_build_input_receipt": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json",
+  "prior_build_input_receipt_sha256": "006a4501536c0ae6e1919ef33f8cfcad38ebd8698b965f90abfcd6d364e32b54",
+  "inputs_verified_before_and_after": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "/usr/bin/x86_64-linux-gnu-gcc-14": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "/tmp/receiver-capi-scalar-getter-request456/request.json": "c2a087d6106866479e665a0cc006dfa2204df4711fd1d7adf3dd7ca2db197a4b",
+    "/workspace/.proofs/native-capi-scalar-publication456/probe.c": "fdc84725bcc14b05047411b032ccd5cae4b29310f694245ed743600c465c8071",
+    "/tmp/receiver-capi-scalar-getter-request456/jim-version.tcl": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21",
+    "/workspace/.proofs/native-providers/jimtcl/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "/workspace/.proofs/native-providers/jimtcl/config.log": "050187a330047724acddbcb98543b7b5e2168b3c3ea5fdf4b6fe8c0b6a245b7e"
+  },
+  "compiler_receipt": "/workspace/.proofs/native-capi-scalar-publication456/compiler.json",
+  "compiler_receipt_sha256": "f6a281d3e8bc19aafa9f2b665ab1ced9ccdb3a3a07fd64de7722cdb7bcbc8a5c",
+  "scope": "Fresh public primitive getter observations at actual reported ABI width only. BUILD_MACRO rows describe this probe translation unit; library configuration is independently retained. No expression truth equivalence, Native/SSA/source identity issuer, application CAPI implementation test or unavailable ABI/provider outcome inferred. Original installed native library/CLI provenance is limited to independently pinned current bytes and prior receipt; no unrecorded historical configure/compiler invocation manufactured."
+}

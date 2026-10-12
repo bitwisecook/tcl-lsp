@@ -345,10 +345,8 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
             link_target_span: None,
         },
     );
-    let analysis = R {
-        global_scope: scope,
-        ..R::default()
-    };
+    let mut analysis = R::default();
+    analysis.global_scope = scope;
     let src = "set x 1\nputs $x\n";
     // Cursor on `$x` (line 1, col 6).
     let h = document_highlights(

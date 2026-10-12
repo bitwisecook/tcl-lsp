@@ -1,0 +1,204 @@
+
+running 1 test
+test regex_source::tests::literal_flows_to_regexp_in_a_large_multi_proc_file ... COMPILER_PIPELINE_PHASE pipeline=unit bytes=114937 procedures=0 stage=initial us=583
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=114937 procedures=0 stage=initial us=1
+LOWER_SOURCE_PHASE bytes=114937 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=114937 phase=configured ms=24 statements=0 procedures=0
+SOURCE_PHASE bytes=114937 stage=initial ms=41 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=114937 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=114937 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=114937 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_PHASE bytes=114937 stage=walk ms=85362 points=1206 layouts=603
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=114937 stage=walk retained_owners=1 requests=6035 captures=3014 reuses=3021 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=114937 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=114937 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=command-key scope=cumulative-inclusive calls=54378 ms=956 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=slot-paths scope=cumulative-inclusive calls=28361 ms=961 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=namespace scope=cumulative-inclusive calls=33 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=metadata-advice scope=cumulative-inclusive calls=3012 ms=13838 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=lookup-key scope=cumulative-inclusive calls=34461 ms=599 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=baseline scope=cumulative-inclusive calls=59807 ms=453 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=114937 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=114937 stage=walk calls=59807 ms=431
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=601
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=71 roots=601 bytes=44 offset=114891 outcomes=0 layouts=603
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=2 ms=1141 roots=601 bytes=129 offset=269 outcomes=2 layouts=612
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=4 ms=2991 roots=601 bytes=143 offset=18408 outcomes=4 layouts=626
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=6 ms=4813 roots=601 bytes=143 offset=18794 outcomes=6 layouts=640
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=8 ms=6383 roots=601 bytes=143 offset=19180 outcomes=8 layouts=654
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=10 ms=7993 roots=601 bytes=143 offset=19566 outcomes=10 layouts=668
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=12 ms=9530 roots=601 bytes=143 offset=19952 outcomes=12 layouts=682
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=14 ms=10698 roots=601 bytes=136 offset=2030 outcomes=14 layouts=696
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=16 ms=11867 roots=601 bytes=143 offset=20531 outcomes=16 layouts=710
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=18 ms=13178 roots=601 bytes=143 offset=20917 outcomes=18 layouts=724
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=20 ms=14516 roots=601 bytes=143 offset=21303 outcomes=20 layouts=738
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=22 ms=16184 roots=601 bytes=143 offset=21689 outcomes=22 layouts=752
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=24 ms=18015 roots=601 bytes=143 offset=22075 outcomes=24 layouts=766
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=26 ms=19488 roots=601 bytes=143 offset=22268 outcomes=26 layouts=780
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=28 ms=20966 roots=601 bytes=143 offset=22654 outcomes=28 layouts=794
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=30 ms=22233 roots=601 bytes=143 offset=23040 outcomes=30 layouts=808
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=32 ms=23375 roots=601 bytes=143 offset=23426 outcomes=32 layouts=822
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=34 ms=24617 roots=601 bytes=143 offset=23812 outcomes=34 layouts=836
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=36 ms=26052 roots=601 bytes=136 offset=2398 outcomes=36 layouts=850
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=38 ms=27552 roots=601 bytes=143 offset=24391 outcomes=38 layouts=864
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=39 ms=28584 roots=601 bytes=143 offset=24584 outcomes=39 layouts=871
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=41 ms=30617 roots=601 bytes=143 offset=24970 outcomes=41 layouts=885
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=42 ms=31740 roots=601 bytes=143 offset=25163 outcomes=42 layouts=892
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=43 ms=32750 roots=601 bytes=143 offset=25356 outcomes=43 layouts=899
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=45 ms=33951 roots=601 bytes=143 offset=25742 outcomes=45 layouts=913
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=47 ms=35186 roots=601 bytes=136 offset=2582 outcomes=47 layouts=927
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=49 ms=36561 roots=601 bytes=143 offset=26321 outcomes=49 layouts=941
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=51 ms=38451 roots=601 bytes=143 offset=26707 outcomes=51 layouts=955
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=53 ms=40171 roots=601 bytes=143 offset=27093 outcomes=53 layouts=969
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=55 ms=41811 roots=601 bytes=143 offset=27479 outcomes=55 layouts=983
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=57 ms=43513 roots=601 bytes=143 offset=27865 outcomes=57 layouts=997
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=59 ms=44844 roots=601 bytes=143 offset=28058 outcomes=59 layouts=1011
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=61 ms=46040 roots=601 bytes=143 offset=28444 outcomes=61 layouts=1025
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=63 ms=47205 roots=601 bytes=143 offset=28830 outcomes=63 layouts=1039
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=65 ms=48609 roots=601 bytes=143 offset=29216 outcomes=65 layouts=1053
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=67 ms=50481 roots=601 bytes=143 offset=29602 outcomes=67 layouts=1067
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=69 ms=51831 roots=601 bytes=136 offset=2950 outcomes=69 layouts=1081
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=71 ms=53304 roots=601 bytes=143 offset=30181 outcomes=71 layouts=1095
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=73 ms=54930 roots=601 bytes=143 offset=30567 outcomes=73 layouts=1109
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=75 ms=56601 roots=601 bytes=143 offset=30953 outcomes=75 layouts=1123
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=77 ms=57878 roots=601 bytes=143 offset=31339 outcomes=77 layouts=1137
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=79 ms=59057 roots=601 bytes=143 offset=31725 outcomes=79 layouts=1151
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=81 ms=60206 roots=601 bytes=143 offset=31918 outcomes=81 layouts=1165
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=83 ms=61384 roots=601 bytes=143 offset=32304 outcomes=83 layouts=1179
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=85 ms=62565 roots=601 bytes=143 offset=32690 outcomes=85 layouts=1193
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=87 ms=63767 roots=601 bytes=143 offset=33076 outcomes=87 layouts=1207
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=89 ms=64990 roots=601 bytes=143 offset=33462 outcomes=89 layouts=1221
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=91 ms=66235 roots=601 bytes=136 offset=3318 outcomes=91 layouts=1235
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=93 ms=67383 roots=601 bytes=143 offset=34041 outcomes=93 layouts=1249
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=95 ms=68520 roots=601 bytes=143 offset=34427 outcomes=95 layouts=1263
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=97 ms=69681 roots=601 bytes=143 offset=34813 outcomes=97 layouts=1277
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=99 ms=70839 roots=601 bytes=143 offset=35199 outcomes=99 layouts=1291
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=101 ms=71996 roots=601 bytes=143 offset=35585 outcomes=101 layouts=1305
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=103 ms=73147 roots=601 bytes=143 offset=35778 outcomes=103 layouts=1319
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=105 ms=74297 roots=601 bytes=143 offset=36164 outcomes=105 layouts=1333
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=107 ms=75450 roots=601 bytes=143 offset=36550 outcomes=107 layouts=1347
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=109 ms=76629 roots=601 bytes=143 offset=36936 outcomes=109 layouts=1361
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=111 ms=77786 roots=601 bytes=143 offset=37322 outcomes=111 layouts=1375
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=113 ms=78939 roots=601 bytes=129 offset=444 outcomes=113 layouts=1389
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=115 ms=80093 roots=601 bytes=143 offset=37708 outcomes=115 layouts=1403
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=117 ms=81279 roots=601 bytes=143 offset=38094 outcomes=117 layouts=1417
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=119 ms=82431 roots=601 bytes=143 offset=38480 outcomes=119 layouts=1431
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=121 ms=83579 roots=601 bytes=143 offset=38866 outcomes=121 layouts=1445
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=123 ms=84760 roots=601 bytes=143 offset=39252 outcomes=123 layouts=1459
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=125 ms=85900 roots=601 bytes=136 offset=3870 outcomes=125 layouts=1473
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=127 ms=87039 roots=601 bytes=143 offset=39831 outcomes=127 layouts=1487
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=129 ms=88179 roots=601 bytes=143 offset=40217 outcomes=129 layouts=1501
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=131 ms=89313 roots=601 bytes=143 offset=40603 outcomes=131 layouts=1515
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=133 ms=90455 roots=601 bytes=143 offset=40989 outcomes=133 layouts=1529
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=135 ms=91598 roots=601 bytes=143 offset=41375 outcomes=135 layouts=1543
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=137 ms=92742 roots=601 bytes=143 offset=41568 outcomes=137 layouts=1557
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=139 ms=93876 roots=601 bytes=143 offset=41954 outcomes=139 layouts=1571
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=141 ms=95009 roots=601 bytes=143 offset=42340 outcomes=141 layouts=1585
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=143 ms=96160 roots=601 bytes=143 offset=42726 outcomes=143 layouts=1599
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=145 ms=97327 roots=601 bytes=143 offset=43112 outcomes=145 layouts=1613
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=147 ms=98496 roots=601 bytes=136 offset=4238 outcomes=147 layouts=1627
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=149 ms=99661 roots=601 bytes=143 offset=43691 outcomes=149 layouts=1641
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=151 ms=100824 roots=601 bytes=143 offset=44077 outcomes=151 layouts=1655
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=153 ms=101984 roots=601 bytes=143 offset=44463 outcomes=153 layouts=1669
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=155 ms=103149 roots=601 bytes=143 offset=44849 outcomes=155 layouts=1683
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=157 ms=104313 roots=601 bytes=143 offset=45235 outcomes=157 layouts=1697
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=159 ms=105467 roots=601 bytes=143 offset=45428 outcomes=159 layouts=1711
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=161 ms=106617 roots=601 bytes=143 offset=45814 outcomes=161 layouts=1725
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=163 ms=107786 roots=601 bytes=143 offset=46200 outcomes=163 layouts=1739
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=165 ms=108956 roots=601 bytes=143 offset=46586 outcomes=165 layouts=1753
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=167 ms=110112 roots=601 bytes=143 offset=46972 outcomes=167 layouts=1767
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=169 ms=111597 roots=601 bytes=136 offset=4606 outcomes=169 layouts=1781
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=171 ms=113496 roots=601 bytes=143 offset=47551 outcomes=171 layouts=1795
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=173 ms=114918 roots=601 bytes=143 offset=47937 outcomes=173 layouts=1809
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=175 ms=116066 roots=601 bytes=143 offset=48323 outcomes=175 layouts=1823
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=177 ms=117221 roots=601 bytes=143 offset=48709 outcomes=177 layouts=1837
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=179 ms=118379 roots=601 bytes=143 offset=49095 outcomes=179 layouts=1851
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=181 ms=119501 roots=601 bytes=143 offset=49288 outcomes=181 layouts=1865
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=183 ms=120633 roots=601 bytes=143 offset=49674 outcomes=183 layouts=1879
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=185 ms=121758 roots=601 bytes=143 offset=50060 outcomes=185 layouts=1893
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=187 ms=122887 roots=601 bytes=143 offset=50446 outcomes=187 layouts=1907
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=189 ms=124013 roots=601 bytes=143 offset=50832 outcomes=189 layouts=1921
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=191 ms=125139 roots=601 bytes=136 offset=4974 outcomes=191 layouts=1935
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=193 ms=126265 roots=601 bytes=143 offset=51411 outcomes=193 layouts=1949
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=195 ms=127398 roots=601 bytes=143 offset=51797 outcomes=195 layouts=1963
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=197 ms=128553 roots=601 bytes=143 offset=52183 outcomes=197 layouts=1977
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=199 ms=129706 roots=601 bytes=143 offset=52569 outcomes=199 layouts=1991
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=201 ms=130854 roots=601 bytes=143 offset=52955 outcomes=201 layouts=2005
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=203 ms=132016 roots=601 bytes=143 offset=53148 outcomes=203 layouts=2019
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=205 ms=133170 roots=601 bytes=143 offset=53534 outcomes=205 layouts=2033
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=207 ms=134308 roots=601 bytes=143 offset=53920 outcomes=207 layouts=2047
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=209 ms=135444 roots=601 bytes=143 offset=54306 outcomes=209 layouts=2061
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=211 ms=136590 roots=601 bytes=143 offset=54692 outcomes=211 layouts=2075
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=213 ms=137768 roots=601 bytes=136 offset=5342 outcomes=213 layouts=2089
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=215 ms=138905 roots=601 bytes=143 offset=55271 outcomes=215 layouts=2103
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=217 ms=140044 roots=601 bytes=143 offset=55657 outcomes=217 layouts=2117
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=219 ms=141184 roots=601 bytes=143 offset=56043 outcomes=219 layouts=2131
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=221 ms=142323 roots=601 bytes=143 offset=56429 outcomes=221 layouts=2145
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=223 ms=143482 roots=601 bytes=143 offset=56815 outcomes=223 layouts=2159
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=225 ms=144783 roots=601 bytes=136 offset=5526 outcomes=225 layouts=2173
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=227 ms=145999 roots=601 bytes=143 offset=57201 outcomes=227 layouts=2187
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=229 ms=147166 roots=601 bytes=143 offset=57587 outcomes=229 layouts=2201
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=231 ms=148423 roots=601 bytes=143 offset=57973 outcomes=231 layouts=2215
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=233 ms=149675 roots=601 bytes=143 offset=58359 outcomes=233 layouts=2229
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=235 ms=150818 roots=601 bytes=143 offset=58745 outcomes=235 layouts=2243
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=237 ms=152060 roots=601 bytes=143 offset=58938 outcomes=237 layouts=2257
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=239 ms=153212 roots=601 bytes=143 offset=59324 outcomes=239 layouts=2271
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=241 ms=154354 roots=601 bytes=143 offset=59710 outcomes=241 layouts=2285
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=243 ms=155551 roots=601 bytes=143 offset=60096 outcomes=243 layouts=2299
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=245 ms=156724 roots=601 bytes=143 offset=60482 outcomes=245 layouts=2313
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=247 ms=157868 roots=601 bytes=136 offset=5894 outcomes=247 layouts=2327
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=249 ms=159005 roots=601 bytes=143 offset=61061 outcomes=249 layouts=2341
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=251 ms=160148 roots=601 bytes=143 offset=61447 outcomes=251 layouts=2355
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=253 ms=161332 roots=601 bytes=143 offset=61833 outcomes=253 layouts=2369
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=255 ms=162496 roots=601 bytes=143 offset=62219 outcomes=255 layouts=2383
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=257 ms=163638 roots=601 bytes=143 offset=62605 outcomes=257 layouts=2397
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=259 ms=164783 roots=601 bytes=143 offset=62798 outcomes=259 layouts=2411
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=261 ms=165923 roots=601 bytes=143 offset=63184 outcomes=261 layouts=2425
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=263 ms=167070 roots=601 bytes=143 offset=63570 outcomes=263 layouts=2439
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=265 ms=168227 roots=601 bytes=143 offset=63956 outcomes=265 layouts=2453
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=267 ms=169374 roots=601 bytes=143 offset=64342 outcomes=267 layouts=2467
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=269 ms=170573 roots=601 bytes=136 offset=6262 outcomes=269 layouts=2481
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=271 ms=171744 roots=601 bytes=143 offset=64921 outcomes=271 layouts=2495
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=273 ms=172910 roots=601 bytes=143 offset=65307 outcomes=273 layouts=2509
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=275 ms=174051 roots=601 bytes=143 offset=65693 outcomes=275 layouts=2523
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=277 ms=175201 roots=601 bytes=143 offset=66079 outcomes=277 layouts=2537
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=279 ms=176356 roots=601 bytes=143 offset=66465 outcomes=279 layouts=2551
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=281 ms=177553 roots=601 bytes=143 offset=66658 outcomes=281 layouts=2565
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=283 ms=178726 roots=601 bytes=143 offset=67044 outcomes=283 layouts=2579
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=285 ms=179874 roots=601 bytes=143 offset=67430 outcomes=285 layouts=2593
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=287 ms=181030 roots=601 bytes=143 offset=67816 outcomes=287 layouts=2607
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=289 ms=182189 roots=601 bytes=143 offset=68202 outcomes=289 layouts=2621
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=291 ms=183499 roots=601 bytes=136 offset=6630 outcomes=291 layouts=2635
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=293 ms=184642 roots=601 bytes=143 offset=68781 outcomes=293 layouts=2649
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=295 ms=185783 roots=601 bytes=143 offset=69167 outcomes=295 layouts=2663
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=297 ms=186935 roots=601 bytes=143 offset=69553 outcomes=297 layouts=2677
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=299 ms=188083 roots=601 bytes=143 offset=69939 outcomes=299 layouts=2691
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=301 ms=189230 roots=601 bytes=143 offset=70325 outcomes=301 layouts=2705
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=303 ms=190409 roots=601 bytes=143 offset=70518 outcomes=303 layouts=2719
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=305 ms=191568 roots=601 bytes=143 offset=70904 outcomes=305 layouts=2733
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=307 ms=192764 roots=601 bytes=143 offset=71290 outcomes=307 layouts=2747
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=309 ms=194009 roots=601 bytes=143 offset=71676 outcomes=309 layouts=2761
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=311 ms=195160 roots=601 bytes=143 offset=72062 outcomes=311 layouts=2775
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=313 ms=196329 roots=601 bytes=136 offset=6998 outcomes=313 layouts=2789
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=315 ms=197483 roots=601 bytes=143 offset=72641 outcomes=315 layouts=2803
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=317 ms=198642 roots=601 bytes=143 offset=73027 outcomes=317 layouts=2817
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=319 ms=199784 roots=601 bytes=143 offset=73413 outcomes=319 layouts=2831
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=321 ms=200951 roots=601 bytes=143 offset=73799 outcomes=321 layouts=2845
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=323 ms=202099 roots=601 bytes=143 offset=74185 outcomes=323 layouts=2859
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=325 ms=203249 roots=601 bytes=143 offset=74378 outcomes=325 layouts=2873
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=327 ms=204392 roots=601 bytes=143 offset=74764 outcomes=327 layouts=2887
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=329 ms=205543 roots=601 bytes=143 offset=75150 outcomes=329 layouts=2901
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=331 ms=206706 roots=601 bytes=143 offset=75536 outcomes=331 layouts=2915
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=333 ms=207861 roots=601 bytes=143 offset=75922 outcomes=333 layouts=2929
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=335 ms=209020 roots=601 bytes=129 offset=794 outcomes=335 layouts=2943
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=337 ms=210165 roots=601 bytes=143 offset=76308 outcomes=337 layouts=2957
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=339 ms=211314 roots=601 bytes=143 offset=76694 outcomes=339 layouts=2971
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=341 ms=212467 roots=601 bytes=143 offset=77080 outcomes=341 layouts=2985
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=343 ms=213619 roots=601 bytes=143 offset=77466 outcomes=343 layouts=2999

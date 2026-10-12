@@ -1,0 +1,41 @@
+ * operand. Similarly, "stktop" and "stknext" refer to the topmost and next to
+ * topmost stack elements.
+ *
+ * Note that the load, store, and incr instructions do not distinguish local
+ * from global variables; the bytecode interpreter at runtime uses the
+ * existence of a procedure call frame to distinguish these.
+ */
+
+InstructionDesc const tclInstructionTable[] = {
+    /* Name	      Bytes stackEffect #Opnds  Operand types */
+    {"done",		  1,   -1,         0,	{OPERAND_NONE}},
+	/* Finish ByteCode execution and return stktop (top stack item) */
+    {"push1",		  2,   +1,         1,	{OPERAND_LIT1}},
+	/* Push object at ByteCode objArray[op1] */
+    {"push4",		  5,   +1,         1,	{OPERAND_LIT4}},
+	/* Push object at ByteCode objArray[op4] */
+    {"pop",		  1,   -1,         0,	{OPERAND_NONE}},
+	/* Pop the topmost stack object */
+    {"dup",		  1,   +1,         0,	{OPERAND_NONE}},
+	/* Duplicate the topmost stack object and push the result */
+    {"strcat",		  2,   INT_MIN,    1,	{OPERAND_UINT1}},
+	/* Concatenate the top op1 items and push result */
+    {"invokeStk1",	  2,   INT_MIN,    1,	{OPERAND_UINT1}},
+	/* Invoke command named objv[0]; <objc,objv> = <op1,top op1> */
+    {"invokeStk4",	  5,   INT_MIN,    1,	{OPERAND_UINT4}},
+	/* Invoke command named objv[0]; <objc,objv> = <op4,top op4> */
+    {"evalStk",		  1,   0,          0,	{OPERAND_NONE}},
+	/* Evaluate command in stktop using Tcl_EvalObj. */
+    {"exprStk",		  1,   0,          0,	{OPERAND_NONE}},
+	/* Execute expression in stktop using Tcl_ExprStringObj. */
+
+    {"loadScalar1",	  2,   1,          1,	{OPERAND_LVT1}},
+	/* Load scalar variable at index op1 <= 255 in call frame */
+    {"loadScalar4",	  5,   1,          1,	{OPERAND_LVT4}},
+	/* Load scalar variable at index op1 >= 256 in call frame */
+    {"loadScalarStk",	  1,   0,          0,	{OPERAND_NONE}},
+	/* Load scalar variable; scalar's name is stktop */
+    {"loadArray1",	  2,   0,          1,	{OPERAND_LVT1}},
+	/* Load array element; array at slot op1<=255, element is stktop */
+    {"loadArray4",	  5,   0,          1,	{OPERAND_LVT4}},
+	/* Load array element; array at slot op1 > 255, element is stktop */

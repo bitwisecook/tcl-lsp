@@ -1,0 +1,18 @@
+
+running 1 test
+test command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate ... ORIGINAL_MATH_SUBJECT stage=source match=true layouts=1 region=Span { start: 0, end: 11 } channel=Document
+ORIGINAL_MATH_SUBJECT stage=layout site=0 config_match=true registry_match=true dialect=Some(InvocationDialect { native_family: Some(Tcl), core_point: Some(DialectPoint { release: Release { family: Tcl, ordinal: 1 }, build: Canonical }), lexer_grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl85, escapes: Tcl84 }, expression_word_grammar: None, word_values: WordValueRules { brace: Folds, list: Strict }, numbers: Tcl85, characters: Some(BmpCharsElseUtf8Bytes), upvar_level_presence: Some(DigitOrHash), uplevel_level_presence: Some(DigitOrHash), tcl_version: Some(V8_5), package_protocol: Some(Tcl), variable_lookup_policy: Some(Tcl), variable_link_binding: Some(StableCell), variable_container_model: Some(DistinctArray), namespace_var_global_fallback: Some(true), process_exit_conversion: Some(Narrow32), interpreter_protocol: Some(Tcl), namespace_import_binding: Some(CommandToken) }) policy=Some(NativeRecipe(NamePolicyProtocol { recipe: C(V8_5), authority: AuthoredSimulation })) words=[Literal { text: "expr", source: SourceSite { span: Span { start: 0, end: 4 }, provenance: Source } }, BracedLiteral { text: "Pi()", source: SourceSite { span: Span { start: 5, end: 10 }, provenance: Source } }]
+ORIGINAL_MATH_SUBJECT stage=expression site=0 base=6 calls=[("Pi", 0, 0)] dialect=Some(InvocationDialect { native_family: Some(Tcl), core_point: Some(DialectPoint { release: Release { family: Tcl, ordinal: 1 }, build: Canonical }), lexer_grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: None, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, numbers: Tcl85, escapes: Tcl84 }, expression_word_grammar: None, word_values: WordValueRules { brace: Folds, list: Strict }, numbers: Tcl85, characters: Some(BmpCharsElseUtf8Bytes), upvar_level_presence: Some(DigitOrHash), uplevel_level_presence: Some(DigitOrHash), tcl_version: Some(V8_5), package_protocol: Some(Tcl), variable_lookup_policy: Some(Tcl), variable_link_binding: Some(StableCell), variable_container_model: Some(DistinctArray), namespace_var_global_fallback: Some(true), process_exit_conversion: Some(Narrow32), interpreter_protocol: Some(Tcl), namespace_import_binding: Some(CommandToken) }) policy=Some(NamePolicyProtocol { recipe: C(V8_5), authority: AuthoredSimulation })
+
+thread 'command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate' (601760) panicked at rust/tcl-compiler/src/command_binding/original_math_function.rs:825:18:
+sealed function-name value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8189 filtered out; finished in 0.27s
+

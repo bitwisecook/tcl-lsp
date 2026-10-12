@@ -1,0 +1,91 @@
+[
+  {
+    "provider": "8.4.20",
+    "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+    "whole_source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+    "first_physical_LF": 2550,
+    "last_physical_LF": 2696,
+    "window_sha256": "476e1f08a2b8f5dce752e771dd84bf25463be35b7c797f5c5fc48c15628ca9b0",
+    "purpose": "Actual complete Tcl_DeleteCommandFromToken implementation deletion callback and command cleanup order; active execution remains a separate observation"
+  },
+  {
+    "provider": "8.5.19",
+    "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+    "whole_source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "first_physical_LF": 2774,
+    "last_physical_LF": 2939,
+    "window_sha256": "90cae98331d5db4913ab7b71bdd42bbcba8cef11c576bdd305f405955de3a368",
+    "purpose": "Actual complete Tcl_DeleteCommandFromToken implementation deletion callback and command cleanup order; active execution remains a separate observation"
+  },
+  {
+    "provider": "8.6.18",
+    "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+    "whole_source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "first_physical_LF": 3147,
+    "last_physical_LF": 3320,
+    "window_sha256": "b639cfb45d73ae19e8369a59b15e52062b016b531bbbb98a93afe34258a32e06",
+    "purpose": "Actual complete Tcl_DeleteCommandFromToken implementation deletion callback and command cleanup order; active execution remains a separate observation"
+  },
+  {
+    "provider": "9.0.4",
+    "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+    "whole_source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+    "first_physical_LF": 3727,
+    "last_physical_LF": 3902,
+    "window_sha256": "41a0ff277f6b4a974f3799fd974eea75fe9184520fbca9378f82ca289541b382",
+    "purpose": "Actual complete Tcl_DeleteCommandFromToken implementation deletion callback and command cleanup order; active execution remains a separate observation"
+  },
+  {
+    "provider": "9.1.0",
+    "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+    "whole_source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "first_physical_LF": 3697,
+    "last_physical_LF": 3872,
+    "window_sha256": "e1c5f7b00f1d8399aca5eca6bd84fa489448d10320f4827e1c58bd330b97da1a",
+    "purpose": "Actual complete Tcl_DeleteCommandFromToken implementation deletion callback and command cleanup order; active execution remains a separate observation"
+  },
+  {
+    "provider": "Jim0.84-9-g5bac7c9",
+    "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "symbol": "JimIncrCmdRefCount",
+    "first_physical_LF": 3881,
+    "last_physical_LF": 3884,
+    "window_sha256": "84004aa829ae81eb24e6c27f33f7122d423135f7cf9df520840daf904a28f331",
+    "window_utf8": "static void JimIncrCmdRefCount(Jim_Cmd *cmdPtr)\n{\n    cmdPtr->inUse++;\n}\n",
+    "purpose": "Actual command inUse acquisition/release, name deletion and invocation boundary; source evidence does not constitute a Native run"
+  },
+  {
+    "provider": "Jim0.84-9-g5bac7c9",
+    "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "symbol": "JimDecrCmdRefCount",
+    "first_physical_LF": 3887,
+    "last_physical_LF": 3922,
+    "window_sha256": "b4469d6dbcfcb67df151f4cd74b18204e183f9d58f8c7de0dcc708fd1320bbd0",
+    "window_utf8": "static void JimDecrCmdRefCount(Jim_Interp *interp, Jim_Cmd *cmdPtr)\n{\n    if (--cmdPtr->inUse == 0) {\n        if (cmdPtr->flags & JIM_CMD_ISPROC) {\n            Jim_DecrRefCount(interp, cmdPtr->u.proc.argListObjPtr);\n            Jim_DecrRefCount(interp, cmdPtr->u.proc.bodyObjPtr);\n            Jim_DecrRefCount(interp, cmdPtr->u.proc.nsObj);\n            if (cmdPtr->u.proc.staticVars) {\n                Jim_FreeHashTable(cmdPtr->u.proc.staticVars);\n                Jim_Free(cmdPtr->u.proc.staticVars);\n            }\n        }\n        else {\n            /* native (C) */\n            if (cmdPtr->u.native.delProc) {\n                cmdPtr->u.native.delProc(interp, cmdPtr->u.native.privData);\n            }\n        }\n        if (cmdPtr->prevCmd) {\n            /* Delete any pushed command too */\n            JimDecrCmdRefCount(interp, cmdPtr->prevCmd);\n        }\n\n        /* Preserve the structure with inUse = 0 so that\n         * cached references will continue to work.\n         * These will be discarding at the next procEpoch increment\n         * or once 1000 have been accumulated (unless quitting\n         * since we can only be unwinding in that case).\n         */\n        cmdPtr->prevCmd = interp->oldCmdCache;\n        interp->oldCmdCache = cmdPtr;\n        if (!interp->quitting && ++interp->oldCmdCacheSize >= 1000) {\n            Jim_InterpIncrProcEpoch(interp);\n        }\n    }\n}\n",
+    "purpose": "Actual command inUse acquisition/release, name deletion and invocation boundary; source evidence does not constitute a Native run"
+  },
+  {
+    "provider": "Jim0.84-9-g5bac7c9",
+    "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "symbol": "Jim_DeleteCommand",
+    "first_physical_LF": 4447,
+    "last_physical_LF": 4460,
+    "window_sha256": "2e1cb096fe5693cc82d34496f1626c2211372fe716777bf88c71c3127ce973e8",
+    "window_utf8": "int Jim_DeleteCommand(Jim_Interp *interp, Jim_Obj *nameObj)\n{\n    int ret = JIM_OK;\n\n    nameObj = JimQualifyName(interp, nameObj);\n\n    if (Jim_DeleteHashEntry(&interp->commands, nameObj) == JIM_ERR) {\n        Jim_SetResultFormatted(interp, \"can't delete \\\"%#s\\\": command doesn't exist\", nameObj);\n        ret = JIM_ERR;\n    }\n    Jim_DecrRefCount(interp, nameObj);\n\n    return ret;\n}\n",
+    "purpose": "Actual command inUse acquisition/release, name deletion and invocation boundary; source evidence does not constitute a Native run"
+  },
+  {
+    "provider": "Jim0.84-9-g5bac7c9",
+    "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "whole_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "symbol": "JimInvokeCommand",
+    "first_physical_LF": 11101,
+    "last_physical_LF": 11215,
+    "window_sha256": "4700e8a5500db11ee1288c0000dca1240c5ecd8da248a1f1a186b7dad28702fe",
+    "window_utf8": "static int JimInvokeCommand(Jim_Interp *interp, int objc, Jim_Obj *const *objv)\n{\n    int retcode;\n    Jim_Cmd *cmdPtr;\n    void *prevPrivData;\n    Jim_Obj *tailcallObj = NULL;\n\n#if 0\n    printf(\"invoke\");\n    int j;\n    for (j = 0; j < objc; j++) {\n        printf(\" '%s'\", Jim_String(objv[j]));\n    }\n    printf(\"\\n\");\n#endif\n\n    cmdPtr = Jim_GetCommand(interp, objv[0], JIM_ERRMSG);\n    if (cmdPtr == NULL) {\n        return JimUnknown(interp, objc, objv);\n    }\n    JimIncrCmdRefCount(cmdPtr);\n\n    if (interp->evalDepth == interp->maxEvalDepth) {\n        Jim_SetResultString(interp, \"Infinite eval recursion\", -1);\n        retcode = JIM_ERR;\n        goto out;\n    }\n    interp->evalDepth++;\n    prevPrivData = interp->cmdPrivData;\n\ntailcall:\n\n    interp->evalFrame->argc = objc;\n    interp->evalFrame->argv = objv;\n    interp->evalFrame->cmd = cmdPtr;\n\n    if (!interp->traceCmdObj ||\n        (retcode = JimTraceCallback(interp, \"cmd\", objc, objv)) == JIM_OK) {\n        /* Call it -- Make sure result is an empty object. */\n        Jim_SetEmptyResult(interp);\n        interp->taint = Jim_CalcTaint(objc, objv);\n        if (cmdPtr->flags & JIM_CMD_ISPROC) {\n            retcode = JimCallProcedure(interp, cmdPtr, objc, objv);\n        }\n        else if ((cmdPtr->flags & JIM_CMD_NOTAINT) && Jim_CheckTaint(interp, JIM_TAINT_ANY)) {\n            Jim_SetTaintError(interp, 1, objv);\n            retcode = JIM_ERR;\n        }\n        else {\n            retcode = JimCallNative(interp, cmdPtr, objc, objv);\n            /* XXX Could it return -2 for tainted? */\n        }\n        if (retcode == JIM_ERR) {\n            JimSetErrorStack(interp, NULL);\n        }\n    }\n\n    if (tailcallObj) {\n        /* clean up previous tailcall if we were invoking one */\n        Jim_DecrRefCount(interp, tailcallObj);\n        tailcallObj = NULL;\n    }\n\n    /* These are now invalid */\n    interp->evalFrame->argc = 0;\n    interp->evalFrame->argv = NULL;\n\n    /* If a tailcall is returned for this frame, loop to invoke the new command */\n    if (retcode == JIM_EVAL && interp->framePtr->tailcallObj) {\n        JimDecrCmdRefCount(interp, cmdPtr);\n\n        /* Replace the current command with the new tailcall command */\n        cmdPtr = interp->framePtr->tailcallCmd;\n        interp->framePtr->tailcallCmd = NULL;\n        tailcallObj = interp->framePtr->tailcallObj;\n        interp->framePtr->tailcallObj = NULL;\n        /* We can access the internal rep here because the object can only\n         * be constructed by the tailcall command\n         */\n        objc = tailcallObj->internalRep.listValue.len;\n        objv = tailcallObj->internalRep.listValue.ele;\n        goto tailcall;\n    }\n\n    interp->cmdPrivData = prevPrivData;\n    interp->evalDepth--;\n\nout:\n    JimDecrCmdRefCount(interp, cmdPtr);\n\n    if (retcode == JIM_ERR) {\n        JimSetErrorStack(interp, NULL);\n    }\n\n    if (interp->framePtr->tailcallObj) {\n        /* We might have skipped invoking a tailcall, perhaps because of an error\n         * in defer handling so cleanup now\n         */\n        JimDecrCmdRefCount(interp, interp->framePtr->tailcallCmd);\n        Jim_DecrRefCount(interp, interp->framePtr->tailcallObj);\n        interp->framePtr->tailcallCmd = NULL;\n        interp->framePtr->tailcallObj = NULL;\n    }\n\n    return retcode;\n}\n\n/* Eval the object vector 'objv' composed of 'objc' elements.\n * Every element is used as single argument.\n * Jim_EvalObj() will call this function every time its object\n * argument is of \"list\" type, with no string representation.\n *\n * This is possible because the string representation of a\n * list object generated by the UpdateStringOfList is made\n * in a way that ensures that every list element is a different\n",
+    "purpose": "Actual command inUse acquisition/release, name deletion and invocation boundary; source evidence does not constitute a Native run"
+  }
+]

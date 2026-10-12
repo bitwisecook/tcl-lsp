@@ -1,0 +1,1 @@
+namespace eval ::N {interp create kid; list [info commands kid] [info commands ::kid] [info commands ::N::kid] [kid issafe] [::kid issafe] [catch {::N::kid issafe} message] $message}

@@ -239,17 +239,24 @@ const ROW_WORDS: &[&str] = &[
     "safe_on_uninit",
     "deprecated_replacement",
     "deprecated_replacement_drop_in",
+    "source_deprecation_advice",
     "alias_of",
     "runtime_backing",
     "xc_translatable",
     "arg",
     "repeat",
     "reserved_trailing_words",
+    "option_prefix_words",
     "assigns_variable_at",
     "creates_instance_at",
     "defines_command_at",
     "body_arg_implicit_args",
     "body_kind",
+    "body_execution",
+    "procedure_definition",
+    "native_compilation",
+    "successful_handler",
+    "variable_receivers",
     "allow_unknown_subcommands",
     "dynamic_surface",
     "unknown_members",
@@ -300,6 +307,7 @@ const ROW_WORDS: &[&str] = &[
     "taint_code_sink_args",
     "taint_numeric_coercion",
     "callback_taint_inputs",
+    "channel_configuration",
     "credential_options",
     "sensitive_headers",
     "event_requires",
@@ -340,6 +348,8 @@ const ROW_WORDS: &[&str] = &[
     "mutator",
     "destructive",
     "returns_path",
+    "source_index_bounds",
+    "source_path_operation",
     "is_unescape",
     "loop_list_header",
     "creates_scope_alias",
@@ -794,6 +804,7 @@ fn capture_stmt(word: &str, args: &[String], line: u32) -> Stmt {
 
 fn eval_notice(context: &str, line: u32, class: VocabularyClass, message: String) -> Notice {
     Notice {
+        subject: None,
         context: context.to_owned(),
         line,
         message,
@@ -1834,11 +1845,15 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
         PackEvalFailure::Script(message) | PackEvalFailure::Compile(message) => {
             LoadError::EvaluationFailed(message.clone())
         }
+        PackEvalFailure::ScriptBytes(_) | PackEvalFailure::ExecutionRefusal(_) => {
+            LoadError::EvaluationFailed(failure.to_string())
+        }
         PackEvalFailure::Panic(payload) => {
             LoadError::EvaluationFailed(format!("the evaluation engine crashed: {payload}"))
         }
     };
     pack.notices.push(Notice {
+        subject: None,
         context: "pack".to_owned(),
         line: state.speclib.as_ref().map_or(1, |s| s.line),
         class: VocabularyClass::Semantic,
@@ -1986,6 +2001,7 @@ fn provenance_violation_in(
 fn replay(state: State, options: &EvalOptions) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
+        source: Some(std::sync::Arc::from(state.verbatim.source.as_ref())),
         ..Log::default()
     };
     let mut pack = empty_pack();
@@ -2040,6 +2056,7 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     {
         let error = LoadError::Provenance(message.clone());
         pack.notices.push(Notice {
+            subject: None,
             context: "pack".to_owned(),
             line,
             class: VocabularyClass::Semantic,

@@ -1,0 +1,7 @@
+
+running 1 test
+test value::native_property_name::tests::original_property_name_duplicate_reuses_and_releases_accessor_children ... native-string-unavailable reason=primary-has-no-updater protocol=C(V9_1) primary=tcl::oo property name live=true references=1 resident=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.01s
+

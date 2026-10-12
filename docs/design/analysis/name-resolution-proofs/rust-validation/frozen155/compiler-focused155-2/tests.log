@@ -1,0 +1,24 @@
+
+running 4 tests
+test command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry ... 
+thread 'command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry' (607195) panicked at rust/tcl-compiler/src/command_binding/source_declared_method_template.rs:413:53:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::source_declared_method_template::tests::original_declared_receiver_traits_refuse_shadowed_and_foreign_layouts ... ORIGINAL_RECEIVER_TRAITS offset=75 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=88 closed=false original_closed=false opaque=false targets=1
+ok
+test command_binding::source_declared_method_template::tests::original_declared_self_template_declines_unknown_relations_shadow_and_foreign_source ... ok
+test command_binding::source_declared_method_template::tests::original_declared_self_template_uses_source_mixin_without_entering_a_receiver ... 
+thread 'command_binding::source_declared_method_template::tests::original_declared_self_template_uses_source_mixin_without_entering_a_receiver' (607215) panicked at rust/tcl-compiler/src/command_binding/source_declared_method_template.rs:360:53:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry
+    command_binding::source_declared_method_template::tests::original_declared_self_template_uses_source_mixin_without_entering_a_receiver
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 8195 filtered out; finished in 9.22s
+

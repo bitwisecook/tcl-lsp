@@ -1,0 +1,54 @@
+{
+  "script_sha256": "ff62a137fadf12739f470970731c2d17ff0b3195b44cb4fcc628aeae9ad6a841",
+  "original_budget": 60,
+  "results": [
+    {
+      "path": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "seconds": 0.004574286984279752,
+      "stdout": "a:0:v\nb:0:v\nc:0:v\nd:0:v\n",
+      "stderr": ""
+    },
+    {
+      "path": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "seconds": 0.00434869498712942,
+      "stdout": "a:0:v\nb:0:v\nc:0:v\nd:0:v\n",
+      "stderr": ""
+    },
+    {
+      "path": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "seconds": 0.005613018001895398,
+      "stdout": "a:0:v\nb:0:v\nc:0:v\nd:0:v\n",
+      "stderr": ""
+    },
+    {
+      "path": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "seconds": 0.009197065024636686,
+      "stdout": "a:0:v\nb:0:v\nc:0:v\nd:0:v\n",
+      "stderr": ""
+    },
+    {
+      "path": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "seconds": 0.011467879987321794,
+      "stdout": "a:0:v\nb:0:v\nc:0:v\nd:0:v\n",
+      "stderr": ""
+    },
+    {
+      "path": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "seconds": 0.006097590026911348,
+      "stdout": "a:0:\nb:0:v\nc:0:R:::v\nd:0:v\n",
+      "stderr": ""
+    }
+  ]
+}

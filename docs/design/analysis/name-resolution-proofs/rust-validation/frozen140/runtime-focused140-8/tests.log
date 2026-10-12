@@ -1,0 +1,19 @@
+
+running 1 test
+test cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries ... ADMISSION140 control physical=Some(V9_0) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fd9a4c70ac0
+ADMISSION140 no-stamp physical=Some(V9_0) epochs=None source_protocol=Some(C(V9_0)) procedure=false frame_in_proc=false local_table=false namespace=0
+
+thread 'cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries' (552681) panicked at src/cmd_array.rs:775:17:
+assertion `left == right` failed: 9.0.4	literal_narrow	6361746368207b61727261792064656661756c742067657420612045585452417d20723b7365742072	77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a61727261793a3a64656661756c74206765742061727261794e616d6522
+  left: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 97, 114, 114, 97, 121, 32, 100, 101, 102, 97, 117, 108, 116, 32, 103, 101, 116, 32, 97, 114, 114, 97, 121, 78, 97, 109, 101, 34]
+ right: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 58, 58, 116, 99, 108, 58, 58, 97, 114, 114, 97, 121, 58, 58, 100, 101, 102, 97, 117, 108, 116, 32, 103, 101, 116, 32, 97, 114, 114, 97, 121, 78, 97, 109, 101, 34]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1212 filtered out; finished in 2.93s
+

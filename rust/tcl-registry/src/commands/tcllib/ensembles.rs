@@ -27,8 +27,11 @@
 
 use crate::prelude::*;
 
-fn deferred_first_arg(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (!args.is_empty())
+fn deferred_first_arg(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count != 0)
         .then_some((0, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -524,8 +527,11 @@ fn hook_bind_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appe
     }
 }
 
-fn hook_bind_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() == 4)
+fn hook_bind_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count == 4)
         .then_some((3, ScriptTiming::Deferred))
         .into_iter()
         .collect()

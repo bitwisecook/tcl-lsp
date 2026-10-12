@@ -1,0 +1,156 @@
+        return JIM_EVAL;
+    }
+    return JIM_OK;
+}
+
+/* Invoke an alias by prepending its stored command prefix. */
+static int JimAliasCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    Jim_Obj *cmdList;
+    Jim_Obj *prefixListObj = Jim_CmdPrivData(interp);
+
+    /* prefixListObj is a list to which the args need to be appended */
+    cmdList = Jim_DuplicateObj(interp, prefixListObj);
+    Jim_ListInsertElements(interp, cmdList, Jim_ListLength(interp, cmdList), argc - 1, argv + 1);
+
+    return JimEvalObjList(interp, cmdList);
+}
+
+/* Release the command prefix stored for an alias. */
+static void JimAliasCmdDelete(Jim_Interp *interp, void *privData)
+{
+    Jim_Obj *prefixListObj = privData;
+    Jim_DecrRefCount(interp, prefixListObj);
+}
+
+/* Implement the alias command that creates command-prefix aliases. */
+static int Jim_AliasCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    Jim_Obj *prefixListObj = Jim_NewListObj(interp, argv + 2, argc - 2);
+    Jim_IncrRefCount(prefixListObj);
+    Jim_SetResult(interp, argv[1]);
+
+    Jim_RegisterCommand(interp, argv[1], JimAliasCmd, JimAliasCmdDelete, NULL, NULL, 0, -1, JIM_CMD_ISALIAS, prefixListObj);
+    return JIM_OK;
+}
+
+/* [proc] */
+static int Jim_ProcCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    Jim_Cmd *cmd;
+
+    if (argc == 4) {
+        cmd = JimCreateProcedureCmd(interp, argv[2], NULL, argv[3], NULL);
+    }
+    else {
+        cmd = JimCreateProcedureCmd(interp, argv[2], argv[3], argv[4], NULL);
+    }
+
+    if (cmd) {
+        /* Add the new command */
+        Jim_Obj *nameObjPtr = JimQualifyName(interp, argv[1]);
+        JimCreateCommand(interp, nameObjPtr, cmd);
+
+        /* Calculate and set the namespace for this proc */
+        JimUpdateProcNamespace(interp, cmd, nameObjPtr);
+        Jim_DecrRefCount(interp, nameObjPtr);
+
+        /* Unlike Tcl, set the name of the proc as the result */
+        Jim_SetResult(interp, argv[1]);
+        return JIM_OK;
+    }
+    return JIM_ERR;
+}
+
+/* [xtrace] */
+static int Jim_XtraceCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    if (interp->traceCmdObj) {
+        Jim_DecrRefCount(interp, interp->traceCmdObj);
+        interp->traceCmdObj = NULL;
+    }
+
+    if (Jim_Length(argv[1])) {
+        /* Install the new execution trace callback */
+        interp->traceCmdObj = argv[1];
+        Jim_IncrRefCount(interp->traceCmdObj);
+    }
+    return JIM_OK;
+}
+
+/* [local] */
+static int Jim_LocalCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    int retcode;
+
+    /* Evaluate the arguments with 'local' in force */
+    interp->local++;
+    retcode = Jim_EvalObjVector(interp, argc - 1, argv + 1);
+    interp->local--;
+
+
+    /* If OK, and the result is a proc, add it to the list of local procs */
+    if (retcode == 0) {
+        Jim_Obj *cmdNameObj = Jim_GetResult(interp);
+
+        if (Jim_GetCommand(interp, cmdNameObj, JIM_ERRMSG) == NULL) {
+            return JIM_ERR;
+        }
+        if (interp->framePtr->localCommands == NULL) {
+            interp->framePtr->localCommands = Jim_Alloc(sizeof(*interp->framePtr->localCommands));
+            Jim_StackInit(interp->framePtr->localCommands, NULL);
+        }
+        Jim_IncrRefCount(cmdNameObj);
+        Jim_StackPush(interp->framePtr->localCommands, cmdNameObj);
+    }
+
+    return retcode;
+}
+
+/* [upcall] */
+static int Jim_UpcallCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    int retcode;
+
+    Jim_Cmd *cmdPtr = Jim_GetCommand(interp, argv[1], JIM_ERRMSG);
+    if (cmdPtr == NULL || !(cmdPtr->flags & JIM_CMD_ISPROC) || !cmdPtr->prevCmd) {
+        Jim_SetResultFormatted(interp, "no previous command: \"%#s\"", argv[1]);
+        return JIM_ERR;
+    }
+    /* OK. Mark this command as being in an upcall */
+    cmdPtr->u.proc.upcall++;
+    JimIncrCmdRefCount(cmdPtr);
+
+    /* Invoke the command as normal */
+    retcode = Jim_EvalObjVector(interp, argc - 1, argv + 1);
+
+    /* No longer in an upcall */
+    cmdPtr->u.proc.upcall--;
+    JimDecrCmdRefCount(interp, cmdPtr);
+
+    return retcode;
+}
+
+/* [apply] */
+static int Jim_ApplyCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    int ret;
+    Jim_Cmd *cmd;
+    Jim_Obj *argListObjPtr;
+    Jim_Obj *bodyObjPtr;
+    Jim_Obj *nsObj = NULL;
+    Jim_Obj **nargv;
+
+    int len = Jim_ListLength(interp, argv[1]);
+    if (len != 2 && len != 3) {
+        Jim_SetResultFormatted(interp, "can't interpret \"%#s\" as a lambda expression", argv[1]);
+        return JIM_ERR;
+    }
+
+    if (len == 3) {
+#ifdef jim_ext_namespace
+        /* Note that the namespace is always treated as global */
+        nsObj = Jim_ListGetIndex(interp, argv[1], 2);
+#else
+        Jim_SetResultString(interp, "namespaces not enabled", -1);
+        return JIM_ERR;

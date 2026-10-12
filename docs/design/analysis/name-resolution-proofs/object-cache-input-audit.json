@@ -1,0 +1,174 @@
+[
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_getters/8.4.20.tsv",
+    "sha256": "322330c7d50f288920a57d6473f8477079e819a7af53996f3af0b0d53374dafc",
+    "retained_rows": 36,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_getters/8.5.19.tsv",
+    "sha256": "6d45304fd79aaa7841c4ad5718f97d98bb362de28515945a0a6ecf31f6aa7ceb",
+    "retained_rows": 36,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_getters/8.6.18.tsv",
+    "sha256": "d97f27d6791b28d73e94e9ee9ee3f2cdcdbb38a82afc591841199f9bedb66f98",
+    "retained_rows": 36,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_getters/9.0.4.tsv",
+    "sha256": "7fa77a9a86c3fbdacbcc7a4fa896df631453e0c640a247baa19fa564e6490651",
+    "retained_rows": 36,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_getters/9.1.0.tsv",
+    "sha256": "7fa77a9a86c3fbdacbcc7a4fa896df631453e0c640a247baa19fa564e6490651",
+    "retained_rows": 36,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_priming/8.4.20.tsv",
+    "sha256": "4d86bf947b295d1e1b1af21f164f72571879fb6ba6badce07a9297730d1c5079",
+    "retained_rows": 5,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_priming/8.5.19.tsv",
+    "sha256": "4d86bf947b295d1e1b1af21f164f72571879fb6ba6badce07a9297730d1c5079",
+    "retained_rows": 5,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_priming/8.6.18.tsv",
+    "sha256": "4154073ee08d3bed1f0f81a2daed1faf0927241f70ccf20d12219711a7df1687",
+    "retained_rows": 5,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_priming/9.0.4.tsv",
+    "sha256": "f70ef5ea755dd3bab2ea4031df9b786e092532f8cadd91c2c68d507ab4280791",
+    "retained_rows": 5,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "runtime/rust/tests/data/native_command_cache_priming/9.1.0.tsv",
+    "sha256": "f70ef5ea755dd3bab2ea4031df9b786e092532f8cadd91c2c68d507ab4280791",
+    "retained_rows": 5,
+    "original_output_hash_match": true
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/8.4.20.tsv",
+    "sha256": "06b932a86dee609d474a637cf81996384a44d1e71c2c7ed0ecf9cb3cb5831958",
+    "retained_rows": 189,
+    "canonical_projection_hash_match": true,
+    "full_physical_and_identity_logs_retained": false,
+    "route_cases": {
+      "ordinary": 90,
+      "shared-destination": 90,
+      "self-alias": 9
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/8.5.19.tsv",
+    "sha256": "06b932a86dee609d474a637cf81996384a44d1e71c2c7ed0ecf9cb3cb5831958",
+    "retained_rows": 189,
+    "canonical_projection_hash_match": true,
+    "full_physical_and_identity_logs_retained": false,
+    "route_cases": {
+      "ordinary": 90,
+      "shared-destination": 90,
+      "self-alias": 9
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/8.6.18.tsv",
+    "sha256": "1154a12747e703bb61ee74992f68daba02d2849ba79ae53cd18a269253738ab0",
+    "retained_rows": 189,
+    "canonical_projection_hash_match": true,
+    "full_physical_and_identity_logs_retained": false,
+    "route_cases": {
+      "ordinary": 90,
+      "shared-destination": 90,
+      "self-alias": 9
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/9.0.4.tsv",
+    "sha256": "83b5ef137828dfe38f523be3935567ff239021c55adf097261c518f6868a80a3",
+    "retained_rows": 189,
+    "canonical_projection_hash_match": true,
+    "full_physical_and_identity_logs_retained": false,
+    "route_cases": {
+      "ordinary": 90,
+      "shared-destination": 90,
+      "self-alias": 9
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/9.1.0.tsv",
+    "sha256": "83b5ef137828dfe38f523be3935567ff239021c55adf097261c518f6868a80a3",
+    "retained_rows": 189,
+    "canonical_projection_hash_match": true,
+    "full_physical_and_identity_logs_retained": false,
+    "route_cases": {
+      "ordinary": 90,
+      "shared-destination": 90,
+      "self-alias": 9
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_append/jim.tsv",
+    "sha256": "577cb481aeced1fed0c2db5c75fcf963e04e166a7c70a8f647b7d1ff08735f73",
+    "retained_rows": 90,
+    "canonical_projection_hash_match": true,
+    "full_physical_and_identity_logs_retained": false,
+    "route_cases": {
+      "ordinary": 42,
+      "shared-destination": 42,
+      "self-alias": 6
+    }
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_cat/9.0.4.jsonl",
+    "sha256": "1f480ff295bb886788f9a5457a83d168e4a0f781c40848dc91f6842871d96aea",
+    "full_output_hash_match": true,
+    "retained_rows": 312,
+    "case_sharing_points": 46,
+    "projection_path": "rust/tcl-syntax/tests/data/native_object_cat/9.0.4.tsv",
+    "projection_sha256": "bab68a8ce4ea55e93e0522c8db0783a3569b08fd1b21432eaafd03ab934281b3",
+    "projection_matches_all_basic_physical_fields_and_exact_result": true
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_cat/9.1.0.jsonl",
+    "sha256": "1f480ff295bb886788f9a5457a83d168e4a0f781c40848dc91f6842871d96aea",
+    "full_output_hash_match": true,
+    "retained_rows": 312,
+    "case_sharing_points": 46,
+    "projection_path": "rust/tcl-syntax/tests/data/native_object_cat/9.1.0.tsv",
+    "projection_sha256": "bab68a8ce4ea55e93e0522c8db0783a3569b08fd1b21432eaafd03ab934281b3",
+    "projection_matches_all_basic_physical_fields_and_exact_result": true
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl",
+    "sha256": "b98a6e8654a20569ae2be38739db90fefded0c5eba7218ac21dff7f1acae7a8e",
+    "full_output_hash_match": true,
+    "retained_rows": 148,
+    "case_sharing_points": 24,
+    "projection_path": "rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv",
+    "projection_sha256": "009a8057def8f7b54cca7712e848135fce6d9990c94e0cf964c74056806065e8",
+    "projection_matches_all_basic_physical_fields_and_exact_result": true
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl",
+    "sha256": "b98a6e8654a20569ae2be38739db90fefded0c5eba7218ac21dff7f1acae7a8e",
+    "full_output_hash_match": true,
+    "retained_rows": 148,
+    "case_sharing_points": 24,
+    "projection_path": "rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv",
+    "projection_sha256": "009a8057def8f7b54cca7712e848135fce6d9990c94e0cf964c74056806065e8",
+    "projection_matches_all_basic_physical_fields_and_exact_result": true
+  }
+]

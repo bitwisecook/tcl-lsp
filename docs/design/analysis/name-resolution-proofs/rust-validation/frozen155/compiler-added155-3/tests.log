@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::diagnostics::tests::original_deprecation_advice_preserves_whole_source_words_and_declines_captures ... 
+thread 'analyser::diagnostics::tests::original_deprecation_advice_preserves_whole_source_words_and_declines_captures' (607414) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15818:10:
+selected source advice
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::original_deprecation_advice_preserves_whole_source_words_and_declines_captures
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8198 filtered out; finished in 0.25s
+

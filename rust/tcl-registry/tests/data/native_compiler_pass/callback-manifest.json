@@ -1,0 +1,68 @@
+[
+  {
+    "version": "8.6.18",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-command-pass-callback-review/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-pass-callback-review/probe-8.6.18"
+    ],
+    "compile_status": 0,
+    "source_sha256": "864dea92fc74c278e35757af56c839977f2715c40580e32aa04a529139d00e02",
+    "status": 0,
+    "stdout_hex": "30093009310932093509360a31093009310931093309340a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "9.0.4",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-command-pass-callback-review/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-pass-callback-review/probe-9.0.4"
+    ],
+    "compile_status": 0,
+    "source_sha256": "864dea92fc74c278e35757af56c839977f2715c40580e32aa04a529139d00e02",
+    "status": 0,
+    "stdout_hex": "30093009310932093509360a31093009310931093309340a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "9.1.0",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-command-pass-callback-review/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-pass-callback-review/probe-9.1.0"
+    ],
+    "compile_status": 0,
+    "source_sha256": "864dea92fc74c278e35757af56c839977f2715c40580e32aa04a529139d00e02",
+    "status": 0,
+    "stdout_hex": "30093009310932093509360a31093009310931093309340a",
+    "stderr_hex": ""
+  }
+]

@@ -1,0 +1,164 @@
+TclCompileLappendCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    Tcl_Size numWords = parsePtr->numWords, i;
+    int isScalar;
+    Tcl_LVTIndex localIndex;
+
+    if (numWords < 2 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we
+     * need to emit code to compute and push the name at runtime. We use a
+     * frame slot (entry in the array of local vars) if we are compiling a
+     * procedure body and if the name is simple text that does not include
+     * namespace qualifiers.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    if (varTokenPtr->type == TCL_TOKEN_EXPAND_WORD) {
+	/* Cannot compile if we don't know the variable properly! */
+	return TCL_ERROR;
+    }
+    PushVarNameWord(varTokenPtr, 0, &localIndex, &isScalar, 1);
+    if (OutOfUintRangeUpper(localIndex)) {
+	return TCL_ERROR;
+    }
+
+    if (numWords != 3) {
+	goto lappendMultiple;
+    }
+
+    /*
+     * We are doing an assignment, so push the new value.
+     */
+
+    valueTokenPtr = TokenAfter(varTokenPtr);
+    PUSH_TOKEN(			valueTokenPtr, 2);
+    if (valueTokenPtr->type == TCL_TOKEN_EXPAND_WORD) {
+	/*
+	 * Special case: appending a single expanded list. MUST force a drop of
+	 * the string representation at this point because INST_LAPPEND_LIST*
+	 * might use it directly.
+	 */
+	OP44(			LIST_RANGE_IMM, 0, TCL_INDEX_END);
+	goto lappendList;
+    } else if (!EnvHasLVT(envPtr)) {
+	/*
+	 * The weird cluster of bugs around INST_LAPPEND_STK without a LVT
+	 * ought to be sorted out. INST_LAPPEND_LIST_STK does the right thing.
+	 */
+	OP4(			LIST, 1);
+	goto lappendList;
+    }
+
+    /*
+     * Emit instructions to append the item to the variable.
+     *
+     * The *_STK opcodes should be refactored to make better use of existing
+     * LOAD/STORE instructions.
+     */
+
+    if (isScalar) {
+	if (localIndex < 0) {
+	    OP(			LAPPEND_STK);
+	} else {
+	    OP4(		LAPPEND_SCALAR, localIndex);
+	}
+    } else {
+	if (localIndex < 0) {
+	    OP(			LAPPEND_ARRAY_STK);
+	} else {
+	    OP4(		LAPPEND_ARRAY, localIndex);
+	}
+    }
+    return TCL_OK;
+
+    /*
+     * In the cases where there's not a single value to append to the list in
+     * the variable, we use a different strategy. This is to turn the arguments
+     * into a list and then append that list's elements. The downside is that
+     * this allocates a temporary working list, but at least it simplifies the
+     * code issuing a lot.
+     */
+
+  lappendMultiple:
+
+    /*
+     * Concatenate all our remaining arguments into a list. This is slightly
+     * complicated because we also handle expansion.
+     */
+
+    if (numWords == 2) {
+	PUSH(			"");
+    } else {
+	Tcl_Size build = 0;
+	int concat = 0;
+
+	valueTokenPtr = TokenAfter(varTokenPtr);
+	for (i = 2; i < numWords; i++) {
+	    if (valueTokenPtr->type == TCL_TOKEN_EXPAND_WORD && build > 0) {
+		OP4(		LIST, build);
+		if (concat) {
+		    OP(		LIST_CONCAT);
+		}
+		build = 0;
+		concat = 1;
+	    }
+	    PUSH_TOKEN(		valueTokenPtr, i);
+	    if (valueTokenPtr->type == TCL_TOKEN_EXPAND_WORD) {
+		if (concat) {
+		    OP(		LIST_CONCAT);
+		} else {
+		    concat = 1;
+		}
+	    } else {
+		build++;
+	    }
+	    if (build > LIST_CONCAT_THRESHOLD) {
+		OP4(		LIST, build);
+		if (concat) {
+		    OP(		LIST_CONCAT);
+		}
+		build = 0;
+		concat = 1;
+	    }
+	    valueTokenPtr = TokenAfter(valueTokenPtr);
+	}
+	if (build > 0) {
+	    OP4(		LIST, build);
+	    if (concat) {
+		OP(		LIST_CONCAT);
+	    }
+	}
+    }
+
+    /*
+     * Append the items of the list to the variable. The implementation of
+     * these opcodes handles all the special cases that [lappend] knows about.
+     */
+
+  lappendList:
+    if (isScalar) {
+	if (localIndex < 0) {
+	    OP(			LAPPEND_LIST_STK);
+	} else {
+	    OP4(		LAPPEND_LIST, localIndex);
+	}
+    } else {
+	if (localIndex < 0) {
+	    OP(			LAPPEND_LIST_ARRAY_STK);
+	} else {
+	    OP4(		LAPPEND_LIST_ARRAY, localIndex);
+	}
+    }
+    return TCL_OK;
+}

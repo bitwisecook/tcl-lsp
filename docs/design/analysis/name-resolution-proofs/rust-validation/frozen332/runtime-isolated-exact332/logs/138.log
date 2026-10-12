@@ -1,0 +1,6 @@
+
+running 1 test
+test codegen_native::original_expression_completion_tests::original_codegen_completion_capture_refusal_releases_handles_without_publication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.69s
+

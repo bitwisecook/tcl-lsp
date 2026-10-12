@@ -1,0 +1,140 @@
+{
+  "question": "For these11 exact initialized CLI source invocations, which Guest code/result/errorCode/errorInfo and genuine callback counts are exposed on each actual provider?",
+  "request_sha256": "802a5c55070acbda3d516cd34ca611fc7a61df77c1ba122e482ef83bd7841885",
+  "source_sha256": "2bc9ca0e31f0e6e436040fa2de65b24f719549d8481760166b17bec23985f1f0",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "cli_version_exit": 0,
+      "same_library_version_exit": 0,
+      "case_count": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "complete_projection_count": 11,
+      "all_after_pins_match": true,
+      "receipt_sha256": "e6347981c663ce99f7c6d85ef2b94c0cda57ce28351b2bcb2a9ba50a998dcca3"
+    },
+    {
+      "provider": "8.5.19",
+      "cli_version_exit": 0,
+      "same_library_version_exit": 0,
+      "case_count": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "complete_projection_count": 11,
+      "all_after_pins_match": true,
+      "receipt_sha256": "b70df1b64f108a4cfcd87e4cc5f8435e082933b99b3d1ee6ef181e4fee962a07"
+    },
+    {
+      "provider": "8.6.18",
+      "cli_version_exit": 0,
+      "same_library_version_exit": 0,
+      "case_count": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "complete_projection_count": 11,
+      "all_after_pins_match": true,
+      "receipt_sha256": "3bb539d22f66ee792f467fdf90e6d0373cf110afaab99590487b767648fb24f9"
+    },
+    {
+      "provider": "9.0.4",
+      "cli_version_exit": 0,
+      "same_library_version_exit": 0,
+      "case_count": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "complete_projection_count": 11,
+      "all_after_pins_match": true,
+      "receipt_sha256": "b7c38e9664dae601553c862f3833a62d77a8418a4b9b7ad78fdfc679d697b23e"
+    },
+    {
+      "provider": "9.1.0",
+      "cli_version_exit": 0,
+      "same_library_version_exit": 0,
+      "case_count": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "complete_projection_count": 11,
+      "all_after_pins_match": true,
+      "receipt_sha256": "6d713d0c84ab2f9ab5c58f6f1b307221a6280e22a7e51feefc9d90b891864a1c"
+    },
+    {
+      "provider": "Jim",
+      "cli_version_exit": 0,
+      "same_library_version_exit": 0,
+      "case_count": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "complete_projection_count": 11,
+      "all_after_pins_match": true,
+      "receipt_sha256": "9de912067530f2ace4848d3600df21a0e5ea83fca513e43b892f42dac45a4271"
+    }
+  ],
+  "scope": "Original initialized CLI source/public outputs only. No original native argv/header/cache/refcount, private getter/teardown or foreign libc chronology claim. Existing651 source-only BADINDEX binding remains source bounded until Root actual captures are attached."
+}

@@ -1,0 +1,31 @@
+1077:     case OPT_ALIAS: {
+1078: 	Tcl_Interp *parentInterp;
+1079: 
+1080: 	if (objc < 4) {
+1081: 	    goto aliasArgs;
+1082: 	}
+1083: 	childInterp = GetInterp(interp, objv[2]);
+1084: 	if (childInterp == NULL) {
+1085: 	    return TCL_ERROR;
+1086: 	}
+1087: 	if (objc == 4) {
+1088: 	    return AliasDescribe(interp, childInterp, objv[3]);
+1089: 	}
+1090: 	if ((objc == 5) && (Tcl_IsEmpty(objv[4]))) {
+1091: 	    return AliasDelete(interp, childInterp, objv[3]);
+1092: 	}
+1093: 	if (objc > 5) {
+1094: 	    parentInterp = GetInterp(interp, objv[4]);
+1095: 	    if (parentInterp == NULL) {
+1096: 		return TCL_ERROR;
+1097: 	    }
+1098: 
+1099: 	    return TclAliasCreate(interp, childInterp, parentInterp, objv[3],
+1100: 		    objv[5], objc - 6, objv + 6);
+1101: 	}
+1102: 
+1103:     aliasArgs:
+1104: 	Tcl_WrongNumArgs(interp, 2, objv,
+1105: 		"childPath childCmd ?parentPath parentCmd? ?arg ...?");
+1106: 	return TCL_ERROR;
+1107:     }

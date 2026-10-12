@@ -1,0 +1,36 @@
+static const DeclaredSlot slots[] = {
+    SLOT("define::filter",	ClassFilter_Get, ClassFilter_Set, NULL, NULL),
+    SLOT("define::mixin",	ClassMixin_Get,  ClassMixin_Set, Slot_ResolveClass, "-set"),
+    SLOT("define::superclass",	ClassSuper_Get,  ClassSuper_Set, Slot_ResolveClass, "-set"),
+    SLOT("define::variable",	ClassVars_Get,   ClassVars_Set, NULL, NULL),
+    SLOT("objdefine::filter",	ObjFilter_Get,   ObjFilter_Set, NULL, NULL),
+    SLOT("objdefine::mixin",	ObjMixin_Get,    ObjMixin_Set, Slot_ResolveClass, "-set"),
+    SLOT("objdefine::variable",	ObjVars_Get,     ObjVars_Set, NULL, NULL),
+    SLOT("configuresupport::readableproperties",
+	    Configurable_ClassReadableProps_Get,
+	    Configurable_ClassReadableProps_Set, NULL, NULL),
+    SLOT("configuresupport::writableproperties",
+	    Configurable_ClassWritableProps_Get,
+	    Configurable_ClassWritableProps_Set, NULL, NULL),
+    SLOT("configuresupport::objreadableproperties",
+	    Configurable_ObjectReadableProps_Get,
+	    Configurable_ObjectReadableProps_Set, NULL, NULL),
+    SLOT("configuresupport::objwritableproperties",
+	    Configurable_ObjectWritableProps_Get,
+	    Configurable_ObjectWritableProps_Set, NULL, NULL),
+    {NULL, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, 0}
+};
+
+static const DeclaredSlotMethod slotMethods[] = {
+    SLOT_METHOD("Get",		Slot_Unimplemented, 0),
+    SLOT_METHOD("Resolve",	Slot_Resolve,	0),
+    SLOT_METHOD("Set",		Slot_Unimplemented, 0),
+    SLOT_METHOD("-append",	Slot_Append,	PUBLIC_METHOD),
+    SLOT_METHOD("-appendifnew",	Slot_AppendNew,	PUBLIC_METHOD),
+    SLOT_METHOD("-clear",	Slot_Clear,	PUBLIC_METHOD),
+    SLOT_METHOD("-prepend",	Slot_Prepend,	PUBLIC_METHOD),
+    SLOT_METHOD("-remove",	Slot_Remove,	PUBLIC_METHOD),
+    SLOT_METHOD("-set",		Slot_Set,	PUBLIC_METHOD),
+    SLOT_METHOD("unknown",	Slot_Unknown,	0),
+    {NULL, 0, {0, 0, 0, 0, 0}}
+};

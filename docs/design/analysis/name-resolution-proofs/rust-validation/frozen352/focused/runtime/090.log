@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_argument_tests::definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 5.26s
+

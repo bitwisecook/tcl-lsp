@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_method_rename_tests::original_destination_callback_cannot_replace_source_identity_or_first_cause ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.70s
+

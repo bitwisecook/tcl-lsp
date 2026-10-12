@@ -1,0 +1,92 @@
+ *	stored as objPtr's internal representation. This ResolvedCmdName
+ *	pointer will be NULL if no matching command was found. The ref count
+ *	of the cached Command's structure (if any) is also incremented.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+SetCmdNameFromAny(interp, objPtr)
+    Tcl_Interp *interp;		/* Used for error reporting if not NULL. */
+    register Tcl_Obj *objPtr;	/* The object to convert. */
+{
+    Interp *iPtr = (Interp *) interp;
+    char *name;
+    Tcl_Command cmd;
+    register Command *cmdPtr;
+    Namespace *currNsPtr;
+    register ResolvedCmdName *resPtr;
+
+    if (interp == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Get "objPtr"s string representation. Make it up-to-date if necessary.
+     */
+
+    name = objPtr->bytes;
+    if (name == NULL) {
+	name = Tcl_GetString(objPtr);
+    }
+
+    /*
+     * Find the Command structure, if any, that describes the command called
+     * "name". Build a ResolvedCmdName that holds a cached pointer to this
+     * Command, and bump the reference count in the referenced Command
+     * structure. A Command structure will not be deleted as long as it is
+     * referenced from a CmdName object.
+     */
+
+    cmd = Tcl_FindCommand(interp, name, (Tcl_Namespace *) NULL,
+	    /*flags*/ 0);
+    cmdPtr = (Command *) cmd;
+    if (cmdPtr != NULL) {
+	/*
+	 * Get the current namespace.
+	 */
+	
+	if (iPtr->varFramePtr != NULL) {
+	    currNsPtr = iPtr->varFramePtr->nsPtr;
+	} else {
+	    currNsPtr = iPtr->globalNsPtr;
+	}
+	
+	cmdPtr->refCount++;
+        resPtr = (ResolvedCmdName *) ckalloc(sizeof(ResolvedCmdName));
+        resPtr->cmdPtr        = cmdPtr;
+        resPtr->refNsPtr      = currNsPtr;
+        resPtr->refNsId       = currNsPtr->nsId;
+        resPtr->refNsCmdEpoch = currNsPtr->cmdRefEpoch;
+        resPtr->cmdEpoch      = cmdPtr->cmdEpoch;
+        resPtr->refCount      = 1;
+    } else {
+	resPtr = NULL;	/* no command named "name" was found */
+    }
+
+    /*
+     * Free the old internalRep before setting the new one. We do this as
+     * late as possible to allow the conversion code, in particular
+     * GetStringFromObj, to use that old internalRep. If no Command
+     * structure was found, leave NULL as the cached value.
+     */
+
+    if ((objPtr->typePtr != NULL)
+	    && (objPtr->typePtr->freeIntRepProc != NULL)) {
+	objPtr->typePtr->freeIntRepProc(objPtr);
+    }
+    
+    objPtr->internalRep.twoPtrValue.ptr1 = (VOID *) resPtr;
+    objPtr->internalRep.twoPtrValue.ptr2 = NULL;
+    objPtr->typePtr = &tclCmdNameType;
+    return TCL_OK;
+}
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */
+

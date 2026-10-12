@@ -1,0 +1,128 @@
+[
+  {
+    "case": 0,
+    "name": "empty",
+    "original_hex": "",
+    "counted_length": 0
+  },
+  {
+    "case": 1,
+    "name": "bad",
+    "original_hex": "626164",
+    "counted_length": 3
+  },
+  {
+    "case": 2,
+    "name": "hex16",
+    "original_hex": "30783130",
+    "counted_length": 4
+  },
+  {
+    "case": 3,
+    "name": "legacy_octal08",
+    "original_hex": "3038",
+    "counted_length": 2
+  },
+  {
+    "case": 4,
+    "name": "space_sign_tail",
+    "original_hex": "20092d31377461696c",
+    "counted_length": 9
+  },
+  {
+    "case": 5,
+    "name": "positive_sign",
+    "original_hex": "2b3137",
+    "counted_length": 3
+  },
+  {
+    "case": 6,
+    "name": "negative_zero",
+    "original_hex": "2d30",
+    "counted_length": 2
+  },
+  {
+    "case": 7,
+    "name": "negative_one",
+    "original_hex": "2d31",
+    "counted_length": 2
+  },
+  {
+    "case": 8,
+    "name": "signed32_max",
+    "original_hex": "32313437343833363437",
+    "counted_length": 10
+  },
+  {
+    "case": 9,
+    "name": "signed32_overflow",
+    "original_hex": "32313437343833363438",
+    "counted_length": 10
+  },
+  {
+    "case": 10,
+    "name": "signed32_min",
+    "original_hex": "2d32313437343833363438",
+    "counted_length": 11
+  },
+  {
+    "case": 11,
+    "name": "signed32_underflow",
+    "original_hex": "2d32313437343833363439",
+    "counted_length": 11
+  },
+  {
+    "case": 12,
+    "name": "unsigned64_max",
+    "original_hex": "3138343436373434303733373039353531363135",
+    "counted_length": 20
+  },
+  {
+    "case": 13,
+    "name": "unsigned64_overflow",
+    "original_hex": "3138343436373434303733373039353531363136",
+    "counted_length": 20
+  },
+  {
+    "case": 14,
+    "name": "nan",
+    "original_hex": "4e614e",
+    "counted_length": 3
+  },
+  {
+    "case": 15,
+    "name": "positive_infinity",
+    "original_hex": "496e66",
+    "counted_length": 3
+  },
+  {
+    "case": 16,
+    "name": "negative_infinity",
+    "original_hex": "2d496e66",
+    "counted_length": 4
+  },
+  {
+    "case": 17,
+    "name": "double_overflow",
+    "original_hex": "316535303030",
+    "counted_length": 6
+  },
+  {
+    "case": 18,
+    "name": "double_underflow",
+    "original_hex": "31652d35303030",
+    "counted_length": 7
+  },
+  {
+    "case": 19,
+    "name": "counted_one_nul_x",
+    "original_hex": "310058",
+    "counted_length": 3
+  },
+  {
+    "case": 20,
+    "name": "counted_initial_nul_one",
+    "original_hex": "0031",
+    "counted_length": 2
+  }
+]

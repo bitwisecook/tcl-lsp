@@ -1,0 +1,17 @@
+{
+  "id": "exact-globals",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+    "22"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "9e2566da9c5714e461882b2b04e2be5a34d98d3bcb6563bdbd26150cb78ac28c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|15|302e38342d392d6735626163376339",
+    "INFO|1|48|77726f6e67202320617267733a2073686f756c642062652022696e666f20676c6f62616c73203f7061747465726e3f22"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

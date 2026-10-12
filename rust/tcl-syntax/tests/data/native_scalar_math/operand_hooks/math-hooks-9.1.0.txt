@@ -1,0 +1,16 @@
+operation=sqrt route=compiled hook=update code=0 result=1.7320508075688772 UPDATED CHANGED
+operation=sqrt route=compiled hook=free code=0 result=1.7320508075688772 FREED CHANGED
+operation=sqrt route=generic hook=update code=0 result=1.7320508075688772 UPDATED CHANGED
+operation=sqrt route=generic hook=free code=0 result=1.7320508075688772 FREED CHANGED
+operation=sin route=compiled hook=update code=0 result=0.1411200080598672 UPDATED CHANGED
+operation=sin route=compiled hook=free code=0 result=0.1411200080598672 FREED CHANGED
+operation=sin route=generic hook=update code=0 result=0.1411200080598672 UPDATED CHANGED
+operation=sin route=generic hook=free code=0 result=0.1411200080598672 FREED CHANGED
+operation=double route=compiled hook=update code=0 result=3.0 UPDATED CHANGED
+operation=double route=compiled hook=free code=0 result=3.0 FREED CHANGED
+operation=double route=generic hook=update code=0 result=3.0 UPDATED CHANGED
+operation=double route=generic hook=free code=0 result=3.0 FREED CHANGED
+operation=abs route=compiled hook=update code=0 result=3 UPDATED CHANGED
+operation=abs route=compiled hook=free code=0 result=3 FREED CHANGED
+operation=abs route=generic hook=update code=0 result=3 UPDATED CHANGED
+operation=abs route=generic hook=free code=0 result=3 FREED CHANGED

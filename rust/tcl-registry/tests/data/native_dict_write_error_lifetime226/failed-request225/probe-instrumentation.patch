@@ -1,0 +1,20 @@
+--- original-probe.c
++++ instrumented-probe.c
+@@ -1,6 +1,11 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <stdlib.h>
++extern int tclLspDictErrorObserved;
++extern int tclLspDictErrorRefcount;
++extern int tclLspDictErrorSameCell;
++extern int tclLspDictErrorDefinedScalar;
++extern int tclLspDictFinalFreeObserved;
+ #ifdef USE_JIM
+ #include "jim.h"
+ typedef Jim_Obj Obj; typedef Jim_Interp ProbeInterp; typedef int Len;
+@@ -177,4 +182,5 @@
+ if(selected==53){static const char code[]={112,114,111,99,32,119,111,114,107,32,123,125,32,123,115,101,116,32,107,101,121,32,123,107,192,128,116,97,105,108,125,59,115,101,116,32,100,32,91,108,105,115,116,32,36,107,101,121,32,66,65,83,69,93,59,115,101,116,32,99,32,91,99,97,116,99,104,32,123,91,108,105,110,100,101,120,32,123,100,105,99,116,125,32,48,93,32,119,105,116,104,32,100,32,123,115,101,116,32,36,107,101,121,32,78,69,88,84,125,125,32,109,93,59,108,105,115,116,32,36,99,32,36,109,32,36,100,32,91,115,101,116,32,36,107,101,121,93,125,59,119,111,114,107};probe_bytes("generic-with-modified-nul",code,sizeof(code));}
+ if(selected==54){static const char code[]={112,114,111,99,32,119,111,114,107,32,123,125,32,123,115,101,116,32,107,101,121,32,123,97,40,113,41,125,59,115,101,116,32,100,32,91,108,105,115,116,32,36,107,101,121,32,66,65,83,69,93,59,115,101,116,32,99,32,91,99,97,116,99,104,32,123,91,108,105,110,100,101,120,32,123,100,105,99,116,125,32,48,93,32,117,112,100,97,116,101,32,100,32,36,107,101,121,32,36,107,101,121,32,123,115,101,116,32,36,107,101,121,32,78,69,88,84,125,125,32,109,93,59,108,105,115,116,32,36,99,32,36,109,32,36,100,32,91,115,101,116,32,36,107,101,121,93,125,59,119,111,114,107};probe_bytes("generic-update-array-name",code,sizeof(code));}
+ if(selected==55){static const char code[]={112,114,111,99,32,119,111,114,107,32,123,125,32,123,115,101,116,32,107,101,121,32,123,97,40,113,41,125,59,115,101,116,32,100,32,91,108,105,115,116,32,36,107,101,121,32,66,65,83,69,93,59,115,101,116,32,99,32,91,99,97,116,99,104,32,123,91,108,105,110,100,101,120,32,123,100,105,99,116,125,32,48,93,32,119,105,116,104,32,100,32,123,115,101,116,32,36,107,101,121,32,78,69,88,84,125,125,32,109,93,59,108,105,115,116,32,36,99,32,36,109,32,36,100,32,91,115,101,116,32,36,107,101,121,93,125,59,119,111,114,107};probe_bytes("generic-with-array-name",code,sizeof(code));}
++fprintf(stderr, "DICT_RELEASE_OBSERVER|errors=%d|refcount_before_release=%d|same_cell=%d|defined_scalar=%d|final_free=%d\n", tclLspDictErrorObserved, tclLspDictErrorRefcount, tclLspDictErrorSameCell, tclLspDictErrorDefinedScalar, tclLspDictFinalFreeObserved);
+ return 0;}

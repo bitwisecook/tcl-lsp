@@ -1,0 +1,98 @@
+    return result;
+}
+
+static int
+FinalizeMethodRefs(
+    void *data[],
+    Tcl_Interp *interp,
+    int result)
+{
+    CallContext *contextPtr = (CallContext *)data[0];
+    int i;
+
+    for (i = 0 ; i < contextPtr->callPtr->numChain ; i++) {
+	TclOODelMethodRef(contextPtr->callPtr->chain[i].mPtr);
+    }
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOGetSortedMethodList, TclOOGetSortedClassMethodList --
+ *
+ *	Discovers the list of method names supported by an object or class.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOOGetSortedMethodList(
+    Object *oPtr,		/* The object to get the method names for. */
+    int flags,			/* Whether we just want the public method
+				 * names. */
+    const char ***stringsPtr)	/* Where to write a pointer to the array of
+				 * strings to. */
+{
+    Tcl_HashTable names;	/* Tcl_Obj* method name to "wanted in list"
+				 * mapping. */
+    Tcl_HashTable examinedClasses;
+				/* Used to track what classes have been looked
+				 * at. Is set-like in nature and keyed by
+				 * pointer to class. */
+    FOREACH_HASH_DECLS;
+    int i;
+    Class *mixinPtr;
+    Tcl_Obj *namePtr;
+    Method *mPtr;
+    int isWantedIn;
+    void *isWanted;
+
+    Tcl_InitObjHashTable(&names);
+    Tcl_InitHashTable(&examinedClasses, TCL_ONE_WORD_KEYS);
+
+    /*
+     * Name the bits used in the names table values.
+     */
+#define IN_LIST 1
+#define NO_IMPLEMENTATION 2
+
+    /*
+     * Process method names due to the object.
+     */
+
+    if (oPtr->methodsPtr) {
+	FOREACH_HASH(namePtr, mPtr, oPtr->methodsPtr) {
+	    int isNew;
+
+	    if ((mPtr->flags & PRIVATE_METHOD) && !(flags & PRIVATE_METHOD)) {
+		continue;
+	    }
+	    hPtr = Tcl_CreateHashEntry(&names, (char *) namePtr, &isNew);
+	    if (isNew) {
+		isWantedIn = ((!(flags & PUBLIC_METHOD)
+			|| mPtr->flags & PUBLIC_METHOD) ? IN_LIST : 0);
+		isWantedIn |= (mPtr->typePtr == NULL ? NO_IMPLEMENTATION : 0);
+		Tcl_SetHashValue(hPtr, INT2PTR(isWantedIn));
+	    }
+	}
+    }
+
+    /*
+     * Process method names due to private methods on the object's class.
+     */
+
+    if (flags & PRIVATE_METHOD) {
+	FOREACH_HASH(namePtr, mPtr, &oPtr->selfCls->classMethods) {
+	    if (mPtr->flags & PRIVATE_METHOD) {
+		int isNew;
+
+		hPtr = Tcl_CreateHashEntry(&names, (char *) namePtr, &isNew);
+		if (isNew) {
+		    isWantedIn = IN_LIST;
+		    if (mPtr->typePtr == NULL) {
+			isWantedIn |= NO_IMPLEMENTATION;
+		    }
+		    Tcl_SetHashValue(hPtr, INT2PTR(isWantedIn));
+		} else if (mPtr->typePtr != NULL) {
+		    isWantedIn = PTR2INT(Tcl_GetHashValue(hPtr));

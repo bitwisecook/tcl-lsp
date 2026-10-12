@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_numeric_ops::tests::original_arithmetic_cache_checks_the_actual_header_before_replacement ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.34s
+

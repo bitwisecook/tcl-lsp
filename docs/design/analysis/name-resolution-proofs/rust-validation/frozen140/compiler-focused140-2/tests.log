@@ -1,0 +1,19 @@
+
+running 3 tests
+test command_binding::native_list_assignment::tests::disabled_or_unknown_native_assignment_never_borrows_a_first_store ... 
+thread 'command_binding::native_list_assignment::tests::disabled_or_unknown_native_assignment_never_borrows_a_first_store' (554915) panicked at rust/tcl-compiler/src/command_binding/native_list_assignment.rs:882:13:
+assertion `left == right` failed
+  left: Some("one")
+ right: None
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::native_list_assignment::tests::original_argument_context_borrows_its_evaluator_owned_compilation ... ok
+test command_binding::native_list_assignment::tests::original_native_assignment_projects_each_store_before_the_next_target ... ok
+
+failures:
+
+failures:
+    command_binding::native_list_assignment::tests::disabled_or_unknown_native_assignment_never_borrows_a_first_store
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 8149 filtered out; finished in 9.89s
+

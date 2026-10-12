@@ -1,0 +1,50 @@
+static void JimCreateCommand(Jim_Interp *interp, Jim_Obj *nameObjPtr, Jim_Cmd *cmd)
+{
+    /* If the entry already exists, nameObjPtr will not be used,
+     * so the refCount of nameObjPtr can't be zero, relying on this function to
+     * release it in that case.
+     */
+    JimPanic((nameObjPtr->refCount == 0, "JimCreateCommand called with zero ref count name"));
+
+    /* It may already exist, so we try to delete the old one.
+     * Note that reference count means that it won't be deleted yet if
+     * it exists in the call stack.
+     *
+     * BUT, if 'local' is in force, instead of deleting the existing
+     * proc, we stash a reference to the old proc here.
+     */
+    if (interp->local) {
+        Jim_HashEntry *he = Jim_FindHashEntry(&interp->commands, nameObjPtr);
+        if (he) {
+            /* Push this command over the top of the previous one */
+            cmd->prevCmd = Jim_GetHashEntryVal(he);
+            Jim_SetHashVal(&interp->commands, he, cmd);
+            /* Need to increment the proc epoch here so that the new command will be used */
+            Jim_InterpIncrProcEpoch(interp);
+            return;
+        }
+    }
+
+    /* Otherwise simply replace any existing command */
+
+    /* Note that it is not necessary to increment the 'proc epoch' because any
+     * existing command that is replaced will be held as a negative cache entry
+     * until the next time the proc epoch is incremented.
+     */
+    Jim_ReplaceHashEntry(&interp->commands, nameObjPtr, cmd);
+}
+
+/* commands */
+Jim_Cmd *Jim_RegisterCommand(Jim_Interp *interp, Jim_Obj *cmdNameObj,
+    Jim_CmdProc *cmdProc,
+    Jim_DelCmdProc *delProc,
+    const char *usage,
+    const char *help,
+    short minargs,
+    short maxargs,
+    int flags,
+    void *privData)
+{
+    JimPanic(((flags & JIM_CMD_ISPROC), "Jim_RegisterCommand called with JIM_CMD_ISPROC flag"));
+    Jim_Cmd *cmdPtr = Jim_Alloc(sizeof(*cmdPtr));
+

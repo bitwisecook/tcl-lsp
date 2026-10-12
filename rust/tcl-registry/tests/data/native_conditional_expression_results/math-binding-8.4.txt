@@ -1,0 +1,2 @@
+stock 3
+replaced 3

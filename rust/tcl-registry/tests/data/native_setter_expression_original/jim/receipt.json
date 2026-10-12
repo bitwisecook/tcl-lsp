@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-native-setter-expression162/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.009297986005549319,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "36b6678065adfe744cc46ecaffcce83a75a89ccd433d0063d68fa9b5c64038f2",
+  "runner_sha256": "98b2d6cd7e407d2b13839177dbf7a0c933e4746e0632cbf87c978f9555d28a80",
+  "stdout_sha256": "81010903b97bfa979932b8df37529b29fe1edd51371fd1d60e05fa1e271b7fbc",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "version 0.84-9-g5bac7c9",
+    "OBSERVATION builtin 0 4",
+    "OBSERVATION alias_expression 1 {wrong # args: should be \"interp\"}",
+    "OBSERVATION shadowed_expression 0 VALUE",
+    "OBSERVATION alias_setter 1 {wrong # args: should be \"interp\"}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; four independent setter/expression child observations",
+  "boundary": "Question: do expression aliases read their braced expression and does a same-spelled user procedure instead return literal VALUE through direct and aliased setters? Four independent catch observations; unsupported interpreter alias syntax remains a refusal, not a value/reader fact. No compiler admission or physical object identity is inferred."
+}

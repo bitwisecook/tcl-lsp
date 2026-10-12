@@ -1,0 +1,9 @@
+{
+  "question_id": "naming.dictionary.original-path-missing-variable-publication",
+  "source_path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+  "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "line_start": 8138,
+  "line_end": 8218,
+  "excerpt_sha256": "11411c437643954b2d1fea79c913a3a92ad6a5b9f411c1995040baa9c8e2275f",
+  "scope": "Independent original Jim_SetDictKeysVector source interpretation: ordinary get, initial missing empty publication, COW-before-conversion, path mutation, final ordinary set. Native319 public whole observations stay independent; source supplies no runtime object or successful Rust assertion."
+}

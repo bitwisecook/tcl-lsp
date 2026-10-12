@@ -459,10 +459,10 @@ fn blind_text(file: &str, blind: &CBlindSpot) -> String {
     )
 }
 
-/// A command name without its leading `::`: the global namespace spells it
-/// either way, and a scan and a probe must agree on which row a name is.
+/// Remove one root marker from a constructed descriptor/reporting key.
+/// Literal colon-named components remain part of the row identity.
 fn normalised(name: &str) -> &str {
-    name.strip_prefix("::").unwrap_or(name)
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
 }
 
 /// Add the row for `command`, or a note on the row already there when a
@@ -689,6 +689,18 @@ mod tests {
     /// each with the provenance `c-scan`, the arity its usage message states,
     /// the subcommands of its table, the package it provides, and notes that say
     /// where each came from.
+    #[test]
+    fn probe_descriptor_projection_keeps_colon_components_separate() {
+        // naming.grammar.shared-written-name-boundaries
+        // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
+        // Supplied reporting descriptors, not new C registration/lookup evidence.
+        let mut import = ExtensionImport::default();
+        import.merge_probe(&ProbeReport { package: "p".into(), version: None,
+            commands: vec![":::::p".into(), "::p".into(), ":p".into()] });
+        let names: Vec<_> = import.commands.iter().map(|row| row.name.as_str()).collect();
+        assert_eq!(names, [":::p", ":p", "p"]);
+    }
+
     #[test]
     fn pkga_is_described_at_the_default_fact_with_its_proposals() {
         let import = import_c_sources(

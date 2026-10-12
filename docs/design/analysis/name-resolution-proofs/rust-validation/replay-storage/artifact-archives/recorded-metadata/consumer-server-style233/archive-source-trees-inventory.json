@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-server-style233.source-trees.tar.gz",
+  "archive_sha256": "7cfa592bc95e607f9153931dcc67c7182401b80837687dbbe60d1bbcaa6cfc19",
+  "archive_bytes": 1156632,
+  "uncompressed_bytes": 5057342,
+  "source_manifest_sha256": "d5ce6d93a371e37e2b1117c4b01e87ff651f9e5d2a647e1915d20185bff3c35a",
+  "source_patch_sha256": "b6df0f56edfc6a25d51aa5bec6e5ead6fc33b87b32d959536b4f2ae38c31733d",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 10,
+  "members": {
+    "consumer-server-style233/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.6667047,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.6667047,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/base/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.6667047,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/base/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.6667047,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/base/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.670865,
+      "size": 2528688,
+      "sha256": "81fcd89d9705b829e661b6a4e8bf8537200cd20d11e1c0af9d370bc79258c5a9"
+    },
+    "consumer-server-style233/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.670865,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.670865,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/candidate/rust/tcl-lsp-server": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.670865,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/candidate/rust/tcl-lsp-server/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.670865,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-server-style233/candidate/rust/tcl-lsp-server/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791598736.6987045,
+      "size": 2528654,
+      "sha256": "0534aaa4f363b9e2deefe185bb093e84c8ad6b4b89c76ffbd469dc866382943d"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "0534aaa4f363b9e2deefe185bb093e84c8ad6b4b89c76ffbd469dc866382943d",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "hash_key": "base_sha256",
+      "sha256": "81fcd89d9705b829e661b6a4e8bf8537200cd20d11e1c0af9d370bc79258c5a9",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

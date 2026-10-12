@@ -1,0 +1,58 @@
+{
+  "qid": "naming.source.original-counted-filename-filesystem-extent",
+  "document": "docs/design/analysis/name-resolution-proofs/source-original-counted-filename-filesystem-extent.md",
+  "question": "Under independently selected actual UTF-8, ISO-8859-1 and Identity system encodings, which external byte filename does each original public counted String choose, including Unicode e9/euro, invalid rawFF, zero suffixes and absent Unicode paths? Which exact original diagnostic/errorCode/effect/path bytes result? Does each actual codec selection succeed, and how is unknown/unavailable encoding exposed?",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim5bac7c99"
+  ],
+  "fresh_interpreters_each_c": 25,
+  "fresh_interpreters_jim": 8,
+  "processes": 6,
+  "expected_total_blocks": 133,
+  "arguments": [
+    "runner-owned-ascii-absolute-directory"
+  ],
+  "external_files": [
+    {
+      "relative_path_hex": "6b65792d41534349492e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT ASCII; return ASCII\n"
+    },
+    {
+      "relative_path_hex": "6b65792dc3a92e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT E9_UTF8; return E9_UTF8\n"
+    },
+    {
+      "relative_path_hex": "6b65792de92e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT E9_ISO88591; return E9_ISO88591\n"
+    },
+    {
+      "relative_path_hex": "6b65792dff2e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT FF_RAW; return FF_RAW\n"
+    },
+    {
+      "relative_path_hex": "6b65792dc3bf2e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT FF_UTF8; return FF_UTF8\n"
+    },
+    {
+      "relative_path_hex": "6b65792defbfbd2e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT REPLACEMENT_UTF8; return REPLACEMENT_UTF8\n"
+    },
+    {
+      "relative_path_hex": "6b65792de282ac2e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT EURO_UTF8; return EURO_UTF8\n"
+    },
+    {
+      "relative_path_hex": "6b65792d3f2e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT QUESTION_EXTERNAL; return QUESTION_EXTERNAL\n"
+    }
+  ],
+  "absent_prefix_hex": "616273656e742d",
+  "file_setup": "Root creates all eight exact byte-named owned files using byte-preserving OS paths. All files contain only distinct ASCII effect/result tags; no candidate backend extent is assumed. Every absent-* path remains absent before/after. Keep source files/pins and raw stdout separately; all raw/codec/version/library/header/executable/tool/collector input pins checked before/after.",
+  "execution": "Exact public constructors and original argv/result/errorCode/effect roles retain their existing timing. Each C case measures Tcl_SetSystemEncoding return and current actual encoding before source in its own fresh initialized interpreter. Unknown selection is its own block and does not call source. Jim runs eight independent raw source cases with actual encoding command availability recorded and explicit unavailable selection field, without borrowing C conversion. Root alone compiles and runs original providers; obtain same-static-library version diagnostics separately.",
+  "limits": "This request is unrun source only. Existing648 UTF8 extents and643/646 name/read observations remain immutable. New evidence will establish only measured filesystem codec/input facets, not arbitrary catalogue encodings, normalization, callback/refcount chronology, Rust outcomes or appliance facts."
+}

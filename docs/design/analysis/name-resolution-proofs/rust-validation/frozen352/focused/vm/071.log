@@ -1,0 +1,15 @@
+
+running 1 test
+test command::tests::original_frame_selectors_match_native_cache_and_failure_order ... 
+thread 'command::tests::original_frame_selectors_match_native_cache_and_failure_order' (1358420) panicked at rust/tcl-vm/src/command.rs:4945:72:
+called `Result::unwrap()` on an `Err` value: ScalarNumericInputUnavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::original_frame_selectors_match_native_cache_and_failure_order
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.41s
+

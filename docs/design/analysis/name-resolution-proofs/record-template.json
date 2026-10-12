@@ -1,0 +1,23 @@
+{
+  "id": "naming.example.question",
+  "kind": "native-observation",
+  "document": "docs/design/analysis/name-resolution-proofs/example-question.md",
+  "problem_statement": "Describe the concrete trigger, competing interpretations, and consumer relevance.",
+  "question": "Ask the precise question answered by these inputs.",
+  "conclusion": "State only the supported answer and its applicability boundary.",
+  "scope": "Identify inputs, dialects, releases, channels and excluded interpretations.",
+  "providers": [
+    {"id":"tcl8.4","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"Tcl","status":"not-tested","answer":"No observation for this question.","evidence":[]},
+    {"id":"tcl8.5","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"Tcl","status":"not-tested","answer":"No observation for this question.","evidence":[]},
+    {"id":"tcl8.6","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"Tcl","status":"not-tested","answer":"No observation for this question.","evidence":[]},
+    {"id":"tcl9.0","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"Tcl","status":"not-tested","answer":"No observation for this question.","evidence":[]},
+    {"id":"tcl9.1","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"Tcl","status":"not-tested","answer":"No observation for this question.","evidence":[]},
+    {"id":"jim","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"Jim Tcl","status":"not-tested","answer":"No observation for this question.","evidence":[]},
+    {"id":"bigip","version":"not recorded","build":"not recorded","input_channel":"not recorded","dialect":"F5 iRules","status":"not-tested","answer":"No appliance observation for this question.","evidence":[]}
+  ],
+  "evidence": [],
+  "source_anchors": [],
+  "tests": [],
+  "owners": [],
+  "replay": {"command": [], "limitations": "No executable replay protocol is attached."}
+}

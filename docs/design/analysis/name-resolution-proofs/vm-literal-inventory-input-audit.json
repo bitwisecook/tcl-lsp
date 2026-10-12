@@ -1,0 +1,179 @@
+[
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv",
+    "sha256": "6f9a2f02a57fcb5b97cae21cddcf784fa01587f1c866fcabce842bb8e4c33b41",
+    "original_stream_hash_matches": true,
+    "rows": 21,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv",
+    "sha256": "ba3263a820095a02cecc835fdffbe27302f61039be98364532d1eb69a60fb558",
+    "original_stream_hash_matches": true,
+    "rows": 21,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv",
+    "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+    "original_stream_hash_matches": true,
+    "rows": 21,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv",
+    "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+    "original_stream_hash_matches": true,
+    "rows": 21,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv",
+    "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+    "original_stream_hash_matches": true,
+    "rows": 21,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt",
+    "sha256": "8afe2e9e967f23f2972f9eb088c67c299245202260304d845a7f28f6d6c1ada9",
+    "original_stream_hash_matches": true,
+    "rows": 12,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt",
+    "sha256": "be8bc459681ef04aa6da6b3238eaece719d6a76a296922cd2d6d7bf56d070f3e",
+    "original_stream_hash_matches": true,
+    "rows": 12,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt",
+    "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+    "original_stream_hash_matches": true,
+    "rows": 12,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt",
+    "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+    "original_stream_hash_matches": true,
+    "rows": 12,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt",
+    "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+    "original_stream_hash_matches": true,
+    "rows": 12,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/8.4.20.tsv",
+    "sha256": "ba407e004ce9b4965d709cf9b94c7277309642bc5e858118bde76cf3be081605",
+    "original_stream_hash_matches": true,
+    "rows": 8,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/8.5.19.tsv",
+    "sha256": "d01ee4f9499bb8c6cc5ff5a80fbef2f296db21f288bcab7246a195db9f14f5de",
+    "original_stream_hash_matches": true,
+    "rows": 8,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/8.6.18.tsv",
+    "sha256": "e5bca009b9a69589da46cf015db32790494f51a2a0178b6e4b8d0480b1c3f7d6",
+    "original_stream_hash_matches": true,
+    "rows": 8,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/9.0.4.tsv",
+    "sha256": "e5bca009b9a69589da46cf015db32790494f51a2a0178b6e4b8d0480b1c3f7d6",
+    "original_stream_hash_matches": true,
+    "rows": 8,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/9.1.0.tsv",
+    "sha256": "e5bca009b9a69589da46cf015db32790494f51a2a0178b6e4b8d0480b1c3f7d6",
+    "original_stream_hash_matches": true,
+    "rows": 8,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv",
+    "sha256": "565269918c18df7e1f91f4b1d196bc45207e69be2450feb7bb5420aa3700fca5",
+    "original_manifest_observations_equal": true,
+    "rows": 5
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv",
+    "sha256": "5cf8cd085069606ccd191888076f5c71631057858c185e68098bca9a30f068a9",
+    "original_manifest_observations_equal": true,
+    "rows": 13
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv",
+    "sha256": "5396fc9c593cd950945b2f77c590ca84b4eb8eae7044ca0d94c0954b1cbd6f34",
+    "original_manifest_observations_equal": true,
+    "rows": 13
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv",
+    "sha256": "a084d8dfd8d54bf77ec89a3ba9e106d19b629ce0a3ebd831f04b2ca146aef217",
+    "original_manifest_observations_equal": true,
+    "rows": 13
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv",
+    "sha256": "d7bdc8a76235e5fcf1c52c278e1cc36ea6d13366af9912c9e34f0eaaa4fcb6eb",
+    "original_manifest_observations_equal": true,
+    "rows": 13
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl",
+    "sha256": "3c44be176df4ebd2bc949f56b74937daf6666d8c63cbb8ead9677e7b9e00f418",
+    "original_stream_hash_matches": true,
+    "rows": 40,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl",
+    "sha256": "7c369be3f697d0491c659f540c3c3ea33f33263f42dd6977aa8385c268acc074",
+    "original_stream_hash_matches": true,
+    "rows": 40,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl",
+    "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+    "original_stream_hash_matches": true,
+    "rows": 40,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl",
+    "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+    "original_stream_hash_matches": true,
+    "rows": 40,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl",
+    "sha256": "4563537efa0cf5f84ad870e698152edacfbf4ed97be1a8e8dccab9aca22d9962",
+    "original_stream_hash_matches": true,
+    "rows": 40,
+    "run_exit": 0
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl",
+    "sha256": "60613d12fbda405dbb5db773fda71487a1dff6408a76ceb9bf7cb3487b2dda69",
+    "original_stream_hash_matches": true,
+    "rows": 40,
+    "run_exit": 0
+  }
+]

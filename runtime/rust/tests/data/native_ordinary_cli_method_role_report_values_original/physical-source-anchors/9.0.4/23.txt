@@ -1,0 +1,34 @@
+TclOONextObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Interp *iPtr = (Interp *) interp;
+    CallFrame *framePtr = iPtr->varFramePtr;
+    Tcl_ObjectContext context;
+
+    /*
+     * Start with sanity checks on the calling context to make sure that we
+     * are invoked from a suitable method context. If so, we can safely
+     * retrieve the handle to the object call context.
+     */
+
+    if (framePtr == NULL || !(framePtr->isProcCallFrame & FRAME_IS_METHOD)) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"%s may only be called from inside a method",
+		TclGetString(objv[0])));
+	OO_ERROR(interp, CONTEXT_REQUIRED);
+	return TCL_ERROR;
+    }
+    context = (Tcl_ObjectContext) framePtr->clientData;
+
+    /*
+     * Invoke the (advanced) method call context in the caller context. Note
+     * that this is like [uplevel 1] and not [eval].
+     */
+
+    TclNRAddCallback(interp, NextRestoreFrame, framePtr, NULL,NULL,NULL);
+    iPtr->varFramePtr = framePtr->callerVarPtr;
+    return TclNRObjectContextInvokeNext(interp, context, objc, objv, 1);
+}

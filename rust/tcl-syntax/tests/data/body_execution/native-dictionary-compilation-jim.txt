@@ -1,0 +1,12 @@
+dictionary-available 1
+create-before-argv 0 CUSTOM
+get-before-argv 0 CUSTOM
+set-local-before-argv 0 {{}}
+set-global-before-argv 0 {{}}
+for-captured-break 0 a
+for-captured-continue 0 b
+update-return-writeback 0 {0 BODY {a NEW}}
+with-return-writeback 0 {2 BODY {a A}}
+for-body-replaces-helper 1 {can't rename "::tcl::dict::for": command doesn't exist}
+with-malformed-writeback 0 {0 {missing value to go with key} BROKEN}
+with-dictionary-key-collision 0 {0 {missing value to go with key} INNER}

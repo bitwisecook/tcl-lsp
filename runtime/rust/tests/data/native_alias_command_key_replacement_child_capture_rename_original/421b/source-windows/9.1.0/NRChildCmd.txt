@@ -1,0 +1,165 @@
+2907: {
+2908:     return Tcl_NRCallObjProc2(interp, NRChildCmd, clientData, objc, objv);
+2909: }
+2910: 
+2911: static int
+2912: NRChildCmd(
+2913:     void *clientData,		/* Child interpreter. */
+2914:     Tcl_Interp *interp,		/* Current interpreter. */
+2915:     Tcl_Size objc,		/* Number of arguments. */
+2916:     Tcl_Obj *const *objv)	/* Argument objects. */
+2917: {
+2918:     Tcl_Interp *childInterp = (Tcl_Interp *) clientData;
+2919:     static const char *const options[] = {
+2920: 	"alias",	"aliases",	"bgerror",	"debug",
+2921: 	"eval",		"expose",	"hide",		"hidden",
+2922: 	"issafe",	"invokehidden",	"limit",	"marktrusted",
+2923: 	"recursionlimit", "set",	NULL
+2924:     };
+2925:     enum childCmdOptionsEnum {
+2926: 	OPT_ALIAS,	OPT_ALIASES,	OPT_BGERROR,	OPT_DEBUG,
+2927: 	OPT_EVAL,	OPT_EXPOSE,	OPT_HIDE,	OPT_HIDDEN,
+2928: 	OPT_ISSAFE,	OPT_INVOKEHIDDEN, OPT_LIMIT,	OPT_MARKTRUSTED,
+2929: 	OPT_RECLIMIT,	OPT_SET
+2930:     } index;
+2931: 
+2932:     if (childInterp == NULL) {
+2933: 	Tcl_Panic("TclChildObjCmd: interpreter has been deleted");
+2934:     }
+2935: 
+2936:     if (objc < 2) {
+2937: 	Tcl_WrongNumArgs(interp, 1, objv, "cmd ?arg ...?");
+2938: 	return TCL_ERROR;
+2939:     }
+2940:     if (Tcl_GetIndexFromObj(interp, objv[1], options, "option", 0,
+2941: 	    &index) != TCL_OK) {
+2942: 	return TCL_ERROR;
+2943:     }
+2944: 
+2945:     switch (index) {
+2946:     case OPT_ALIAS:
+2947: 	if (objc > 2) {
+2948: 	    if (objc == 3) {
+2949: 		return AliasDescribe(interp, childInterp, objv[2]);
+2950: 	    }
+2951: 	    if (Tcl_IsEmpty(objv[3])) {
+2952: 		if (objc == 4) {
+2953: 		    return AliasDelete(interp, childInterp, objv[2]);
+2954: 		}
+2955: 	    } else {
+2956: 		return TclAliasCreate(interp, childInterp, interp, objv[2],
+2957: 			objv[3], objc - 4, objv + 4);
+2958: 	    }
+2959: 	}
+2960: 	Tcl_WrongNumArgs(interp, 2, objv, "aliasName ?targetName? ?arg ...?");
+2961: 	return TCL_ERROR;
+2962:     case OPT_ALIASES:
+2963: 	if (objc != 2) {
+2964: 	    Tcl_WrongNumArgs(interp, 2, objv, NULL);
+2965: 	    return TCL_ERROR;
+2966: 	}
+2967: 	return AliasList(interp, childInterp);
+2968:     case OPT_BGERROR:
+2969: 	if (objc != 2 && objc != 3) {
+2970: 	    Tcl_WrongNumArgs(interp, 2, objv, "?cmdPrefix?");
+2971: 	    return TCL_ERROR;
+2972: 	}
+2973: 	return ChildBgerror(interp, childInterp, objc - 2, objv + 2);
+2974:     case OPT_DEBUG:
+2975: 	/*
+2976: 	 * TIP #378
+2977: 	 * Currently only -frame supported, otherwise ?-option ?value? ...?
+2978: 	 */
+2979: 	if (objc > 4) {
+2980: 	    Tcl_WrongNumArgs(interp, 2, objv, "?-frame ?bool??");
+2981: 	    return TCL_ERROR;
+2982: 	}
+2983: 	return ChildDebugCmd(interp, childInterp, objc - 2, objv + 2);
+2984:     case OPT_EVAL:
+2985: 	if (objc < 3) {
+2986: 	    Tcl_WrongNumArgs(interp, 2, objv, "arg ?arg ...?");
+2987: 	    return TCL_ERROR;
+2988: 	}
+2989: 	return ChildEval(interp, childInterp, objc - 2, objv + 2);
+2990:     case OPT_EXPOSE:
+2991: 	if ((objc < 3) || (objc > 4)) {
+2992: 	    Tcl_WrongNumArgs(interp, 2, objv, "hiddenCmdName ?cmdName?");
+2993: 	    return TCL_ERROR;
+2994: 	}
+2995: 	return ChildExpose(interp, childInterp, objc - 2, objv + 2);
+2996:     case OPT_HIDE:
+2997: 	if ((objc < 3) || (objc > 4)) {
+2998: 	    Tcl_WrongNumArgs(interp, 2, objv, "cmdName ?hiddenCmdName?");
+2999: 	    return TCL_ERROR;
+3000: 	}
+3001: 	return ChildHide(interp, childInterp, objc - 2, objv + 2);
+3002:     case OPT_HIDDEN:
+3003: 	if (objc != 2) {
+3004: 	    Tcl_WrongNumArgs(interp, 2, objv, NULL);
+3005: 	    return TCL_ERROR;
+3006: 	}
+3007: 	return ChildHidden(interp, childInterp);
+3008:     case OPT_ISSAFE:
+3009: 	if (objc != 2) {
+3010: 	    Tcl_WrongNumArgs(interp, 2, objv, NULL);
+3011: 	    return TCL_ERROR;
+3012: 	}
+3013: 	Tcl_SetObjResult(interp, Tcl_NewBooleanObj(Tcl_IsSafe(childInterp)));
+3014: 	return TCL_OK;
+3015:     case OPT_INVOKEHIDDEN: {
+3016: 	Tcl_Size i;
+3017: 	const char *namespaceName;
+3018: 	static const char *const hiddenOptions[] = {
+3019: 	    "-global",	"-namespace",	"--", NULL
+3020: 	};
+3021: 	enum hiddenOption {
+3022: 	    OPT_GLOBAL,	OPT_NAMESPACE,	OPT_LAST
+3023: 	} idx;
+3024: 
+3025: 	namespaceName = NULL;
+3026: 	for (i = 2; i < objc; i++) {
+3027: 	    if (TclGetString(objv[i])[0] != '-') {
+3028: 		break;
+3029: 	    }
+3030: 	    if (Tcl_GetIndexFromObj(interp, objv[i], hiddenOptions, "option",
+3031: 		    0, &idx) != TCL_OK) {
+3032: 		return TCL_ERROR;
+3033: 	    }
+3034: 	    if (idx == OPT_GLOBAL) {
+3035: 		namespaceName = "::";
+3036: 	    } else if (idx == OPT_NAMESPACE) {
+3037: 		if (++i == objc) { /* There must be more arguments. */
+3038: 		    break;
+3039: 		}
+3040: 		namespaceName = TclGetString(objv[i]);
+3041: 	    } else {
+3042: 		i++;
+3043: 		break;
+3044: 	    }
+3045: 	}
+3046: 	if (objc - i < 1) {
+3047: 	    Tcl_WrongNumArgs(interp, 2, objv,
+3048: 		    "?-namespace ns? ?-global? ?--? cmd ?arg ..?");
+3049: 	    return TCL_ERROR;
+3050: 	}
+3051: 	return ChildInvokeHidden(interp, childInterp, namespaceName,
+3052: 		objc - i, objv + i);
+3053:     }
+3054:     case OPT_LIMIT: {
+3055: 	static const char *const limitTypes[] = {
+3056: 	    "commands", "time", NULL
+3057: 	};
+3058: 	enum LimitTypes {
+3059: 	    LIMIT_TYPE_COMMANDS, LIMIT_TYPE_TIME
+3060: 	} limitType;
+3061: 
+3062: 	if (objc < 3) {
+3063: 	    Tcl_WrongNumArgs(interp, 2, objv, "limitType ?-option value ...?");
+3064: 	    return TCL_ERROR;
+3065: 	}
+3066: 	if (Tcl_GetIndexFromObj(interp, objv[2], limitTypes, "limit type", 0,
+3067: 		&limitType) != TCL_OK) {
+3068: 	    return TCL_ERROR;
+3069: 	}
+3070: 	switch (limitType) {
+3071: 	case LIMIT_TYPE_COMMANDS:

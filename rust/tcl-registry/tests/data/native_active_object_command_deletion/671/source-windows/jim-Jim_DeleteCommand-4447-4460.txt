@@ -1,0 +1,14 @@
+int Jim_DeleteCommand(Jim_Interp *interp, Jim_Obj *nameObj)
+{
+    int ret = JIM_OK;
+
+    nameObj = JimQualifyName(interp, nameObj);
+
+    if (Jim_DeleteHashEntry(&interp->commands, nameObj) == JIM_ERR) {
+        Jim_SetResultFormatted(interp, "can't delete \"%#s\": command doesn't exist", nameObj);
+        ret = JIM_ERR;
+    }
+    Jim_DecrRefCount(interp, nameObj);
+
+    return ret;
+}

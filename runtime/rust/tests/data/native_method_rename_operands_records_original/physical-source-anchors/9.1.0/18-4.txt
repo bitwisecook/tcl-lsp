@@ -1,0 +1,111 @@
+	OO_ERROR(interp, BAD_UNKNOWN);
+	return TCL_ERROR;
+    }
+    if (TclOOGetDefineCmdContext(interp) == NULL) {
+	return TCL_ERROR;
+    }
+
+    soughtStr = TclGetStringFromObj(objv[1], &soughtLen);
+    if (soughtLen == 0) {
+	goto noMatch;
+    }
+    FOREACH_HASH_KEY(nameStr, &nsPtr->cmdTable) {
+	if (strncmp(soughtStr, nameStr, soughtLen) == 0) {
+	    if (matchedStr != NULL) {
+		goto noMatch;
+	    }
+	    matchedStr = nameStr;
+	}
+    }
+
+    if (matchedStr != NULL) {
+	/*
+	 * Got one match, and only one match!
+	 */
+
+	Tcl_Obj **newObjv = (Tcl_Obj **)
+		TclStackAlloc(interp, sizeof(Tcl_Obj *) * (objc - 1));
+	int result;
+
+	newObjv[0] = Tcl_NewStringObj(matchedStr, TCL_AUTO_LENGTH);
+	Tcl_IncrRefCount(newObjv[0]);
+	if (objc > 2) {
+	    memcpy(newObjv + 1, objv + 2, sizeof(Tcl_Obj *) * (objc - 2));
+	}
+	result = Tcl_EvalObjv(interp, objc - 1, newObjv, 0);
+	Tcl_DecrRefCount(newObjv[0]);
+	TclStackFree(interp, newObjv);
+	return result;
+    }
+
+  noMatch:
+    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+	    "invalid command name \"%s\"", soughtStr));
+    Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "COMMAND", soughtStr, (char *)NULL);
+    return TCL_ERROR;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * FindCommand --
+ *
+ *	Specialized version of Tcl_FindCommand that handles command prefixes
+ *	and disallows namespace magic.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static Tcl_Command
+FindCommand(
+    Tcl_Interp *interp,
+    Tcl_Obj *stringObj,
+    Tcl_Namespace *const namespacePtr)
+{
+    Tcl_Size length;
+    const char *nameStr, *string = TclGetStringFromObj(stringObj, &length);
+    Namespace *const nsPtr = (Namespace *) namespacePtr;
+    FOREACH_HASH_DECLS;
+    Tcl_Command cmd, cmd2;
+
+    /*
+     * If someone is playing games, we stop playing right now.
+     */
+
+    if (string[0] == '\0' || strstr(string, "::") != NULL) {
+	return NULL;
+    }
+
+    /*
+     * Do the exact lookup first.
+     */
+
+    cmd = Tcl_FindCommand(interp, string, namespacePtr, TCL_NAMESPACE_ONLY);
+    if (cmd != NULL) {
+	return cmd;
+    }
+
+    /*
+     * Bother, need to perform an approximate match. Iterate across the hash
+     * table of commands in the namespace.
+     */
+
+    FOREACH_HASH(nameStr, cmd2, &nsPtr->cmdTable) {
+	if (strncmp(string, nameStr, length) == 0) {
+	    if (cmd != NULL) {
+		return NULL;
+	    }
+	    cmd = cmd2;
+	}
+    }
+
+    /*
+     * Either we found one thing or we found nothing. Either way, return it.
+     */
+
+    return cmd;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *

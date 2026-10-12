@@ -1,0 +1,49 @@
+{
+  "question": "naming.source.original-surrogate-versus-replacement-escape-values",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-source-unit-distinction431/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.026111732004210353,
+  "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "actual_version": "9.1.0",
+  "version_query": {
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/workspace/.proofs/native-source-unit-distinction431/version.tcl"
+    ],
+    "exit": 0,
+    "seconds": 0.006723023019731045,
+    "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+    "stdout_sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "build_inputs_before_and_after": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d"
+  },
+  "prior_build_input_receipt": "rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/receipt.json",
+  "prior_build_input_receipt_sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+  "scope": "Public string equal and string length observations for single source numeric high-surrogate vs replacement-character escapes, adjacent high-surrogate escapes, replacement self comparison, valid non-ASCII escape vs ASCII value, and braced literal escape text. Source/request only; no claimed outcome before actual run. No binary scan/getter, bytes/object/header/name-slot/Normal/pairing or wide-escape claim.",
+  "rows": [
+    "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+    "SOURCE_ADJACENT_SURROGATES|0|1",
+    "SOURCE_REPLACEMENT_SELF|1",
+    "SOURCE_VALID_UNICODE|0|4",
+    "SOURCE_BRACED_ESCAPE|0|6"
+  ],
+  "build_limit": "Original pinned CLI and required build inputs verified before and after, without recompilation. Compiler version and unlisted inherited environment are not recorded."
+}

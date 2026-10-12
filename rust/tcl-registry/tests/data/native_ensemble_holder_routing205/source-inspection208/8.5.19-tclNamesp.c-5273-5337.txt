@@ -1,0 +1,65 @@
+Tcl_CreateEnsemble(
+    Tcl_Interp *interp,
+    const char *name,
+    Tcl_Namespace *namespacePtr,
+    int flags)
+{
+    Namespace *nsPtr = (Namespace *) namespacePtr;
+    EnsembleConfig *ensemblePtr = (EnsembleConfig *)
+	    ckalloc(sizeof(EnsembleConfig));
+    Tcl_Obj *nameObj = NULL;
+
+    if (nsPtr == NULL) {
+	nsPtr = (Namespace *) TclGetCurrentNamespace(interp);
+    }
+
+    /*
+     * Make the name of the ensemble into a fully qualified name. This might
+     * allocate a temporary object.
+     */
+
+    if (!(name[0] == ':' && name[1] == ':')) {
+	nameObj = Tcl_NewStringObj(nsPtr->fullName, -1);
+	if (nsPtr->parentPtr == NULL) {
+	    Tcl_AppendStringsToObj(nameObj, name, NULL);
+	} else {
+	    Tcl_AppendStringsToObj(nameObj, "::", name, NULL);
+	}
+	Tcl_IncrRefCount(nameObj);
+	name = TclGetString(nameObj);
+    }
+
+    ensemblePtr->nsPtr = nsPtr;
+    ensemblePtr->epoch = 0;
+    Tcl_InitHashTable(&ensemblePtr->subcommandTable, TCL_STRING_KEYS);
+    ensemblePtr->subcommandArrayPtr = NULL;
+    ensemblePtr->subcmdList = NULL;
+    ensemblePtr->subcommandDict = NULL;
+    ensemblePtr->flags = flags;
+    ensemblePtr->unknownHandler = NULL;
+    ensemblePtr->token = Tcl_CreateObjCommand(interp, name,
+	    NsEnsembleImplementationCmd, ensemblePtr, DeleteEnsembleConfig);
+    ensemblePtr->next = (EnsembleConfig *) nsPtr->ensembles;
+    nsPtr->ensembles = (Tcl_Ensemble *) ensemblePtr;
+
+    /*
+     * Trigger an eventual recomputation of the ensemble command set. Note
+     * that this is slightly tricky, as it means that we are not actually
+     * counting the number of namespace export actions, but it is the simplest
+     * way to go!
+     */
+
+    nsPtr->exportLookupEpoch++;
+
+    if (flags & ENSEMBLE_COMPILE) {
+	((Command *) ensemblePtr->token)->compileProc = TclCompileEnsemble;
+    }
+
+    if (nameObj != NULL) {
+	TclDecrRefCount(nameObj);
+    }
+    return ensemblePtr->token;
+}
+
+/*
+ *----------------------------------------------------------------------

@@ -1,0 +1,19 @@
+{
+  "ordinal": 115,
+  "selector": "cmd_oo::tests::destructors_fire_on_rename_destroy_and_namespace_delete",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::destructors_fire_on_rename_destroy_and_namespace_delete",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.8445893579919357,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.84s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/115.log",
+  "log_sha256": "275c0f8ba3cca8bac23e1c45c812139109f83cb3644f4083c4d2334d78459a06"
+}

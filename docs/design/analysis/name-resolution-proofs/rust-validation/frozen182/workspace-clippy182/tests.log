@@ -1,0 +1,90 @@
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+error[E0004]: non-exhaustive patterns: `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+   --> rust/tcl-compiler/src/analyser/types.rs:175:15
+    |
+175 |         match self.subject()? {
+    |               ^^^^^^^^^^^^^^^ pattern `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+    |
+note: `analyser::diagnostic_subject::DiagnosticSubject` defined here
+   --> rust/tcl-compiler/src/analyser/diagnostic_subject.rs:185:10
+    |
+185 | pub enum DiagnosticSubject {
+    |          ^^^^^^^^^^^^^^^^^
+186 |     /// Original callback prefix plus current readonly source-signature advice.
+187 |     CallbackSourceArity(Arc<SourceCallbackAritySubject>),
+    |     ------------------- not covered
+    = note: the matched value is of type `&analyser::diagnostic_subject::DiagnosticSubject`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    |
+184 ~             | super::DiagnosticSubject::ConditionalInterpreterVisibility(_) => None,
+185 ~             &analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_) => todo!(),
+    |
+
+error[E0004]: non-exhaustive patterns: `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+   --> rust/tcl-compiler/src/analyser/types.rs:191:15
+    |
+191 |         match self.subject()? {
+    |               ^^^^^^^^^^^^^^^ pattern `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+    |
+note: `analyser::diagnostic_subject::DiagnosticSubject` defined here
+   --> rust/tcl-compiler/src/analyser/diagnostic_subject.rs:185:10
+    |
+185 | pub enum DiagnosticSubject {
+    |          ^^^^^^^^^^^^^^^^^
+186 |     /// Original callback prefix plus current readonly source-signature advice.
+187 |     CallbackSourceArity(Arc<SourceCallbackAritySubject>),
+    |     ------------------- not covered
+    = note: the matched value is of type `&analyser::diagnostic_subject::DiagnosticSubject`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    |
+200 ~             | super::DiagnosticSubject::ConditionalInterpreterVisibility(_) => None,
+201 ~             &analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_) => todo!(),
+    |
+
+error[E0004]: non-exhaustive patterns: `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+   --> rust/tcl-compiler/src/analyser/types.rs:207:15
+    |
+207 |         match self.subject()? {
+    |               ^^^^^^^^^^^^^^^ pattern `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+    |
+note: `analyser::diagnostic_subject::DiagnosticSubject` defined here
+   --> rust/tcl-compiler/src/analyser/diagnostic_subject.rs:185:10
+    |
+185 | pub enum DiagnosticSubject {
+    |          ^^^^^^^^^^^^^^^^^
+186 |     /// Original callback prefix plus current readonly source-signature advice.
+187 |     CallbackSourceArity(Arc<SourceCallbackAritySubject>),
+    |     ------------------- not covered
+    = note: the matched value is of type `&analyser::diagnostic_subject::DiagnosticSubject`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    |
+216 ~             | super::DiagnosticSubject::ConditionalInterpreterVisibility(_) => None,
+217 ~             &analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_) => todo!(),
+    |
+
+error[E0004]: non-exhaustive patterns: `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+   --> rust/tcl-compiler/src/analyser/types.rs:226:15
+    |
+226 |         match self.subject()? {
+    |               ^^^^^^^^^^^^^^^ pattern `&analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_)` not covered
+    |
+note: `analyser::diagnostic_subject::DiagnosticSubject` defined here
+   --> rust/tcl-compiler/src/analyser/diagnostic_subject.rs:185:10
+    |
+185 | pub enum DiagnosticSubject {
+    |          ^^^^^^^^^^^^^^^^^
+186 |     /// Original callback prefix plus current readonly source-signature advice.
+187 |     CallbackSourceArity(Arc<SourceCallbackAritySubject>),
+    |     ------------------- not covered
+    = note: the matched value is of type `&analyser::diagnostic_subject::DiagnosticSubject`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    |
+235 ~             | super::DiagnosticSubject::UnresolvedMathFunction(_) => None,
+236 ~             &analyser::diagnostic_subject::DiagnosticSubject::CallbackSourceArity(_) => todo!(),
+    |
+
+For more information about this error, try `rustc --explain E0004`.
+error: could not compile `tcl-compiler` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 4 previous errors

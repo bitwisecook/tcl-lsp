@@ -1,0 +1,26 @@
+{
+  "name": "OriginalSourceFilenameStrictUtf8Classification651",
+  "status": "READY private original request/source; unrun",
+  "qid": "naming.source.original-counted-filename-filesystem-extent",
+  "files": [
+    {
+      "path": "probe.c",
+      "sha256": "f27f6fd9d54e39a73482a51c1f10641d25f21b9607316edac0eadfdae5d00612"
+    },
+    {
+      "path": "request.json",
+      "sha256": "81bc1708a51928b502994bfd4ac0ff868b49c034da56567bf0191fbee7d786bf"
+    },
+    {
+      "path": "external-files.json",
+      "sha256": "5add27d20d908fb42830e69e094822f9b557df604e56c47526d1faad95d84473"
+    }
+  ],
+  "predecessor_manifest": "/tmp/sourceperf-source-filename-codec-request650/manifest.json",
+  "predecessor_sha256": "08699022a2be0a7ad47069ec65755a7c3637e8eb51250698737fb2ff18bad2a0",
+  "processes_requested": 6,
+  "fresh_interpreters_each": 4,
+  "requested_blocks": 24,
+  "observations": 0,
+  "limits": "No Native/Cargo/test/Git/LIVE/archive operations or provider observations."
+}

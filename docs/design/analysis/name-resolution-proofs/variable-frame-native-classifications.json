@@ -1,0 +1,65 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_frame_levels/manifest.json",
+    "sha256": "16f09e74eae120f9e1f131612052ebf3736ad8aadc0cd5bb6cff062dffd097ef",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-level-object-conversion-and-selection"
+    ],
+    "reason": "Inspected original object roster, current-level-2 procedure setup and all five 16-window C transcripts."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json",
+    "sha256": "49fb08a00bd9832ac668506753d4eee30332a1535539ccc0c09c75c88d9e0b42",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-level-object-conversion-and-selection"
+    ],
+    "reason": "Inspected independent 21-object Jim roster and complete output/library/binary/exit provenance."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_frame_reference/manifest.json",
+    "sha256": "47807f08736e5e0108ed9f1e09278d1d4d264248ae4607b869aeb2c4be0d5edd",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.absolute-level-cache-reselects-current-frame"
+    ],
+    "reason": "Inspected full six-window native sequence and final successful compile/run artifacts across five C providers."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_frame_reference/attempt1-manifest.json",
+    "sha256": "6a8b3a4a1beab074e6c3c2fcc0a2c98e12935e75b06d4ca710a2c3eb0e58843b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.absolute-level-cache-reselects-current-frame"
+    ],
+    "reason": "Inspected two actual completed provider runs and three failed-link attempts; failure evidence retained under the same precise question, without invented runtime rows."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json",
+    "sha256": "24daacf3a132fac16d19c2a3d786fafa89540b1f6ab94269ca74388a8ccbc15f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.original-upvar-and-exists-completion-and-name-windows"
+    ],
+    "reason": "Inspected actual 28-case argv/effect/header probe and all five 32-line completed provider transcripts."
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/manifest.json",
+    "sha256": "93980bc7a12661f9ab3d06981b834d5e536324984da3c7a7fe11003d361826ac",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.exists-read-trace-quiet-result-purpose"
+    ],
+    "reason": "Inspected all three modern read-trace programmes and all fifteen completed existence-result windows; kept distinct from ordinary variable read completion."
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_alias_names/provenance.json",
+    "sha256": "24b117cfdef3258d7ff3d7c1ca7fd1beb87ea91f0111c3dc3108444344da25f6",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable.global-and-variable-local-alias-tail-purpose"
+    ],
+    "reason": "Inspected exact four global/variable rooted/relative three-colon declarations and all six caught local-name result presentations; distinct from command alias lookup."
+  }
+]

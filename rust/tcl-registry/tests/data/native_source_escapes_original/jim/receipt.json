@@ -1,0 +1,41 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-native-source-escapes173/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.009557455996400677,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "f8a1829202c7f5fd36852b46f76f7aef9f3e52a3fda4826f29598147bdd2acb0",
+  "runner_sha256": "beebf4a9b79c7d4c1bdf4c96c797c123f91c76735e29b914a96fb06de2f29c4e",
+  "stdout_sha256": "ca0f8ea73e745d5133bd33a8dea7151e377d637bd5ba60eabc257a6189532cd2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "VERSION|0.84-9-g5bac7c9",
+    "ROW|bare-x25b|0|2|2562|",
+    "ROW|quoted-x25b|0|2|2562|",
+    "ROW|braced-x25b|0|5|5c78323562|",
+    "ROW|bare-x25-ub|0|2|2562|",
+    "ROW|quoted-x25-ub|0|2|2562|",
+    "ROW|braced-x25-ub|0|10|5c7832355c7530303632|",
+    "ROW|bare-x4142|0|3|413432|",
+    "ROW|quoted-x4142|0|3|413432|",
+    "ROW|bare-x25z|0|2|257a|",
+    "ROW|bare-x25-upper|0|2|2542|",
+    "ROW|bare-x0|0|1|00|",
+    "ROW|bare-cu|0|2|6375|",
+    "ROW|braced-cu|0|7|635c7530303735|"
+  ],
+  "input_channel": "ASCII LF source-file CLI; thirteen independently caught source escape cases",
+  "boundary": "Question: source literal escape outcomes by exact release and grouping. The hex field is the binary scan H* projection of each result, not a native string getter or header identity. Length is native string length. No format-handler, native compiler admission, cache or physical identity is inferred."
+}

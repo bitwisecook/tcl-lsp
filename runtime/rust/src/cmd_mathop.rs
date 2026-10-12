@@ -28,10 +28,8 @@
 //!
 //! Tower-gated like `expr`. Semantics verified against tclsh 9.0.
 
-use tcl_syntax::naming::qualifier_segments;
-
-use crate::expr::Owned;
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp};
+use crate::obj::Owned;
 use crate::obj::TclObj;
 
 /// Register `::tcl::mathop::*`.
@@ -39,63 +37,79 @@ pub fn install(interp: &mut Interp) {
     for op in crate::builtins::mathop_names() {
         let mut full = b"::tcl::mathop::".to_vec();
         full.extend_from_slice(op.as_bytes());
-        interp.register_builtin(&full, mathop);
+        interp.register_stock_builtin(&full, mathop);
+    }
+    if interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .and_then(|protocol| protocol.tcl_version())
+        .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5)
+    {
+        let mut namespaces = interp.namespaces_mut();
+        let namespace = namespaces
+            .find_namespace(crate::namespace::GLOBAL, b"::tcl::mathop")
+            .expect("registered math operator namespace");
+        namespaces.export(namespace, b"*");
     }
 }
 
-fn expr_error(interp: &mut Interp, e: crate::expr::ExprError) -> Code {
-    match e.code {
-        Some(c) => interp.error_with_code(&e.msg, &c),
-        None => interp.set_error(&e.msg),
-    }
-}
-
-/// `wrong # args: should be "::tcl::mathop::<op> <usage>"`.
-fn wrong(interp: &mut Interp, op: &[u8], usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"::tcl::mathop::".to_vec();
-    m.extend_from_slice(op);
-    m.push(b' ');
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
+fn expr_error(interp: &mut Interp, e: crate::expr_error::ExprError) -> Code {
+    interp.report_expr_error(e)
 }
 
 /// A no-op `ExprCtx`: `mathop`'s operands are already evaluated, so the
 /// `$var`/`[cmd]`/`func()` resolution is never reached.
-struct NoCtx;
-impl crate::expr::ExprCtx for NoCtx {
-    fn read_var(&mut self, _: &str) -> Result<Owned, crate::expr::ExprError> {
+struct NoCtx<'a>(&'a mut Interp);
+impl crate::expr::ExprCtx for NoCtx<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.0)
+    }
+    fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
+        Some(self.0.host())
+    }
+    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        self.0.native_invocation_dialect()
+    }
+    fn read_var(&mut self, _: &str) -> Result<Owned, crate::expr_error::ExprError> {
         unreachable!("mathop operands are pre-evaluated")
     }
-    fn eval_command(&mut self, _: &str) -> Result<Owned, crate::expr::ExprError> {
+    fn eval_command(&mut self, _: &str) -> Result<Owned, crate::expr_error::ExprError> {
         unreachable!("mathop operands are pre-evaluated")
     }
-    fn call_function(&mut self, _: &str, _: &[Owned]) -> Result<Owned, crate::expr::ExprError> {
+    fn call_function(
+        &mut self,
+        _: &str,
+        _: &[Owned],
+    ) -> Result<Owned, crate::expr_error::ExprError> {
         unreachable!("mathop operands are pre-evaluated")
     }
 }
 
-/// The one builtin behind every operator; `argv[0]`'s tail selects the op. The
-/// fold / chained-comparison / arity logic is shared (`tcl_cmd_core::mathop`),
-/// driven over this runtime's `ExprOps` (the bignum tower) so the result matches
-/// `expr`.
+/// Selected handler identity supplies the operation; the original argv head
+/// supplies only native usage presentation when arity validation fails.
 fn mathop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use tcl_cmd_core::mathop::MathopError;
-    let name0 = obj_bytes(argv[0]);
-    let op = qualifier_segments(&name0)
-        .last()
-        .copied()
-        .unwrap_or(&name0[..]);
-    let op_str = core::str::from_utf8(op).unwrap_or("");
+    let Some(op) = interp
+        .active_native_builtin_identity()
+        .and_then(|identity| tcl_cmd_core::mathop::operation_for_handler_identity(&identity))
+    else {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "math operator handler identity",
+            ),
+        );
+    };
     // Borrow each operand (+1, released when the `Owned` wrappers drop).
     let args: Vec<Owned> = argv[1..].iter().map(|&a| Owned::retain(a)).collect();
-    let mut ctx = NoCtx;
-    match crate::expr::eval_mathop(op_str, args, &mut ctx) {
+    let mut ctx = NoCtx(interp);
+    match crate::expr::eval_mathop(op, args, &mut ctx) {
         Ok(result) => {
             interp.set_result(result.as_ptr());
             Code::Ok
         }
-        Err(MathopError::WrongArgs(usage)) => wrong(interp, op, usage.as_bytes()),
+        Err(MathopError::WrongArgs(usage)) => {
+            interp.wrong_args_for_invocation(argv, usage.as_bytes())
+        }
         Err(MathopError::Op(e)) => expr_error(interp, e),
     }
 }
@@ -104,6 +118,99 @@ fn mathop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
+        // naming.mathop-binding-and-written-head-controls
+        // docs/design/analysis/name-resolution-proofs/mathop-binding-and-written-head-controls.md
+        let rows =
+            include_str!("../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt");
+        let decode = |text: &str| {
+            text.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(fields[0]),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .unwrap();
+            // The native provider starts with its distribution extensions loaded.
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+            let code = interp.eval_str(&decode(fields[4]));
+            assert_eq!(
+                code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                decode(fields[3]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            count += 1;
+        }
+        assert_eq!(count, 60);
+    }
+
+    #[test]
+    fn original_mathop_compilation_matches_all_84_native_controls() {
+        // naming.mathop-procedure-source-controls
+        // docs/design/analysis/name-resolution-proofs/mathop-procedure-source-controls.md
+        let rows = include_str!(
+            "../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt"
+        );
+        let decode = |text: &str| {
+            text.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(fields[0]),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .unwrap();
+            // The native provider starts with its distribution extensions loaded.
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+            let code = interp.eval_str(&decode(fields[4]));
+            assert_eq!(
+                code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                decode(fields[3]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            count += 1;
+        }
+        assert_eq!(count, 84);
+    }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();

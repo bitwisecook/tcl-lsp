@@ -43,7 +43,7 @@ fn compile_for(release: &str, source: &str) -> tcl_bytecode::ModuleAsm {
     let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
     BytecodeCompileService::for_profile(profile)
         .compile(source)
-        .unwrap_or_else(|error| panic!("compile for {release}: {}", error.0))
+        .unwrap_or_else(|error| panic!("compile for {release}: {error}"))
 }
 
 fn run_compiled(release: &str, source: &str) -> String {
@@ -87,7 +87,7 @@ fn expansion_opcodes_follow_the_resolved_document_grammar() {
         let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
         let failure = match BytecodeCompileService::for_profile(profile).compile(source) {
             Ok(_) => panic!("{release} must not recognise Tcl 8.5 expansion syntax in {source:?}"),
-            Err(error) => error.0,
+            Err(error) => error.to_string(),
         };
         assert_eq!(
             failure, "extra characters after close-brace",

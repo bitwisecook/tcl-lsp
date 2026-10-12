@@ -1,0 +1,18 @@
+	    eeFrame.cmd.str.len = parse.commandSize;
+
+	    if (parse.term == parse.commandStart + parse.commandSize - 1) {
+		eeFrame.cmd.str.len --;
+	    }
+
+	    TclArgumentEnter (interp, objv, objectsUsed, &eeFrame);
+	    iPtr->cmdFramePtr = &eeFrame;
+#endif
+	    iPtr->numLevels++;    
+	    code = TclEvalObjvInternal(interp, objectsUsed, objv, 
+	            parse.commandStart, parse.commandSize, 0);
+	    iPtr->numLevels--;
+#ifdef TCL_TIP280
+	    iPtr->cmdFramePtr = iPtr->cmdFramePtr->nextPtr;
+	    TclArgumentRelease (interp, objv, objectsUsed);
+
+	    ckfree ((char*) eeFrame.line);

@@ -1,0 +1,6 @@
+
+running 1 test
+test command::native_frame_context_tests::generated_jim_level_objects_use_actual_frame_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.51s
+

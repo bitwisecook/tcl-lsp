@@ -1,0 +1,12 @@
+
+running 7 tests
+test command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier ... ok
+test command_binding::source_transition_advice::tests::authored_immediate_bodies_keep_mutation_and_callback_obligations_separate ... ok
+test command_binding::source_transition_advice::tests::authored_jim_root_alias_advice_keeps_the_jim_name_recipe ... ok
+test command_binding::source_transition_advice::tests::authored_logical_source_advice_keeps_its_explicit_input_and_original_operands ... ok
+test command_binding::source_transition_advice::tests::authored_source_tape_refusals_do_not_reissue_stock_declaration_advice ... ok
+test command_binding::source_transition_advice::tests::authored_source_transition_tape_keeps_deletion_rebinding_and_namespace_geometry ... ok
+test command_binding::source_transition_advice::tests::authored_source_transitions_keep_order_prefixes_and_conditional_authority ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 8183 filtered out; finished in 70.10s
+

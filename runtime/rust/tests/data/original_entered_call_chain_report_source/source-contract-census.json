@@ -1,0 +1,47 @@
+{
+  "actual_consumers": [
+    "info object/class call -> build_call_chain -> render_call_chain",
+    "oo_self_cmd call -> render_call_chain at current index",
+    "info object/class methodtype -> retained exact record current payload"
+  ],
+  "actual_producers": [
+    "normal target, actual is_object facet, active_filters is_filter",
+    "unknown dispatch role independent of selector",
+    "constructor/destructor actual producer-issued chain report roles",
+    "root builtin and slot installers issue descriptors",
+    "implicit stock dispatch terminus is report-only carrier",
+    "Method record flag reset, actual declaration visibility/export, same-record mutable replacement",
+    "cached Weak steps upgrade ALL exact records without name revival"
+  ],
+  "original_context": "OriginalArguments inherits actual original operation and holds allocation-only original operands; List result uses genuine member references and reached String presentation remains separate",
+  "limitations": [
+    "C90/C91 source/API facts only; no new native process or assertion credit",
+    "stock report-only terminus supplies no fake Method record/cache authority",
+    "current Class facet Weak continuation refuses unavailable/reborn holder; no Native Class pointer retention granted",
+    "physical Body/Forward/Property/custom delete callback chronology and VM value semantics remain independent",
+    "oo_private_var_name_for provider equality is outside report delta",
+    "whole OO clone procedure publication is owned by Runtime peer and preserved unchanged"
+  ],
+  "declaring_modules": [
+    {
+      "path": "runtime/rust/src/lib.rs",
+      "sha256": "ff62416863f9dd4a7a90afe41893c33bfdaaa6590866fa5b8090901ba5c44b67",
+      "declaration": "mod cmd_oo;"
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "sha256": "67a10fbd8ec47aef7ebcf54a9632085cff9421887cbbeb772a5b05fcf439f6cf",
+      "declaration": "mod original_call_report_tests;"
+    },
+    {
+      "path": "rust/tcl-registry/src/lib.rs",
+      "sha256": "05be728ead70e6c8e011883a6ee7b96302297673fbb7ff02875c520b754600ea",
+      "declaration": "pub mod native_tcloo_method_definition;"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+      "sha256": "42a37aea4a177f04f8022d27ecce6fb499935ebbaf04f770ea3dc9bd09af16b6",
+      "declaration": "mod call_report_tests;"
+    }
+  ]
+}

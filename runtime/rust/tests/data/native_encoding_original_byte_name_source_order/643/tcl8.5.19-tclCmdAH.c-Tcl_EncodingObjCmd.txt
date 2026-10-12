@@ -1,0 +1,103 @@
+Tcl_EncodingObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    int index;
+
+    static const char *optionStrings[] = {
+	"convertfrom", "convertto", "dirs", "names", "system",
+	NULL
+    };
+    enum options {
+	ENC_CONVERTFROM, ENC_CONVERTTO, ENC_DIRS, ENC_NAMES, ENC_SYSTEM
+    };
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "option ?arg ...?");
+	return TCL_ERROR;
+    }
+    if (Tcl_GetIndexFromObj(interp, objv[1], optionStrings, "option", 0,
+	    &index) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    switch ((enum options) index) {
+    case ENC_CONVERTTO:
+    case ENC_CONVERTFROM: {
+	Tcl_Obj *data;
+	Tcl_DString ds;
+	Tcl_Encoding encoding;
+	int length;
+	char *stringPtr;
+
+	if (objc == 3) {
+	    encoding = Tcl_GetEncoding(interp, NULL);
+	    data = objv[2];
+	} else if (objc == 4) {
+	    if (Tcl_GetEncodingFromObj(interp, objv[2], &encoding) != TCL_OK) {
+		return TCL_ERROR;
+	    }
+	    data = objv[3];
+	} else {
+	    Tcl_WrongNumArgs(interp, 2, objv, "?encoding? data");
+	    return TCL_ERROR;
+	}
+
+	if ((enum options) index == ENC_CONVERTFROM) {
+	    /*
+	     * Treat the string as binary data.
+	     */
+
+	    stringPtr = (char *) Tcl_GetByteArrayFromObj(data, &length);
+	    Tcl_ExternalToUtfDString(encoding, stringPtr, length, &ds);
+
+	    /*
+	     * Note that we cannot use Tcl_DStringResult here because it will
+	     * truncate the string at the first null byte.
+	     */
+
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    Tcl_DStringValue(&ds), Tcl_DStringLength(&ds)));
+	    Tcl_DStringFree(&ds);
+	} else {
+	    /*
+	     * Store the result as binary data.
+	     */
+
+	    stringPtr = TclGetStringFromObj(data, &length);
+	    Tcl_UtfToExternalDString(encoding, stringPtr, length, &ds);
+	    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(
+		    (unsigned char *) Tcl_DStringValue(&ds),
+		    Tcl_DStringLength(&ds)));
+	    Tcl_DStringFree(&ds);
+	}
+
+	Tcl_FreeEncoding(encoding);
+	break;
+    }
+    case ENC_DIRS:
+	return EncodingDirsObjCmd(dummy, interp, objc, objv);
+    case ENC_NAMES:
+	if (objc > 2) {
+	    Tcl_WrongNumArgs(interp, 2, objv, NULL);
+	    return TCL_ERROR;
+	}
+	Tcl_GetEncodingNames(interp);
+	break;
+    case ENC_SYSTEM:
+	if (objc > 3) {
+	    Tcl_WrongNumArgs(interp, 2, objv, "?encoding?");
+	    return TCL_ERROR;
+	}
+	if (objc == 2) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    Tcl_GetEncodingName(NULL), -1));
+	} else {
+	    return Tcl_SetSystemEncoding(interp, TclGetString(objv[2]));
+	}
+	break;
+    }
+    return TCL_OK;
+}

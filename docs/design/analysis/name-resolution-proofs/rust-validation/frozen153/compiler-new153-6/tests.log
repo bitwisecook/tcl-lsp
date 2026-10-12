@@ -1,0 +1,17 @@
+
+running 3 tests
+test command_binding::deferred_forward::tests::original_forward_masks_script_entries_and_future_dispatch_stays_unknown ... 
+thread 'command_binding::deferred_forward::tests::original_forward_masks_script_entries_and_future_dispatch_stays_unknown' (598171) panicked at rust/tcl-compiler/src/command_binding/deferred_forward.rs:215:17:
+V8_6: oo::class create Base {forward pass ::later}; oo::class create C {superclass Base; method pass {} {next}}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::deferred_forward::tests::original_forward_registration_refuses_incomplete_or_unowned_prefixes ... ok
+test command_binding::deferred_forward::tests::original_forward_registration_retains_prefix_without_entering_target ... ok
+
+failures:
+
+failures:
+    command_binding::deferred_forward::tests::original_forward_masks_script_entries_and_future_dispatch_stays_unknown
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 8187 filtered out; finished in 9.45s
+

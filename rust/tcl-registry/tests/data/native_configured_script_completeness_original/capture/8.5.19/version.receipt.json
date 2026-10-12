@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/grammar-info-complete-request452/version.tcl"
+  ],
+  "cwd": "/tmp/native-info-complete-original452-capture/8.5.19",
+  "started_utc": "2026-10-10T23:30:06.131579+00:00",
+  "elapsed_seconds": 0.0028485390066634864,
+  "returncode": 0,
+  "timed_out": false,
+  "stdout": {
+    "path": "/tmp/native-info-complete-original452-capture/8.5.19/version.stdout",
+    "resolved_path": "/tmp/native-info-complete-original452-capture/8.5.19/version.stdout",
+    "bytes": 7,
+    "sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71"
+  },
+  "stderr": {
+    "path": "/tmp/native-info-complete-original452-capture/8.5.19/version.stderr",
+    "resolved_path": "/tmp/native-info-complete-original452-capture/8.5.19/version.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

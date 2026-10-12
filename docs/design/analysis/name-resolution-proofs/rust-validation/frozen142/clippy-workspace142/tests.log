@@ -1,0 +1,26 @@
+    Checking tcl-dialect v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-dialect)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-engine-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-engine-api)
+    Checking tcl-userdirs v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-userdirs)
+    Checking tcl-platform v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-platform)
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lexer)
+    Checking tcl-test-support v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-test-support)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-core-types v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-core-types)
+error: consider adding a `;` to the last statement for consistent formatting
+   --> rust/tcl-registry/src/native_expression_program.rs:431:21
+    |
+431 |                     pending.extend([left.as_ref(), right.as_ref()])
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `pending.extend([left.as_ref(), right.as_ref()]);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#semicolon_if_nothing_returned
+    = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+
+error: could not compile `tcl-registry` (lib) due to 1 previous error

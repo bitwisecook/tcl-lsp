@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter ... 
+thread 'cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter' (570720) panicked at src/cmd_error.rs:1173:17:
+assertion `left == right` failed: missing
+  left: [123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 105, 110, 103, 67, 111, 109, 109, 97, 110, 100, 34, 125, 32, 123, 123, 125, 32, 115, 116, 100, 105, 110, 32, 50, 32, 102, 97, 105, 108, 125]
+ right: [123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 105, 110, 103, 67, 111, 109, 109, 97, 110, 100, 34, 125, 32, 123, 102, 97, 105, 108, 32, 115, 116, 100, 105, 110, 32, 49, 32, 123, 125, 32, 123, 125, 32, 115, 116, 100, 105, 110, 32, 50, 32, 102, 97, 105, 108, 125]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1222 filtered out; finished in 1.76s
+

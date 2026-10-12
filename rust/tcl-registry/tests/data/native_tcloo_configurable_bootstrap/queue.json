@@ -1,0 +1,22 @@
+{
+  "source": "/workspace/.proofs/recovered-configurable-bootstrap64/cases.tcl",
+  "source_sha256": "981fbf5717fed4be0452f492405a6d104c8faf92ff6d573a9163cf4f92452983",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "ASCII public source; choose exact documented evaluation adapter and retain it",
+  "observations_expected": {
+    "available": "0 outside C9.0/C9.1;1 on C9.0/C9.1",
+    "created.mixins": "::oo::configuresupport::configurable",
+    "support.constructor": "empty own constructor",
+    "support.destructor": "empty own destructor",
+    "scope.class.path": "::oo::define",
+    "scope.object.path": "::oo::objdefine"
+  },
+  "validation": "Expected criteria guide discriminating observations, not prefilled captured answers."
+}

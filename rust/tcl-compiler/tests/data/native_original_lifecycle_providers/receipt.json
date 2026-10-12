@@ -1,0 +1,98 @@
+[
+  {
+    "version": "8.4.20",
+    "input_channel": "CLI file-script",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/workspace/tcl-lsp/rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+    "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+    "exit": 0,
+    "seconds": 0.005186890000004496,
+    "stdout_sha256": "95a2010d0137b34449c654abd54b8372e8c1bd4d1370fe5be337b83d4890bd0b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "availability|TclOO unavailable\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.5.19",
+    "input_channel": "CLI file-script",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/workspace/tcl-lsp/rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+    "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+    "exit": 0,
+    "seconds": 0.007094406000305753,
+    "stdout_sha256": "95a2010d0137b34449c654abd54b8372e8c1bd4d1370fe5be337b83d4890bd0b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "availability|TclOO unavailable\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6.18",
+    "input_channel": "CLI file-script",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+    "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+    "exit": 0,
+    "seconds": 0.010052206999716873,
+    "stdout_sha256": "449aa431e10a71b7a287268472cdc9138f66898511b3d80cb9fbbf05a6ac474c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "superclass-normal AFTER ::Child\nsuperclass-destruction CLEAN\nmixin-precedence MIXIN ::Mixed\nsuperclass-failure 1 BOOM CLEAN 0\nlocal-precedence OWN ::Own\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0.4",
+    "input_channel": "CLI file-script",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/workspace/tcl-lsp/rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+    "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+    "exit": 0,
+    "seconds": 0.01910158999999112,
+    "stdout_sha256": "449aa431e10a71b7a287268472cdc9138f66898511b3d80cb9fbbf05a6ac474c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "superclass-normal AFTER ::Child\nsuperclass-destruction CLEAN\nmixin-precedence MIXIN ::Mixed\nsuperclass-failure 1 BOOM CLEAN 0\nlocal-precedence OWN ::Own\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1.0",
+    "input_channel": "CLI file-script",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/workspace/tcl-lsp/rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+    "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+    "exit": 0,
+    "seconds": 0.018788856999890413,
+    "stdout_sha256": "449aa431e10a71b7a287268472cdc9138f66898511b3d80cb9fbbf05a6ac474c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "superclass-normal AFTER ::Child\nsuperclass-destruction CLEAN\nmixin-precedence MIXIN ::Mixed\nsuperclass-failure 1 BOOM CLEAN 0\nlocal-precedence OWN ::Own\n",
+    "stderr": ""
+  },
+  {
+    "version": "jim",
+    "input_channel": "CLI file-script",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/tcl-lsp/rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "source_sha256": "b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b",
+    "executable_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+    "exit": 0,
+    "seconds": 0.0046834249997118604,
+    "stdout_sha256": "95a2010d0137b34449c654abd54b8372e8c1bd4d1370fe5be337b83d4890bd0b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "availability|TclOO unavailable\n",
+    "stderr": ""
+  }
+]

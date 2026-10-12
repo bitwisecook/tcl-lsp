@@ -1,0 +1,119 @@
+{
+  "qid": "naming.encoding.original-byte-name-lookup-and-source-order",
+  "kind": "additive native evidence supplement",
+  "data_path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646",
+  "problem_statement": "Reading a whole file before resolving its source encoding changes the winning error when a file opens but cannot be read. Source must retain early encoding String access, opened channel identity, configuration before read and mandatory same-handle cleanup.",
+  "question": "For the owned empty directory, existing ASCII script and absent file, which exact completion, errorCode, system-query and effect bytes occur with UTF-8, unknown and binary encoding on each original provider? Which configuration failure precedes an opened directory read failure?",
+  "conclusion": "Measured C8.5/C8.6 supported UTF-8 and binary directory cases reach EISDIR, while unknown encoding fails first. Measured C9.0/C9.1 UTF-8 reaches EISDIR; unknown encoding and removed binary configuration fail first. Existing UTF-8 scripts run and absent paths produce ENOENT before lookup on all four providers. Selected original source confirms open before encoding configuration and configuration before read. C8.4/Jim refuse explicit encoding by arity; separate plain-directory cases retain their recorded read errors. Full bytes and separate system-query codes remain captured.",
+  "scope": "Six separately compiled probe processes, eight fresh initialized interpreters each:48 public operation blocks, four SOURCE_OK successes and44 Guest failures. Compile/CLI/run and six independent same-library diagnostics exit0 with matching versions and all before/after pins equal. Directory cases are distinct from ordinary file controls. This finite observation plus inspected source establishes selected open/configure/read order, not arbitrary VFS callbacks, updater/free chronology, native refcounts, full errno/close behavior, codecs/BOM/EOF, Rust assertions or BIG-IP. The original six-process246-block encoding evidence and fields remain unchanged.",
+  "provider_addenda": [
+    {
+      "id": "tcl8.4",
+      "version": "8.4.20",
+      "status": "observed",
+      "answer": "All seven explicit-encoding workers refuse by source fileName arity with NONE and no source effect. The separate plain-directory worker reaches POSIX EISDIR {illegal operation on a directory}. Unsupported explicit grammar establishes no encoding lookup stage.",
+      "input_channel": "One independently compiled public object-vector process with eight fresh initialized interpreters; exact UTF-8, unknown and binary constructor arrays and owned regular/missing/directory paths.",
+      "build": "Exact compiler/link commands, compiler/probe/library/source/header bytes, CLI and separate same-library version diagnostic and before/after pins retained; full dynamic load closure unrecorded.",
+      "raw_directory": "/workspace/.proofs/root-native-source-read-order646/8.4.20",
+      "receipt_sha256": "5c90919f04a1c04ec3df3565dd9252956707919772b8926e31d43495ccbed52b",
+      "observations_sha256": "4108e52a678a84cf4a27fdab14de054b6b4a4f5da7cb5dbc2443624411e09e86",
+      "execute_stdout_sha256": "42191e68761b4260daab2c1ad6b387730cfaf08083e3b2c1db1f662a55098c83",
+      "same_library_version_receipt_sha256": "1beee117abf7c78c42695f1dc6e60763f9a9008ded534a4fcb3b86503a177991",
+      "same_library_version_stdout": "library-version\t8\t4\t20\t2\ncode\t0\npatchlevel\t8.4.20\n",
+      "source_effect_yes_count": 0
+    },
+    {
+      "id": "tcl8.5",
+      "version": "8.5.19",
+      "status": "observed",
+      "answer": "Supported UTF-8 and binary directory cases reach POSIX EISDIR {illegal operation on a directory}; unknown encoding instead reports TCL LOOKUP ENCODING R2286_missing_encoding, with no source effect. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup. Actual source opens, configures encoding and then reads.",
+      "input_channel": "One independently compiled public object-vector process with eight fresh initialized interpreters; exact UTF-8, unknown and binary constructor arrays and owned regular/missing/directory paths.",
+      "build": "Exact compiler/link commands, compiler/probe/library/source/header bytes, CLI and separate same-library version diagnostic and before/after pins retained; full dynamic load closure unrecorded.",
+      "raw_directory": "/workspace/.proofs/root-native-source-read-order646/8.5.19",
+      "receipt_sha256": "bbd45e752afaec3a6bb912c81f7e95a6a191199e1479b40a9dccc9a0f54d5101",
+      "observations_sha256": "65b0354d9be946eaaf1905925ec9cae478ebdf334136bef3244402808fec8166",
+      "execute_stdout_sha256": "3b6cd7809fd1510051f72dcb9590989059d69b0cb57d86b78e7add4af3ab7cca",
+      "same_library_version_receipt_sha256": "aa8d9d8ffa5917ef8de2e76399df1346c3a4362a353bf286bdcbaf18eefab411",
+      "same_library_version_stdout": "library-version\t8\t5\t19\t2\ncode\t0\npatchlevel\t8.5.19\n",
+      "source_effect_yes_count": 1
+    },
+    {
+      "id": "tcl8.6",
+      "version": "8.6.18",
+      "status": "observed",
+      "answer": "Supported UTF-8 and binary directory cases reach POSIX EISDIR {illegal operation on a directory}; unknown encoding instead reports TCL LOOKUP ENCODING R2286_missing_encoding, with no source effect. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup. Actual source opens, configures encoding and then reads.",
+      "input_channel": "One independently compiled public object-vector process with eight fresh initialized interpreters; exact UTF-8, unknown and binary constructor arrays and owned regular/missing/directory paths.",
+      "build": "Exact compiler/link commands, compiler/probe/library/source/header bytes, CLI and separate same-library version diagnostic and before/after pins retained; full dynamic load closure unrecorded.",
+      "raw_directory": "/workspace/.proofs/root-native-source-read-order646/8.6.18",
+      "receipt_sha256": "6d623021fcfa24314deed4a646c12206e661a6aa9b11d3f3f03862e7c6361c98",
+      "observations_sha256": "da14e51dae25a31f9cdab21d14870c16ec5c5fd2fc36a504370cbd72c10ba2ca",
+      "execute_stdout_sha256": "87361dcaae0e29eb6fc0d1e7f13a8df1282e35f11e958d92c0220892756f1a3f",
+      "same_library_version_receipt_sha256": "45893d772e03e534477cdc4ac9b3e710df4300a5c94aa61a85b4d92a5aec244e",
+      "same_library_version_stdout": "library-version\t8\t6\t18\t2\ncode\t0\npatchlevel\t8.6.18\n",
+      "source_effect_yes_count": 1
+    },
+    {
+      "id": "tcl9.0",
+      "version": "9.0.4",
+      "status": "observed",
+      "answer": "Supported UTF-8 and plain directory cases reach POSIX EISDIR {is a directory}. Unknown encoding reports TCL LOOKUP ENCODING R2286_missing_encoding instead; binary reports its exact no-longer-supported diagnostic and NONE before read. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup.",
+      "input_channel": "One independently compiled public object-vector process with eight fresh initialized interpreters; exact UTF-8, unknown and binary constructor arrays and owned regular/missing/directory paths.",
+      "build": "Exact compiler/link commands, compiler/probe/library/source/header bytes, CLI and separate same-library version diagnostic and before/after pins retained; full dynamic load closure unrecorded.",
+      "raw_directory": "/workspace/.proofs/root-native-source-read-order646/9.0.4",
+      "receipt_sha256": "e8c069727ae20eaa813064d04065657a04a9ebe0c7bb7fecf603dad17ef1b643",
+      "observations_sha256": "f0e6a143878ad38fdf31f53f1e6929665305f9fbda428b95d058759b8cb70e7e",
+      "execute_stdout_sha256": "af4d32f67c73c1c24f8870b72b5ef67bfde4367e7b70384c7840c76886e8738f",
+      "same_library_version_receipt_sha256": "0157a3e6a5264d2be6a537259af6b3049215687dcb89c1d8fc1652d0b65c1236",
+      "same_library_version_stdout": "library-version\t9\t0\t4\t2\ncode\t0\npatchlevel\t9.0.4\n",
+      "source_effect_yes_count": 1
+    },
+    {
+      "id": "tcl9.1",
+      "version": "9.1.0",
+      "status": "observed",
+      "answer": "Supported UTF-8 and plain directory cases reach POSIX EISDIR {is a directory}. Unknown encoding reports TCL LOOKUP ENCODING R2286_missing_encoding instead; binary reports its exact no-longer-supported diagnostic and NONE before read. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup.",
+      "input_channel": "One independently compiled public object-vector process with eight fresh initialized interpreters; exact UTF-8, unknown and binary constructor arrays and owned regular/missing/directory paths.",
+      "build": "Exact compiler/link commands, compiler/probe/library/source/header bytes, CLI and separate same-library version diagnostic and before/after pins retained; full dynamic load closure unrecorded.",
+      "raw_directory": "/workspace/.proofs/root-native-source-read-order646/9.1.0",
+      "receipt_sha256": "86001c402181f452851774f8f7dc9b8aae1e0c1f9f98284888a9318fa8d5e921",
+      "observations_sha256": "ab0fd20f8590c8a2279606d37d462b6ae58be94accb9c2f8ff548a69e8d514c6",
+      "execute_stdout_sha256": "5c8f998a7a14fcf6a499c65ab22880b47c985489b2996acc746f599175b50e11",
+      "same_library_version_receipt_sha256": "81ec2fa4a1b287f3fd2700a8e08f6ff8b79a625c1706a97dcc4e50aea3654b94",
+      "same_library_version_stdout": "library-version\t9\t1\t0\t2\ncode\t0\npatchlevel\t9.1.0\n",
+      "source_effect_yes_count": 1
+    },
+    {
+      "id": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "status": "observed",
+      "answer": "All seven explicit-encoding workers refuse by source fileName arity and preserve R2286 ENCODING SEEDED. Encoding system queries separately report invalid command name encoding. Plain-directory reports failed to load file followed by Is a directory and preserves the seeded errorCode; no encoding lookup stage is reached.",
+      "input_channel": "One independently compiled public object-vector process with eight fresh initialized interpreters; exact UTF-8, unknown and binary constructor arrays and owned regular/missing/directory paths.",
+      "build": "Exact compiler/link commands, compiler/probe/library/source/header bytes, CLI and separate same-library version diagnostic and before/after pins retained; full dynamic load closure unrecorded.",
+      "raw_directory": "/workspace/.proofs/root-native-source-read-order646/Jim",
+      "receipt_sha256": "fdc68df11efadb1ada53b9b73a44d5738d021cb238bd8b7161e5b317f29f1500",
+      "observations_sha256": "b5e92a60aa0406a1b81223cc4d0000c9e9927f4f4507e66be7837b7e646193c5",
+      "execute_stdout_sha256": "7b6760417ee9fdb24bd0b9fede2810b32e6a86750f710c4b9b7c9d73340fc74a",
+      "same_library_version_receipt_sha256": "4d9791b4bafa859cb3a0df3ad15ff5c8294e7b7e752086144ba19e4b33bdb765",
+      "same_library_version_stdout": "code\t0\npatchlevel\t0.84-9-g5bac7c9\n",
+      "source_effect_yes_count": 0
+    }
+  ],
+  "untested_provider": {
+    "id": "bigip",
+    "version": "not tested",
+    "status": "not-tested",
+    "answer": "No appliance source/read-order observation.",
+    "build": "No appliance process or library measured.",
+    "input_channel": "No appliance input executed."
+  },
+  "replay": {
+    "command": [
+      "python3",
+      "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/run.py",
+      "--output",
+      "<fresh-absolute-directory>"
+    ],
+    "limitations": "Verify retained provider/source/header/library/tool pins and use a fresh output directory. Redirect only original request/output constants while preserving the eight-case input and unchanged raw runner separately. A replay produces new evidence and must not overwrite these48 outcomes."
+  },
+  "binding_policy": "Add separate646 evidence/prose/anchors. Preserve every original643 native/provider/frozen field and prior test/owner row. No Rust outcome or implementation pass is supplied."
+}

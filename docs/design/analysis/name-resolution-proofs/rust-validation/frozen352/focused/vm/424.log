@@ -1,0 +1,6 @@
+
+running 1 test
+test value_ops::raw_value_tests::native_increment_overflow_retains_the_full_integer_primary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 11.86s
+

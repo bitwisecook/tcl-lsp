@@ -1,0 +1,1815 @@
+[
+  {
+    "sdk_provider_label": "8.4.20",
+    "actual_provider_rows": [
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230",
+      "V|actual-provider|0|6|382e342e3230"
+    ],
+    "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "library_sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe"
+    ],
+    "compile_exit": 0,
+    "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "ec34ea4b4fa832340d4482bba95261934907b8a43c305a6f58bf79adc219069b",
+    "attempts": [
+      {
+        "case": "basic",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "basic"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0038299029984045774,
+        "stdout_sha256": "911dde75d6483ed366771b9c047c89e918232c1e976005f71662ef004aed91a4",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|basic|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-all",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "lone-all"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0032758019951870665,
+        "stdout_sha256": "4396c1b95683f4546001e88d26e3d1569b82e6cc5542085af63075d03ed6f507",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|lone-all|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-signal",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "lone-signal"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0038523520051967353,
+        "stdout_sha256": "e54198bc4efbf8c304f633e976b3ce954b14f03a8b67840190d643ab1913fd48",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|lone-signal|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-end",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "lone-end"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0032172990031540394,
+        "stdout_sha256": "56c10fe1ec36cf4d75886737e1785fe7380d5ce53f5efc2cb1a3624fc6e73ba8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|lone-end|0|0|"
+        ]
+      },
+      {
+        "case": "end-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "end-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004321254004025832,
+        "stdout_sha256": "838768aaa67dfe02c82b2597d0723314f0948593b564e6636783f7320558a0e3",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|end-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "option-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "option-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0030009490001248196,
+        "stdout_sha256": "b843e51d9b37dad1aeed31e7c8f4f1638d73541f615225bac0d653891c42652a",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|option-variable|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "abbreviated-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "abbreviated-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0038802659983048216,
+        "stdout_sha256": "e473d055bd915a497ef63c3408177f1c91f985cbfe49f3aae108358f2b92773b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|abbreviated-variable|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "timeout-or-jim-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "timeout-or-jim-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.002862339999410324,
+        "stdout_sha256": "cce08cf8c0ddc4e5d0f2e4926c272ce8244e11c8b19bda1b2f53a279530f4306",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|timeout-or-jim-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "signal-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "signal-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003850975990644656,
+        "stdout_sha256": "087b01adbfbf99a98045f767ccaa585bf94734df5327851698aceaed8f7dea12",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|signal-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0030252650030888617,
+        "stdout_sha256": "4fbb51d14c161a0f81040f1061729c7861383938b696c9bb493d9a5c7157d391",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|name-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "signal-name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "signal-name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003948197001591325,
+        "stdout_sha256": "9f1311cf758a307c7d6a4706f7d09bb418fbda4baf6a8adafa23cb85463a99bf",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|signal-name-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "abbreviation-is-jim-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "abbreviation-is-jim-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0031099929910851642,
+        "stdout_sha256": "7356870b83674655177cc7a7a00c6521f2763f8f82e3c53d7b2a4650c9335bff",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|abbreviation-is-jim-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "global-scope",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "global-scope"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003904124998371117,
+        "stdout_sha256": "137ececc252ec54325dbc3b3dbae8818b6d2e0e63d31379c18a847d09edee9a5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|global-scope|0|12|4c4f43414c20474c4f42414c"
+        ]
+      },
+      {
+        "case": "missing-option-value",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "missing-option-value"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004001894994871691,
+        "stdout_sha256": "519c908cc0a3bfeda59a0ccea9cd9090b335eaaca88ce5cd438eabfa12b875df",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|missing-option-value|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "missing-channel",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.4.20/probe",
+          "missing-channel"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003690835990710184,
+        "stdout_sha256": "608d18c844b82d4fcdc2883e216be404f282317b7888913594a8302092575da0",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e342e3230",
+          "R|missing-channel|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      }
+    ],
+    "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+  },
+  {
+    "sdk_provider_label": "8.5.19",
+    "actual_provider_rows": [
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139",
+      "V|actual-provider|0|6|382e352e3139"
+    ],
+    "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+    "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "library_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe"
+    ],
+    "compile_exit": 0,
+    "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "6314a9d97df6d594ca0cd7ea209ed702041e9f3e57d19de2568163c1194985f9",
+    "attempts": [
+      {
+        "case": "basic",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "basic"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004124024999327958,
+        "stdout_sha256": "2ddf67ea52a3b27c31de0d5364eb6383e62548af2398a6664d4e0bb24f3f3875",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|basic|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-all",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "lone-all"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005054822991951369,
+        "stdout_sha256": "4560bf486c08a521d9752c028eef69e30abb548eea2eede7d3dee99730dbf3f5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|lone-all|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-signal",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "lone-signal"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004322401000536047,
+        "stdout_sha256": "625b2aadc115f428b33b419fb96014d3f48219b84790c7055d1f7cc09fa07338",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|lone-signal|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-end",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "lone-end"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0051327090041013435,
+        "stdout_sha256": "1801a51ba1fede12079bc42665a60daa9d4d69ccce58aba370c9c3dc44555c75",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|lone-end|0|0|"
+        ]
+      },
+      {
+        "case": "end-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "end-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003317759998026304,
+        "stdout_sha256": "bca565e7211b9e82a70f18df4e511ef1a079d3fae3f2ca60fd5626093be1ab13",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|end-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "option-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "option-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004389711990370415,
+        "stdout_sha256": "04661f8ede8b0d0695631bba6bda84a9a1e656b703756faec3fb288cb85ad5f8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|option-variable|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "abbreviated-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "abbreviated-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003170241994666867,
+        "stdout_sha256": "85781162828d121ef7ef47822285312d485ee7f71731ba5b6a76cdf61f602751",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|abbreviated-variable|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "timeout-or-jim-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "timeout-or-jim-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004545222007436678,
+        "stdout_sha256": "0aba00d499e351881e41ae523bd401182b08d3d413f0bc01b551d200c6f1471f",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|timeout-or-jim-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "signal-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "signal-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003134742990368977,
+        "stdout_sha256": "d7336bd0015e8a9e32658d8ce80df4ca3ca486d61de82ce6d8c65e3d381432c8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|signal-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003411095996852964,
+        "stdout_sha256": "1672f6b82c2ea1dd9449f482ad7bd2d6042dd33b0d01c4c84106d4d0574d66e3",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|name-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "signal-name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "signal-name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0031203730031847954,
+        "stdout_sha256": "860103f95706fcc1ceb7beab00caab8170409afb343ba749d054b16afff50612",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|signal-name-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "abbreviation-is-jim-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "abbreviation-is-jim-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004214299013256095,
+        "stdout_sha256": "2b6e18e92c28ffba276c25087cce09b7967e1136fca6669c102cbb7f9cbe4252",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|abbreviation-is-jim-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "global-scope",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "global-scope"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003572207991965115,
+        "stdout_sha256": "4cde8b74f6f3b0a7cd03872e73ab203e07d5a7b0a33a6b174e62d3f2d1093b33",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|global-scope|0|12|4c4f43414c20474c4f42414c"
+        ]
+      },
+      {
+        "case": "missing-option-value",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "missing-option-value"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004185170007986017,
+        "stdout_sha256": "7dfe92e32de8be976aaac55df7163a2046116370c779ccff8b0f5697d919a291",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|missing-option-value|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "missing-channel",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.5.19/probe",
+          "missing-channel"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003169981006067246,
+        "stdout_sha256": "8bc88e525f8cf20dea7ae426c57ef1e7a4bd0051d8475bf1cb78c609c20fd4ce",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e352e3139",
+          "R|missing-channel|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      }
+    ],
+    "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+  },
+  {
+    "sdk_provider_label": "8.6.18",
+    "actual_provider_rows": [
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138",
+      "V|actual-provider|0|6|382e362e3138"
+    ],
+    "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+    "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "library_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe"
+    ],
+    "compile_exit": 0,
+    "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "42ac2ed8a5d587dbf58742e6bf36633897ec3044e58355eef30de47f7f03b6a5",
+    "attempts": [
+      {
+        "case": "basic",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "basic"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0064801629923749715,
+        "stdout_sha256": "11dd69004035ac86c13be78ee6319fc2ca0e3cc5f1d753a297217446e45f40df",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|basic|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-all",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "lone-all"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0045597519929287955,
+        "stdout_sha256": "72de99e002cecbd793ce89c26879558bcb705b9dd315c03f3652a4aa81d86636",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|lone-all|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-signal",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "lone-signal"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0061747379950247705,
+        "stdout_sha256": "a5fec144ed419c3c6a43b833bb2ea6fa3a1931ee040a3dcd6b687bd70d48baa1",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|lone-signal|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-end",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "lone-end"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.00449139199918136,
+        "stdout_sha256": "49c9590f2771706db782758a62071d154a732e7ac8cc057926db881650fe054a",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|lone-end|0|0|"
+        ]
+      },
+      {
+        "case": "end-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "end-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.00542904699977953,
+        "stdout_sha256": "d13f551e221e4c0bd3ef2d859eab982fbfbe4434283a310dafbc724351a501cd",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|end-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "option-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "option-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004049758994369768,
+        "stdout_sha256": "001a3355c282a63d622d5aacdd337b19b591bacda90a0786f1709f4f6a22da0e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|option-variable|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "abbreviated-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "abbreviated-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005574679002165794,
+        "stdout_sha256": "d59fddb11566696d98a9301ec4f01a2e4656a6dedfa1e7941182c781534dd1cc",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|abbreviated-variable|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "timeout-or-jim-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "timeout-or-jim-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003976858002715744,
+        "stdout_sha256": "e0b9356a766206d63b4691bd3de02f198e821d4993882b14c079b1af91f1e24d",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|timeout-or-jim-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "signal-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "signal-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005427465992397629,
+        "stdout_sha256": "a2fa4ed08bf989c242ec9cd8e677af019aa2432b8cbff8ffe7a4b99f1356f7b2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|signal-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003891410000505857,
+        "stdout_sha256": "0ccf6b4947b490dc405c0a9602de8d5961b7cd7c422c27b597303c61b4f7e0f4",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|name-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "signal-name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "signal-name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003838086995529011,
+        "stdout_sha256": "93f759cb2b6b29a3ab7e1a732789eeb7d95ea8beb3e9325775b6d03d83fa4dd9",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|signal-name-body|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "abbreviation-is-jim-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "abbreviation-is-jim-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003975108003942296,
+        "stdout_sha256": "88074ccbbee0509ff77f36d9e739cfd77469bb9c120d55e573db0b6497cdda9e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|abbreviation-is-jim-name|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "global-scope",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "global-scope"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005988315999275073,
+        "stdout_sha256": "b674245cd64b3e80659d126a711d1f4517448a23e9c892f35fc432d7575a6a05",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|global-scope|0|12|4c4f43414c20474c4f42414c"
+        ]
+      },
+      {
+        "case": "missing-option-value",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "missing-option-value"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0038838649925310165,
+        "stdout_sha256": "2c3878fc4e88224fd9a844332d637a4d627e72c9a65c8c0229d29ab829ecef1e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|missing-option-value|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      },
+      {
+        "case": "missing-channel",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/8.6.18/probe",
+          "missing-channel"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005427106996648945,
+        "stdout_sha256": "400345a2cf8ad058634d45d0b9686e071f2ff846073c3b24faba04f40be83121",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|6|382e362e3138",
+          "R|missing-channel|1|36|77726f6e67202320617267733a2073686f756c6420626520227677616974206e616d6522"
+        ]
+      }
+    ],
+    "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+  },
+  {
+    "sdk_provider_label": "9.0.4",
+    "actual_provider_rows": [
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34",
+      "V|actual-provider|0|5|392e302e34"
+    ],
+    "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+    "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "library_sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe"
+    ],
+    "compile_exit": 0,
+    "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "5580e2466181745f3ccfc7fe9e6ce1a3559db5959205bbb11e8f01facf83ed28",
+    "attempts": [
+      {
+        "case": "basic",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "basic"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0049388210027245805,
+        "stdout_sha256": "3ee6abf48907d7c164732b9168888a7182cebe0adc373d898286ef399207fba6",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|basic|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-all",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "lone-all"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005329634004738182,
+        "stdout_sha256": "9fbad0fe1c987bcde7f784bcd61400c34a540dec4122a94fd92549e2a7524d4f",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|lone-all|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-signal",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "lone-signal"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005807624998851679,
+        "stdout_sha256": "1d81397350bbdb6522e139d05c163cb6d86c9157d46001a439762fc832878fa2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|lone-signal|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-end",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "lone-end"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004381211008876562,
+        "stdout_sha256": "40f6c81869403f6b3bd05f4b6b09be176180a6c15891c6bc255dea7583975fb8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|lone-end|0|0|"
+        ]
+      },
+      {
+        "case": "end-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "end-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005049138999311253,
+        "stdout_sha256": "72b5195ca328c24fd67f03bda0b0eaf4fd2944c0d3f16d0a5c1e5e6fc1e24535",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|end-name|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "option-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "option-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.00604104800731875,
+        "stdout_sha256": "f02827d24c679a0cd5cc367ee21a7539cc2d2343bad55d68c34f9ec63a5d9ec3",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|option-variable|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "abbreviated-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "abbreviated-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0065179169905604795,
+        "stdout_sha256": "176ed1d3ef2f0ad0b7114591ddbf0ff5a6b1c283e5c0d2fa8bf7baf6e312844d",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|abbreviated-variable|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "timeout-or-jim-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "timeout-or-jim-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005674978005117737,
+        "stdout_sha256": "4aa3db34b0791e3a28bd9b80446e11d82e3244e6a0734532ec3123f3d141e39f",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|timeout-or-jim-body|0|2|2d31"
+        ]
+      },
+      {
+        "case": "signal-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "signal-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004282175999833271,
+        "stdout_sha256": "92580176fcf6caa1b7ee9617a55e88bddba9c89e30527f691f3d68d4dbf96721",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|signal-name|1|158|626164206f7074696f6e20222d7369676e616c223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+        ]
+      },
+      {
+        "case": "name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005532085997401737,
+        "stdout_sha256": "ff4b163f471137439463ac3f7fbce5eba8138460ef43d3e13d99b1e50bde7d00",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|name-body|0|0|"
+        ]
+      },
+      {
+        "case": "signal-name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "signal-name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005385726006352343,
+        "stdout_sha256": "59d5c1cfdd9246987e67579fd1bf02f0c172996358279b09bb3d97faf0a7c4ae",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|signal-name-body|1|158|626164206f7074696f6e20222d7369676e616c223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+        ]
+      },
+      {
+        "case": "abbreviation-is-jim-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "abbreviation-is-jim-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004638637998141348,
+        "stdout_sha256": "d8f7960bb2687c0c89e552c5edcc7732a3c2ddb938c93a031e5300d823ef1330",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|abbreviation-is-jim-name|1|155|626164206f7074696f6e20222d736967223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+        ]
+      },
+      {
+        "case": "global-scope",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "global-scope"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004279970002244227,
+        "stdout_sha256": "b0182538a8d68cf206160d094884c1cdac1625c94868bf3448ba4a4e6ebf3ba8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|global-scope|0|12|4c4f43414c20474c4f42414c"
+        ]
+      },
+      {
+        "case": "missing-option-value",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "missing-option-value"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004617988000973128,
+        "stdout_sha256": "57c3e28018341e04b9f752c7d4c1cf5ca5b398dc893ea5fb9849073cb21f602b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|missing-option-value|1|32|617267756d656e7420726571756972656420666f7220222d74696d656f757422"
+        ]
+      },
+      {
+        "case": "missing-channel",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.0.4/probe",
+          "missing-channel"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004295887003536336,
+        "stdout_sha256": "94ed965c2863e8b548d37f2f9bee014737d4792d9461d58d06197f5132f829f5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e302e34",
+          "R|missing-channel|1|53|63616e206e6f742066696e64206368616e6e656c206e616d656420226e6f5f737563685f6f726967696e616c5f6368616e6e656c22"
+        ]
+      }
+    ],
+    "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+  },
+  {
+    "sdk_provider_label": "9.1.0",
+    "actual_provider_rows": [
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30",
+      "V|actual-provider|0|5|392e312e30"
+    ],
+    "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+    "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "library_sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe"
+    ],
+    "compile_exit": 0,
+    "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "bdc9ad9c85386b92b90eace15b9ad8a22fe7d64b820814e17aa60358de5d9ff0",
+    "attempts": [
+      {
+        "case": "basic",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "basic"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005170629010535777,
+        "stdout_sha256": "f15220d9f6f9a3990221f4f71b8e80b35842e7a51c664a52b43bc2ef29c12a0b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|basic|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-all",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "lone-all"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0033517299889354035,
+        "stdout_sha256": "bf1cf9ce584fec092cb1c60319c05a01fc045f527f5d91f2d9c07fe824195d84",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|lone-all|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-signal",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "lone-signal"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0037001390010118484,
+        "stdout_sha256": "89b493e1f376201ff171bd323bc854fcc81aac830500f7e95d1f6a8c9add2827",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|lone-signal|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-end",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "lone-end"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005080246002762578,
+        "stdout_sha256": "c705dcd0d2a535a48f216582aa611d1be42cdfdb096eb626f584993ff39c60c4",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|lone-end|0|0|"
+        ]
+      },
+      {
+        "case": "end-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "end-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004787328987731598,
+        "stdout_sha256": "883cc789f392a0607f858fe3b2666a716f179713c199e615fc1077ee65ebcae1",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|end-name|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "option-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "option-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0050696410035016015,
+        "stdout_sha256": "e8430db63add0748b72f6dc8b389fae16568e1df20d1f96cf3e9fde47b8a3047",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|option-variable|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "abbreviated-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "abbreviated-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003539694007486105,
+        "stdout_sha256": "cf95594a123424c18fa5a05ddc37be35b372dbb5123ffdf372e66b975b8c4d39",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|abbreviated-variable|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "timeout-or-jim-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "timeout-or-jim-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004379028003313579,
+        "stdout_sha256": "2e2a8af5016c679872290eb748a01d89a6a7805677d4aecfbdc0920fd6a1ad5c",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|timeout-or-jim-body|0|2|2d31"
+        ]
+      },
+      {
+        "case": "signal-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "signal-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0034731980122160167,
+        "stdout_sha256": "2334d1745c838a3e265d00315c97a0abc2e6753307f1c201b2219ce66c45fe23",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|signal-name|1|158|626164206f7074696f6e20222d7369676e616c223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+        ]
+      },
+      {
+        "case": "name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004799561997060664,
+        "stdout_sha256": "18f44eb0417bb1556849ffbc61de7c517a31dde164fd2e6216a4f9a12ce830aa",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|name-body|0|0|"
+        ]
+      },
+      {
+        "case": "signal-name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "signal-name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005501334002474323,
+        "stdout_sha256": "93a9d49869b8f8deb9f1152d72d40c2a197195f64ae09f98cd6cd4b263da0a23",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|signal-name-body|1|158|626164206f7074696f6e20222d7369676e616c223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+        ]
+      },
+      {
+        "case": "abbreviation-is-jim-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "abbreviation-is-jim-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003450684991548769,
+        "stdout_sha256": "30db6aaff8e1b4fce92c9cb257dd526dfefe101c2c5dd1f220798f5e365cc676",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|abbreviation-is-jim-name|1|155|626164206f7074696f6e20222d736967223a206d757374206265202d616c6c2c202d657874656e6465642c202d6e6f66696c656576656e74732c202d6e6f69646c656576656e74732c202d6e6f74696d65726576656e74732c202d6e6f77696e646f776576656e74732c202d7265616461626c652c202d74696d656f75742c202d7661726961626c652c202d7772697461626c652c206f72202d2d"
+        ]
+      },
+      {
+        "case": "global-scope",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "global-scope"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003378572000656277,
+        "stdout_sha256": "ce0f52c70b073ebae222120eee7b94e77ed5bc1daf8a774b52131079c2b45a91",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|global-scope|0|12|4c4f43414c20474c4f42414c"
+        ]
+      },
+      {
+        "case": "missing-option-value",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "missing-option-value"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005782891996204853,
+        "stdout_sha256": "f817e45d4ab936ea3cc692a8434b1d0f28312582ac15cff100ccb108c1233820",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|missing-option-value|1|32|617267756d656e7420726571756972656420666f7220222d74696d656f757422"
+        ]
+      },
+      {
+        "case": "missing-channel",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/9.1.0/probe",
+          "missing-channel"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.005083233991172165,
+        "stdout_sha256": "f50bc5e08939e68974f97cde1ab3ac92fbf2d95e9cb4235fa053600f0c37e5e5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|5|392e312e30",
+          "R|missing-channel|1|53|63616e206e6f742066696e64206368616e6e656c206e616d656420226e6f5f737563685f6f726967696e616c5f6368616e6e656c22"
+        ]
+      }
+    ],
+    "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+  },
+  {
+    "sdk_provider_label": "0.84-9-g5bac7c9",
+    "actual_provider_rows": [
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339",
+      "V|actual-provider|0|15|302e38342d392d6735626163376339"
+    ],
+    "probe_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+    "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-DUSE_JIM=1",
+      "-I/workspace/.proofs/native-providers/jimtcl",
+      "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+      "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+      "-lm",
+      "-lssl",
+      "-lcrypto",
+      "-lz",
+      "-ldl",
+      "-o",
+      "/workspace/.proofs/captured-native-vwait-forms137/jim/probe"
+    ],
+    "compile_exit": 0,
+    "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "executable_sha256": "e8868b84378e2cefa05709338ef1e4b2bc15ec9ca933cc797883d437aa36604d",
+    "attempts": [
+      {
+        "case": "basic",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "basic"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.007339874995523132,
+        "stdout_sha256": "a8f62f23e7aafffaa08c5bcc63ada9b4f3921668de58b9974fc6aeeb8cb974c0",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|basic|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-all",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "lone-all"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003696309999213554,
+        "stdout_sha256": "ff6a31928174948d4d268aacc66a806173b5e492bb40f605bd919c010ee53c47",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|lone-all|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-signal",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "lone-signal"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0036365620035212487,
+        "stdout_sha256": "39474dbd1e79d0e5c8bb8cbb71c762089d67d65a8e0a6481e40bce98bed40686",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|lone-signal|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "lone-end",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "lone-end"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0038371980044757947,
+        "stdout_sha256": "a0cc447846b99baa8274feef9b81a486402eefdaffc15641b46f0a3fb23dfdaa",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|lone-end|0|0|"
+        ]
+      },
+      {
+        "case": "end-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "end-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003961318987421691,
+        "stdout_sha256": "21d4fda69122e47007a88990be85bd416a96d0376cf64c80b385a3183715e1fd",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|end-name|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "option-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "option-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0047605479921912774,
+        "stdout_sha256": "306b0bd6a535c6e0c4cafa64da054858455f27c512c6d4708c77106465b724b7",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|option-variable|1|55|77726f6e67202320617267733a2073686f756c6420626520227677616974203f2d7369676e616c3f206e616d65203f7363726970743f22"
+        ]
+      },
+      {
+        "case": "abbreviated-variable",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "abbreviated-variable"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0033970710064750165,
+        "stdout_sha256": "9b775e5d44770883e0569970cfdc5dda9c48e6e7a56f7267ba9f474dab8e0b83",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|abbreviated-variable|1|55|77726f6e67202320617267733a2073686f756c6420626520227677616974203f2d7369676e616c3f206e616d65203f7363726970743f22"
+        ]
+      },
+      {
+        "case": "timeout-or-jim-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "timeout-or-jim-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004747037004563026,
+        "stdout_sha256": "81ce34c7b05e038eecc53dfe7a4077d3f9d838d4f48c0cf0baa63445b8059971",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|timeout-or-jim-body|0|0|"
+        ]
+      },
+      {
+        "case": "signal-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "signal-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003415485000004992,
+        "stdout_sha256": "ec42032197fa278fdba319e3434a7fbb0eedb43dab958262a7587c5b4e127a70",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|signal-name|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.004207719990517944,
+        "stdout_sha256": "4ee0756bcd1e0e1ddc9e7dd5c45ec3a69ce264d877eab34a79be83549feeab1a",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|name-body|0|0|"
+        ]
+      },
+      {
+        "case": "signal-name-body",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "signal-name-body"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.0033474470110377297,
+        "stdout_sha256": "e1c4b295981d2267b2837585cc2aa4b18a21545ffcd3441f33ec3b564b50c7cc",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|signal-name-body|0|0|"
+        ]
+      },
+      {
+        "case": "abbreviation-is-jim-name",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "abbreviation-is-jim-name"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003645131000666879,
+        "stdout_sha256": "79001a6c95c4cf8095df12b1054b5f7eca1fef497653ea2e6a6fef5b77ee2cf3",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|abbreviation-is-jim-name|0|3|4e4557"
+        ]
+      },
+      {
+        "case": "global-scope",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "global-scope"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003457490005530417,
+        "stdout_sha256": "a92b2747b43017fc4cfb8095f0aac8008a877507c656557ba86a038c165fe5a6",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|global-scope|1|32|63616e27742072656164202278223a206e6f2073756368207661726961626c65"
+        ]
+      },
+      {
+        "case": "missing-option-value",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "missing-option-value"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003471938005532138,
+        "stdout_sha256": "1335c0bb2c2774eb831bf399e4ee8a56d6ad3fb2513f7c06e98996b643b6aec2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|missing-option-value|1|55|77726f6e67202320617267733a2073686f756c6420626520227677616974203f2d7369676e616c3f206e616d65203f7363726970743f22"
+        ]
+      },
+      {
+        "case": "missing-channel",
+        "command": [
+          "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+          "missing-channel"
+        ],
+        "external_timeout": false,
+        "timeout_seconds": 3,
+        "process_exit": 0,
+        "seconds": 0.003226692002499476,
+        "stdout_sha256": "3a8a10c8407a65999816f81eeb6ca839a82b992f13360c6e77a69191b6f1195b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rows": [
+          "V|actual-provider|0|15|302e38342d392d6735626163376339",
+          "R|missing-channel|0|0|"
+        ]
+      }
+    ],
+    "claim_boundary": "Only completed guest rows answer cases. External timeouts are capture limitations and retain original partial streams."
+  }
+]

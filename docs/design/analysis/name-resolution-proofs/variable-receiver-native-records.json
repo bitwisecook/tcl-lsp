@@ -1,0 +1,886 @@
+[
+  {
+    "id": "naming.variable.dictionary-missing-receiver-and-array-default-phases",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.dictionary-missing-receiver-and-array-default-phases.md",
+    "problem_statement": "An absent array root and a missing element of an existing array have different read-trace phases. Array defaults and a write trace that unsets the element further separate the stored value from the result of append, dictionary append or increment; a generic read-modify-write model can silently use the wrong receiver or return a retired value.",
+    "question": "What final result, callback order and array/default state do the exact 18 original scripts report for missing receivers, C9 array defaults and write-trace destruction?",
+    "conclusion": "The retained existing-array cases report read then write and use the callback-created dictionary; absent-root cases report write only. The C9 default controls retain the independent default and produce the stated appended/incremented values. C9 write-trace destruction completes normally with an empty returned value and no element. These are measured script results, not physical receiver/cache or arbitrary normal-write proofs.",
+    "scope": "Exact 18 ASCII scripts/results retained as hexadecimal controls.tsv rows: two each C8.5.19/C8.6.18 and seven each C9.0.4/C9.1.0. Original manifest identifies versions but no executable/build hashes or original presenter. C8.4, Jim and BIG-IP were not queried in this capture; their absence is not an unsupported result.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Original executable/archive/build hashes not recorded",
+        "input_channel": "ASCII source through the recorded native shell presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Recorded 2 final script results; the exact label/source/result rows are:\n\n```tsv\n8.5.19\texisting-array-missing-element\t736574206576656e7473207b7d3b6172726179207365742061207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f703b6966207b246f7020657120227265616422207c7c20246f70206571202272227d207b736574203a3a6128246b29207b6b204245464f52457d7d7d3b7472616365207661726961626c6520612072772077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b204245464f524541465445527d207b7220777d2078\n8.5.19\tundefined-root-element\t736574206576656e7473207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f707d3b7472616365207661726961626c6520612072772077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b2041465445527d20772078\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Original executable/archive/build hashes not recorded",
+        "input_channel": "ASCII source through the recorded native shell presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Recorded 2 final script results; the exact label/source/result rows are:\n\n```tsv\n8.6.18\texisting-array-missing-element\t736574206576656e7473207b7d3b6172726179207365742061207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f703b6966207b246f7020657120227265616422207c7c20246f70206571202272227d207b736574203a3a6128246b29207b6b204245464f52457d7d7d3b7472616365207661726961626c6520612072772077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b204245464f524541465445527d207b7220777d2078\n8.6.18\tundefined-root-element\t736574206576656e7473207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f707d3b7472616365207661726961626c6520612072772077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b2041465445527d20772078\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Original executable/archive/build hashes not recorded",
+        "input_channel": "ASCII source through the recorded native shell presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Recorded 7 final script results; the exact label/source/result rows are:\n\n```tsv\n9.0.4\texisting-array-missing-element\t736574206576656e7473207b7d3b6172726179207365742061207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f703b6966207b246f7020657120227265616422207c7c20246f70206571202272227d207b736574203a3a6128246b29207b6b204245464f52457d7d7d3b747261636520616464207661726961626c652061207b726561642077726974657d2077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b204245464f524541465445527d207b726561642077726974657d2078\n9.0.4\tundefined-root-element\t736574206576656e7473207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f707d3b747261636520616464207661726961626c652061207b726561642077726974657d2077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b2041465445527d2077726974652078\n9.0.4\tdict-array-default\t61727261792064656661756c74207365742061207b6b205052457d3b6c697374205b6469637420617070656e642061287829206b2041465445525d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d\t7b6b2050524541465445527d207b6b205052457d2078\n9.0.4\tappend-array-default\t61727261792064656661756c74207365742061205052453b6c697374205b617070656e6420612878292041465445525d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d\t5052454146544552205052452078\n9.0.4\tappend-default-write-unset\t61727261792064656661756c74207365742061205052453b70726f63207761746368207b6e206b206f707d207b756e736574203a3a6128246b297d3b747261636520616464207661726961626c6520612077726974652077617463683b7365742063205b6361746368207b617070656e6420612878292041465445527d2072206f5d3b6c697374202463202472205b6172726179206e616d657320615d205b61727261792064656661756c742067657420615d205b646963742067657420246f202d636f64655d\t30207b7d207b7d205052452030\n9.0.4\tdict-default-write-unset\t61727261792064656661756c74207365742061207b6b205052457d3b70726f63207761746368207b6e206b206f707d207b756e736574203a3a6128246b297d3b747261636520616464207661726961626c6520612077726974652077617463683b7365742063205b6361746368207b6469637420617070656e642061287829206b2041465445527d2072206f5d3b6c697374202463202472205b6172726179206e616d657320615d205b61727261792064656661756c742067657420615d205b646963742067657420246f202d636f64655d\t30207b7d207b7d207b6b205052457d2030\n9.0.4\tincr-array-default\t61727261792064656661756c742073657420612031303b6c697374205b696e6372206128782920325d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d\t31322031302078\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Original executable/archive/build hashes not recorded",
+        "input_channel": "ASCII source through the recorded native shell presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Recorded 7 final script results; the exact label/source/result rows are:\n\n```tsv\n9.1.0\texisting-array-missing-element\t736574206576656e7473207b7d3b6172726179207365742061207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f703b6966207b246f7020657120227265616422207c7c20246f70206571202272227d207b736574203a3a6128246b29207b6b204245464f52457d7d7d3b747261636520616464207661726961626c652061207b726561642077726974657d2077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b204245464f524541465445527d207b726561642077726974657d2078\n9.1.0\tundefined-root-element\t736574206576656e7473207b7d3b70726f63207761746368207b6e206b206f707d207b6c617070656e64203a3a6576656e747320246f707d3b747261636520616464207661726961626c652061207b726561642077726974657d2077617463683b7365742072205b6469637420617070656e642061287829206b2041465445525d3b6c69737420247220246576656e7473205b6172726179206e616d657320615d\t7b6b2041465445527d2077726974652078\n9.1.0\tdict-array-default\t61727261792064656661756c74207365742061207b6b205052457d3b6c697374205b6469637420617070656e642061287829206b2041465445525d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d\t7b6b2050524541465445527d207b6b205052457d2078\n9.1.0\tappend-array-default\t61727261792064656661756c74207365742061205052453b6c697374205b617070656e6420612878292041465445525d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d\t5052454146544552205052452078\n9.1.0\tappend-default-write-unset\t61727261792064656661756c74207365742061205052453b70726f63207761746368207b6e206b206f707d207b756e736574203a3a6128246b297d3b747261636520616464207661726961626c6520612077726974652077617463683b7365742063205b6361746368207b617070656e6420612878292041465445527d2072206f5d3b6c697374202463202472205b6172726179206e616d657320615d205b61727261792064656661756c742067657420615d205b646963742067657420246f202d636f64655d\t30207b7d207b7d205052452030\n9.1.0\tdict-default-write-unset\t61727261792064656661756c74207365742061207b6b205052457d3b70726f63207761746368207b6e206b206f707d207b756e736574203a3a6128246b297d3b747261636520616464207661726961626c6520612077726974652077617463683b7365742063205b6361746368207b6469637420617070656e642061287829206b2041465445527d2072206f5d3b6c697374202463202472205b6172726179206e616d657320615d205b61727261792064656661756c742067657420615d205b646963742067657420246f202d636f64655d\t30207b7d207b7d207b6b205052457d2030\n9.1.0\tincr-array-default\t61727261792064656661756c742073657420612031303b6c697374205b696e6372206128782920325d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d\t31322031302078\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "runtime/rust/tests/data/native_dictionary_receiver/manifest.json",
+        "role": "provider",
+        "sha256": "1afa14e52fbdcee3a122d13505f8ea0c4f66afa0eb7916b1cc6d17b0e93a9f99",
+        "description": "Original provider/version roster, count and observation boundary; build artifacts were not recorded."
+      },
+      {
+        "id": "e1",
+        "path": "runtime/rust/tests/data/native_dictionary_receiver/controls.tsv",
+        "role": "observation",
+        "sha256": "6e8fd61d87f2f87ec975d4dd09d64f2f881388fe6b8539c0e547645361614df8",
+        "description": "Exact 18 hexadecimal source/result rows; no physical object/cache claim."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_dict.rs",
+        "selector": "cmd_dict::tests::dictionary_receiver_and_defaults_match_original_native_scripts",
+        "assertion": "Compares every final script result to the original table, independently of custom-type/physical-cache assumptions.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_dict.rs",
+        "symbol": "dictionary_receiver_and_defaults_match_original_native_scripts",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The exact executable presenter is not retained, and controls.tsv is a hex source/result table, not an executable Tcl script. A fresh replay must decode each source row, evaluate it in a fresh matching-version interpreter, print its final result through an explicitly retained presenter and compare exact result bytes. Keep C9 default cases separate from the earlier-provider roster; record source/build/channel/status for the fresh run."
+    }
+  },
+  {
+    "id": "naming.variable.scalar-original-argv-compiler-and-result-windows",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.scalar-original-argv-compiler-and-result-windows.md",
+    "problem_statement": "A public string selector can be abbreviated, braced, quoted or expanded, while a private compiler receives a different operand vector. Counted A-zero-x and A-zero-y arguments also expose a CString comparison boundary that cannot be inferred from the command spelling or result cache alone.",
+    "question": "Which inline opcode, completion/result and original operand/result object fields occur for the exact 15 string-equal, string-length and list-length bodies in each C provider?",
+    "conclusion": "The complete 75 retained C windows distinguish inline scalar compilation from generic invocation, parse/arity failures and the observed counted operand/result/cache fields. C8.4 equality of A-zero-x versus A-zero-y differs from later C equality in this exact roster. Compiler selection and native object windows remain independently scoped to their own original bodies and actual argv; they establish no unrelated variable cell, frame or execution grant.",
+    "scope": "Five private C probes for C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0, exact probe.c and 15 cases.json/cases.rs bodies. Procedure p has two actual original arguments; counted three-byte A-zero-x/A-zero-y values, with a-b list input only cases7–9. Original native object argv, not document-channel text. Jim reference handler inputs are a separate question; BIG-IP unqueried.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header SHA 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; probe SHA b06aa4f2a0c3b2544783922b9ebd82d8ea4f7dab7fa54e99656baf171bed705c",
+        "input_channel": "Original Tcl_NewStringObj counted argv through Tcl_EvalObjv/private procedure bytecode",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0 with empty stderr; 15 exact original rows. Columns are case, code, result type, result bytes residency, result refs, left type, left bytes residency, result-is-left, result hex and opcodes.\n\n```tsv\n0\t0\tint\t0\t1\tnone\t1\t0\t31\tloadScalar1,loadScalar1,streq,done\n1\t0\tint\t0\t1\tnone\t1\t0\t31\tloadScalar1,loadScalar1,streq,done\n2\t0\tboolean\t0\t1\tnone\t1\t0\t30\tpush1,push1,loadScalar1,loadScalar1,invokeStk1,done\n3\t0\tboolean\t0\t1\tnone\t1\t0\t30\tpush1,push1,push1,loadScalar1,loadScalar1,invokeStk1,done\n4\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n5\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n6\t0\tint\t0\t1\tstring\t1\t0\t33\tpush1,push1,loadScalar1,invokeStk1,done\n7\t0\tint\t0\t1\tlist\t1\t0\t32\tloadScalar1,listlength,done\n8\t1\tnone\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\t\n9\t1\tnone\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\t\n10\t1\tnone\t1\t1\tnone\t1\t0\t6578747261206368617261637465727320616674657220636c6f73652d6272616365\t\n11\t1\tnone\t1\t1\tnone\t1\t0\t6578747261206368617261637465727320616674657220636c6f73652d6272616365\t\n12\t1\tnone\t1\t1\tnone\t1\t0\t6578747261206368617261637465727320616674657220636c6f73652d6272616365\t\n13\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e67206c656e67746820737472696e6722\tpush1,push1,invokeStk1,done\n14\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e6720657175616c203f2d6e6f636173653f203f2d6c656e67746820696e743f20737472696e673120737472696e673222\tpush1,push1,loadScalar1,invokeStk1,done\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header SHA c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; probe SHA 81128b8e4150ecae895169c8434734ac27eb1b3fb259dd853689ff310ba923da",
+        "input_channel": "Original Tcl_NewStringObj counted argv through Tcl_EvalObjv/private procedure bytecode",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0 with empty stderr; 15 exact original rows. Columns are case, code, result type, result bytes residency, result refs, left type, left bytes residency, result-is-left, result hex and opcodes.\n\n```tsv\n0\t0\tint\t0\t2\tnone\t1\t0\t31\tloadScalar1,loadScalar1,streq,done\n1\t0\tint\t1\t2\tnone\t1\t0\t31\tloadScalar1,loadScalar1,streq,done\n2\t0\tint\t1\t2\tnone\t1\t0\t31\tloadScalar1,loadScalar1,streq,done\n3\t0\tint\t0\t1\tnone\t1\t0\t30\tpush1,push1,push1,loadScalar1,loadScalar1,invokeStk1,done\n4\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n5\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n6\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n7\t0\tint\t0\t1\tlist\t1\t0\t32\tloadScalar1,listLength,done\n8\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,invokeStk1,done\n9\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,loadScalar1,loadScalar1,invokeStk1,done\n10\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n11\t0\tint\t1\t2\tnone\t1\t0\t31\tloadScalar1,loadScalar1,streq,done\n12\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,push1,push1,invokeStk1,done\n13\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e67206c656e67746820737472696e6722\tpush1,push1,invokeStk1,done\n14\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e6720657175616c203f2d6e6f636173653f203f2d6c656e67746820696e743f20737472696e673120737472696e673222\tpush1,push1,loadScalar1,invokeStk1,done\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header SHA aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; probe SHA 15f56435ed577987d9cb5ff4409f2775c31238b1f04fea9a2ed5350c950fa098",
+        "input_channel": "Original Tcl_NewStringObj counted argv through Tcl_EvalObjv/private procedure bytecode",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0 with empty stderr; 15 exact original rows. Columns are case, code, result type, result bytes residency, result refs, left type, left bytes residency, result-is-left, result hex and opcodes.\n\n```tsv\n0\t0\tint\t0\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n1\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n2\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n3\t0\tint\t0\t1\tnone\t1\t0\t30\tpush1,push1,push1,loadScalar1,loadScalar1,push1,invokeReplace,done\n4\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n5\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n6\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n7\t0\tint\t0\t1\tlist\t1\t0\t32\tloadScalar1,listLength,done\n8\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,invokeStk1,done\n9\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,loadScalar1,loadScalar1,invokeStk1,done\n10\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n11\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n12\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,push1,push1,invokeStk1,done\n13\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e67206c656e67746820737472696e6722\tpush1,push1,push1,invokeReplace,done\n14\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e6720657175616c203f2d6e6f636173653f203f2d6c656e67746820696e743f20737472696e673120737472696e673222\tpush1,push1,loadScalar1,push1,invokeReplace,done\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header SHA eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; probe SHA 26927590a7b12ba0f164041aaf261178a23c2990edbcd79549966fbdd20cdee2",
+        "input_channel": "Original Tcl_NewStringObj counted argv through Tcl_EvalObjv/private procedure bytecode",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0 with empty stderr; 15 exact original rows. Columns are case, code, result type, result bytes residency, result refs, left type, left bytes residency, result-is-left, result hex and opcodes.\n\n```tsv\n0\t0\tint\t0\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n1\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n2\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n3\t0\tint\t0\t1\tnone\t1\t0\t30\tpush1,push1,push1,loadScalar1,loadScalar1,push1,invokeReplace,done\n4\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n5\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n6\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n7\t0\tint\t0\t1\tlist\t1\t0\t32\tloadScalar1,listLength,done\n8\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,invokeStk1,done\n9\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,loadScalar1,loadScalar1,invokeStk1,done\n10\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar1,strlen,done\n11\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar1,loadScalar1,streq,done\n12\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush1,push1,push1,invokeStk1,done\n13\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e67206c656e67746820737472696e6722\tpush1,push1,push1,invokeReplace,done\n14\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e6720657175616c203f2d6e6f636173653f203f2d6c656e67746820696e743f20737472696e673120737472696e673222\tpush1,push1,loadScalar1,push1,invokeReplace,done\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e7"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header SHA 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; probe SHA 2114b56819485e2db06f4ed1ce64046723506cf2b2dc1f153bd9efe64d98cb67",
+        "input_channel": "Original Tcl_NewStringObj counted argv through Tcl_EvalObjv/private procedure bytecode",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Compile/run exit 0 with empty stderr; 15 exact original rows. Columns are case, code, result type, result bytes residency, result refs, left type, left bytes residency, result-is-left, result hex and opcodes.\n\n```tsv\n0\t0\tint\t0\t2\tnone\t1\t0\t30\tloadScalar,loadScalar,streq,done\n1\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar,loadScalar,streq,done\n2\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar,loadScalar,streq,done\n3\t0\tint\t0\t1\tnone\t1\t0\t30\tpush,push,push,loadScalar,loadScalar,push,invokeReplace,done\n4\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar,strlen,done\n5\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar,strlen,done\n6\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar,strlen,done\n7\t0\tint\t0\t1\tlist\t1\t0\t32\tloadScalar,listLength,done\n8\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush,invokeStk,done\n9\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush,loadScalar,loadScalar,invokeStk,done\n10\t0\tint\t0\t1\tstring\t1\t0\t33\tloadScalar,strlen,done\n11\t0\tint\t1\t2\tnone\t1\t0\t30\tloadScalar,loadScalar,streq,done\n12\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422\tpush,push,push,invokeStk,done\n13\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e67206c656e67746820737472696e6722\tpush,push,push,invokeReplace,done\n14\t1\tstring\t1\t1\tnone\t1\t0\t77726f6e67202320617267733a2073686f756c642062652022737472696e6720657175616c203f2d6e6f636173653f203f2d6c656e67746820696e743f20737472696e673120737472696e673222\tpush,push,loadScalar,push,invokeReplace,done\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e8"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/manifest.json",
+        "role": "provider",
+        "sha256": "f4b7cb94b7ee39d8a040b69a676874d3f37a20e9da7c4633eb491a2a28376dfb",
+        "description": "All five original compile/run commands, header/archive/probe hashes and stdout/stderr hex."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/probe.c",
+        "role": "input",
+        "sha256": "d60649c8ccecd9c9d88781fda3b5c4006b96f3fa99eecec52e118d8f69fb96ca",
+        "description": "Actual 15-body procedure, original three-byte argv, private bytecode and object/result inspection."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/cases.json",
+        "role": "input",
+        "sha256": "1620d5110cda29a730e268f0a4d06e3e3086e783638deeeef1de74c7784c7cec",
+        "description": "Exact shared 15-body roster."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/cases.rs",
+        "role": "input",
+        "sha256": "2c4d16f01383ca329bb1e25e1b92b5869832e5296e823ddc9c698817e1b221d8",
+        "description": "Same bodies consumed by the current Rust comparison."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv",
+        "role": "observation",
+        "sha256": "a6e55904a11165e0a275405a1235d6511e7405594b830def4377e66efb0ce12a",
+        "description": "All fifteen opcode/completion/result/type/cache/refcount/identity windows."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv",
+        "role": "observation",
+        "sha256": "411b1ad6b1a9015329801fd0db66900f47a8f18f48a934b141a29e5839d577c0",
+        "description": "All fifteen opcode/completion/result/type/cache/refcount/identity windows."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv",
+        "role": "observation",
+        "sha256": "135f35d392c8075b5191659035a939b76272e4f77a01d10781ac505100b4fbe6",
+        "description": "All fifteen opcode/completion/result/type/cache/refcount/identity windows."
+      },
+      {
+        "id": "e7",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv",
+        "role": "observation",
+        "sha256": "135f35d392c8075b5191659035a939b76272e4f77a01d10781ac505100b4fbe6",
+        "description": "All fifteen opcode/completion/result/type/cache/refcount/identity windows."
+      },
+      {
+        "id": "e8",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv",
+        "role": "observation",
+        "sha256": "36c33c4b676bead216dabd1b96327ff3762634c36fb5f2ac0b7a3269746a4691",
+        "description": "All fifteen opcode/completion/result/type/cache/refcount/identity windows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_scalar_compilation.rs",
+        "selector": "native_scalar_compilation::tests::original_scalar_recipes_match_seventy_five_native_compiler_windows",
+        "assertion": "Checks actual release-specific compiler acceptance separately from original native completion/object fields.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_scalar_compilation.rs",
+        "symbol": "original_scalar_recipes_match_seventy_five_native_compiler_windows",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/to/recorded/generic",
+        "-I/path/to/recorded/unix",
+        "rust/tcl-registry/tests/data/native_scalar_compilation/probe.c",
+        "/path/to/recorded/libtcl.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/native-variable-proof"
+      ],
+      "limitations": "Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred."
+    }
+  },
+  {
+    "id": "naming.variable.jim-scalar-reference-handler-results",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.jim-scalar-reference-handler-results.md",
+    "problem_statement": "Jim shares several public scalar commands with C Tcl but has no C compiler registration or private bytecode donor. A logical handler result can be useful as an independent reference while remaining insufficient to assert C opcode or object-header equivalence.",
+    "question": "What results and caught arity diagnostics does the retained ASCII Jim scalar reference script report?",
+    "conclusion": "The recorded Jim script reports equality0, length3, listlength2 and nocase equality1, followed by the exact four caught arity diagnostics. It is reference handler evidence only and supplies no C compiler registration, native object/header identity or activation proof.",
+    "scope": "One recorded current-label Jim shell binary SHA and exact jim-reference.tcl ASCII source/output. The manifest did not query the Jim revision/version or record a build recipe. All five C providers and BIG-IP are not tested for this separate reference-handler question.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "Exact revision/version not recorded",
+        "build": "Shell SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+        "input_channel": "ASCII script through the recorded Jim shell",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exit 0 and empty stderr.\n\n```text\nequal 0\nlength 3\nlistlength 2\nequalnocase 1\nllengthempty 1 {wrong # args: should be \"llength list\"}\nllengthextra 1 {wrong # args: should be \"llength list\"}\nlengthmissing 1 {wrong # args: should be \"string length string\"}\nequalmissing 1 {wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\"}\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json",
+        "role": "provider",
+        "sha256": "4f1b613ed346e1c135187b0775fbaa620af65e4a623bebfb5accc553f8668b6b",
+        "description": "Original Jim binary/source hashes, argv, exit and stdout/stderr hex."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl",
+        "role": "input",
+        "sha256": "8e4c58a12d2e2f07d42a6e357b8274a89845062bc0b74fe4b82c052adfce9409",
+        "description": "Actual independent ASCII reference handler script."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt",
+        "role": "observation",
+        "sha256": "167fa8d83c3e1845f38036d3cf906224e8544811cce0e2889ab1e58de4207ceb",
+        "description": "Exact eight result/caught-diagnostic lines."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_scalar_compilation.rs",
+        "symbol": "NativeScalarScope",
+        "purpose": "Keep reference public handler results separate from independently selected C compiler operand scope."
+      }
+    ],
+    "replay": {
+      "command": [
+        "/path/to/recorded/jimsh",
+        "rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl"
+      ],
+      "limitations": "The retained script owns its catch/presenter and can be replayed with the recorded binary or an independently documented Jim build. Require exact eight stdout lines, empty stderr and exit0. A new build is a separate observation; this replay is not a C compiler or physical object-header control."
+    }
+  },
+  {
+    "id": "naming.variable.namespace-upvar-original-compiler-frontiers",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-original-compiler-frontiers.md",
+    "problem_statement": "Namespace-upvar compilation allocates local aliases after projecting the actual public/private worker argv. Escaped, empty, array-shaped and dynamic locals, child substitutions and expansion can change acceptance or roll back a partial preparation, so a role or decoded display cannot supply the genuine compiler operand/ordered local table.",
+    "question": "Which nsupvar opcode counts and original local/literal vectors occur for the 15 retained namespace-upvar bodies under C8.5 and the modern C workers?",
+    "conclusion": "The exact C8.5 and modern tables retain 60 compiler frontiers and their original ordered local/literal vectors. C8.5 declines the braced selector while C8.6/C9 accept it; other source variants retain their measured opcode counts, including complete decline of partial invalid/dynamic locals. These are original compilation facts, not alias-installation success, another activation or a native local-table capability.",
+    "scope": "Fifteen ASCII source bodies from cases.rs, recorded native procedure compilation for C8.5.19/8.6.18/9.0.4/9.1.0. C8.4/Jim/BIG-IP not queried for this compiler question. Original Tcl compiler presenter scripts/logs are referenced by hashes but not retained; tables, original manifest source bodies and binary hashes remain. No opaque-byte or native execution authority inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Native shell SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; full build/header recipe not recorded",
+        "input_channel": "ASCII procedure source under the recorded original compiler presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.\n\n```tsv\ncase\tnsupvar\tlocals_hex\tliterals_hex\n0\t1\t7061697273,6c6f63616c\t3a3a4e,78,\n1\t1\t7061697273,6c6f63616c,6e73\t3a3a4e,78,\n2\t1\t7061697273,6c6f63616c,6f74686572\t3a3a4e,78,\n3\t2\t7061697273,6c6f63616c,6e73,61,6c656674,62,7269676874\t3a3a4e,78,79,\n4\t1\t7061697273,6c6f63616c\t3a3a4e,78,\n5\t1\t7061697273,6c6f63616c\t3a3a4e,78,\n6\t0\t7061697273,6c6f63616c\t3a3a4e,78,6e616d657370616365,7570766172,6c6f3a6c\n7\t1\t7061697273,6c6f63616c,\t3a3a4e,78,\n8\t0\t7061697273,6c6f63616c,61\t3a3a4e,78,6e616d657370616365,7570766172,61286b29\n9\t0\t7061697273,6c6f63616c\t3a3a4e,78,6e616d657370616365,7570766172,3a3a6c6f63616c\n10\t0\t7061697273,6c6f63616c,6e73,61,676f6f64,62,626164\t3a3a4e,78,79,6e616d657370616365,7570766172,676f6f64,626164286b29\n11\t0\t7061697273,6c6f63616c,6e73,61,676f6f64,62\t3a3a4e,78,79,6e616d657370616365,7570766172,676f6f64\n12\t0\t7061697273,6c6f63616c\t6e616d657370616365,7570766172,3a3a4e,78,6c6f63616c\n13\t1\t7061697273,6c6f63616c\t3a3a4e,78,\n14\t0\t7061697273,6c6f63616c\t6e616d657370616365,7570766172,3a3a4e\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Native shell SHA b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c; full build/header recipe not recorded",
+        "input_channel": "ASCII procedure source under the recorded original compiler presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.\n\n```tsv\ncase\tnsupvar\n0\t1\n1\t1\n2\t1\n3\t2\n4\t1\n5\t1\n6\t0\n7\t1\n8\t0\n9\t0\n10\t0\n11\t0\n12\t1\n13\t1\n14\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e4"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Native shell SHA 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553; full build/header recipe not recorded",
+        "input_channel": "ASCII procedure source under the recorded original compiler presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.\n\n```tsv\ncase\tnsupvar\n0\t1\n1\t1\n2\t1\n3\t2\n4\t1\n5\t1\n6\t0\n7\t1\n8\t0\n9\t0\n10\t0\n11\t0\n12\t1\n13\t1\n14\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e5"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Native shell SHA baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee; full build/header recipe not recorded",
+        "input_channel": "ASCII procedure source under the recorded original compiler presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.\n\n```tsv\ncase\tnsupvar\n0\t1\n1\t1\n2\t1\n3\t2\n4\t1\n5\t1\n6\t0\n7\t1\n8\t0\n9\t0\n10\t0\n11\t0\n12\t1\n13\t1\n14\t0\n```",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e6"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json",
+        "role": "provider",
+        "sha256": "fc63dd3a41039235ef22369e3c229029e0cafc64a621536ee62340ab17923b6f",
+        "description": "C8.5 original source body/log hashes, binary hash and compiler frontier answers; execution subset is separately documented."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json",
+        "role": "provider",
+        "sha256": "d1bc42c9d7f785f885f6f74bcf717d661e1aba5afba446b400bb1e3e79e6da8b",
+        "description": "45 modern individual script/status/nsupvar-count/source/binary provenance records."
+      },
+      {
+        "id": "e2",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs",
+        "role": "input",
+        "sha256": "7fff38f03a603ae40e0b633f8986718101ab3b574823459ce87251c5af52e937",
+        "description": "Exact fifteen original bodies, with escaped/quoted/braced/empty/expanded/partial locals."
+      },
+      {
+        "id": "e3",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv",
+        "role": "observation",
+        "sha256": "fcd5396c08a0a349f7159b2cbc0efb32cd615271a3b4759f81d59d56b595f00b",
+        "description": "Fifteen original opcode/local/literal frontiers, plus field header."
+      },
+      {
+        "id": "e4",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv",
+        "role": "observation",
+        "sha256": "af2621ad53a54fe0c56b7302bc9a8be3382b56599ddb727e573c3778bc1debe3",
+        "description": "Fifteen original opcode/local/literal frontiers, plus field header."
+      },
+      {
+        "id": "e5",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv",
+        "role": "observation",
+        "sha256": "af2621ad53a54fe0c56b7302bc9a8be3382b56599ddb727e573c3778bc1debe3",
+        "description": "Fifteen original opcode/local/literal frontiers, plus field header."
+      },
+      {
+        "id": "e6",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv",
+        "role": "observation",
+        "sha256": "af2621ad53a54fe0c56b7302bc9a8be3382b56599ddb727e573c3778bc1debe3",
+        "description": "Fifteen original opcode/local/literal frontiers, plus field header."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_namespace_upvar_compilation.rs",
+        "selector": "native_namespace_upvar_compilation::tests::original_c85_namespace_upvar_matches_15_native_compiler_frontiers",
+        "assertion": "Checks C8.5 complete original compiler acceptance/decline frontiers.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/native_namespace_upvar_compilation.rs",
+        "selector": "native_namespace_upvar_compilation::tests::original_modern_namespace_upvar_matches_45_native_compiler_frontiers",
+        "assertion": "Checks modern independently selected workers and original word vectors.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_namespace_upvar_compilation.rs",
+        "symbol": "original_c85_namespace_upvar_matches_15_native_compiler_frontiers",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_namespace_upvar_compilation.rs",
+        "symbol": "original_modern_namespace_upvar_matches_45_native_compiler_frontiers",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The manifest refers to per-case compiler presenter source/log files outside the repository; those wrappers are not retained. cases.rs preserves exact body bytes, but running a body alone cannot produce the private opcode/local/literal vectors. A fresh replay must retain a matching-version procedure/disassembler presenter, full source/build/artifact hashes and every one of the15 original body/vector windows; compare each native table without treating opcode presence as alias execution success."
+    }
+  },
+  {
+    "id": "naming.variable.namespace-upvar-target-order-and-incarnation-execution",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.namespace-upvar-target-order-and-incarnation-execution.md",
+    "problem_statement": "A namespace can be destroyed/recreated between original alias operands, or lookup can fail after a target substitution already ran. Compiler acceptance alone cannot determine whether a local alias selects the new namespace incarnation, rejects a defined destination or preserves an earlier side effect.",
+    "question": "What caught result bytes and visited side effect occur in the eight original C8.5 namespace-upvar execution controls?",
+    "conclusion": "The eight C8.5 controls retain normal X/X-Y/empty-local results, NEW from the recreated namespace, defined-local and array-shaped-local errors, and visited1 before missing-namespace failure. This is execution order/incarnation evidence for those exact scripts, independent of compiler table identity, current arbitrary alias currency or unknown caller frames.",
+    "scope": "Eight original ASCII C8.5.19 procedure body executions described in provenance.json and execution_cases.rs, including caught completion/result hex and visited status. Native shell binary SHA retained; original presenter and complete source wrapper are not. Other C versions, Jim and BIG-IP not queried for this separate execution subset.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Shell SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+        "input_channel": "ASCII original procedures through native caught-result presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "All eight presenter processes exit0; guest completion codes remain individually caught.\n\n```json\n[\n  {\n    \"name\": \"simple-result\",\n    \"body\": \"namespace upvar ::N x local; set local\",\n    \"exit\": 0,\n    \"output\": \"0 58\\nvisited 0\\n\",\n    \"source_sha256\": \"1135000d53b42389333a6e1cff643aa9a734e9b77ae23d84dd5f56774d65771b\"\n  },\n  {\n    \"name\": \"original-namespace\",\n    \"body\": \"namespace upvar [set ns ::N] [set name x] local; set local\",\n    \"exit\": 0,\n    \"output\": \"0 58\\nvisited 0\\n\",\n    \"source_sha256\": \"0ebd24416c5f6c65d5c0ce807be14113757789d0672c5aac3a6b88a6d94534d3\"\n  },\n  {\n    \"name\": \"multiple-pairs\",\n    \"body\": \"namespace upvar ::N x first y second; list $first $second\",\n    \"exit\": 0,\n    \"output\": \"0 582059\\nvisited 0\\n\",\n    \"source_sha256\": \"90ab4b00b82942c824844c982ea773c7ac2059dd145392c1f5e532daed7c340f\"\n  },\n  {\n    \"name\": \"empty-local\",\n    \"body\": \"namespace upvar ::N x {}; set {}\",\n    \"exit\": 0,\n    \"output\": \"0 58\\nvisited 0\\n\",\n    \"source_sha256\": \"c1d746ce01a7ff6c46ad6b43327aff53ce33dd77785278461aa80094278d32d4\"\n  },\n  {\n    \"name\": \"recreated-namespace\",\n    \"body\": \"namespace upvar ::N x first [namespace delete ::N; namespace eval ::N {variable y NEW}; set name y] second; set second\",\n    \"exit\": 0,\n    \"output\": \"0 4e4557\\nvisited 0\\n\",\n    \"source_sha256\": \"e79968bbc89ba9a2cc610d51c5cc56457fa9f3748e4b84345e45c40996bcc760\"\n  },\n  {\n    \"name\": \"defined-local\",\n    \"body\": \"set local BEFORE; namespace upvar ::N x local\",\n    \"exit\": 0,\n    \"output\": \"1 7661726961626c6520226c6f63616c2220616c726561647920657869737473\\nvisited 0\\n\",\n    \"source_sha256\": \"9f82a98b453f272229cb31bfca4eea3dd97cb580188997324260d46a03b64121\"\n  },\n  {\n    \"name\": \"array-local-generic\",\n    \"body\": \"namespace upvar ::N x a(k)\",\n    \"exit\": 0,\n    \"output\": \"1 626164207661726961626c65206e616d65202261286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74\\nvisited 0\\n\",\n    \"source_sha256\": \"defddaff9cc81e50629efadb08e0c8744dbe2a98fc6024998eebda2393f3da5a\"\n  },\n  {\n    \"name\": \"missing-namespace-after-target\",\n    \"body\": \"namespace upvar ::MISSING [set ::visited YES; set name x] local\",\n    \"exit\": 0,\n    \"output\": \"1 6e616d65737061636520223a3a4d495353494e4722206e6f7420666f756e64\\nvisited 1\\n\",\n    \"source_sha256\": \"0c25c16b15d1a70bbe3aa58967e27ed178cb6483f418fa202b541d395f40072a\"\n  }\n]\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json",
+        "role": "provider",
+        "sha256": "fc63dd3a41039235ef22369e3c229029e0cafc64a621536ee62340ab17923b6f",
+        "description": "Original C8.5 caught execution body/result/visited and wrapper-source hashes."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs",
+        "role": "input",
+        "sha256": "a6e9f2dd5461cc1e40cddb327c89e54e6e0269b6aafcc7933f374f1d16bddae0",
+        "description": "Exact current eight body/code/result/visited tuples copied from the original execution capture."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/namespace_tests.rs",
+        "selector": "interp::native_body_artifact::namespace_tests::original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes",
+        "assertion": "Checks alias/error/order against original C8.5 execution tuples without borrowing compiler presence as a success certificate.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/namespace_tests.rs",
+        "symbol": "original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The original setup/catch/presenter wrappers are not retained; execution_cases.rs contains exact procedure body/result tuples, not an executable Tcl script. Fresh replay must recreate the explicitly documented namespace N with x X/y Y, retain the complete source wrapper and original p invocation, and independently catch/result-hex/visited each body. Compare all eight native tuples and record actual build/channel/status."
+    }
+  },
+  {
+    "id": "naming.variable.uplevel-original-compilation-opcode-and-concat-frontier",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.uplevel-original-compilation-opcode-and-concat-frontier.md",
+    "problem_statement": "Uplevel can be a generic command or a retained opcode with independently selected frame/script stack geometry. An explicit/default literal level and multi-fragment script affect compiler selection; assuming that a portable operation represents a native opcode on every release loses the original boundary.",
+    "question": "Do the six retained explicit/default/concat/dynamic/invalid/sole bodies emit uplevel and concat instructions under C9.0 and C9.1?",
+    "conclusion": "C9.0 emits neither opcode for all six captured bodies. C9.1 emits uplevel for the explicit/default/concat bodies, concat only for the multi-fragment body, and neither for dynamic/invalid/sole variants. These12 recorded artifact frontiers establish compiler stack/selection geometry only, not level validation, body completion, frame identity or arbitrary portable/native correspondence.",
+    "scope": "Exact twelve ASCII source/artifact entries for C9.0.4 and C9.1.0, binary and wrapper-source hashes plus retained instructions.tsv. Original source/log wrappers are referenced outside the repository and are absent here. Earlier C releases, Jim and BIG-IP not queried for this compilation question; no unsupported inference.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Shell SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; full build/source wrapper not retained",
+        "input_channel": "ASCII procedure source through original compiler artifact presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six completed artifact captures; exact retained selection flags and wrapper provenance:\n\n```json\n[\n  {\n    \"engine\": \"9.0\",\n    \"label\": \"explicit\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-explicit.tcl\",\n    \"source_sha256\": \"2a21355a3aba921b798a1499b317457bc707592a723f76a0e50ecfbdc6243620\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-explicit.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18\"\n  },\n  {\n    \"engine\": \"9.0\",\n    \"label\": \"default\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-default.tcl\",\n    \"source_sha256\": \"b0e93e289f9b829f889fe169f3fae484f118fd7b85ee177bef520c6a37328b57\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-default.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18\"\n  },\n  {\n    \"engine\": \"9.0\",\n    \"label\": \"concat\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-concat.tcl\",\n    \"source_sha256\": \"7094b8fa51d60011e17a5d0e89c8df3bbf07cae91ae5d7dadc081e2bb0fea265\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-concat.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18\"\n  },\n  {\n    \"engine\": \"9.0\",\n    \"label\": \"dynamic\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-dynamic.tcl\",\n    \"source_sha256\": \"93a07b4bb538531ea464758b2fbca650b925114a4351b991af60c8d36708f4a7\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-dynamic.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18\"\n  },\n  {\n    \"engine\": \"9.0\",\n    \"label\": \"invalid\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-invalid.tcl\",\n    \"source_sha256\": \"1e44003e6eb400c1b207aad5713c4abd8ca9be4fd12675302837327bb3494ee2\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-invalid.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18\"\n  },\n  {\n    \"engine\": \"9.0\",\n    \"label\": \"sole\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-sole.tcl\",\n    \"source_sha256\": \"c8e14cdfd7d5aa7a161b35c51efefc02bb1e2dd353b0f40b3b4aa5f0deefe8d8\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.0-sole.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18\"\n  }\n]\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Shell SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; full build/source wrapper not retained",
+        "input_channel": "ASCII procedure source through original compiler artifact presenter",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Six completed artifact captures; exact retained selection flags and wrapper provenance:\n\n```json\n[\n  {\n    \"engine\": \"9.1\",\n    \"label\": \"explicit\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-explicit.tcl\",\n    \"source_sha256\": \"2a21355a3aba921b798a1499b317457bc707592a723f76a0e50ecfbdc6243620\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-explicit.log\",\n    \"uplevel\": true,\n    \"concat\": false,\n    \"binary_sha256\": \"d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c\"\n  },\n  {\n    \"engine\": \"9.1\",\n    \"label\": \"default\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-default.tcl\",\n    \"source_sha256\": \"b0e93e289f9b829f889fe169f3fae484f118fd7b85ee177bef520c6a37328b57\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-default.log\",\n    \"uplevel\": true,\n    \"concat\": false,\n    \"binary_sha256\": \"d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c\"\n  },\n  {\n    \"engine\": \"9.1\",\n    \"label\": \"concat\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-concat.tcl\",\n    \"source_sha256\": \"7094b8fa51d60011e17a5d0e89c8df3bbf07cae91ae5d7dadc081e2bb0fea265\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-concat.log\",\n    \"uplevel\": true,\n    \"concat\": true,\n    \"binary_sha256\": \"d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c\"\n  },\n  {\n    \"engine\": \"9.1\",\n    \"label\": \"dynamic\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-dynamic.tcl\",\n    \"source_sha256\": \"93a07b4bb538531ea464758b2fbca650b925114a4351b991af60c8d36708f4a7\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-dynamic.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c\"\n  },\n  {\n    \"engine\": \"9.1\",\n    \"label\": \"invalid\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-invalid.tcl\",\n    \"source_sha256\": \"1e44003e6eb400c1b207aad5713c4abd8ca9be4fd12675302837327bb3494ee2\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-invalid.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c\"\n  },\n  {\n    \"engine\": \"9.1\",\n    \"label\": \"sole\",\n    \"source\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-sole.tcl\",\n    \"source_sha256\": \"c8e14cdfd7d5aa7a161b35c51efefc02bb1e2dd353b0f40b3b4aa5f0deefe8d8\",\n    \"exit\": 0,\n    \"log\": \"/workspace/.proofs/2286-body-native-uplevel91/9.1-sole.log\",\n    \"uplevel\": false,\n    \"concat\": false,\n    \"binary_sha256\": \"d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c\"\n  }\n]\n```",
+        "evidence": [
+          "e0",
+          "e1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "path": "rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json",
+        "role": "provider",
+        "sha256": "680808f88cec21780f182ba04dadfdd6985730e604ffb9f134aff3b92b05867d",
+        "description": "12 original shell artifact records, source/binary hashes and opcode flags."
+      },
+      {
+        "id": "e1",
+        "path": "rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv",
+        "role": "observation",
+        "sha256": "a20ae4aae4b2e7d6eb5a145366d379b2f89a7d9e565e2f6e08e2dc4364a1cbc1",
+        "description": "Exact six body spellings and opcode/concat answers per queried provider."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_instruction_plan.rs",
+        "selector": "native_instruction_plan::tests::original_uplevel_instruction_keeps_level_and_script_stack_geometry",
+        "assertion": "Checks actual C9.1 level/script/concat operands and refusal variants against the original frontier table.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_instruction_plan.rs",
+        "symbol": "original_uplevel_instruction_keeps_level_and_script_stack_geometry",
+        "purpose": "Independent current Rust comparison at the stated semantic boundary."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The original per-case procedure/disassembler wrappers and artifact logs are not retained, only their hashes/flags and exact body table. A fresh replay must retain a matching-build original procedure disassembler and complete source for all six bodies, then compare uplevel/concat presence independently in C9.0 and C9.1. Running instructions.tsv as Tcl or assuming a generic call implies this opcode is invalid."
+    }
+  }
+]

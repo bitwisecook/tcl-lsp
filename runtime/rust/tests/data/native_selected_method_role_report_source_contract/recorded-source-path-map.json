@@ -1,0 +1,85 @@
+{
+  "recorded_to_published": {
+    "/tmp/receiver-foundation-report513/manifest.json": {
+      "published_path": "runtime/rust/tests/data/native_selected_method_role_report_source_contract/integrated-source-packet.json",
+      "original_sha256": "fe505dfc41c3ac17f20692edbfb5a23dc9118d90d484a6ea6938120c1a155d2d",
+      "original_bytes": 3956,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "fe505dfc41c3ac17f20692edbfb5a23dc9118d90d484a6ea6938120c1a155d2d"
+    },
+    "/tmp/receiver-foundation-report513/selectors.json": {
+      "published_path": "runtime/rust/tests/data/native_selected_method_role_report_source_contract/unexecuted-selectors.json",
+      "original_sha256": "c19cbe2fb24d8c675258a44df632bef9aa4c83c30539ca38ded59496f859e05c",
+      "original_bytes": 1198,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "c19cbe2fb24d8c675258a44df632bef9aa4c83c30539ca38ded59496f859e05c"
+    },
+    "/tmp/receiver-foundation-report513/source-windows.json": {
+      "published_path": "runtime/rust/tests/data/native_selected_method_role_report_source_contract/independent-source-inspection.json",
+      "original_sha256": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e",
+      "original_bytes": 19977,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e"
+    },
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c": {
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/8.6.18/tclOO.c",
+      "original_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "original_bytes": 84935,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef"
+    },
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c": {
+      "published_path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--8.6.18--tclOOBasic.c",
+      "original_sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "original_bytes": 36801,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98"
+    },
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c": {
+      "published_path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/original-inputs/workspace--.proofs--native-method-lifetime506--original-request--source-inspection--8.6.18--tclOOCall.c",
+      "original_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "original_bytes": 47228,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b"
+    },
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c": {
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.0.4/tclOO.c",
+      "original_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "original_bytes": 99274,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7"
+    },
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c": {
+      "published_path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--9.0.4--tclOOBasic.c",
+      "original_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "original_bytes": 61261,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68"
+    },
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c": {
+      "published_path": "rust/tcl-registry/tests/data/native_oo_original_collision249/request/source-anchors/9.1.0/tclOO.c",
+      "original_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "original_bytes": 98735,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd"
+    },
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c": {
+      "published_path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--9.1.0--tclOOBasic.c",
+      "original_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "original_bytes": 60877,
+      "original_mode": 384,
+      "compression": "none",
+      "published_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158"
+    }
+  },
+  "scope": "Source payload identity only; no CLI/header/refcount/Method lifetime equivalence or configure/build replay."
+}

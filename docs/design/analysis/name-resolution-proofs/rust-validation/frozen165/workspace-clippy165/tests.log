@@ -1,0 +1,78 @@
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error: this function has too many lines (101/100)
+    --> rust/tcl-compiler/src/analyser/commands.rs:2017:5
+     |
+2017 |     fn emit_dispatch_site_diagnostics(&mut self, site: &DispatchSite<'_>) {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> rust/tcl-compiler/src/command_binding/source_unavailability_advice.rs:209:25
+    |
+209 |                         obligations.push(Obligation::EarlierBindingAlternative(slot.clone()))
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `obligations.push(Obligation::EarlierBindingAlternative(slot.clone()));`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#semicolon_if_nothing_returned
+    = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+
+error: this argument is passed by value, but not consumed in the function body
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:313:16
+    |
+313 |         scope: Arc<OriginalDeclaredLogicalBodyContext>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value
+    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+313 |         scope: &Arc<OriginalDeclaredLogicalBodyContext>,
+    |                +
+
+error: large size difference between variants
+  --> rust/tcl-compiler/src/registry_invocation/source_availability.rs:28:1
+   |
+28 | /   enum AvailabilityOrigin {
+29 | | /     Native {
+30 | | |         lookup: OriginalCommandLookup,
+31 | | |         obligations: Vec<OriginalCatalogueSourceObligation>,
+32 | | |     },
+   | | |_____- the second-largest variant contains at least 472 bytes
+...  |
+36 | | /     Hosted {
+37 | | |         occurrence: VendorSourceNameOccurrence,
+38 | | |         paths: Vec<Vec<tcl_core_types::NameBytes>>,
+39 | | |         barriers: super::VendorSourceCatalogueBarriers,
+40 | | |     },
+   | | |_____- the largest variant contains at least 680 bytes
+41 | |   }
+   | |___^ the entire enum is at least 680 bytes
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#large_enum_variant
+   = note: `-D clippy::large-enum-variant` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::large_enum_variant)]`
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+   |
+39 -         barriers: super::VendorSourceCatalogueBarriers,
+39 +         barriers: Box<super::VendorSourceCatalogueBarriers>,
+   |
+
+error: could not compile `tcl-compiler` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: redundant closure
+   --> rust/tcl-compiler/src/command_binding/source_declared_command.rs:532:22
+    |
+532 |                 .map(|part| part.as_bytes())
+    |                      ^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_runtime_api::NameBytes::as_bytes`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+    = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: could not compile `tcl-compiler` (lib test) due to 5 previous errors

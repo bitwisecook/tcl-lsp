@@ -1,0 +1,29 @@
+static int JimCallNative(Jim_Interp *interp, Jim_Cmd *cmd, int argc, Jim_Obj *const *argv)
+{
+    int argsok = 1;
+    int ret;
+
+    /* Check arg count */
+    if (argc - 1 < cmd->u.native.minargs) {
+        argsok = 0;
+    }
+    else if (cmd->u.native.maxargs >= 0 && argc - 1 > cmd->u.native.maxargs) {
+        argsok = 0;
+    }
+    else if (cmd->u.native.maxargs < -1 && (argc - 1) % -cmd->u.native.maxargs != 0) {
+        /* -2 means must have n * 2 args */
+        argsok = 0;
+    }
+    if (argsok) {
+        interp->cmdPrivData = cmd->u.native.privData;
+        ret = cmd->u.native.cmdProc(interp, argc, argv);
+        if (ret != JIM_USAGE) {
+            return ret;
+        }
+        /* This means an argument error */
+    }
+
+    //printf("Wrong args for %s, argc=%d, minargs=%d, maxargs=%d\n", Jim_String(argv[0]), argc, cmd->u.native.minargs, cmd->u.native.maxargs);
+    Jim_SetResultFormatted(interp, "wrong # args: should be \"%#s\"", JimCmdUsage(interp, argv[0], cmd));
+    return JIM_ERR;
+}

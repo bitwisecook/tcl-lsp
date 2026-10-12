@@ -1,0 +1,19 @@
+
+running 3 tests
+test command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs ... ok
+test command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model ... 
+thread 'command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model' (597504) panicked at rust/tcl-compiler/src/command_binding/logical_definition.rs:329:13:
+assertion `left == right` failed: proc defined {} {}; defined
+  left: Unknown
+ right: Present
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::logical_definition::tests::logical_definition_receipt_rechecks_source_configuration_and_entry_without_native_normal ... ok
+
+failures:
+
+failures:
+    command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 8187 filtered out; finished in 5.00s
+

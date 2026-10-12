@@ -1,0 +1,465 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/current-irules-consumers92.base-files.tar.gz",
+  "archive_sha256": "82cabd939745030d91c9d1cdb58519efd8b8d9d8defb82ca0c6a0007dcc7a7da",
+  "archive_bytes": 141663,
+  "uncompressed_bytes": 580727,
+  "source_manifest_sha256": "39d273138f83958726bc1604a117451a786e5de411c68875d61884d2f1c0fb25",
+  "source_patch_sha256": "9bd3a4900dfbe80828052284035f3f80931f0d0fa0900037800cf978b6fca364",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/9bd3a4900dfbe80828052284035f3f80931f0d0fa0900037800cf978b6fca364.patch",
+  "original_application_journal_sha256": "9bd3a4900dfbe80828052284035f3f80931f0d0fa0900037800cf978b6fca364",
+  "member_count": 50,
+  "members": {
+    "current-irules-consumers92/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8534153,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/docs/design/analysis/name-resolution-proofs/original-irule-test-source-obligations.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8534153,
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "current-irules-consumers92/base/docs/design/analysis/name-resolution-proofs/original-irules-source-context.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8530872,
+      "size": 5898,
+      "sha256": "6245476540ab201094156d9503478e055c88e3ad433c957efacb20a3211c5bb0"
+    },
+    "current-irules-consumers92/base/docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8533535,
+      "size": 5393,
+      "sha256": "edfca8463ca7ec503dd5250113c4748ec97917fe393ae8b05c042e3c881cadbd"
+    },
+    "current-irules-consumers92/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0084772,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-diagram": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0059035,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-diagram/Cargo.toml": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.005836,
+      "size": 1650,
+      "sha256": "a47f8215bbbdc064fa9d4c2c5db826f8a5466c8a41cb1845fcdffb5d395da122"
+    },
+    "current-irules-consumers92/base/rust/tcl-diagram/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.408785,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-diagram/src/attach.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0065072,
+      "size": 28023,
+      "sha256": "30629961c90c1b4de4bb6a6ee324ba1e5b3496abc7f78cb774e80e8208599ef5"
+    },
+    "current-irules-consumers92/base/rust/tcl-diagram/src/data.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0080476,
+      "size": 73988,
+      "sha256": "a0597ddbc2a3285664cd26f7aaaed75346d2e680c06553d94a3ea79acef5fb8d"
+    },
+    "current-irules-consumers92/base/rust/tcl-diagram/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.4090517,
+      "size": 2144,
+      "sha256": "95603f5c87c4a678f895e3f1310b9113c90cc417dd96c5a631c52b03461059f8"
+    },
+    "current-irules-consumers92/base/rust/tcl-irules": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791530991.4035203,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-irules/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.2777011,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-irules/src/executable.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.1402302,
+      "size": 43651,
+      "sha256": "596c7820338d93a8ee4215ef1953229fce6a12fbf882fb36af850aa7d12ab585"
+    },
+    "current-irules-consumers92/base/rust/tcl-irules/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.27864,
+      "size": 13041,
+      "sha256": "ca30805c95cdf6d01c64d163dc574eef56150a6b5139ec8763368a142d679632"
+    },
+    "current-irules-consumers92/base/rust/tcl-irules/src/source_context.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.1391056,
+      "size": 13756,
+      "sha256": "b315315965b7281f1cf715dafc901a8c37dc4e25e30553cf66ecb31c71dfd23e"
+    },
+    "current-irules-consumers92/base/rust/tcl-irules/src/walker.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.2763176,
+      "size": 36626,
+      "sha256": "da9e0e54576fca1e83ddf745ede86cc726d7c2594541733a926ed481ef3b4b1a"
+    },
+    "current-irules-consumers92/base/rust/tcl-mcp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0084772,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-mcp/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531982.082271,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/base/rust/tcl-mcp/src/irule_gen.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.009839,
+      "size": 56224,
+      "sha256": "6d3d1c9ef3fd051000712f7d030ee6f88830c83eba8a5e93bea9fb62ccb8060c"
+    },
+    "current-irules-consumers92/base/rust/tcl-mcp/src/irule_test.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531982.08295,
+      "size": 22929,
+      "sha256": "0c2cc313f866d897d2091e421d2bb5f64cfe5c625597dea8865a9a8bc51b32b5"
+    },
+    "current-irules-consumers92/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8500905,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8534153,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/docs/design/analysis/name-resolution-proofs/original-irule-test-source-obligations.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8535664,
+      "size": 5789,
+      "sha256": "56a60f1a3af435f18b2d900d84e4ca8c7f3c80297b6f1f8b4ddab23617e53769"
+    },
+    "current-irules-consumers92/files/docs/design/analysis/name-resolution-proofs/original-irules-source-context.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8531685,
+      "size": 8359,
+      "sha256": "1b92081e92b5e55b401748e9481acc69da1782cb50e1b79516fb04588108d4bb"
+    },
+    "current-irules-consumers92/files/docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532299.8534153,
+      "size": 7710,
+      "sha256": "0bd9c7e51128ee4b7f5e99bdf81eec436f1ddab7710b3bdcd559b80252c6f3f3"
+    },
+    "current-irules-consumers92/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0084772,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-diagram": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0059035,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-diagram/Cargo.toml": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0059035,
+      "size": 1690,
+      "sha256": "1664cfc0189bd2653b024fc1cca5979e8ceb209996f19971c20b6c865da6beb4"
+    },
+    "current-irules-consumers92/files/rust/tcl-diagram/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.4090517,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-diagram/src/attach.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.408785,
+      "size": 21410,
+      "sha256": "8c834ede653e93a1b34317075221d98b3bf290f939792aaccd5ed24a28561798"
+    },
+    "current-irules-consumers92/files/rust/tcl-diagram/src/data.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.411091,
+      "size": 76560,
+      "sha256": "0cec9ce894218cb8f8e4916016d1da71d495904635fa98f20da37160e3564c92"
+    },
+    "current-irules-consumers92/files/rust/tcl-diagram/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.4090936,
+      "size": 2177,
+      "sha256": "57332ae50c192081e097f09bb5c55516b5d70606bed8a67258ac3089ebe14461"
+    },
+    "current-irules-consumers92/files/rust/tcl-irules": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791530991.4035203,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-irules/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.27864,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-irules/src/executable.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.4083292,
+      "size": 21387,
+      "sha256": "019033662706236df40be7bb8bffa25091d6fd97e8d628f56f8eb888666dce51"
+    },
+    "current-irules-consumers92/files/rust/tcl-irules/src/lib.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531497.2790558,
+      "size": 13090,
+      "sha256": "9e6808ed477096af6e753d40892a05a2097c70ccf6e9de5371d5ceb3c2554960"
+    },
+    "current-irules-consumers92/files/rust/tcl-irules/src/source_context.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.005212,
+      "size": 17804,
+      "sha256": "fdd6d74a1467caebe67d30c8e0a1380c7544ab7266b3e6fa437471204cd0f452"
+    },
+    "current-irules-consumers92/files/rust/tcl-irules/src/walker.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.4097335,
+      "size": 19263,
+      "sha256": "ec55bba46932a73806aed1ac884bb01a70740e211de325605e15b5663eab5776"
+    },
+    "current-irules-consumers92/files/rust/tcl-mcp": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531828.0084772,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-mcp/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791531982.08295,
+      "size": 0,
+      "sha256": null
+    },
+    "current-irules-consumers92/files/rust/tcl-mcp/src/irule_gen.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532104.409397,
+      "size": 56668,
+      "sha256": "309795a37e7a34b3a57cc5433a2be05bca25a36efe6e3dd1b1c4738e615e58a7"
+    },
+    "current-irules-consumers92/files/rust/tcl-mcp/src/irule_test.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791532501.0138156,
+      "size": 25497,
+      "sha256": "47c63ab72e952b6723cf05ff95f5690637af408827a00fab276d750c36f54d69"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

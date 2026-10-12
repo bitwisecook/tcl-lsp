@@ -125,7 +125,7 @@ invocation. It is registered as `BackendPlanKind::GenericInvoke`; the registry
 applies common legality checks before it constructs an immutable
 `WasmGenericInvokePlan`.
 
-Two optional selections now sit above that baseline:
+Two optional selections sit above that baseline:
 
 - `GuardedIntrinsic` refines only a registry-resolved `StringLength` invocation
   whose completion/effect/transition/role/boundary/ownership/suspension proofs
@@ -146,6 +146,25 @@ executable CFG shapes produce typed declines. They do not make the selector
 mutate an emitter and do not erase common facts.
 
 ### 5. Feed one emitter
+
+Before selecting a semantic or native plan, every backend checks the shared
+`NativeCompilationAdmission` retained by Script, CFG and executable IR. An
+unresolved native compiler path is an admission obligation even when no exact
+Tcl error has been proved. The carrier retains the actual evaluated chunk and
+its source origin, and a proved failure additionally retains compiler-command
+and fixed math-table prerequisites.
+
+WASM resolves a script obligation by evaluating the complete original chunk
+through the host's native compiler entry. This happens before any generated
+store, native procedure export or procedure-table installation. Individual
+command evaluation cannot discharge the obligation: Tcl 8.4 can reject an
+unreachable invalid command before the first statement executes. A procedure
+with such an obligation remains a source procedure, so the host compiles its
+body when called, before checking formals; defining an uncalled invalid body
+still succeeds. Direct AOT and native lowering record a typed admission decline,
+and executable inlining preserves the boundary. If original source is missing,
+the backend refuses execution with a host trap rather than inventing a Tcl
+error or evaluating an empty script.
 
 An eligible plan emits a module importing `tcl_invoke_argv`; it does not import
 the source-evaluation ABI. Literal data is placed in the runtime-reserved
@@ -259,8 +278,8 @@ formals by name, and `Interp::run_native_body` holds the activation and the
 `CmdFrame`. Emitting the script prologue there would push a second, nameless
 frame at the *caller's* namespace — `namespace current`, `upvar 1` and `info
 level` all one level out — and halve the recursion depth Tcl allows.
-`argv`/`argc` are the bound call arguments, reserved for the native formal
-binder (not yet implemented); a body reads its formals as named cells.
+`argv`/`argc` carry the bound call arguments. The runtime binds formals as
+named cells before entering the body; the body reads those cells.
 
 A procedure body ends by writing its completion triple into `out` and
 answering `NATIVE_PROC_STATUS_RAN`. A **null** result there is not an omission:
@@ -345,7 +364,7 @@ emits passes `entry = 0`.
 completion handlers are executable-IR instructions the native lowering does
 not project yet (`iterate-lists`, `match-pattern`, `join-completion`,
 `write-completion-cell`, `operand-expression`); a function containing one
-stays on the legacy structured walk with that reason. Procedure bodies lower
+uses the structured walk with that reason. Procedure bodies lower
 with named cells (no slot storage yet).
 
 A `proc` statement only takes the definition shape while its own dispatch is
@@ -534,10 +553,9 @@ Relevant modules:
 bytecode compiler and VM in a self-contained module whose host calls `tcl_eval`.
 It remains useful for runtime and differential testing, but it is not a
 Tcl-source-to-WASM code-generation backend and is not selectable by
-`tcl compwasm` or Explorer. TclVM also does not yet consume the target-neutral
-mixed-region, common AOT, guard, or native-integer proof plans; those common
-types are the intended integration boundary, not a statement of current VM
-specialisation.
+`tcl compwasm` or Explorer. TclVM executes bytecode under its native
+command-binding admission contracts. The target-neutral mixed-region, common
+AOT, guard and native-integer proof plans describe the WASM compiler backend.
 
 ## Module and package layout
 
@@ -559,8 +577,8 @@ There is currently no compiler package-require scan, extension selector,
 variant runtime artefact, or package-driven linker. The optional `wasm_stdlib`
 runtime feature embeds Tcl scripts and package indices; package loading then
 uses the runtime's ordinary `source` and `package require` machinery. The
-current boundary and the explicitly future package-aware design are documented
-in [`wasm-extensions.md`](wasm-extensions.md).
+package-loading contract is documented in
+[`wasm-extensions.md`](wasm-extensions.md).
 
 ## Explorer contract
 

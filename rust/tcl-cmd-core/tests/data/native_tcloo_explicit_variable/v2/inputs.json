@@ -1,0 +1,21 @@
+{
+  "question": "Selected stock explicit my variable and my varname original operands: local CString alias, counted target lookup, relative name construction and partial namespace effects.",
+  "channel": "Fresh interpreter; ASCII counted setup body, original counted Tcl_NewStringObj argv at object invocation. No Document source/ByteArray conversion or compiled-primary cache claim. Jim core original object vector is attempted only after successful setup.",
+  "cases": [
+    "ASCII",
+    "RAW_ZERO",
+    "ENCODED_ZERO",
+    "ARRAY_ELEMENT",
+    "QUALIFIER_AFTER_ZERO",
+    "QUALIFIED",
+    "ABSOLUTE_RAW_ZERO",
+    "OPAQUE_FF"
+  ],
+  "members": [
+    "link",
+    "report",
+    "write"
+  ],
+  "setup": "Exact setup literal retained in probe source; no synthetic compiler role or release inferred from setup failure.",
+  "notes": "report is a distinct user method that invokes the stock my varname; no user varname override. Namespace inspection uses explicit fullname pattern and current array/scalar queries."
+}

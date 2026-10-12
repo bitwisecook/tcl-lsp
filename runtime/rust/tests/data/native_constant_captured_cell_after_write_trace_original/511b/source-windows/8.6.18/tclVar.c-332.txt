@@ -1,0 +1,131 @@
+static inline void
+CleanupVar(
+    Var *varPtr,		/* Pointer to variable that may be a candidate
+				 * for being expunged. */
+    Var *arrayPtr)		/* Array that contains the variable, or NULL
+				 * if this variable isn't an array element. */
+{
+    if (TclIsVarUndefined(varPtr) && TclIsVarInHash(varPtr)
+	    && !TclIsVarTraced(varPtr)
+	    && (VarHashRefCount(varPtr) == !TclIsVarDeadHash(varPtr))) {
+	if (VarHashRefCount(varPtr) == 0) {
+	    ckfree(varPtr);
+	} else {
+	    VarHashDeleteEntry(varPtr);
+	}
+    }
+    if (arrayPtr != NULL && TclIsVarUndefined(arrayPtr) &&
+	    TclIsVarInHash(arrayPtr) && !TclIsVarTraced(arrayPtr) &&
+	    (VarHashRefCount(arrayPtr) == !TclIsVarDeadHash(arrayPtr))) {
+	if (VarHashRefCount(arrayPtr) == 0) {
+	    ckfree(arrayPtr);
+	} else {
+	    VarHashDeleteEntry(arrayPtr);
+	}
+    }
+}
+
+void
+TclCleanupVar(
+    Var *varPtr,		/* Pointer to variable that may be a candidate
+				 * for being expunged. */
+    Var *arrayPtr)		/* Array that contains the variable, or NULL
+				 * if this variable isn't an array element. */
+{
+    CleanupVar(varPtr, arrayPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclLookupVar --
+ *
+ *	This function is used to locate a variable given its name(s). It has
+ *	been mostly superseded by TclObjLookupVar, it is now only used by the
+ *	trace code. It is kept in tcl8.5 mainly because it is in the internal
+ *	stubs table, so that some extension may be calling it.
+ *
+ * Results:
+ *	The return value is a pointer to the variable structure indicated by
+ *	part1 and part2, or NULL if the variable couldn't be found. If the
+ *	variable is found, *arrayPtrPtr is filled in with the address of the
+ *	variable structure for the array that contains the variable (or NULL
+ *	if the variable is a scalar). If the variable can't be found and
+ *	either createPart1 or createPart2 are 1, a new as-yet-undefined
+ *	(VAR_UNDEFINED) variable structure is created, entered into a hash
+ *	table, and returned.
+ *
+ *	If the variable isn't found and creation wasn't specified, or some
+ *	other error occurs, NULL is returned and an error message is left in
+ *	the interp's result if TCL_LEAVE_ERR_MSG is set in flags.
+ *
+ *	Note: it's possible for the variable returned to be VAR_UNDEFINED even
+ *	if createPart1 or createPart2 are 1 (these only cause the hash table
+ *	entry or array to be created). For example, the variable might be a
+ *	global that has been unset but is still referenced by a procedure, or
+ *	a variable that has been unset but it only being kept in existence (if
+ *	VAR_UNDEFINED) by a trace.
+ *
+ * Side effects:
+ *	New hashtable entries may be created if createPart1 or createPart2
+ *	are 1.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Var *
+TclLookupVar(
+    Tcl_Interp *interp,		/* Interpreter to use for lookup. */
+    const char *part1,		/* If part2 isn't NULL, this is the name of an
+				 * array. Otherwise, this is a full variable
+				 * name that could include a parenthesized
+				 * array element. */
+    const char *part2,		/* Name of element within array, or NULL. */
+    int flags,			/* Only TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * and TCL_LEAVE_ERR_MSG bits matter. */
+    const char *msg,		/* Verb to use in error messages, e.g. "read"
+				 * or "set". Only needed if TCL_LEAVE_ERR_MSG
+				 * is set in flags. */
+    int createPart1,		/* If 1, create hash table entry for part 1 of
+				 * name, if it doesn't already exist. If 0,
+				 * return error if it doesn't exist. */
+    int createPart2,		/* If 1, create hash table entry for part 2 of
+				 * name, if it doesn't already exist. If 0,
+				 * return error if it doesn't exist. */
+    Var **arrayPtrPtr)		/* If the name refers to an element of an
+				 * array, *arrayPtrPtr gets filled in with
+				 * address of array variable. Otherwise this
+				 * is set to NULL. */
+{
+    Var *varPtr;
+    Tcl_Obj *part1Ptr = Tcl_NewStringObj(part1, -1);
+
+    if (createPart1) {
+	Tcl_IncrRefCount(part1Ptr);
+    }
+
+    varPtr = TclObjLookupVar(interp, part1Ptr, part2, flags, msg,
+	    createPart1, createPart2, arrayPtrPtr);
+
+    TclDecrRefCount(part1Ptr);
+    return varPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclObjLookupVar, TclObjLookupVarEx --
+ *
+ *	This function is used by virtually all of the variable code to locate
+ *	a variable given its name(s). The parsing into array/element
+ *	components and (if possible) the lookup results are cached in
+ *	part1Ptr, which is converted to one of the varNameTypes.
+ *
+ * Results:
+ *	The return value is a pointer to the variable structure indicated by
+ *	part1Ptr and part2, or NULL if the variable couldn't be found. If *
+ *	the variable is found, *arrayPtrPtr is filled with the address of the
+ *	variable structure for the array that contains the variable (or NULL
+ *	if the variable is a scalar). If the variable can't be found and
+ *	either createPart1 or createPart2 are 1, a new as-yet-undefined
+ *	(VAR_UNDEFINED) variable structure is created, entered into a hash

@@ -1,0 +1,112 @@
+	}
+    }
+
+    return Tcl_NewMethod(interp, (Tcl_Class) clsPtr, nameObj, flags, typePtr,
+	    clientData);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * InvokeProcedureMethod, PushMethodCallFrame --
+ *
+ *	How to invoke a procedure-like method.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+InvokeProcedureMethod(
+    void *clientData,		/* Pointer to some per-method context. */
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,	/* The method calling context. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Arguments as actually seen. */
+{
+    ProcedureMethod *pmPtr = (ProcedureMethod *)clientData;
+    int result;
+    PMFrameData *fdPtr;		/* Important data that has to have a lifetime
+				 * matched by this function (or rather, by the
+				 * call frame's lifetime). */
+
+    /*
+     * If the object namespace (or interpreter) were deleted, we just skip to
+     * the next thing in the chain.
+     */
+
+    if (TclOOObjectDestroyed(((CallContext *)context)->oPtr) ||
+	Tcl_InterpDeleted(interp)
+    ) {
+	return TclNRObjectContextInvokeNext(interp, context, objc, objv,
+		Tcl_ObjectContextSkippedArgs(context));
+    }
+
+    /*
+     * Finishes filling out the extra frame info so that [info frame] works if
+     * that is not already set up.
+     */
+
+    if (pmPtr->efi.length == 0) {
+	Tcl_Method method = Tcl_ObjectContextMethod(context);
+
+	pmPtr->efi.length = 2;
+	pmPtr->efi.fields[0].name = "method";
+	pmPtr->efi.fields[0].proc = RenderMethodName;
+	pmPtr->efi.fields[0].clientData = pmPtr;
+	pmPtr->callSiteFlags = ((CallContext *)
+		context)->callPtr->flags & (CONSTRUCTOR | DESTRUCTOR);
+	pmPtr->interp = interp;
+	pmPtr->method = method;
+	if (pmPtr->gfivProc != NULL) {
+	    pmPtr->efi.fields[1].name = "";
+	    pmPtr->efi.fields[1].proc = pmPtr->gfivProc;
+	    pmPtr->efi.fields[1].clientData = pmPtr;
+	} else {
+	    if (Tcl_MethodDeclarerObject(method) != NULL) {
+		pmPtr->efi.fields[1].name = "object";
+	    } else {
+		pmPtr->efi.fields[1].name = "class";
+	    }
+	    pmPtr->efi.fields[1].proc = RenderDeclarerName;
+	    pmPtr->efi.fields[1].clientData = pmPtr;
+	}
+    }
+
+    /*
+     * Allocate the special frame data.
+     */
+
+    fdPtr = (PMFrameData *)TclStackAlloc(interp, sizeof(PMFrameData));
+
+    /*
+     * Create a call frame for this method.
+     */
+
+    result = PushMethodCallFrame(interp, (CallContext *) context, pmPtr,
+	    objc, objv, fdPtr);
+    if (result != TCL_OK) {
+	TclStackFree(interp, fdPtr);
+	return result;
+    }
+    pmPtr->refCount++;
+
+    /*
+     * Give the pre-call callback a chance to do some setup and, possibly,
+     * veto the call.
+     */
+
+    if (pmPtr->preCallProc != NULL) {
+	int isFinished;
+
+	result = pmPtr->preCallProc(pmPtr->clientData, interp, context,
+		(Tcl_CallFrame *) fdPtr->framePtr, &isFinished);
+	if (isFinished || result != TCL_OK) {
+	    Tcl_PopCallFrame(interp);
+	    TclStackFree(interp, fdPtr->framePtr);
+	    if (pmPtr->refCount-- <= 1) {
+		DeleteProcedureMethodRecord(pmPtr);
+	    }
+	    TclStackFree(interp, fdPtr);
+	    return result;
+	}
+    }

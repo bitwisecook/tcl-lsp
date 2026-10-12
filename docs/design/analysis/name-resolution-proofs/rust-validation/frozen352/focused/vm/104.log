@@ -1,0 +1,15 @@
+
+running 1 test
+test expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call ... 
+thread 'expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call' (1359366) panicked at rust/tcl-vm/src/expr_float_tests.rs:160:6:
+called `Result::unwrap()` on an `Err` value: Host(Execution(ValueAccessRefusal(ScalarNumericInputUnavailable)))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.59s
+

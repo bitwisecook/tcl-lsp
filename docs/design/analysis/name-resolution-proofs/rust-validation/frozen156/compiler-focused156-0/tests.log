@@ -1,0 +1,806 @@
+
+running 1 test
+test analyser::variable_alias_templates::tests::original_alias_source_templates_keep_unknown_elements_and_source_order_separate ... ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=9
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=43 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=60 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=false input=false
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 52 }, Span { start: 53, end: 54 }, Span { start: 55, end: 62 }, Span { start: 63, end: 67 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 52 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 52 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: "0", argument_index: 0 }), variable: Unknown { argument_index: 1, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_INGRESS site=69 tokens=true argv=[Span { start: 69, end: 76 }, Span { start: 77, end: 81 }, Span { start: 82, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 69, end: 76 }) native=true
+ALIAS_INGRESS_SCHEMA site=69 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 69, end: 76 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=77 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 49 }, Span { start: 50, end: 56 }, Span { start: 58, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 49 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 49 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=59 tokens=true argv=[Span { start: 59, end: 64 }, Span { start: 65, end: 75 }, Span { start: 76, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 59, end: 64 }) native=true
+ALIAS_INGRESS_SCHEMA site=59 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 59, end: 64 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=76 remote=65 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=76 remote=65 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar), (59, Span { start: 76, end: 80 }, Span { start: 65, end: 75 }, Upvar)]
+ALIAS_INGRESS site=83 tokens=true argv=[Span { start: 83, end: 90 }, Span { start: 91, end: 95 }, Span { start: 96, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 83, end: 90 }) native=true
+ALIAS_INGRESS_SCHEMA site=83 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 83, end: 90 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=14
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=65 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=91 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=76 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 40 }, Span { start: 41, end: 51 }, Span { start: 52, end: 56 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 40 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 40 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=52 remote=41 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=52 remote=41 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar), (35, Span { start: 52, end: 56 }, Span { start: 41, end: 51 }, Upvar)]
+ALIAS_INGRESS site=58 tokens=true argv=[Span { start: 58, end: 65 }, Span { start: 66, end: 70 }, Span { start: 71, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 58, end: 65 }) native=true
+ALIAS_INGRESS_SCHEMA site=58 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 58, end: 65 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false), (35, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=66 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=52 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=9
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=43 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=60 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=false input=false
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 52 }, Span { start: 53, end: 54 }, Span { start: 55, end: 62 }, Span { start: 63, end: 67 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 52 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 52 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: "0", argument_index: 0 }), variable: Unknown { argument_index: 1, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_INGRESS site=69 tokens=true argv=[Span { start: 69, end: 76 }, Span { start: 77, end: 81 }, Span { start: 82, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 69, end: 76 }) native=true
+ALIAS_INGRESS_SCHEMA site=69 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 69, end: 76 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=77 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 49 }, Span { start: 50, end: 56 }, Span { start: 58, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 49 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 49 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=59 tokens=true argv=[Span { start: 59, end: 64 }, Span { start: 65, end: 75 }, Span { start: 76, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 59, end: 64 }) native=true
+ALIAS_INGRESS_SCHEMA site=59 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 59, end: 64 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=76 remote=65 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=76 remote=65 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar), (59, Span { start: 76, end: 80 }, Span { start: 65, end: 75 }, Upvar)]
+ALIAS_INGRESS site=83 tokens=true argv=[Span { start: 83, end: 90 }, Span { start: 91, end: 95 }, Span { start: 96, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 83, end: 90 }) native=true
+ALIAS_INGRESS_SCHEMA site=83 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 83, end: 90 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=14
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=65 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=91 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=76 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 40 }, Span { start: 41, end: 51 }, Span { start: 52, end: 56 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 40 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 40 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=52 remote=41 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=52 remote=41 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar), (35, Span { start: 52, end: 56 }, Span { start: 41, end: 51 }, Upvar)]
+ALIAS_INGRESS site=58 tokens=true argv=[Span { start: 58, end: 65 }, Span { start: 66, end: 70 }, Span { start: 71, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 58, end: 65 }) native=true
+ALIAS_INGRESS_SCHEMA site=58 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 58, end: 65 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false), (35, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=66 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=52 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=9
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=43 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=60 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=false input=false
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 52 }, Span { start: 53, end: 54 }, Span { start: 55, end: 62 }, Span { start: 63, end: 67 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 52 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 52 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: "0", argument_index: 0 }), variable: Unknown { argument_index: 1, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_INGRESS site=69 tokens=true argv=[Span { start: 69, end: 76 }, Span { start: 77, end: 81 }, Span { start: 82, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 69, end: 76 }) native=true
+ALIAS_INGRESS_SCHEMA site=69 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 69, end: 76 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=77 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 49 }, Span { start: 50, end: 56 }, Span { start: 58, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 49 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 49 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=59 tokens=true argv=[Span { start: 59, end: 64 }, Span { start: 65, end: 75 }, Span { start: 76, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 59, end: 64 }) native=true
+ALIAS_INGRESS_SCHEMA site=59 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 59, end: 64 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=76 remote=65 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=76 remote=65 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar), (59, Span { start: 76, end: 80 }, Span { start: 65, end: 75 }, Upvar)]
+ALIAS_INGRESS site=83 tokens=true argv=[Span { start: 83, end: 90 }, Span { start: 91, end: 95 }, Span { start: 96, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 83, end: 90 }) native=true
+ALIAS_INGRESS_SCHEMA site=83 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 83, end: 90 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=14
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=65 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=91 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=76 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 40 }, Span { start: 41, end: 51 }, Span { start: 52, end: 56 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 40 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 40 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=52 remote=41 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=52 remote=41 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar), (35, Span { start: 52, end: 56 }, Span { start: 41, end: 51 }, Upvar)]
+ALIAS_INGRESS site=58 tokens=true argv=[Span { start: 58, end: 65 }, Span { start: 66, end: 70 }, Span { start: 71, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 58, end: 65 }) native=true
+ALIAS_INGRESS_SCHEMA site=58 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 58, end: 65 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false), (35, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=66 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=52 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=9
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=43 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=60 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=false input=false
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 52 }, Span { start: 53, end: 54 }, Span { start: 55, end: 62 }, Span { start: 63, end: 67 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 52 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 52 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: "0", argument_index: 0 }), variable: Unknown { argument_index: 1, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_INGRESS site=69 tokens=true argv=[Span { start: 69, end: 76 }, Span { start: 77, end: 81 }, Span { start: 82, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 69, end: 76 }) native=true
+ALIAS_INGRESS_SCHEMA site=69 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 69, end: 76 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=77 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 49 }, Span { start: 50, end: 56 }, Span { start: 58, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 49 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 49 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=59 tokens=true argv=[Span { start: 59, end: 64 }, Span { start: 65, end: 75 }, Span { start: 76, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 59, end: 64 }) native=true
+ALIAS_INGRESS_SCHEMA site=59 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 59, end: 64 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=76 remote=65 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=76 remote=65 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar), (59, Span { start: 76, end: 80 }, Span { start: 65, end: 75 }, Upvar)]
+ALIAS_INGRESS site=83 tokens=true argv=[Span { start: 83, end: 90 }, Span { start: 91, end: 95 }, Span { start: 96, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 83, end: 90 }) native=true
+ALIAS_INGRESS_SCHEMA site=83 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 83, end: 90 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=14
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=65 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=91 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=76 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 40 }, Span { start: 41, end: 51 }, Span { start: 52, end: 56 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 40 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 40 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=52 remote=41 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=52 remote=41 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar), (35, Span { start: 52, end: 56 }, Span { start: 41, end: 51 }, Upvar)]
+ALIAS_INGRESS site=58 tokens=true argv=[Span { start: 58, end: 65 }, Span { start: 66, end: 70 }, Span { start: 71, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 58, end: 65 }) native=true
+ALIAS_INGRESS_SCHEMA site=58 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 58, end: 65 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false), (35, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=66 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=52 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=9
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=43 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=60 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=90 frame=true receipts=[(12, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=false input=false
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 42 }, Span { start: 43, end: 47 }, Span { start: 48, end: 53 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 42 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 42 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=55 tokens=true argv=[Span { start: 55, end: 59 }, Span { start: 60, end: 65 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 55, end: 59 }) native=true
+ALIAS_INGRESS_SCHEMA site=55 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 55, end: 59 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=68 tokens=true argv=[Span { start: 68, end: 72 }, Span { start: 73, end: 80 }, Span { start: 81, end: 83 }, Span { start: 84, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 68, end: 72 }) native=true
+ALIAS_INGRESS_SCHEMA site=68 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 68, end: 72 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "sibling", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=85 tokens=true argv=[Span { start: 85, end: 89 }, Span { start: 90, end: 95 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 85, end: 89 }) native=true
+ALIAS_INGRESS_SCHEMA site=85 config=true context=true native=2 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 85, end: 89 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 52 }, Span { start: 53, end: 54 }, Span { start: 55, end: 62 }, Span { start: 63, end: 67 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 52 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 52 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: "0", argument_index: 0 }), variable: Unknown { argument_index: 1, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_INGRESS site=69 tokens=true argv=[Span { start: 69, end: 76 }, Span { start: 77, end: 81 }, Span { start: 82, end: 87 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 69, end: 76 }) native=true
+ALIAS_INGRESS_SCHEMA site=69 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 69, end: 76 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=1 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=77 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=55 frame=true receipts=[(24, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 21 }, Span { start: 23, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=24 tokens=true argv=[Span { start: 24, end: 29 }, Span { start: 30, end: 40 }, Span { start: 41, end: 45 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 24, end: 29 }) native=true
+ALIAS_INGRESS_SCHEMA site=24 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 24, end: 29 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=41 remote=30 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=41 remote=30 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar)]
+ALIAS_INGRESS site=47 tokens=true argv=[Span { start: 47, end: 49 }, Span { start: 50, end: 56 }, Span { start: 58, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 47, end: 49 }) native=true
+ALIAS_INGRESS_SCHEMA site=47 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 49 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS site=59 tokens=true argv=[Span { start: 59, end: 64 }, Span { start: 65, end: 75 }, Span { start: 76, end: 80 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 59, end: 64 }) native=true
+ALIAS_INGRESS_SCHEMA site=59 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 59, end: 64 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=76 remote=65 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=76 remote=65 frame=true input=true operands=[(24, Span { start: 41, end: 45 }, Span { start: 30, end: 40 }, Upvar), (59, Span { start: 76, end: 80 }, Span { start: 65, end: 75 }, Upvar)]
+ALIAS_INGRESS site=83 tokens=true argv=[Span { start: 83, end: 90 }, Span { start: 91, end: 95 }, Span { start: 96, end: 101 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 83, end: 90 }) native=true
+ALIAS_INGRESS_SCHEMA site=83 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 83, end: 90 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=14
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=10 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=17 frame=false receipts=[(24, [100, 97, 116, 97], false, false), (59, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=30 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=65 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=91 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=37 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=72 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=51 frame=true receipts=[(24, [100, 97, 116, 97], true, false), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=76 frame=true receipts=[(24, [100, 97, 116, 97], true, true), (59, [100, 97, 116, 97], true, true)]
+ALIAS_INGRESS site=0 tokens=true argv=[Span { start: 0, end: 4 }, Span { start: 5, end: 6 }, Span { start: 7, end: 9 }, Span { start: 11, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 0, end: 4 }) native=true
+ALIAS_INGRESS_SCHEMA site=0 config=true context=true native=4 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS site=12 tokens=true argv=[Span { start: 12, end: 17 }, Span { start: 18, end: 28 }, Span { start: 29, end: 33 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 12, end: 17 }) native=true
+ALIAS_INGRESS_SCHEMA site=12 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 12, end: 17 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=18 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=29 remote=18 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar)]
+ALIAS_INGRESS site=35 tokens=true argv=[Span { start: 35, end: 40 }, Span { start: 41, end: 51 }, Span { start: 52, end: 56 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 35, end: 40 }) native=true
+ALIAS_INGRESS_SCHEMA site=35 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 35, end: 40 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "data", argument_index: 1 }, target: CallerSelectedFrame { frame: DefaultCaller, variable: Unknown { argument_index: 0, word_kind: Dynamic } }, writes_value: false }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=52 remote=41 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=52 remote=41 frame=true input=true operands=[(12, Span { start: 29, end: 33 }, Span { start: 18, end: 28 }, Upvar), (35, Span { start: 52, end: 56 }, Span { start: 41, end: 51 }, Upvar)]
+ALIAS_INGRESS site=58 tokens=true argv=[Span { start: 58, end: 65 }, Span { start: 66, end: 70 }, Span { start: 71, end: 76 }]
+ALIAS_INGRESS_NATIVE site=Some(Span { start: 58, end: 65 }) native=true
+ALIAS_INGRESS_SCHEMA site=58 config=true context=true native=3 words=true
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 58, end: 65 }) selected=true origins=[ResolvedHead, Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_TEMPLATE_SOURCE receipts=2 anchors=10
+ALIAS_TEMPLATE_SOURCE anchor=8 frame=false receipts=[(12, [100, 97, 116, 97], false, false), (35, [100, 97, 116, 97], false, false)]
+ALIAS_TEMPLATE_SOURCE anchor=18 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=41 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=66 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ALIAS_TEMPLATE_SOURCE anchor=25 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=48 frame=true receipts=[(12, [100, 97, 116, 97], true, false), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=29 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, false)]
+ALIAS_TEMPLATE_SOURCE anchor=52 frame=true receipts=[(12, [100, 97, 116, 97], true, true), (35, [100, 97, 116, 97], true, true)]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8198 filtered out; finished in 44.64s
+

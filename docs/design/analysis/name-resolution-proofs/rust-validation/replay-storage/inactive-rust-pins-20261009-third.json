@@ -1,0 +1,65 @@
+{
+  "rule": "Lossless inactive Rust libtest image archival. Native providers, raw logs and proof receipts unchanged. Restore before replay.",
+  "files": [
+    {
+      "original": "/workspace/.proofs/pinned-compiler165-partial.elf",
+      "original_sha256": "ee03be00b60b770f6bcc02ad31ab972ca0a83cdb2225cb31ed4b5635de2c2a52",
+      "original_size": 174157904,
+      "archive": "/workspace/.proofs/inactive-rust-pins-20261009-third/pinned-compiler165-partial.elf.gz",
+      "archive_sha256": "53984384f86bbef9bd591d059b6bc2d3c0e42bb79f5b00023f64b8a59d6059da",
+      "archive_size": 39992713,
+      "verified_roundtrip": true,
+      "restore": "gzip -dc ARCHIVE > ORIGINAL; chmod 700 ORIGINAL"
+    },
+    {
+      "original": "/workspace/.proofs/pinned-compiler168.elf",
+      "original_sha256": "73680ebc9cb35675369a976a5b871d3e7d934625dd603c35f83989e26f3f2088",
+      "original_size": 174357136,
+      "archive": "/workspace/.proofs/inactive-rust-pins-20261009-third/pinned-compiler168.elf.gz",
+      "archive_sha256": "1cd398809be84478159050d290dc5f8e86b9a5991f353ed6ed8ad37c16f95a71",
+      "archive_size": 39937592,
+      "verified_roundtrip": true,
+      "restore": "gzip -dc ARCHIVE > ORIGINAL; chmod 700 ORIGINAL"
+    },
+    {
+      "original": "/workspace/.proofs/pinned-core168.elf",
+      "original_sha256": "41c6a315c38b383ad5ce1494be0cc6bf394f2fa478de06ba7882986efae0fe47",
+      "original_size": 142744048,
+      "archive": "/workspace/.proofs/inactive-rust-pins-20261009-third/pinned-core168.elf.gz",
+      "archive_sha256": "88af75729dedf07ba98ec3151e2ca6c374f31be3c360a80daaadc24c97e6506d",
+      "archive_size": 31020973,
+      "verified_roundtrip": true,
+      "restore": "gzip -dc ARCHIVE > ORIGINAL; chmod 700 ORIGINAL"
+    },
+    {
+      "original": "/workspace/.proofs/pinned-registry168.elf",
+      "original_sha256": "4bf665c288ebec4b3b541a2b5b8e0fd3f3d92aa96820a0b446acbebf019f2ddc",
+      "original_size": 49452320,
+      "archive": "/workspace/.proofs/inactive-rust-pins-20261009-third/pinned-registry168.elf.gz",
+      "archive_sha256": "0987237fdbfb650d8fbcf799d0837cff2ced6222589bc86eb873a359169e41c7",
+      "archive_size": 10533406,
+      "verified_roundtrip": true,
+      "restore": "gzip -dc ARCHIVE > ORIGINAL; chmod 700 ORIGINAL"
+    },
+    {
+      "original": "/workspace/.proofs/pinned-syntax168.elf",
+      "original_sha256": "098d3957cc34e3d2106a3f62afeea2d8989b1b5f44ed438e93601d0a465f0cb1",
+      "original_size": 10194832,
+      "archive": "/workspace/.proofs/inactive-rust-pins-20261009-third/pinned-syntax168.elf.gz",
+      "archive_sha256": "ea4ef79d12b9b4c72fbf2b40a9f79157117f2561e676472271675472a1463737",
+      "archive_size": 2958359,
+      "verified_roundtrip": true,
+      "restore": "gzip -dc ARCHIVE > ORIGINAL; chmod 700 ORIGINAL"
+    },
+    {
+      "original": "/workspace/.proofs/pinned-vm168.elf",
+      "original_sha256": "dc39645530879ffeae71c5d0414cdb0f42f11b9b712523ee4ec3ed8509c6236e",
+      "original_size": 90865944,
+      "archive": "/workspace/.proofs/inactive-rust-pins-20261009-third/pinned-vm168.elf.gz",
+      "archive_sha256": "d3be07fb1200d54fb003dfd440df4a8eaecbcd5aba3bf1e547bad46f71f9903d",
+      "archive_size": 21207302,
+      "verified_roundtrip": true,
+      "restore": "gzip -dc ARCHIVE > ORIGINAL; chmod 700 ORIGINAL"
+    }
+  ]
+}

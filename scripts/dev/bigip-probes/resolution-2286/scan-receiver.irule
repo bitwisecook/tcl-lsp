@@ -1,0 +1,51 @@
+when RULE_INIT {
+    proc __tcl_lsp_2286_evt2_watch_local {n k op} {
+        uplevel 1 {unset second; upvar 0 replacement second; lappend reached REBOUND}
+    }
+    proc __tcl_lsp_2286_evt2_watch_global {n k op} {
+        uplevel 1 {unset second; upvar #0 ::__tcl_lsp_2286_evt2_replacement second; lappend reached REBOUND}
+    }
+    proc __tcl_lsp_2286_evt2_scan {mode} {
+        set replacement BEFORE
+        set first INIT
+        set second ORIGINAL
+        set reached {}
+        if {$mode == "GLOBAL"} {
+            set ::__tcl_lsp_2286_evt2_replacement BEFORE
+            set callback __tcl_lsp_2286_evt2_watch_global
+        } else {
+            set callback __tcl_lsp_2286_evt2_watch_local
+        }
+        set add_rc [catch {trace variable first w $callback} add_answer]
+        set n first
+        set m second
+        set h scan
+        set code [catch {set count [$h {7 9} {%d %d} $n $m]} answer]
+        set remove_rc [catch {trace vdelete first w $callback} remove_answer]
+        set first_rc [catch {set first} first_answer]
+        set second_rc [catch {set second} second_answer]
+        if {$mode == "GLOBAL"} {
+            set target_rc [catch {set ::__tcl_lsp_2286_evt2_replacement} target_answer]
+        } else {
+            set target_rc [catch {set replacement} target_answer]
+        }
+        list mode $mode trace_add [list $add_rc $add_answer] scan [list $code $answer] reached $reached first [list $first_rc $first_answer] second [list $second_rc $second_answer] target [list $target_rc $target_answer] trace_remove [list $remove_rc $remove_answer]
+    }
+    proc __tcl_lsp_2286_evt2_quiet_missing {} {
+        set before [info exists isolated_missing]
+        set h lappend
+        set code [catch {$h isolated_missing} answer]
+        list before $before operation [list $code $answer] after [info exists isolated_missing]
+    }
+}
+when HTTP_REQUEST {
+    if {[HTTP::path] == "/r2286-scan-receiver"} {
+        set r2286_evt2_group_rc [catch {TMM::cmp_group} r2286_evt2_group]
+        set r2286_evt2_unit_rc [catch {TMM::cmp_unit} r2286_evt2_unit]
+        set r2286_evt2_identity [list $r2286_evt2_group_rc $r2286_evt2_group $r2286_evt2_unit_rc $r2286_evt2_unit]
+        set r2286_evt2_local_rc [catch {__tcl_lsp_2286_evt2_scan LOCAL} r2286_evt2_local]
+        set r2286_evt2_global_rc [catch {__tcl_lsp_2286_evt2_scan GLOBAL} r2286_evt2_global]
+        set r2286_evt2_quiet_rc [catch {__tcl_lsp_2286_evt2_quiet_missing} r2286_evt2_quiet]
+        HTTP::respond 200 content [list run R2286EVT2 context HTTP_REQUEST identity $r2286_evt2_identity local [list $r2286_evt2_local_rc $r2286_evt2_local] global [list $r2286_evt2_global_rc $r2286_evt2_global] quiet [list $r2286_evt2_quiet_rc $r2286_evt2_quiet]] "Content-Type" "text/plain; charset=us-ascii"
+    }
+}

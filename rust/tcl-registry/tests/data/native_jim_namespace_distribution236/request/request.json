@@ -1,0 +1,58 @@
+{
+  "request_id": "naming.namespace.jim-original-scripted-helper-availability-and-forwarding",
+  "question": "When the original namespace-ensemble helper actually exists according to public info body, what exact declarations and global/current helper replacements does current Jim reach?",
+  "problem": "A provider-specific version-variable guard does not identify current Jim. This request gates on the actual public procedure-body capability before measuring loaded helper declarations and forwarding; C nonapplicable absence stays distinct.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native222 original-counted driver with fresh full Tcl_Init or Jim core/static extensions per case; no outer catch/eval/puts wrapper. Preserve exact source, counted code/result, stdout/stderr, exit and build pins. C nonapplicable rows must remain distinct from Jim helper observations.",
+  "cases": [
+    {
+      "id": "original-library-formals-and-bodies",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/original-library-formals-and-bodies.tcl",
+      "source_sha256": "5a3a376e10051871fd09c8e941a0577c9a8f6f428d9085a4e8679729386d955e",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "global-helper-replacement",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/global-helper-replacement.tcl",
+      "source_sha256": "a81a18e6b48add9981336317e04382a66791881498ae075960016f2df44a3d37",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "namespace-local-helper-replacement",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/namespace-local-helper-replacement.tcl",
+      "source_sha256": "ac405d26be4361eab4d421b4f3efbdf540572f6fc588a3e9fbd3e612e411cb87",
+      "source_encoding": "ASCII LF"
+    },
+    {
+      "id": "original-unsupported-and-arity",
+      "source_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/original-unsupported-and-arity.tcl",
+      "source_sha256": "992a58f13d17d3b97d1717130af97e5db006e741bcff2957f760431635f0bec4",
+      "source_encoding": "ASCII LF"
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "copy_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/nshelper.tcl"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/ensemble.tcl",
+      "source_sha256": "9ca704e877070759aeada3c5a326a2d960ebe5184abce6428c97cec73fed32de",
+      "copy_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/ensemble.tcl"
+    },
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c",
+      "source_sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "copy_file": "/workspace/.proofs/native-jim-namespace-distribution236-request/jim-namespace.c"
+    }
+  ],
+  "scope": "Public actual helper availability, formals/body results and forwarded argument/current-context results only. The catch of info body is part of original source and supplies no version or core-bootstrap/private-token conclusion. Source anchors remain separately pinned; no core-before-library native experiment requested."
+}

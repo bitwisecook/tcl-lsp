@@ -1,0 +1,35 @@
+
+running 1 test
+test command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry ... ORIGINAL_RECEIVER_TRAITS offset=41 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=59 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=76 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=96 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=41 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=59 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_RECEIVER_TRAITS offset=76 closed=true original_closed=false opaque=false targets=1
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=root-origin available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=conditional-entry available=false
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=variable-access available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=matching-declaration-word available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=static-bindings available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=original-direct-result available=false
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=root-origin available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=conditional-entry available=false
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=variable-access available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=matching-declaration-word available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=static-bindings available=true
+ORIGINAL_FORMAL_VALUE span=Span { start: 82, end: 88 } stage=original-direct-result available=false
+ORIGINAL_RECEIVER_TRAITS offset=96 closed=true original_closed=false opaque=false targets=1
+
+thread 'command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry' (600837) panicked at rust/tcl-compiler/src/command_binding/source_declared_method_template.rs:432:13:
+tcl8.6
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_declared_method_template::tests::original_declared_receiver_traits_keep_caller_names_without_runtime_entry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8189 filtered out; finished in 2.05s
+

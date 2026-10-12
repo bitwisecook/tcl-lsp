@@ -48,15 +48,9 @@
 //! why [`PackageState`] and [`PackageTransition`] are realm vocabulary
 //! here rather than document-global floors.
 //!
-//! [`PackageTransition`] is deliberately a **parallel type**, not new
-//! variants on [`crate::state_transition::StateTransition`]: that enum is
-//! matched exhaustively by consumers across the workspace (analyser,
-//! compiler, LSP), so growing it is a breaking change those crates must
-//! opt into. When `RealmState` composes the existing command-binding
-//! lattice, `InterpreterTransition`, and this package family, either
-//! `StateTransition` gains a `Package(PackageTransition)` variant in a
-//! coordinated change, or the realm layer keeps consuming the two
-//! families side by side.
+//! Package transitions are part of the shared registry state-transition
+//! vocabulary. Consumers compose their package and command-binding effects
+//! in execution order; assistance floors remain a separate query surface.
 
 use std::sync::Arc;
 
@@ -65,6 +59,53 @@ use tcl_dialect::model::Version;
 
 use crate::spec::CommandSpec;
 use crate::state_transition::TransitionSubject;
+
+/// A mutable interpreter input used by standard package/autoload discovery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PackageResolverDependency {
+    /// A global variable consulted by discovery or its bootstrap.
+    GlobalVariable(&'static str),
+    /// One global array entry used to initialise the library search path.
+    GlobalArrayElement {
+        /// Canonical global array name.
+        array: &'static str,
+        /// Exact array index consumed by discovery.
+        element: &'static str,
+    },
+    /// Relative search directories are anchored to the process working directory.
+    WorkingDirectory,
+    /// Package indexes, module scripts and native libraries in search directories.
+    Filesystem,
+}
+
+const C_PACKAGE_RESOLVER_DEPENDENCIES: &[PackageResolverDependency] = &[
+    PackageResolverDependency::GlobalVariable("::auto_path"),
+    PackageResolverDependency::GlobalVariable("::tcl_pkgPath"),
+    PackageResolverDependency::GlobalArrayElement {
+        array: "::env",
+        element: "TCLLIBPATH",
+    },
+    PackageResolverDependency::WorkingDirectory,
+    PackageResolverDependency::Filesystem,
+];
+const JIM_PACKAGE_RESOLVER_DEPENDENCIES: &[PackageResolverDependency] = &[
+    PackageResolverDependency::GlobalVariable("::auto_path"),
+    PackageResolverDependency::WorkingDirectory,
+    PackageResolverDependency::Filesystem,
+];
+
+/// Mutable inputs whose unknown writes revoke a trusted discovery selection.
+/// This declares dependency identity; it does not prove a particular loader
+/// consulted them or establish the loader's implementation provenance.
+#[must_use]
+pub fn package_resolver_dependencies(
+    protocol: tcl_dialect::PackageProtocol,
+) -> &'static [PackageResolverDependency] {
+    match protocol {
+        tcl_dialect::PackageProtocol::Tcl => C_PACKAGE_RESOLVER_DEPENDENCIES,
+        tcl_dialect::PackageProtocol::Jim => JIM_PACKAGE_RESOLVER_DEPENDENCIES,
+    }
+}
 
 /// The identity of one resolved spec — what a proved binding points at.
 ///
@@ -290,6 +331,12 @@ impl PackageStateMap {
 /// the affected domain at the consumer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageTransition {
+    /// A successfully changed input to package discovery invalidates selection
+    /// evidence without revoking an already loaded implementation.
+    DiscoveryDependencyChanged {
+        /// Resolver input changed by this invocation.
+        dependency: PackageResolverDependency,
+    },
     /// `package provide NAME ?VERSION?` — records a provision; proves
     /// nothing about commands (B2).
     Provide {
@@ -318,6 +365,8 @@ pub enum PackageTransition {
         /// Whether a script was supplied (the registering form) rather
         /// than queried.
         script_provided: bool,
+        /// Registered loader value, preserving dynamic word knowledge.
+        script: Option<TransitionSubject>,
     },
     /// `package forget ?NAME…?` — drops provisions and ifneeded scripts.
     Forget {
@@ -329,6 +378,11 @@ pub enum PackageTransition {
     UnknownHandler {
         /// The new handler command prefix, when set.
         handler: Option<TransitionSubject>,
+    },
+    /// `package prefer ?MODE?` changes the interpreter-wide selection policy.
+    Prefer {
+        /// New preference, absent in the query form.
+        mode: Option<TransitionSubject>,
     },
     /// A `source`/`load` that can define commands and provide packages
     /// outside any `package` bookkeeping — the widening ingress of the

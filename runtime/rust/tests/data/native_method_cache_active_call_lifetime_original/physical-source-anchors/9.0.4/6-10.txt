@@ -1,0 +1,98 @@
+		callPtr->refCount++;
+		return callPtr;
+	    }
+	    Tcl_SetHashValue(hPtr, NULL);
+	    TclOODeleteChain(callPtr);
+	}
+    } else {
+	hPtr = NULL;
+    }
+
+    callPtr = (CallChain *) Tcl_Alloc(sizeof(CallChain));
+    memset(callPtr, 0, sizeof(CallChain));
+    callPtr->flags = flags & (PUBLIC_METHOD|PRIVATE_METHOD|FILTER_HANDLING);
+    callPtr->epoch = fPtr->epoch;
+    callPtr->objectCreationEpoch = fPtr->tsdPtr->nsCount;
+    callPtr->objectEpoch = clsPtr->thisPtr->epoch;
+    callPtr->refCount = 1;
+    callPtr->chain = callPtr->staticChain;
+
+    cb.callChainPtr = callPtr;
+    cb.filterLength = 0;
+    cb.oPtr = &obj;
+
+    /*
+     * Add all defined filters (if any, and if we're going to be processing
+     * them; they're not processed for constructors, destructors or when we're
+     * in the middle of processing a filter).
+     */
+
+    Tcl_InitObjHashTable(&doneFilters);
+    AddClassFiltersToCallContext(&obj, clsPtr, &cb, &doneFilters,
+	    BUILDING_MIXINS);
+    AddClassFiltersToCallContext(&obj, clsPtr, &cb, &doneFilters, 0);
+    Tcl_DeleteHashTable(&doneFilters);
+    count = cb.filterLength = callPtr->numChain;
+
+    /*
+     * Add the actual method implementations.
+     */
+
+    AddSimpleChainToCallContext(&obj, NULL, methodNameObj, &cb, NULL,
+	    flags|BUILDING_MIXINS, NULL);
+    AddSimpleChainToCallContext(&obj, NULL, methodNameObj, &cb, NULL, flags,
+	    NULL);
+
+    /*
+     * Check to see if the method has no implementation. If so, we probably
+     * need to add in a call to the unknown method. Otherwise, set up the
+     * caching of the method implementation (if relevant).
+     */
+
+    if (count == callPtr->numChain) {
+	AddSimpleChainToCallContext(&obj, NULL, fPtr->unknownMethodNameObj,
+		&cb, NULL, BUILDING_MIXINS, NULL);
+	AddSimpleChainToCallContext(&obj, NULL, fPtr->unknownMethodNameObj,
+		&cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = 0;
+	if (count == callPtr->numChain) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+    } else {
+	if (hPtr == NULL) {
+	    int isNew;
+	    if (clsPtr->classChainCache == NULL) {
+		clsPtr->classChainCache = (Tcl_HashTable *)
+			Tcl_Alloc(sizeof(Tcl_HashTable));
+		Tcl_InitObjHashTable(clsPtr->classChainCache);
+	    }
+	    hPtr = Tcl_CreateHashEntry(clsPtr->classChainCache,
+		    methodNameObj, &isNew);
+	}
+	callPtr->refCount++;
+	Tcl_SetHashValue(hPtr, callPtr);
+	StashCallChain(methodNameObj, callPtr);
+    }
+    return callPtr;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * AddClassFiltersToCallContext --
+ *
+ *	Logic to make extracting all the filters from the class context much
+ *	easier.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+AddClassFiltersToCallContext(
+    Object *const oPtr,		/* Object that the filters operate on. */
+    Class *clsPtr,		/* Class to get the filters from. */
+    ChainBuilder *const cbPtr,	/* Context to fill with call chain entries. */
+    Tcl_HashTable *const doneFilters,
+				/* Where to record what filters have been

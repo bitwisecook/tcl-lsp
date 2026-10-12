@@ -1,0 +1,6 @@
+
+running 1 test
+test return_options::native_string_access_tests::original_return_option_key_capacity_is_host_refusal_outside_guest_catch ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.20s
+

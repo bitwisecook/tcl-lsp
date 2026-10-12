@@ -56,9 +56,9 @@ use crate::compilation_unit::FunctionUnit;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
-use crate::naming::normalise_var_name;
 use crate::sccp::BuiltinFoldInputs;
-use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
+use crate::tcl_expr_eval::FoldPolicy;
+use crate::tcl_expr_eval::leading_zero_is_octal;
 use crate::types::{TclType, TypeKind, TypeLattice};
 use tcl_registry::value_transfer::ExactValue;
 
@@ -79,6 +79,7 @@ use tcl_registry::value_transfer::ExactValue;
 pub struct OperandTypes {
     numeric: HashSet<String>,
     integer: HashSet<String>,
+    original_advice: std::collections::HashMap<tcl_lexer::Span, (HashSet<String>, HashSet<String>)>,
 }
 
 #[cfg(test)]
@@ -86,17 +87,19 @@ impl OperandTypes {
     /// A context proving `names` numeric but *not* integer (Double-typed).
     fn numeric_only(names: &[&str]) -> Self {
         Self {
-            numeric: names.iter().map(|s| (*s).to_owned()).collect(),
+            numeric: names.iter().map(|s| format!("${s}")).collect(),
             integer: HashSet::new(),
+            ..Self::default()
         }
     }
 
     /// A context proving `names` integer (and hence numeric).
     fn integer(names: &[&str]) -> Self {
-        let set: HashSet<String> = names.iter().map(|s| (*s).to_owned()).collect();
+        let set: HashSet<String> = names.iter().map(|s| format!("${s}")).collect();
         Self {
             numeric: set.clone(),
             integer: set,
+            ..Self::default()
         }
     }
 }
@@ -108,37 +111,174 @@ impl OperandTypes {
 /// lattice.
 pub type NumericCtx<'a> = Option<&'a OperandTypes>;
 
-/// Build the [`OperandTypes`] for `fu`: a name is numeric (resp. integer) when
-/// **every** SSA version of it is a known numeric (resp. integer) type. A name
-/// absent from a set is treated as not provably that type, so the corresponding
-/// identity is kept. Using the function-level join (all versions must agree) is
-/// a sound over-approximation of the proper per-use check.
+/// Build conditional type consensus for original expression operands. Every
+/// occurrence with the same written reference must have an exact retained read
+/// and agree on the required type. These facts only select rewrite candidates;
+/// the native execution-equivalence gate independently licenses an edit.
 #[must_use]
 pub fn operand_types(fu: &FunctionUnit) -> OperandTypes {
     use std::collections::HashMap;
-    // symbol → (all-versions-numeric, all-versions-integer).
-    let mut acc: HashMap<crate::ssa::Symbol, (bool, bool)> = HashMap::new();
-    for ((sym, _ver), lattice) in fu.types.iter() {
-        let is_num = lattice_is_numeric(lattice);
-        let is_int = lattice_is_integer(lattice);
-        acc.entry(*sym)
-            .and_modify(|v| {
-                v.0 = v.0 && is_num;
-                v.1 = v.1 && is_int;
-            })
-            .or_insert((is_num, is_int));
+    let mut operands: HashMap<String, (bool, bool)> = HashMap::new();
+    for (&block, body) in &fu.cfg.blocks {
+        for (index, statement) in body.statements.iter().enumerate() {
+            let (expression, base) = match statement {
+                crate::ir::Statement::AssignExpr {
+                    expr, expr_base, ..
+                }
+                | crate::ir::Statement::ExprEval {
+                    expr, expr_base, ..
+                }
+                | crate::ir::Statement::Return {
+                    expr: Some(expr),
+                    expr_base,
+                    ..
+                } => (expr, *expr_base),
+                _ => continue,
+            };
+            record_operand_types(
+                expression,
+                base,
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index),
+                fu,
+                &mut operands,
+            );
+        }
+        let (expression, base) = match body.terminator.as_ref() {
+            Some(crate::cfg::Terminator::Branch {
+                condition,
+                condition_base,
+                ..
+            }) => (condition, *condition_base),
+            Some(crate::cfg::Terminator::Return {
+                expr: Some(expr),
+                expr_base,
+                ..
+            }) => (expr, *expr_base),
+            _ => continue,
+        };
+        record_operand_types(
+            expression,
+            base,
+            crate::ssa::SsaSourceView::at_terminator(&fu.ssa, block),
+            fu,
+            &mut operands,
+        );
     }
     let mut out = OperandTypes::default();
-    for (sym, (is_num, is_int)) in acc {
-        let name = fu.ssa.var_name(sym).to_owned();
-        if is_num {
-            out.numeric.insert(name.clone());
+    for (text, (numeric, integer)) in operands {
+        if numeric {
+            out.numeric.insert(text.clone());
         }
-        if is_int {
-            out.integer.insert(name);
+        if integer {
+            out.integer.insert(text);
         }
     }
     out
+}
+
+fn record_operand_types(
+    expression: &ExprNode,
+    base: Option<u32>,
+    view: crate::ssa::SsaSourceView<'_>,
+    fu: &FunctionUnit,
+    operands: &mut std::collections::HashMap<String, (bool, bool)>,
+) {
+    for node in expression.variable_nodes() {
+        let ExprNode::Var { text, .. } = node else {
+            continue;
+        };
+        let lattice = view
+            .read_expression_variable(node, base)
+            .and_then(|read| fu.types.get(&(read.symbol, read.version?)));
+        let numeric = lattice.is_some_and(lattice_is_numeric);
+        let integer = lattice.is_some_and(lattice_is_integer);
+        operands
+            .entry(text.clone())
+            .and_modify(|value| {
+                value.0 &= numeric;
+                value.1 &= integer;
+            })
+            .or_insert((numeric, integer));
+    }
+}
+
+/// Retain separately scoped candidate types for original expression children.
+/// The exact site map is consumed only by no-edit advice; normal rewriters keep
+/// the represented-read type sets from `operand_types`.
+pub fn operand_types_with_original_advice(
+    fu: &FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+) -> OperandTypes {
+    let mut out = operand_types(fu);
+    for (&block, body) in &fu.ssa.blocks {
+        for index in 0..body.statements.len() {
+            let Some(tokens) =
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()
+            else {
+                continue;
+            };
+            let Some(binding) = tokens.source_binding.as_ref() else {
+                continue;
+            };
+            let Some(reads) = binding.declaration_expression_reads(registry, tokens) else {
+                continue;
+            };
+            let Some(dialect) = binding
+                .declaration_operand_layout_advice(tokens)
+                .map(|advice| advice.dialect())
+            else {
+                continue;
+            };
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let mut calls = crate::word_subst::lifted_calls(Some(tokens), config);
+            let Some(child) = calls.pop().and_then(|call| call.tokens) else {
+                continue;
+            };
+            let Some(advice) =
+                crate::registry_invocation::original_expression_operand_advice(registry, &child)
+            else {
+                continue;
+            };
+            let mut typed = std::collections::HashMap::<String, (bool, bool)>::new();
+            for read in reads {
+                let lattice = read
+                    .diagnostic_version(&fu.ssa, block, index, registry)
+                    .and_then(|key| fu.types.get(&key));
+                let numeric = lattice.is_some_and(lattice_is_numeric);
+                let integer = lattice.is_some_and(lattice_is_integer);
+                typed
+                    .entry(read.spelling().to_owned())
+                    .and_modify(|facts| {
+                        facts.0 &= numeric;
+                        facts.1 &= integer;
+                    })
+                    .or_insert((numeric, integer));
+            }
+            let mut numeric = HashSet::new();
+            let mut integer = HashSet::new();
+            for (spelling, facts) in typed {
+                if facts.0 {
+                    numeric.insert(spelling.clone());
+                }
+                if facts.1 {
+                    integer.insert(spelling);
+                }
+            }
+            out.original_advice.insert(advice.span, (numeric, integer));
+        }
+    }
+    out
+}
+
+impl OperandTypes {
+    pub(crate) fn original_candidate_context(&self, site: tcl_lexer::Span) -> Option<Self> {
+        let (numeric, integer) = self.original_advice.get(&site)?;
+        Some(Self {
+            numeric: numeric.clone(),
+            integer: integer.clone(),
+            ..Self::default()
+        })
+    }
 }
 
 /// Whether a type-lattice element is a known numeric Tcl type.
@@ -170,7 +310,7 @@ fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
         ExprNode::String { text, .. } => {
             fixed_operand_text(text).is_some_and(is_numeric_string_in_every_release)
         }
-        ExprNode::Var { name, .. } => ctx.numeric.contains(name.as_str()),
+        ExprNode::Var { text, .. } => ctx.numeric.contains(text.as_str()),
         _ => false,
     }
 }
@@ -186,7 +326,7 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     match node {
         ExprNode::Literal { text, .. } => is_integer_string(text),
         ExprNode::String { text, .. } => fixed_operand_text(text).is_some_and(is_integer_string),
-        ExprNode::Var { name, .. } => ctx.integer.contains(name.as_str()),
+        ExprNode::Var { text, .. } => ctx.integer.contains(text.as_str()),
         _ => false,
     }
 }
@@ -220,8 +360,8 @@ fn node_cannot_be_nan(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
         ExprNode::String { text, .. } => {
             fixed_operand_text(text).is_some_and(|value| !is_nan_string_in_any_release(value))
         }
-        ExprNode::Var { name, .. } => {
-            numeric.is_some_and(|ctx| ctx.integer.contains(name.as_str()))
+        ExprNode::Var { text, .. } => {
+            numeric.is_some_and(|ctx| ctx.integer.contains(text.as_str()))
         }
         _ => false,
     }
@@ -491,9 +631,29 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
     constants: &std::collections::HashMap<String, String, S>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> SubstitutionResult {
-    let tokens = tcl_lexer::tokenise_expr_for_profile(
+    let profile = dialect.unwrap_or_else(|| tcl_dialect::DialectProfile::plain_tcl());
+    substitute_expr_constants_in_context(
         expr,
-        dialect.unwrap_or_else(|| tcl_dialect::DialectProfile::plain_tcl()),
+        constants,
+        &tcl_syntax::expr::parser::ExprParseContext::for_profile(profile),
+    )
+}
+
+/// Project scalar value constants using the supplied complete expression
+/// grammar. This source emitter supplies no native object/read or execution
+/// erasure proof. Jim and hosted grammars need no legacy catalogue profile.
+#[must_use]
+pub fn substitute_expr_constants_in_context<S: std::hash::BuildHasher>(
+    expr: &str,
+    constants: &std::collections::HashMap<String, String, S>,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> SubstitutionResult {
+    let config = tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar);
+    let (tokens, _) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+        expr,
+        &context.lexer_grammar,
+        context.expr_grammar_base,
+        context.f5_word_grammar,
     );
     let mut pieces: Vec<String> = Vec::new();
     let mut cursor: usize = 0;
@@ -510,8 +670,12 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
         }
 
         if tok.kind == ExprTokenType::Variable {
-            let name = normalise_var_name(&tok.text).to_owned();
-            if let Some(value) = constants.get(&name) {
+            let name = expr
+                .get(start..end_excl)
+                .and_then(|written| scalar_expression_reference_name(written, config));
+            if let Some((name, value)) =
+                name.and_then(|name| constants.get(name).map(|value| (name, value)))
+            {
                 if is_numeric_literal(value) {
                     pieces.push(value.clone());
                 } else {
@@ -519,7 +683,7 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
                     pieces.push(format!("\"{escaped}\""));
                 }
                 changed = true;
-                substituted.insert(name);
+                substituted.insert(name.to_owned());
             } else {
                 pieces.push(tok.text.clone());
             }
@@ -539,6 +703,82 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
         changed,
         substituted,
     }
+}
+
+/// Scalar constants need a complete selected reference, not an analytical
+/// array root. Current constant maps retain no original element-key receipt.
+fn scalar_expression_reference_name(written: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    // naming.expression.scalar-reference-constant-source-projection
+    // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+    let reference = tcl_lexer::word_parts::whole_var_ref(written.as_bytes(), config).ok()??;
+    if reference.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
+        return None;
+    }
+    let root =
+        tcl_syntax::naming::variable_reference_root_bytes(written.as_bytes(), config).ok()??;
+    std::str::from_utf8(root).ok()
+}
+
+/// Substitute constants only with actual retained-operand execution evidence.
+/// The mathematical helper above has no native-object provenance: its newly
+/// parsed literals must never be used to erase conversions of the original
+/// retained references. Missing evidence leaves those references unchanged.
+#[must_use]
+pub fn substitute_expr_constants_for_execution<S: std::hash::BuildHasher>(
+    expr: &str,
+    constants: &std::collections::HashMap<String, String, S>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    operands: &crate::tcl_expr_eval::NativeOperandProofs,
+) -> SubstitutionResult {
+    let selected = dialect.map(tcl_registry::InvocationDialect::of_profile);
+    let proved = constants
+        .iter()
+        .filter(|(name, _)| {
+            operands
+                .get(*name)
+                .is_some_and(|proof| Some(proof.dialect) == selected)
+        })
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<std::collections::HashMap<_, _>>();
+    if proved.is_empty() {
+        return SubstitutionResult {
+            text: expr.to_owned(),
+            changed: false,
+            substituted: HashSet::new(),
+        };
+    }
+    let original = parse_expr_for_profile(expr, dialect);
+    let env = constants
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.clone(),
+                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+            )
+        })
+        .collect();
+    let policy = crate::tcl_expr_eval::FoldPolicy::for_profile(
+        dialect.and_then(leading_zero_is_octal),
+        dialect,
+    );
+    if crate::tcl_expr_eval::eval_tcl_expr_with_proved_operands(
+        &original,
+        &env,
+        policy,
+        &|_, _| None,
+        operands,
+    )
+    .is_none()
+    {
+        return SubstitutionResult {
+            text: expr.to_owned(),
+            changed: false,
+            substituted: HashSet::new(),
+        };
+    }
+    substitute_expr_constants(expr, &proved, dialect)
 }
 
 /// Whether `text` is safe to inline as a bare (unquoted) token when
@@ -1218,7 +1458,7 @@ fn reduce_self_comparison(
     right: &ExprNode,
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
-    let (ExprNode::Var { name: l, .. }, ExprNode::Var { name: r, .. }) = (left, right) else {
+    let (ExprNode::Var { text: l, .. }, ExprNode::Var { text: r, .. }) = (left, right) else {
         return None;
     };
     if l != r {
@@ -1681,75 +1921,6 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
     }
 }
 
-/// Return `true` when `node` invokes a Tcl math function (`abs(...)`,
-/// `max(...)`, …) whose name is shadowed by a user-defined
-/// `::tcl::mathfunc::<name>` proc anywhere in the module.
-///
-/// Math functions are not `CommandSpec`s — they live in the shared
-/// `tcl_syntax::expr::mathfunc` dispatch table the const-folder and the
-/// runtime both consume — so there is no registry purity/redefinition fact
-/// to consult the way [`crate::command_binding::ModuleCommandMutations`]
-/// covers ordinary commands. The module's own `proc` definitions are the
-/// only source of truth: real Tcl compiles `abs(x)` to a `tcl::mathfunc::abs`
-/// command invocation and only falls back to the C builtin when nothing
-/// shadows it, so folding `abs(-5)` to `5` is unsound whenever
-/// `::tcl::mathfunc::abs` has been (re)defined.
-#[must_use]
-pub fn expr_uses_shadowed_mathfunc<S: std::hash::BuildHasher>(
-    node: &ExprNode,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
-) -> bool {
-    // Public entry: the top of an expression tree is nesting depth 0; the
-    // recursion cap lives in [`expr_uses_shadowed_mathfunc_at`].
-    expr_uses_shadowed_mathfunc_at(node, procedures, 0)
-}
-
-fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
-    node: &ExprNode,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
-    depth: u32,
-) -> bool {
-    // Native-stack safety net: past the cap, assume "yes, uses a
-    // shadowed mathfunc" — the conservative direction, since callers use this
-    // to *suppress* constant folding when a mathfunc may be shadowed, so a
-    // false `true` only forgoes a fold, never performs an unsound one.
-    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
-        return true;
-    }
-    match node {
-        ExprNode::Call { function, args, .. } => {
-            let key = format!("::tcl::mathfunc::{}", function.to_ascii_lowercase());
-            procedures.contains_key(&key)
-                || args
-                    .iter()
-                    .any(|a| expr_uses_shadowed_mathfunc_at(a, procedures, depth + 1))
-        }
-        ExprNode::Binary { left, right, .. } => {
-            expr_uses_shadowed_mathfunc_at(left, procedures, depth + 1)
-                || expr_uses_shadowed_mathfunc_at(right, procedures, depth + 1)
-        }
-        ExprNode::Unary { operand, .. } => {
-            expr_uses_shadowed_mathfunc_at(operand, procedures, depth + 1)
-        }
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            expr_uses_shadowed_mathfunc_at(condition, procedures, depth + 1)
-                || expr_uses_shadowed_mathfunc_at(true_branch, procedures, depth + 1)
-                || expr_uses_shadowed_mathfunc_at(false_branch, procedures, depth + 1)
-        }
-        ExprNode::Literal { .. }
-        | ExprNode::Var { .. }
-        | ExprNode::Raw { .. }
-        | ExprNode::String { .. }
-        // A word, not an expression: it can hold no math-function call.
-        | ExprNode::CompiledWord { .. }
-        | ExprNode::Command { .. } => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1759,6 +1930,7 @@ mod tests {
         static TRUSTED: std::sync::LazyLock<crate::command_binding::ModuleCommandMutations> =
             std::sync::LazyLock::new(crate::command_binding::ModuleCommandMutations::default);
         BuiltinFoldInputs {
+            source_metadata_input: None,
             registry: tcl_registry::default_registry(),
             mutations: &TRUSTED,
             dialect: None,
@@ -1804,8 +1976,8 @@ mod tests {
     }
 
     /// `simplify_node_once`,
-    /// `collect_add_terms`, `collect_mul_terms`, `expr_has_command_subst` and
-    /// `expr_uses_shadowed_mathfunc` each recurse once per `ExprNode` level
+    /// `collect_add_terms`, `collect_mul_terms` and `expr_has_command_subst`
+    /// each recurse once per `ExprNode` level
     /// with no depth cap before this fix. The Pratt parser caps *its* output
     /// at 256 levels, but a tree built directly is unbounded and empirically
     /// overflowed the native stack (SIGABRT) in the low thousands of levels
@@ -1846,9 +2018,6 @@ mod tests {
         // fully (capped) and answer `false` for realistic input; the point is
         // they do not overflow.
         let _ = expr_has_command_subst(&unary);
-        let procs: std::collections::HashMap<String, crate::ir::Procedure> =
-            std::collections::HashMap::new();
-        let _ = expr_uses_shadowed_mathfunc(&unary, &procs);
 
         // A 3000-deep left-nested `+` chain drives `collect_add_terms`.
         let mut add = var_x();
@@ -1917,6 +2086,105 @@ mod tests {
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
             .collect()
+    }
+
+    #[test]
+    fn scalar_constant_source_substitution_keeps_exact_literal_names_and_array_refusal() {
+        // naming.expression.scalar-reference-constant-source-projection
+        // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+        // Source/API emitter controls. Native public scalar-value observations
+        // are separate; these constants establish no runtime object/read proof.
+        let constants = consts(&[
+            ("scalar(open", "11"),
+            ("scalar(open)tail", "12"),
+            ("scalar", "99"),
+            ("$cash", "13"),
+            ("cash", "98"),
+            ("é(open", "14"),
+            ("é", "97"),
+            ("arr", "96"),
+        ]);
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let invocation = tcl_registry::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(dialect)).unwrap(),
+            );
+            let context = invocation.expression_parse_context(None);
+            for (source, name, expected) in [
+                ("${scalar(open}", "scalar(open", "11"),
+                ("${scalar(open)tail}", "scalar(open)tail", "12"),
+                ("${$cash}", "$cash", "13"),
+                ("${é(open}", "é(open", "14"),
+            ] {
+                let out = substitute_expr_constants_in_context(source, &constants, &context);
+                assert!(out.changed, "{dialect} {source}");
+                assert_eq!(out.text, expected);
+                assert_eq!(out.substituted, HashSet::from([name.to_owned()]));
+                let execution = substitute_expr_constants_for_execution(
+                    source,
+                    &constants,
+                    tcl_dialect::DialectProfile::find(dialect),
+                    &crate::tcl_expr_eval::NativeOperandProofs::new(),
+                );
+                assert!(!execution.changed);
+                assert_eq!(
+                    execution.text, source,
+                    "value constants grant no execution erasure"
+                );
+            }
+            for source in ["$arr(key)", "${arr(key)}", "$arr($key)", "${missing"] {
+                let out = substitute_expr_constants_in_context(source, &constants, &context);
+                assert!(!out.changed, "{dialect} {source}");
+                assert_eq!(out.text, source);
+                assert!(out.substituted.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_constant_context_uses_jim_variable_grammar_without_catalogue_profile() {
+        // naming.expression.scalar-reference-constant-source-projection
+        // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+        assert!(tcl_dialect::DialectProfile::find("jimtcl").is_none());
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap(),
+        )
+        .expression_parse_context(None);
+        let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+            .expression_parse_context(None);
+        let constants = consts(&[("é", "14"), ("x", "15")]);
+        let jim_out = substitute_expr_constants_in_context("$é + $x", &constants, &jim);
+        assert_eq!(jim_out.text, "14 + 15");
+        assert_eq!(
+            jim_out.substituted,
+            HashSet::from(["é".to_owned(), "x".to_owned()])
+        );
+        let c_out = substitute_expr_constants_in_context("$é + $x", &constants, &c);
+        assert_eq!(c_out.text, "$é + 15");
+        assert_eq!(c_out.substituted, HashSet::from(["x".to_owned()]));
+    }
+
+    #[test]
+    fn scalar_constant_reference_selection_uses_actual_brace_close_grammar() {
+        // naming.expression.scalar-reference-constant-source-projection
+        // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
+        let constants = consts(&[("a{b", "15"), ("a{b}c", "16"), ("a", "99")]);
+        let first = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let nested = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        assert_eq!(
+            substitute_expr_constants("${a{b}", &constants, Some(first)).text,
+            "15"
+        );
+        assert_eq!(
+            substitute_expr_constants("${a{b}", &constants, Some(nested)).text,
+            "${a{b}"
+        );
+        assert_eq!(
+            substitute_expr_constants("${a{b}c}", &constants, Some(nested)).text,
+            "16"
+        );
+        let mixed = substitute_expr_constants("${a{b}c}", &constants, Some(first));
+        assert_eq!(mixed.text, "15c}");
+        assert_eq!(mixed.substituted, HashSet::from(["a{b".to_owned()]));
     }
 
     #[test]

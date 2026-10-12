@@ -1,0 +1,30 @@
+[
+  {
+    "name": "multi-write",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-submitted.tcl",
+    "input_sha256": "8715c0fdf3ec71f863c7ebc1b7a22d7db9225e24ac45c071034769d773ce3905",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/property-report-native335/multi-write-submitted.tcl"
+    ],
+    "invoked_file_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "exit": 1,
+    "seconds": 0.10062614598427899,
+    "stdout": "",
+    "stderr": "invalid command name \"property\"\n    while executing\n\"property a -get {return A} -set {\n        lappend ::events a\n        oo::define C {property b -get {return B} -set {lappend ::events b}}\n    }\"\n    (in definition script for class \"::C\" line 2)\n    invoked from within\n\"oo::class create C {\n    property a -get {return A} -set {\n        lappend ::events a\n        oo::define C {property b -get {return B} -set {lappend :...\"\n    (file \"/workspace/.proofs/property-report-native335/multi-write-submitted.tcl\" line 2)\n"
+  },
+  {
+    "name": "configure-all",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-submitted.tcl",
+    "input_sha256": "475701e60bc5ee3d0fd496bc4d0d4d75101b8d3fa7393e299e0e82b706a8040a",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/property-report-native335/configure-all-submitted.tcl"
+    ],
+    "invoked_file_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "exit": 1,
+    "seconds": 0.01307801401708275,
+    "stdout": "",
+    "stderr": "invalid command name \"property\"\n    while executing\n\"property a -get {\n        lappend ::events a\n        oo::define C {\n            property b -get {lappend ::events b; return B}\n            method unre...\"\n    (in definition script for class \"::C\" line 2)\n    invoked from within\n\"oo::class create C {\n    property a -get {\n        lappend ::events a\n        oo::define C {\n            property b -get {lappend ::events b; return B...\"\n    (file \"/workspace/.proofs/property-report-native335/configure-all-submitted.tcl\" line 2)\n"
+  }
+]

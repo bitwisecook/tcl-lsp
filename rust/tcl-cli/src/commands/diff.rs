@@ -41,7 +41,8 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, difflib, ensure_ascii,
     read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::segmenter::{
     SegmentedCommand, UnclosedDelimiter, segment_commands_with_offset_and_config,
 };
@@ -121,20 +122,104 @@ fn partial_delimiter_str(cmd: &SegmentedCommand) -> &'static str {
     }
 }
 
-/// Resolve the command's subcommand name:
-/// when the head has registered subcommands and the first arg names one.
-fn resolve_subcommand<'a>(cmd: &'a SegmentedCommand, registry: &CommandRegistry) -> &'a str {
-    if cmd.texts.len() < 2 {
-        return "";
+/// Canonical selected source subcommand under the complete current input.
+/// A spelling alone supplies no handler, runtime argv or dispatch receipt.
+fn resolve_subcommand(
+    source: &str,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+    analysis: &AnalysisResult,
+) -> Option<&'static str> {
+    let input = analysis.resolved_input.as_ref()?;
+    let config = analysis.body_lexer_config?;
+    if input.lexer_config() != config
+        || !analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        || !analysis
+            .retained_command_realm()?
+            .matches_resolved_analysis_input(input)
+        || registry.snapshot().semantic_key()
+            != input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+    {
+        return None;
     }
-    let Some(spec) = registry.get(cmd.name()) else {
-        return "";
-    };
-    let candidate = cmd.texts[1].as_str();
-    if spec.subcommands.iter().any(|s| s.name == candidate) {
-        candidate
-    } else {
-        ""
+    let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, cmd,
+    )?;
+    words.with_source_schema(input.borrowed_context_registry(), |schema| {
+        schema
+            .subcommand
+            .resolved()
+            .map(|subcommand| subcommand.canonical_name)
+    })?
+}
+
+/// One original source and checked input shared by every requested layer.
+/// AST-only comparisons keep the structure tier; IR/CFG share one unit.
+struct DiffDocument<'a> {
+    source: &'a str,
+    analysis: AnalysisResult,
+    explorer: Option<tcl_explorer::ExplorerResult>,
+}
+
+impl<'a> DiffDocument<'a> {
+    fn capture(source: &'a str, input: &ResolvedAnalysisInput, build_unit: bool) -> Option<Self> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let analysis = Analyser::new()
+            .structure_only()
+            .with_resolved_input(input.clone())
+            .analyse(source, input.analyser_profile().name);
+        let config = input.lexer_config();
+        if analysis.resolved_input.as_ref() != Some(input)
+            || analysis.body_lexer_config != Some(config)
+            || !analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+            || !analysis
+                .retained_command_realm()?
+                .matches_resolved_analysis_input(input)
+        {
+            return None;
+        }
+        let explorer = build_unit.then(|| {
+            let registry = input.borrowed_context_registry().commands();
+            let profile = input.unit_profile();
+            let declared = tcl_compiler::analyser::utils::document_declared_surface(
+                source,
+                None,
+                profile.name,
+            );
+            let unit = CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: Some(&declared),
+                },
+                None,
+                input,
+            )
+            .with_interprocedural(registry, Some(profile))
+            .with_retained_memory_ssa(registry)
+            .with_retained_deep_semantic_analysis(registry);
+            tcl_explorer::ExplorerResult {
+                source: source.to_owned(),
+                dialect: profile.name.to_owned(),
+                unit,
+            }
+        });
+        Some(Self {
+            source,
+            analysis,
+            explorer,
+        })
     }
 }
 
@@ -143,6 +228,7 @@ fn resolve_subcommand<'a>(cmd: &'a SegmentedCommand, registry: &CommandRegistry)
 fn serialise_command_ast(
     source: &str,
     registry: &CommandRegistry,
+    analysis: &AnalysisResult,
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> String {
@@ -153,7 +239,7 @@ fn serialise_command_ast(
             m.insert("name".to_owned(), Json::s(cmd.name()));
             m.insert(
                 "subcommand".to_owned(),
-                Json::s(resolve_subcommand(cmd, registry)),
+                Json::s(resolve_subcommand(source, cmd, registry, analysis).unwrap_or_default()),
             );
             m.insert(
                 "args".to_owned(),
@@ -211,47 +297,57 @@ fn compute_layer_diff(
 /// Build one layer's canonical-JSON payload text for `src`.
 fn layer_payload(
     layer: &str,
-    src: &str,
-    dialect: &str,
+    document: &DiffDocument<'_>,
     registry: &CommandRegistry,
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> anyhow::Result<String> {
     match layer {
-        "ast" => Ok(serialise_command_ast(src, registry, line_index, config)),
+        "ast" => Ok(serialise_command_ast(
+            document.source,
+            registry,
+            &document.analysis,
+            line_index,
+            config,
+        )),
         "ir" => {
-            // The diff reads `serialise_result(compiled)["ir"]`; the
-            // native `tcl-explorer` serialiser reproduces that view, so reuse
-            // it (through the shared `value_to_json` adapter) rather than
-            // carrying a second IR serialiser.
-            let cu = CompilationUnit::build_for_dialect(src, registry, false, dialect);
-            let ir = tcl_explorer::serialise::serialise_ir(&cu.ir_module, line_index, src);
+            let result = document
+                .explorer
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("the diff compilation unit is unavailable"))?;
+            let ir = tcl_explorer::serialise::serialise_ir(
+                &result.unit.ir_module,
+                line_index,
+                document.source,
+            );
             Ok(value_to_json(&ir).dumps_indent2())
         }
-        "cfg" => Ok(cfg_layer_payload(src, dialect)),
+        "cfg" => {
+            let result = document
+                .explorer
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("the diff compilation unit is unavailable"))?;
+            Ok(cfg_layer_payload(result, line_index))
+        }
         other => anyhow::bail!("unknown diff layer: {other} (expected ast,ir,cfg)"),
     }
 }
 
-/// Build the `cfg` diff layer payload: `{preSsa, postSsa}` from the explorer's
-/// CFG/SSA serialisers (which match the captured golden output), rendered through the
-/// shared sort-keys indent-2 adapter the AST/IR layers use. The two views are
-/// read off `serialise_result`.
-///
-/// `analysis.deadStores` inside `postSsa` is the liveness-based set,
-/// byte-identical wherever the SSA matches. A residual SSA-block construction
-/// gap on complex scripts can still diverge (and cascade into
-/// `inferredTypes`/`deadStores` there).
-fn cfg_layer_payload(src: &str, dialect: &str) -> String {
-    let result = tcl_explorer::run_pipeline(src, dialect);
-    let serialised = tcl_explorer::serialise_result(&result);
+/// Both CFG views come from the same unit used by the IR layer, under its
+/// complete retained input. Serialisation creates no new source generation.
+fn cfg_layer_payload(result: &tcl_explorer::ExplorerResult, line_index: &LineIndex) -> String {
     let mut payload: BTreeMap<String, Json> = BTreeMap::new();
-    for (out_key, view_key) in [("preSsa", "cfgPreSsa"), ("postSsa", "cfgPostSsa")] {
-        let view = serialised
-            .get(view_key)
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        payload.insert(out_key.to_owned(), value_to_json(&view));
+    for (key, view) in [
+        (
+            "preSsa",
+            tcl_explorer::serialise::serialise_cfg_pre_ssa(result, line_index, &result.source),
+        ),
+        (
+            "postSsa",
+            tcl_explorer::serialise::serialise_cfg_post_ssa(result, line_index, &result.source),
+        ),
+    ] {
+        payload.insert(key.to_owned(), value_to_json(&view));
     }
     Json::Object(payload).dumps_indent2()
 }
@@ -334,25 +430,23 @@ pub fn run_diff(
     // Both sides are the same whole-document kind (a combined `--left`/
     // `--right` source), so both lex under the one resolved grammar.
     let config = LexerConfig::for_file_grammar(dialect.grammar);
+    let context = tcl_lsp_core::context_for_dialect_profile(dialect);
+    let input = ResolvedAnalysisInput::new(
+        dialect,
+        dialect,
+        std::sync::Arc::new(context.with_command_store(registry.clone())),
+        config,
+    );
+    let build_unit = layers.iter().any(|layer| matches!(*layer, "ir" | "cfg"));
+    let left_document = DiffDocument::capture(&left_src, &input, build_unit)
+        .ok_or_else(|| anyhow::anyhow!("the left source analysis context is unavailable"))?;
+    let right_document = DiffDocument::capture(&right_src, &input, build_unit)
+        .ok_or_else(|| anyhow::anyhow!("the right source analysis context is unavailable"))?;
 
     let mut results: Vec<(String, bool, Vec<String>)> = Vec::new();
     for layer in &layers {
-        let lp = layer_payload(
-            layer,
-            &left_src,
-            dialect.name,
-            &registry,
-            &left_index,
-            config,
-        )?;
-        let rp = layer_payload(
-            layer,
-            &right_src,
-            dialect.name,
-            &registry,
-            &right_index,
-            config,
-        )?;
+        let lp = layer_payload(layer, &left_document, &registry, &left_index, config)?;
+        let rp = layer_payload(layer, &right_document, &registry, &right_index, config)?;
         let (equal, lines) = compute_layer_diff(layer, &lp, &rp, &left_name, &right_name);
         results.push(((*layer).to_owned(), equal, lines));
     }
@@ -445,6 +539,173 @@ fn write_diff_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn logical_input(
+        registry: std::sync::Arc<CommandRegistry>,
+        availability: &str,
+        config: LexerConfig,
+    ) -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::resolve_environment(availability).default_context_registry();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(context.with_command_store(registry)),
+            config,
+        )
+    }
+
+    fn ast_rows(
+        source: &str,
+        analysis: &AnalysisResult,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+    ) -> Value {
+        serde_json::from_str(&serialise_command_ast(
+            source,
+            registry,
+            analysis,
+            &LineIndex::new(source),
+            config,
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn original_diff_subcommands_use_current_source_targets_and_captured_prefixes() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let registry = registry_for_dialect("tcl9.0");
+        let input = logical_input(registry.clone(), "tcl9.0", config);
+        let source = "::string len abc; interp alias {} chars {} string length; chars $value; string $operation abc";
+        let document = DiffDocument::capture(source, &input, false).unwrap();
+        assert!(
+            document.explorer.is_none(),
+            "AST selection does not require a deep unit"
+        );
+        let rows = ast_rows(source, &document.analysis, &registry, config);
+        assert_eq!(rows["commands"][0]["subcommand"], "length");
+        assert_eq!(rows["commands"][2]["subcommand"], "length");
+        assert_eq!(rows["commands"][3]["subcommand"], "");
+        assert_eq!(rows["commands"][2]["name"], "chars");
+        let shadow = "proc string args {}; string length abc";
+        let document = DiffDocument::capture(shadow, &input, false).unwrap();
+        assert_eq!(
+            ast_rows(shadow, &document.analysis, &registry, config)["commands"][1]["subcommand"],
+            ""
+        );
+    }
+
+    #[test]
+    fn original_diff_pack_subcommands_keep_availability_and_refuse_withdrawn_inputs() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let mut registry = CommandRegistry::build_default();
+        let mut packed = registry.get("dict").unwrap().clone();
+        packed.name = "packed";
+        registry.insert(packed);
+        let registry = std::sync::Arc::new(registry);
+        let input = logical_input(registry.clone(), "tcl9.0", config);
+        let source = "packed create key value";
+        let mut current = DiffDocument::capture(source, &input, false).unwrap();
+        assert_eq!(
+            ast_rows(source, &current.analysis, &registry, config)["commands"][0]["subcommand"],
+            "create"
+        );
+        let older_input = logical_input(registry.clone(), "tcl8.4", config);
+        let older = DiffDocument::capture(source, &older_input, false).unwrap();
+        assert_eq!(
+            input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            older_input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+        );
+        assert_eq!(
+            ast_rows(source, &older.analysis, &registry, config)["commands"][0]["subcommand"],
+            ""
+        );
+        let segment = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        assert!(
+            resolve_subcommand(
+                "packed create other values",
+                &segment,
+                &registry,
+                &current.analysis
+            )
+            .is_none()
+        );
+        let retained = current.analysis.resolved_input.take().unwrap();
+        assert!(resolve_subcommand(source, &segment, &registry, &current.analysis).is_none());
+        current.analysis.resolved_input = Some(retained.clone());
+        current
+            .analysis
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting = !config.strict_quoting;
+        assert!(resolve_subcommand(source, &segment, &registry, &current.analysis).is_none());
+        current.analysis.body_lexer_config = Some(config);
+        current.analysis.resolved_input = Some(older_input);
+        assert!(resolve_subcommand(source, &segment, &registry, &current.analysis).is_none());
+        current.analysis.resolved_input = Some(retained);
+        let foreign = CommandRegistry::build_default();
+        assert!(resolve_subcommand(source, &segment, &foreign, &current.analysis).is_none());
+        current.analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".to_owned(),
+            overlay: u64::MAX,
+        });
+        assert!(resolve_subcommand(source, &segment, &registry, &current.analysis).is_none());
+    }
+
+    #[test]
+    fn original_diff_ir_and_cfg_share_the_exact_checked_source_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let registry = registry_for_dialect("tcl9.0");
+        let input = logical_input(registry.clone(), "tcl9.0", config);
+        let source = "proc p {} {set value 1; return $value}; p";
+        let document = DiffDocument::capture(source, &input, true).unwrap();
+        let explorer = document.explorer.as_ref().unwrap();
+        assert!(
+            explorer.unit.function("::p").is_some(),
+            "genuine Logical source procedure missing"
+        );
+        assert_eq!(document.analysis.resolved_input.as_ref(), Some(&input));
+        let metadata = tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(
+            &registry,
+            &explorer.unit.ir_module,
+        )
+        .unwrap();
+        assert_eq!(metadata.source_analysis_input(), Some(&input));
+        let index = LineIndex::new(source);
+        assert_eq!(
+            layer_payload("ir", &document, &registry, &index, config).unwrap(),
+            value_to_json(&tcl_explorer::serialise::serialise_ir(
+                &explorer.unit.ir_module,
+                &index,
+                source
+            ))
+            .dumps_indent2()
+        );
+        assert_eq!(
+            layer_payload("cfg", &document, &registry, &index, config).unwrap(),
+            cfg_layer_payload(explorer, &index)
+        );
+    }
 
     #[test]
     fn inline_sources_are_usable_without_paths() {

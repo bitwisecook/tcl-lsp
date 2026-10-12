@@ -1,0 +1,485 @@
+[
+  {
+    "id": "naming.variable.original-ssa-definition-operand",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-ssa-definition-operand.md",
+    "problem_statement": "Opaque source name siblings can share reporting text. A normal-transfer capsule that reconstructs output addresses from those labels can attach an SSA definition or inferred type to another cell, even if the initial source producer retained the correct native units.",
+    "question": "How does a selected SSA definition retain its exact original effective receiver operand and byte-cell identity?",
+    "conclusion": "The source owner retains one full effective OriginalVariableInvocation at the actual handler boundary and withdraws conflicting observations. Normal definition and transfer consumers use its independent compiler/runtime operands and exact output ordinals. SsaSourceView matches an actual SSA definition cell and variable binding phase to the genuine written input; missing ownership never falls back to display text. The mapping supplies no value, future lifetime, Normal completion, representation, rename coverage or edit permission.",
+    "scope": "Rust Compiler definition mapping and Core type hints under retained source image/configuration. Exact output origin, binding phase, current operand graph and cell identity are independent. Conditional source cards cannot fill a missing executed definition. Native provider behaviour is documented in separate empirical questions.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_variable_inventory.rs",
+        "selector": "command_binding::original_variable_inventory::tests::original_operand_inventory_keeps_runtime_bytes_and_withdraws_missing_or_conflicting_owners",
+        "assertion": "Retains two distinct opaque runtime operands and permanently withdraws missing or conflicting owners.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "selector": "ssa::original_definition_name_tests::original_ssa_definition_names_preserve_exact_operands_and_distinct_cells",
+        "assertion": "Requires exact original receiver spans/inputs and distinct SSA byte cells for opaque siblings and an indexed target.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+        "selector": "inlay_hints::original_variable_type_tests::original_type_hints_match_exact_ssa_cells_without_reporting_variable_maps",
+        "assertion": "Inferred type hints require the authentic SSA definition input and source declaration rather than reporting maps.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_variable_inventory.rs",
+        "symbol": "OriginalVariableInvocations",
+        "purpose": "Retains once-issued effective operands at full original invocation sites with conflict withdrawal."
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "symbol": "OriginalVariableInvocation",
+        "purpose": "Keeps runtime input and independently selected compiler receiver purposes at exact effective ordinals."
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "symbol": "NormalTransferInvocation",
+        "purpose": "Projects normal handler definitions and variable effects through retained original operands."
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "symbol": "original_definition_name",
+        "purpose": "Matches an actual SSA cell/phase to the genuine original written input."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result."
+    }
+  },
+  {
+    "id": "naming.variable.original-readonly-formal-topology",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md",
+    "problem_statement": "A refactor binding arguments through ProcDef.params can collapse opaque formal names or lose default/rest/link roles. Exposing a full activation owner for source assistance would give topology an unrelated runtime authority.",
+    "question": "Can a readonly procedure signature expose exact native formal bytes and binding ordinals while keeping activation entry private?",
+    "conclusion": "SignatureSourceFormalParameters retains the original ParamList Key, exact ordered ByteFormalParameter values and the independently selected required/default/rest/link grammar. AnalysisResult issues it only for an exact retained declaration and unanimous Registry-selected declaration recipe. The facade preserves producer image/channel and full parser configuration; it neither installs formals nor proves command liveness, caller identity, cell contents, physical frame, native objects or Normal completion.",
+    "scope": "Rust readonly original formal metadata for explicit C Tcl and Jim source recipes. A fixed all-six model test covers opaque native names, default and rest binding counts and source/configuration mismatch. Native installation and formal storage observations remain separate.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "selector": "signature_scan::formal_parameters::tests::original_readonly_formals_keep_opaque_default_rest_and_source_currency",
+        "assertion": "Keeps opaque bytes/default/rest topology and rejects changed source channel/image/full configuration.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+        "symbol": "SignatureSourceFormalParameters",
+        "purpose": "Provides readonly source formal bytes and independent binding grammar."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/formal_topology.rs",
+        "symbol": "OriginalFormalTopology",
+        "purpose": "Owns the original native formal parsing and retained producer."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "symbol": "original_procedure_formals_at",
+        "purpose": "Requires unanimous actual declaration recipes and exact selected ParamList ordinals."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "symbol": "original_procedure_formals",
+        "purpose": "Requires retained declaration membership and complete current source/configuration correspondence."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result."
+    }
+  },
+  {
+    "id": "naming.variable.fresh-scalar-proposal",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/fresh-scalar-proposal.md",
+    "problem_statement": "A refactor cannot infer a free runtime local from an absent reporting variable. Existing aliases, undefined allocated arrays, observers, retired slots or unknown incoming state can make a proposed assignment select another cell or run callbacks.",
+    "question": "What independent facts allow a proposed new scalar name at a genuine original operation point?",
+    "conclusion": "The reached proposal requires an actual entered Bound local activation with tracked complete local contents and independently closed activation observers. Exact native naming must preserve an unchanged unqualified scalar slot in that activation, with no occupied or previously retired slot, aliases, unknown bindings or read/write/unset observer residual. SsaSourceView retains the original reached invocation and full configuration separately. Namespace, global and event availability is not inferred, and the receipt grants no setter selection, new store, value, Normal completion, source movement or edit.",
+    "scope": "Rust point-owned local absence contract. The fixed all-six model test distinguishes independently entered quiet locals from occupied slots, missing incoming inventory, alias uncertainty and new observer effects. Source-only conditional future entry and host/global availability need separate owners; no native provider observation is attached.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/var_resolve/fresh_scalar_proposal.rs",
+        "selector": "var_resolve::fresh_scalar_proposal::tests::original_fresh_scalar_proposal_requires_unoccupied_actual_frame_and_quiet_observers",
+        "assertion": "Admits an independently entered empty local and declines occupied, aliased, observed, unknown incoming, qualified, array-shaped and clipped names.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/var_resolve/fresh_scalar_proposal.rs",
+        "symbol": "fresh_scalar_variable_slot",
+        "purpose": "Requires actual complete local and observer inventories under exact selected native name purpose."
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "symbol": "fresh_scalar_variable_proposal",
+        "purpose": "Binds the absence receipt to a genuine reached original source operation/configuration."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result."
+    }
+  },
+  {
+    "id": "naming.variable.registry-receiver-authoring-parity",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/registry-variable-receiver-authoring-parity.md",
+    "problem_statement": "Whole-array effects do not imply a root-only argument naming form. Derived roles can also use subcommand/form offsets. An opaque Rust-only receiver field would make Registry, SpecTcl and Studio consumers disagree about the same authored command.",
+    "question": "Does variable receiver naming metadata keep scope, explicit withdrawal and authoring parity across Registry, SpecTcl and Studio?",
+    "conclusion": "Variable receiver metadata is explicitly authored Combined argv naming data, separate from whole-array effects, alias declaration purposes, compiler preparation and successful access. Command/subcommand/form selection preserves exact offsets; absent metadata inherits and an explicit empty list withdraws. SpecTcl validates unique byte-sized positions and Studio load/render round trips the same field. Alias receivers remain under their independently selected target/local purposes.",
+    "scope": "Rust Registry/SpecTcl/Studio implementation contract. Fixed tests cover selected forms, member offsets, alias exclusion, metadata inheritance/withdrawal and authoring round trips. Fresh empirical array source records independently establish the measured combined receiver law and guest completion differences.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native provider observation or executed test result is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::variable_receiver_fact_projection_preserves_form_precedence_and_member_offsets",
+        "assertion": "Preserves command/subcommand/form selection, member offsets and explicit metadata withdrawal.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "selector": "resolved_invocation::selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate",
+        "assertion": "Keeps stock array argv Combined and excludes alias-purpose receivers.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "selector": "loader::tests::combined_variable_receiver_positions_preserve_scope_and_explicit_withdrawal",
+        "assertion": "Keeps authored command/member/form positions, rejects invalid positions and preserves declared-empty withdrawal.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+        "selector": "render_spectcl::tests::combined_variable_receiver_metadata_round_trips_commands_members_and_forms",
+        "assertion": "Round trips the same naming metadata through Studio DSL rendering/loading.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "symbol": "variable_receiver_operand_form",
+        "purpose": "Selects actual argument naming form independently of access effects and alias transitions."
+      },
+      {
+        "path": "rust/tcl-spectcl/src/loader.rs",
+        "symbol": "variable_receivers_value",
+        "purpose": "Validates authored Combined receiver positions and explicit-empty withdrawal."
+      },
+      {
+        "path": "rust/tcl-spec-studio/src/draft.rs",
+        "symbol": "variable_receiver_positions",
+        "purpose": "Projects the same authored position data into Studio drafts."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result."
+    }
+  }
+]

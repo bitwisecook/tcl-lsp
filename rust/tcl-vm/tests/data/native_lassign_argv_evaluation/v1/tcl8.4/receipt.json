@@ -1,0 +1,27 @@
+{
+  "provider": "tcl8.4",
+  "reported_version": "8.4.20",
+  "source": "/workspace/.proofs/native-lassign-argv065/cases.tcl",
+  "source_sha256": "92211b594dbcc25c5aef18af27b8f0df27fadbd10176513d0fe7e01dc42ec030",
+  "input_channel": "Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-lassign-argv065/cases.tcl"
+  ],
+  "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+  "library_sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+  "makefile_sha256": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+  "source_owner": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompCmds.c",
+  "source_owner_sha256": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214",
+  "startup_exit": 0,
+  "startup_input_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+  "startup_stdout_sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+  "startup_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "stdout_sha256": "546d45b3157bc8fe347b5c21f7ff73e852afde180265130bdb741503a50c446d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started": 1791507283.463726,
+  "finished": 1791507283.484277
+}

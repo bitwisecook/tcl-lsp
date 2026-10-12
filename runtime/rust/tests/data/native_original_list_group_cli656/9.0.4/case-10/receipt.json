@@ -1,0 +1,55 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/.proofs/root-native-list-group-cli656/probe.tcl",
+    "10"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-group-cli656/9.0.4/case-10",
+  "explicit_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCLLIBPATH": "",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "timeout_seconds": 20,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.02468000602675602,
+  "stdout": "/workspace/.proofs/root-native-list-group-cli656/9.0.4/case-10/execute.stdout",
+  "stderr": "/workspace/.proofs/root-native-list-group-cli656/9.0.4/case-10/execute.stderr",
+  "stdout_sha256": "972ace5b62a476471f89b0230ef22f32a2313fa2187071aaca914fe470a56e38",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "fields": {
+    "case": [
+      "10",
+      "command-original-wide-stride-boundary"
+    ],
+    "script-hex": [
+      "6c736f7274202d636f6d6d616e64207232323836636d70202d7374726964652034323934393637323936202d696e6465782030207b322041203120427d"
+    ],
+    "guest-code": [
+      "1"
+    ],
+    "result-hex": [
+      "6c6973742073697a65206d7573742062652061206d756c7469706c65206f662074686520737472696465206c656e677468"
+    ],
+    "error-code-present": [
+      "1"
+    ],
+    "error-code-hex": [
+      "54434c204f5045524154494f4e204c534f525420424144535452494445"
+    ],
+    "error-info-present": [
+      "1"
+    ],
+    "error-info-hex": [
+      "6c6973742073697a65206d7573742062652061206d756c7469706c65206f662074686520737472696465206c656e6774680a202020207768696c6520657865637574696e670a226c736f7274202d636f6d6d616e64207232323836636d70202d7374726964652034323934393637323936202d696e6465782030207b322041203120427d22"
+    ],
+    "callback-count": [
+      "0"
+    ]
+  },
+  "case": 10,
+  "complete_projection": true
+}

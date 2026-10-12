@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::tests::c84_primitive_invalid_code_is_preserved_until_actual_script_propagation ... 
+thread 'interp::tests::c84_primitive_invalid_code_is_preserved_until_actual_script_propagation' (1360812) panicked at src/interp.rs:18569:17:
+assertion `left == right` failed: Long direct
+  left: [78, 79, 78, 69]
+ right: [83, 69, 69, 68, 69, 68, 32, 67, 79, 68, 69]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::c84_primitive_invalid_code_is_preserved_until_actual_script_propagation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 8.77s
+

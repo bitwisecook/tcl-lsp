@@ -1,0 +1,22 @@
+{
+  "ordinal": 9,
+  "selector": "cmd_dict::tests::deeply_nested_dict_set_and_unset_survive",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "cmd_dict::tests::deeply_nested_dict_set_and_unset_survive",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.6456712359795347,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.58s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/009.log",
+  "log_sha256": "4fcac07e7c6e064c5fa1f8fc8596b5440eb531787fe239cfefcaa3525d7d01db"
+}

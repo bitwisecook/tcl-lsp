@@ -1,0 +1,20 @@
+provider	Jim
+case	7	cesu-surrogate-range
+operation	range
+input-subject	41eda0bdedb8805a
+input-first	31
+input-last	32
+input-roles	producer=0	materialise=0	first=subject:0	last=first:0	extra-subject=0
+before-arg2	none	1	1	8
+before-arg3	none	1	1	1
+before-arg4	none	1	1	1
+code	0
+reached-arg2	string	1	1	8	chars=4
+reached-arg3	index	1	1	1
+reached-arg4	index	1	1	1
+reached-result	string	1	1	6	chars=2
+result-alias	subject=0	first=0	last=0
+result-bytes	eda0bdedb880
+materialised-result	string	1	1	6	chars=2
+subject-bytes	41eda0bdedb8805a
+materialised-subject	string	1	1	8	chars=4

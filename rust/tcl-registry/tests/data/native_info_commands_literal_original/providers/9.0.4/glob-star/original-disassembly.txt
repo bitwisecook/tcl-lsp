@@ -1,0 +1,11 @@
+ByteCode 0x55a03de7a050, refCt 1, epoch 21, interp 0x55a03ddf4190 (epoch 21)
+  Source "info commands ::al*"
+  Cmds 1, src 19, inst 7, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x55a03de78ad0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-5, src 0-18
+  Command 1: "info commands ::al*"
+    (0) push1 0 	# "::tcl::info::commands"
+    (2) push1 1 	# "::al*"
+    (4) invokeStk1 2 
+    (6) done 

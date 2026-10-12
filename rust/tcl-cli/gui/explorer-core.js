@@ -212,6 +212,7 @@ function renderGenericExplorerView(view) {
   var pane = $('#pane-' + explorerPaneId(view.id));
   if (!pane) return;
   var value = data[view.payload || view.id];
+  if (value == null) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var count = genericViewCount(value);
   pane.innerHTML = '<div class="section-header">' + esc(view.label || view.id)
     + ' <span class="badge">' + count + '</span></div>'
@@ -255,9 +256,19 @@ function spanLabel(range) {
 }
 var currentHighlighted = null;
 
+// Retained analysis fields use null for unavailable; an empty array is a
+// completed view with no rows. Shell badges share the same distinction.
+function explorerArrayCount(value) {
+  return Array.isArray(value) ? value.length : undefined;
+}
+function explorerViewUnavailableHtml() {
+  return '<div class="empty-state">This view is unavailable for this analysis</div>';
+}
+
 // Stats
 function renderStats() {
   var s = data.stats;
+  if (!s) { $('#stats').innerHTML = explorerViewUnavailableHtml(); return; }
   var parts = [
     'procs <span class="stat-value">' + s.procedures + '</span>',
     'blocks <span class="stat-value">' + s.blocks + '</span>',
@@ -417,6 +428,7 @@ function renderSelections(func) {
 // CFG (post-SSA)
 function renderCfgPost() {
   var pane = $('#pane-cfg-post');
+  if (!Array.isArray(data.cfgPostSsa)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var optAvail = !!data.cfgPostSsaOptimised;
   var mode = optAvail ? (structOptState['pane-cfg-post'] || 'off') : 'off';
   var toolbar = renderOptToolbar('pane-cfg-post', optAvail);
@@ -578,6 +590,7 @@ function optReplacementHtml(o) {
 
 function renderOpt() {
   var pane = $('#pane-opt');
+  if (!Array.isArray(data.optimisations)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   if (!data.optimisations.length) { pane.innerHTML = '<div class="empty-state">No optimiser rewrites</div>'; return; }
   var html = '<div class="section-header">Rewrites</div>';
   for (var o of data.optimisations) {
@@ -595,7 +608,8 @@ function renderOptimiserPasses() {
   var pane = $('#pane-optimiser-passes');
   if (!pane) return;
   var passes = data.optimiserPasses;
-  if (!passes || !passes.length) { pane.innerHTML = '<div class="empty-state">Optimiser pipeline unavailable</div>'; return; }
+  if (!Array.isArray(passes)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
+  if (!passes.length) { pane.innerHTML = '<div class="empty-state">Optimiser pipeline unavailable</div>'; return; }
   var html = '';
   for (var p of passes) {
     html += '<div class="section-header">' + esc(p.label) + ' <span style="color:var(--text-dim); font-weight:normal">' + esc(p.id) + ' &middot; ' + p.count + ' rewrite' + (p.count === 1 ? '' : 's') + '</span></div>';
@@ -706,6 +720,7 @@ function clearOptHighlights(container) {
 // GVN
 function renderGvn() {
   var pane=$('#pane-gvn');
+  if(!Array.isArray(data.gvn)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.gvn.length){pane.innerHTML='<div class="empty-state">No redundant computations detected</div>';return;}
   var html='';
   for(var w of data.gvn){
@@ -719,10 +734,11 @@ function renderGvn() {
 // Taint
 function renderTaint() {
   var pane=$('#pane-taint');
-  var hasWarnings=data.taintWarnings.length>0;
+  var warningsAvailable=Array.isArray(data.taintWarnings);
+  var hasWarnings=warningsAvailable&&data.taintWarnings.length>0;
   var hasTracking=data.taintTracking.length>0;
-  if(!hasWarnings&&!hasTracking){pane.innerHTML='<div class="empty-state">No tainted data flows detected</div>';return;}
-  var html='';
+  if(warningsAvailable&&!hasWarnings&&!hasTracking){pane.innerHTML='<div class="empty-state">No tainted data flows detected</div>';return;}
+  var html=warningsAvailable?'':explorerViewUnavailableHtml();
   if(hasWarnings){
     html+='<div class="section-header">Warnings</div>';
     for(var w of data.taintWarnings){
@@ -1173,7 +1189,8 @@ function renderIntervals() {
 // Interval-driven bounds / divide-by-zero findings
 function renderBounds() {
   var pane = $('#pane-bounds');
-  var fns = data.bounds || [];
+  if (!Array.isArray(data.bounds)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
+  var fns = data.bounds;
   if (!fns.reduce(function(n, f) { return n + f.findings.length + f.divzero.length; }, 0)) {
     pane.innerHTML = '<div class="empty-state">No provable out-of-range / divide-by-zero</div>'; return;
   }
@@ -1199,7 +1216,8 @@ function renderBounds() {
 // iRules event firing order
 function renderEventOrder() {
   var pane = $('#pane-event-order');
-  var events = (data.eventOrder || []).slice();
+  if (!Array.isArray(data.eventOrder)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
+  var events = data.eventOrder.slice();
   if (!events.length) { pane.innerHTML = '<div class="empty-state">No event-order data</div>'; return; }
   events.sort(function(a, b) {
     return (b.base_priority + b.priority_offset) - (a.base_priority + a.priority_offset) || (a.event < b.event ? -1 : 1);
@@ -1275,6 +1293,7 @@ function renderDataFlow() {
 // client-side line indexing, no source parsing.
 function renderCallouts() {
   var pane=$('#pane-callouts');
+  if(!Array.isArray(data.annotations)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.annotations.length){pane.innerHTML='<div class="empty-state">No annotations</div>';return;}
   var source=getSource();var lines=source.split('\n');
   // Per-line lineStart array — recomputed locally because the marker
@@ -1303,7 +1322,7 @@ function renderCallouts() {
 }
 
 // Assembly / WASM helpers
-function instrCount(arr) { return arr ? arr.reduce(function(n, f) { return n + (f.instrCount || 0); }, 0) : 0; }
+function instrCount(arr) { return Array.isArray(arr) ? arr.reduce(function(n, f) { return n + (f.instrCount || 0); }, 0) : undefined; }
 function funcListHtml(funcs) {
   var html = '';
   for (var func of funcs) {
@@ -1328,6 +1347,7 @@ function renderWasm() { renderDisassembly('pane-wasm', 'wasm'); }
 function renderDisassembly(paneId, kind) {
   var pane = $('#' + paneId);
   var origFuncs = kind === 'asm' ? data.asm : data.wasm;
+  if (!Array.isArray(origFuncs)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var optFuncs = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
   var emptyMsg = kind === 'asm' ? 'No assembly' : 'No WASM output';
   if (!origFuncs || !origFuncs.length) {
@@ -1417,7 +1437,7 @@ function renderDisasmFunction(entry, kind) {
     if ((entry.literals || []).length) {
       html += '<div class="disasm-tables-section">Literals:</div>';
       for (var i = 0; i < entry.literals.length; i++) {
-        html += '<div class="wasm-local">' + i + ': "' + esc(entry.literals[i]) + '"</div>';
+        html += '<div class="wasm-local">' + i + ': "' + esc(nativeLiteralDisplay(entry.literals[i])) + '"</div>';
       }
     }
     if ((entry.locals || []).length) {
@@ -2245,6 +2265,17 @@ function normaliseForDiff(entry, kind) {
   return rows;
 }
 
+// Byte-native literals expose an exact byte array when Unicode is unavailable.
+function nativeLiteralDisplay(literal) {
+  if (typeof literal === 'string') return literal;
+  if (literal && Array.isArray(literal.bytes)) {
+    return 'bytes: ' + literal.bytes.map(function (byte) {
+      return byte.toString(16).padStart(2, '0');
+    }).join(' ');
+  }
+  return JSON.stringify(literal);
+}
+
 function normaliseAsmOperand(ins, literals, locals) {
   // Map push1/push4 N → literal text; loadScalar1/storeScalar1 %vN →
   // local name; jump/pc-anchored ops are handled via ``jumpTarget``.
@@ -2254,7 +2285,7 @@ function normaliseAsmOperand(ins, literals, locals) {
   if ((op === 'push1' || op === 'push4') && ins.operandText) {
     var idx = parseInt(ins.operandText);
     if (!isNaN(idx) && idx >= 0 && idx < literals.length) {
-      return { key: 'LIT:' + literals[idx], display: '"' + literals[idx] + '" (#' + idx + ')' };
+      return { key: 'LIT:' + JSON.stringify(literals[idx]), display: '"' + nativeLiteralDisplay(literals[idx]) + '" (#' + idx + ')' };
     }
   }
   if (ins.lvtRef !== null && ins.lvtRef !== undefined) {
@@ -2307,6 +2338,7 @@ function hideVarTooltip(){if(activeTooltip){activeTooltip.remove();activeTooltip
 
 // CFG edge arrows
 function drawAllCfgEdges(pane, funcs) {
+  if (!Array.isArray(funcs)) return;
   for (var func of funcs) {
     var container = pane.querySelector('.cfg-edges-container[data-func="' + func.name + '"]');
     if (!container) continue;

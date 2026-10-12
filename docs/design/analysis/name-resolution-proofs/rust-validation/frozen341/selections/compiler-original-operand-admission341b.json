@@ -1,0 +1,13 @@
+{
+  "original_exact_selectors": [
+    "native_lowering::tests::original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches",
+    "native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity",
+    "native_lowering::tests::original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner",
+    "native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers",
+    "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa"
+  ],
+  "all_in_actual_own_list": true,
+  "actual_own_list_sha256": "01c42eeff4cec9795b11f879dfc55e84ef6f97cfa37c817a5488293ef4f42d18",
+  "pinned_own_image_sha256": "986dc256e9f23f3d12e0192e1ae65b38390b552a75728c65b82be3abb6b8bee6",
+  "no_assertions_yet": true
+}

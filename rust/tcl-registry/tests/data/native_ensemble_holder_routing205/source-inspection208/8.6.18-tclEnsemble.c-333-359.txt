@@ -1,0 +1,27 @@
+		}
+		unknownObj = (len > 0 ? objv[1] : NULL);
+		continue;
+	    }
+	}
+
+	TclGetNamespaceForQualName(interp, name, cxtPtr,
+		TCL_CREATE_NS_IF_UNKNOWN, &foundNsPtr, &altFoundNsPtr,
+		&actualCxtPtr, &simpleName);
+
+	/*
+	 * Create the ensemble. Note that this might delete another ensemble
+	 * linked to the same namespace, so we must be careful. However, we
+	 * should be OK because we only link the namespace into the list once
+	 * we've created it (and after any deletions have occurred.)
+	 */
+
+	token = TclCreateEnsembleInNs(interp, simpleName,
+	     (Tcl_Namespace *) foundNsPtr, (Tcl_Namespace *) nsPtr,
+	     (permitPrefix ? TCL_ENSEMBLE_PREFIX : 0));
+	Tcl_SetEnsembleSubcommandList(interp, token, subcmdObj);
+	Tcl_SetEnsembleMappingDict(interp, token, mapObj);
+	Tcl_SetEnsembleUnknownHandler(interp, token, unknownObj);
+	Tcl_SetEnsembleParameterList(interp, token, paramObj);
+
+	/*
+	 * Tricky! Must ensure that the result is not shared (command delete

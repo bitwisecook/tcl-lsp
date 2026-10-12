@@ -42,12 +42,10 @@ native Rust; there is no ahead-of-time `.tclspec` → `.rs` path.
 
 The equivalence gate falls out of that split: re-express a shipped surface
 in the DSL, load it, and assert field-for-field equality with the compiled
-spec. The design was driven the same way — by porting hard shipped specs
-(`lsort`, `switch`, TclOO/snit definers, `upvar`, `return`) and by
-drafting specs for external libraries (ticklecharts, apave, SpiceGenTcl,
-tcllib modules) rather than by inventing syntax in the abstract.
+spec. The equivalence fixtures include `lsort`, `switch`, TclOO/snit definers,
+`upvar` and `return`; external-library packs use the same loader contract.
 
-**Invocation refinement limits.** `refine NAME { … }` is the
+**Invocation refinement and native-only fields.** `refine NAME { … }` is the
 **invocation refinement** — arity, a literal `selector`, argument roles,
 options and relations, availability, and the replacement `traits` /
 `mutator` / effects one call shape states — written in the owning scope's
@@ -292,7 +290,7 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 
 | crate | layer | what it is |
 |---|---|---|
-| `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned structured `Value`s (list and dict are first-class, so `words`/`ctx` never round-trip through text); `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all. |
+| `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned `Value`s that retain byte strings and typed list/dict members; each engine adapter uses its selected object and string materialisation contracts; `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all. |
 | `tcl-engine-tclvm` | bottom | The `tcl-vm` implementation: `Vm::define_procedure` (compile once), `Vm::invoke_command`, `Vm::register_native_command` (stateful host commands), `Vm::retain_commands` (a closed whitelist), and the enforced `commands` limit + wall-clock cap. |
 | `tcl-runtime::engine` | bottom | The runtime's implementation (`runtime/rust`, its `engine` feature): `RuntimeEngine` over an `Interp`, a unit a procedure, a host command an extension command whose procedure is a Rust trampoline, and the interpreter's own command limit, wall-clock cap, value-size cap, confined stores and closed whitelist. Every hook family runs on it as on `tcl-vm` (`families_e2e.rs`). |
 | `tcl-engine-wasm` | bottom | The runtime compiled to `wasm32` as an engine, under wasmtime: `WasmEngine` over one instance of `tcl_runtime.wasm`, the interpreter's own limits through the runtime's `tcl_engine_*` exports, and fuel, the epoch and a cap on the memory's growth for what they cannot see; a C extension built for the runtime loaded as a side module; every WASI import a stub that answers the same on every run; and `WasmExtensionHost`, the host the registry's extension seam binds. The language server never links it. |
@@ -326,7 +324,7 @@ commands loaded, notices, hooks invoked, quarantines, and load + analysis
 wall clock. Accepted load notices live in
 `rust/tcl-spectcl/tests/spec_corpus_baseline.txt`, compared as a multiset
 in both directions so a fixed notice must also be deleted from the
-baseline. The `world_effects` rows the loader does not yet read are part
+baseline. The `world_effects` rows the loader does not read are part
 of that baseline.
 
 Its negative half is `rust/tcl-spectcl/tests/fixtures/hostile.tclspec`: an
@@ -350,7 +348,7 @@ let packs survive releases without rebuilds:
   dropped with a logged notice; the rest of the spec loads. New server +
   old pack always works; old server + new pack degrades gracefully.
 - A trait name the registry has retired is dropped the same way,
-  but the notice names what carries the fact now: a pack saying
+  and the notice identifies the fact's current owner: a pack saying
   `traits HAS_SWITCH_BODY` is told that a `case_list` block carries it and
   that `CommandSpec::has_switch_body` is the derived answer. The table is
   `RETIRED_TRAITS` in `rust/tcl-registry/src/traits.rs`; the rule for
@@ -376,12 +374,10 @@ let packs survive releases without rebuilds:
   Ordinary notices do not imply a failed load, and a valid pack can declare no
   commands. `tcl spec test` rejects failed loads with status 2 before requiring
   a package; a valid command-free pack exits 0 without starting a shell.
-- `VOCABULARY_VERSION` (`rust/tcl-spectcl/src/lib.rs`, part of the
-  compiled-cache key) bumps only when a word's meaning changes — once, for
-  2.0, because the legacy `dialects` word's translation output changed.
-  The vocabulary ladder and every word each revision added are in
-  [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md); this
-  document does not duplicate the spelling tables.
+- `VOCABULARY_VERSION` (`rust/tcl-spectcl/src/lib.rs`) identifies the
+  translated schema in the compiled-cache key, including the `dialects`
+  compatibility word's output. The supported vocabulary and spelling tables
+  are in [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md).
 - The studio schema-coverage gates force every new `CommandSpec` field to
   a named key; that key is the DSL property name, so the format cannot
   silently fall behind the registry.
@@ -414,7 +410,7 @@ draws two diagnostics for one word.
 The command, subcommand and sub-subcommand, option, and argument-value
 levels feed `W135`/`W136`/`W139`/`W144` via `version_gate.rs`. Option
 relation, side effect, and form lifecycles are registry data validated by
-the registry sweep but not yet read by a diagnostic: a pack or a shipped
+the registry sweep but unused by diagnostics: a pack or a shipped
 spec can declare them, and the field round-trips through the studio, but
 nothing in the editor reports a use of a deprecated or retired *form* or
 *side effect*.
@@ -523,8 +519,13 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   prefix, each in an independent synthetic callback frame; an explicit
   shared global (`set ::state …`) is the deliberate remaining limit,
   because real events can race. `script_timing_resolver {words ctx} { … }`
-  handles positions whose timing depends on the written form
-  (`send` versus `send -async`).
+  handles positions whose timing depends on the selected form
+  (`send` versus `send -async`). The hook host retains genuine structured
+  argument kinds and exact count: unknown callback payloads keep their
+  positions, while unknown selectors and expanded cardinality cannot select
+  a layout. A literal empty value remains distinct from a dynamic word.
+  `ReferenceOnly` positions supply no executable source role. These source
+  metadata facts grant no callback execution or entered frame.
 
 - **Variables and geometry.** `option … -taints-var-write` marks a
   variable-valued option whose linked variable can be written from
@@ -778,7 +779,7 @@ cannot `-override` a compiled command name, declare a `dialect` block, or
 claim a reserved `environment` name (refused at registration, with the
 provenance named).
 
-## Authoring rules for SpecTcl 2.0 (design E)
+## Authoring rules for SpecTcl 2.0
 
 A pack is **evaluated**, not walked: the file runs as a Tcl program in a
 deterministic sandbox, and what loads is the snapshot of registrations it
@@ -804,11 +805,9 @@ made. The execution model:
 Two consequences shape everything an author does — a pack can *template*
 its declarations, and a reader of the file no longer necessarily sees the
 surface it produces. The rules below keep the first without paying for the
-second. (Executable registration was chosen over synopsis-first,
-proc-mirror, namespace-native, pure-dict and annotated-stub surfaces for
-one reason: templating is the only thing that shrinks a 788-command vendor
-pack, and the execution model above is what answers its costs — static
-opacity, trust, and cacheability.)
+second. Executable registration supports templated declarations; snapshot
+evaluation, trust restrictions and cache rules bound their static opacity
+and side effects.
 
 - **Write canonical form unless repetition is the problem being solved.**
   The **canonical subset** is straight-line registration calls only — the

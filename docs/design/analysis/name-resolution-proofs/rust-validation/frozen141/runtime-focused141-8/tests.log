@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_script::tests::normal_original_script_does_not_materialise_its_borrowed_filename ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 0.38s
+

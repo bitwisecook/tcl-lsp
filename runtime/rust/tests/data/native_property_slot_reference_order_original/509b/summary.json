@@ -1,0 +1,38 @@
+{
+  "question_id": "naming.property.original-slot-storage-reference-order",
+  "request_sha256": "d9325ff85614ba3630ef3aea32a1b8383405e46d1176a39f056ec88a83ec87fa",
+  "launcher_sha256": "5cd328648b7b0bbf1acf681f49e6e6baead7b73e9df039e03b20aceb0e6b8230",
+  "scope": "Actual original C91 public property slot incoming/storage/hash/getter/cache lifetime stages, six finite cases; five other initialized providers availability only, no cross-purpose/runtime equivalence.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "status": "closed",
+      "receipt_sha256": "684a7bbc0f54db5c7140a52dd156fd31e2c2e745d6b3e5b5d8ef7104e0a9cd47"
+    },
+    {
+      "provider": "8.5.19",
+      "status": "closed",
+      "receipt_sha256": "5275d6578e539cea43c5a487ca9ef1ce144321e66a0ec649051d8eb33fd7bf89"
+    },
+    {
+      "provider": "8.6.18",
+      "status": "closed",
+      "receipt_sha256": "9a6f56dfb468db2bb7b580923bcfaf42099be4076f50675fcd47ec31ff51e77f"
+    },
+    {
+      "provider": "9.0.4",
+      "status": "closed",
+      "receipt_sha256": "8101f27ec73355f2c3dbb12058cdc4cafd6b53cbd5633f87947bfc79ca6f2ce2"
+    },
+    {
+      "provider": "9.1.0",
+      "status": "closed",
+      "receipt_sha256": "9d88acf1f0ba7aaec0fa0b8e1e39cd47c896ff0f5e9f03df5641a987bb07c7a0"
+    },
+    {
+      "provider": "jim",
+      "status": "closed",
+      "receipt_sha256": "811ed7b0cf2966ce0cd6a5b1223627dd007a541bbbb4f4628f389e60b08e364f"
+    }
+  ]
+}

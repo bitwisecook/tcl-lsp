@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::native_scalar::tests::compiled_scalars_preserve_forty_one_native_original_header_windows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 6.03s
+

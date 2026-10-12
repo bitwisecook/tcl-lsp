@@ -1,0 +1,6 @@
+
+running 1 test
+test expr::native_numeric::tests::original_arithmetic_and_unary_positive_paths_share_selected_current_operands ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.37s
+

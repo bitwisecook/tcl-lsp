@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.14s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_vm-13c4a8dc710f7193)
+
+running 1 test
+test command::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 645 filtered out; finished in 1.27s
+

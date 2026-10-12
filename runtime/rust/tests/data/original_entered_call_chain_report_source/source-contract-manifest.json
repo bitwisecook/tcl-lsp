@@ -1,0 +1,77 @@
+{
+  "packet": "ReceiverEnteredCallReport547d",
+  "status": "READY source-only; bounded peer review pending",
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "base_sha256": "4bd50a0ab2416ac7f2bd74e69890ba2c9ff71a337cac50ae2bc08a6d67318247",
+      "candidate_sha256": "ebf616f3f3df61e487f1f35b425db0bcfe07b388087c6c57d4532437d569f659",
+      "new_file": false,
+      "rustfmt_parse": null
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/native_method_cache.rs",
+      "base_sha256": "7d51d5d7a664f912fbfed4aa361771aa2b4e82202879f927131a524456eb7fc1",
+      "candidate_sha256": "be4c8bdfeab08e118340f08079815497a9b691b2fa4492bb5cb13c93e7ccd3ce",
+      "new_file": false,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/original_call_report_tests.rs",
+      "base_sha256": null,
+      "candidate_sha256": "4022acc519f5b8f00e028516a7fd115136299ef11a24daf1f1a48beeacaa3414",
+      "new_file": true,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "base_sha256": "d2b1119f599b84125fdba2113014e4aac5aa2c67e139c174e8b2052e4627388b",
+      "candidate_sha256": "67a10fbd8ec47aef7ebcf54a9632085cff9421887cbbeb772a5b05fcf439f6cf",
+      "new_file": false,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+      "base_sha256": "44fa64f10de9dabcb46727fd92699cd5dc331bf82ed66bd5b6d5d4bc519311ec",
+      "candidate_sha256": "42a37aea4a177f04f8022d27ecce6fb499935ebbaf04f770ea3dc9bd09af16b6",
+      "new_file": false,
+      "rustfmt_parse": 0
+    }
+  ],
+  "patch_sha256": "308c70b7879c7fe157f739cf88507db59acf60ca9d60c2613db684e9c17018b0",
+  "selectors": {
+    "runtime_lib": [
+      "cmd_oo::original_call_report_tests::original_call_report_uses_payload_descriptors_before_literal_names_and_stock_fallbacks",
+      "cmd_oo::original_call_report_tests::original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independent",
+      "cmd_oo::original_call_report_tests::original_call_report_keeps_exact_entered_record_through_deletion_rename_and_payload_replacement",
+      "cmd_oo::original_call_report_tests::original_call_report_retains_original_name_until_checked_presentation_and_first_cause"
+    ],
+    "registry_lib": [
+      "native_tcloo_method_definition::call_report_tests::original_call_report_flags_and_payload_types_do_not_classify_selector_spellings"
+    ]
+  },
+  "new_runtime_controls": 4,
+  "new_registry_controls": 1,
+  "source_windows_sha256": "f41f022fc6dc1efef0f3046aa5f3ecf46be894bffda22c3bde4ffcf77ac6091f",
+  "source_windows_count": 34,
+  "preservation_sha256": "e301902644846f34e4e4946286050e7639213b00cc1d8a8c9dfe6584abfb7202",
+  "selectors_sha256": "8fba75284d0c7dda86eef147c574fc1e10e719881223dfad94a7ede7fe5609dc",
+  "census_sha256": "2905f42bbce3e0a924e8a419d4c91839be520779934637d544cf90ce7cf35d1c",
+  "canonical_question": "naming.tcloo.original-entered-call-chain-report-record-and-flags",
+  "canonical_doc": "docs/design/analysis/name-resolution-proofs/tcloo-original-entered-call-chain-report-record-and-flags.md",
+  "scope": "Actual entered record CURRENT payload/private flags, actual filter/unknown/facet/role flags and original name/Foundation List member reports; no eager String or mutable table revival. Source/API C90/C91 only.",
+  "validation": {
+    "rustfmt_parse_only": true,
+    "private_patch_dry_run": 0,
+    "cargo_native_tests_assertions": false
+  },
+  "external_execution_statuses": {
+    "C84": "NT",
+    "C85": "NT",
+    "C86": "NT",
+    "C90": "NT",
+    "C91": "NT",
+    "Jim": "NT",
+    "F5": "NT"
+  }
+}

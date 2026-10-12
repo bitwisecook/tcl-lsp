@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_numeric_ops::original_string_stage_tests::original_checked_string_and_concat_keep_actual_formatter_children_and_reference_roles ... 
+thread 'interp::native_numeric_ops::original_string_stage_tests::original_checked_string_and_concat_keep_actual_formatter_children_and_reference_roles' (1360995) panicked at rust/tcl-vm/src/interp/native_string_stage_tests.rs:167:9:
+assertion `left == right` failed
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_numeric_ops::original_string_stage_tests::original_checked_string_and_concat_keep_actual_formatter_children_and_reference_roles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.59s
+

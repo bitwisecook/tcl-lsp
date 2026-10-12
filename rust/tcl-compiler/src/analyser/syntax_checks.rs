@@ -1074,8 +1074,14 @@ mod tests {
         assert_eq!(lexer_recovery_codes("set y \"abc\"def\n"), vec!["E205"]);
         assert_eq!(lexer_recovery_codes("puts ${foo\n"), vec!["E206"]);
         // Well-formed input → none.
-        assert!(lexer_recovery_codes("set ok {abc}\n").is_empty());
-        assert!(lexer_recovery_codes("set q \"abc\"\n").is_empty());
+        assert_eq!(
+            lexer_recovery_codes("set ok {abc}\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            lexer_recovery_codes("set q \"abc\"\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1091,7 +1097,10 @@ mod tests {
         );
         assert_eq!(e201("set z [\n"), vec![("missing close-bracket".into(), 0)]);
         // A balanced `[foo]` is fine.
-        assert!(e201("set ok [foo]\n").is_empty());
+        assert_eq!(
+            e201("set ok [foo]\n"),
+            [] as [(std::string::String, usize); 0]
+        );
     }
 
     #[test]
@@ -1099,8 +1108,8 @@ mod tests {
         // A balanced *empty* `[]` is well-formed — its lexer span covers
         // both brackets, so the closing `]` sits at `span.end() - 1`.
         // It must not raise a spurious E201.
-        assert!(e201("set x []\n").is_empty(), "bare empty []");
-        assert!(e201("puts [llength []]\n").is_empty(), "nested empty []");
+        assert_eq!(e201("set x []\n").len(), 0, "bare empty []");
+        assert_eq!(e201("puts [llength []]\n").len(), 0, "nested empty []");
     }
 
     #[test]
@@ -1183,7 +1192,10 @@ mod tests {
         // The unterminated quote emits E202, not the generic E200.
         assert_eq!(codes_eq("set x \"\nputs hello\n", "E20"), vec!["E202"]);
         // A well-formed quoted string is silent.
-        assert!(recovery_diags("set x \"hello\"\n", "E202").is_empty());
+        assert_eq!(
+            recovery_diags("set x \"hello\"\n", "E202"),
+            [] as [(std::string::String, usize); 0]
+        );
     }
 
     #[test]
@@ -1204,7 +1216,10 @@ mod tests {
             vec!["E203"]
         );
         // A balanced brace body is silent.
-        assert!(recovery_diags("set x {a b c}\n", "E203").is_empty());
+        assert_eq!(
+            recovery_diags("set x {a b c}\n", "E203"),
+            [] as [(std::string::String, usize); 0]
+        );
     }
 
     #[test]
@@ -1225,7 +1240,10 @@ mod tests {
             vec![("missing \"".to_string(), 1)]
         );
         // A well-formed quoted string inside a body stays silent.
-        assert!(recovery_diags("proc p {} {\n    set x \"hello\"\n}\n", "E202").is_empty());
+        assert_eq!(
+            recovery_diags("proc p {} {\n    set x \"hello\"\n}\n", "E202"),
+            [] as [(std::string::String, usize); 0]
+        );
     }
 
     #[test]
@@ -1235,7 +1253,10 @@ mod tests {
         // the command "reaches EOF" only because the body ends there, but the
         // quote is terminated (`info complete` == 1 in tclsh 8.6/9.0).
         // Regression guard for the body scan.
-        assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
+        assert_eq!(
+            recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202"),
+            [] as [(std::string::String, usize); 0]
+        );
         // The unterminated counterpart in the same shape still fires.
         assert_eq!(
             recovery_diags("proc p {} {set x \"\nhello\n}\n", "E202"),
@@ -1296,8 +1317,9 @@ mod tests {
         // only the conservative de-indent heuristic applies to data braces.
         // `set x {` — arg 1 of `set` is data, not expr.
         let src = "set x {\nputs hi\n";
-        assert!(
-            e203_fix_offsets(src).is_empty(),
+        assert_eq!(
+            e203_fix_offsets(src).len(),
+            0,
             "data brace should not aggressively recover: {:?}",
             e203_fix_offsets(src),
         );
@@ -1509,12 +1531,14 @@ mod tests {
             "set x {hello\nworld}\n",
             "puts [llength []]\n",
         ] {
-            assert!(
-                recovery_diags(src, "E202").is_empty(),
+            assert_eq!(
+                recovery_diags(src, "E202").len(),
+                0,
                 "unexpected E202 for {src:?}"
             );
-            assert!(
-                recovery_diags(src, "E203").is_empty(),
+            assert_eq!(
+                recovery_diags(src, "E203").len(),
+                0,
                 "unexpected E203 for {src:?}"
             );
         }
@@ -1525,7 +1549,10 @@ mod tests {
         // A closed multi-line quote at a body's end must remain silent:
         // "properly closed" is detected purely from the closing delimiter,
         // never from line count.
-        assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
+        assert_eq!(
+            recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202"),
+            [] as [(std::string::String, usize); 0]
+        );
     }
 
     #[test]
@@ -1542,8 +1569,9 @@ mod tests {
             "puts \"$a$b\"\n",
             "puts \"[foo]\"\n",
         ] {
-            assert!(
-                recovery_diags(src, "E202").is_empty(),
+            assert_eq!(
+                recovery_diags(src, "E202").len(),
+                0,
                 "unexpected E202 for {src:?}"
             );
         }
@@ -1709,7 +1737,7 @@ mod tests {
             .into_iter()
             .find(|d| d.code == DiagCode::E102)
             .expect("E102 expected");
-        assert!(d.fixes.is_empty());
+        assert_eq!(d.fixes, [] as [crate::irules_checks::CodeFix; 0]);
     }
 
     // Known-name breadth: the bracket-insertion heuristic must

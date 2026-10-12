@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}

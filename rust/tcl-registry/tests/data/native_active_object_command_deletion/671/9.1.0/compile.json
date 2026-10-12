@@ -1,0 +1,33 @@
+{
+  "argv": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-O0",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+    "/tmp/native-active-command-retirement671/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+    "-ldl",
+    "-lz",
+    "-lrt",
+    "-lpthread",
+    "-lm",
+    "-Wl,--trace",
+    "-o",
+    "/tmp/native-active-command-retirement671/9.1.0/probe.elf"
+  ],
+  "cwd": "/tmp/native-active-command-retirement671/9.1.0",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "exit": 0,
+  "seconds": 0.08501972298836336,
+  "stdout": "/tmp/native-active-command-retirement671/9.1.0/compile.stdout",
+  "stdout_sha256": "abe9fbbbaef0279c8c477062e80ce94de0dc55011356ac5b217466cf094af227",
+  "stderr": "/tmp/native-active-command-retirement671/9.1.0/compile.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

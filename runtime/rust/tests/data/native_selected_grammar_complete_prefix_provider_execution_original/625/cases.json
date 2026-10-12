@@ -1,0 +1,14 @@
+[
+  {
+    "id": "selected_braced_var",
+    "hex": "736574206265666f726520313b207075747320247b617b627d3b207365742061667465722032",
+    "sha256": "c77f8bab07cb96f7dab84c5bc04eedaae5053c9183535f2b782905c37c49bf0b",
+    "purpose": "Fixed counted byte source. Completeness and actual command-at-time evaluation recorded independently."
+  },
+  {
+    "id": "terminal_word",
+    "hex": "736574206265666f726520313b2073657420696e76616c6964207b617d623b207365742061667465722032",
+    "sha256": "62acf5cb465443a35184278c18cb226b8020635f998adb08c939025cf1181422",
+    "purpose": "Fixed counted byte source. Completeness and actual command-at-time evaluation recorded independently."
+  }
+]

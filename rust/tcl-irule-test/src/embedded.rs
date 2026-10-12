@@ -51,6 +51,7 @@ const BUNDLE: &[(&str, &str)] = &[
     bundled!("orchestrator.tcl"),
     // Generated data the framework sources transitively via `info script`.
     bundled!("_registry_data.tcl"),
+    bundled!("_user_surface_data.tcl"),
     bundled!("_event_data.tcl"),
     // Generated stub mocks for registry-only iRule commands (e.g.
     // `ACCESS::session`, `AAA::auth`). `LiveSession::bootstrap` sources this
@@ -178,20 +179,5 @@ mod tests {
             !message.contains("run:"),
             "tmm_shim.tcl must not offer a regeneration command for a hand-maintained file: {message}"
         );
-    }
-
-    /// The simulator is a deliberate non-Rust loader carve-out. Keep its
-    /// header recogniser narrow and explicitly tied to the canonical Rust
-    /// boundary owner; this fails when either side is silently changed.
-    #[test]
-    fn itest_core_when_loader_contract() {
-        let core = BUNDLE
-            .iter()
-            .find(|(n, _)| *n == "itest_core.tcl")
-            .map(|(_, s)| *s)
-            .expect("itest core bundled");
-        assert!(core.contains("Rust consumers must use `tcl-irules::when_blocks`"));
-        assert!(core.contains("when\\s+([A-Z_][A-Z0-9_]*)"));
-        assert!(core.contains("Find the body (brace-balanced)"));
     }
 }

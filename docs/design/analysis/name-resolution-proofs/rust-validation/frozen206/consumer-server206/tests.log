@@ -1,0 +1,88 @@
+
+running 31 tests
+test original_workspace_diagnostics_tests::explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour ... ok
+test original_workspace_diagnostics_tests::original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity ... ok
+test original_workspace_diagnostics_tests::original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports ... ok
+test tests::original_callback_code_action_demands_current_source_header_projection ... FAILED
+test tests::original_callback_pull_uses_current_source_and_external_headers ... FAILED
+test tests::original_callback_push_and_pull_keep_known_source_barriers ... FAILED
+test tests::original_callback_push_and_pull_share_source_signature_advice ... FAILED
+test tests::original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal ... ok
+test tests::original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfaces_separate ... ok
+test tests::original_hierarchy_and_lens_wire_data_require_retained_current_declarations ... ok
+test tests::original_implementation_queries_keep_workspace_method_and_class_owners ... ok
+test tests::original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners ... ok
+test tests::original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity ... FAILED
+test tests::original_method_queries_preserve_lexical_variable_provider_priority ... ok
+test tests::original_namespace_queries_keep_opaque_slots_across_documents ... ok
+test tests::original_namespace_rename_uses_typed_workspace_collisions_and_source_plans ... ok
+test tests::original_package_classes_use_shared_current_factory_slots ... ok
+test tests::original_package_consumers_keep_constraints_and_dependency_preference ... FAILED
+test tests::original_package_procedures_use_shared_conditional_source_slots ... ok
+test tests::original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source ... ok
+test tests::original_variable_queries_keep_opaque_slots_across_documents ... ok
+test tests::original_variable_rename_shares_source_plans_and_typed_workspace_collisions ... ok
+test tests::original_workspace_command_rename_uses_atomic_current_owners ... ok
+test tests::original_workspace_math_source_candidate_keeps_dispatch_unresolved ... ok
+test tests::original_workspace_mathfunc_rejects_foreign_namespace_report_tails ... ok
+test tests::original_workspace_member_rename_uses_shared_roster_and_atomic_owner_guards ... ok
+test tests::original_workspace_procedure_rename_requires_expression_edit_coverage ... ok
+test tests::original_workspace_reference_misses_never_reparse_reporting_names ... ok
+test tests::original_workspace_references_and_lenses_share_owned_byte_declarations ... ok
+test tests::original_workspace_w123_preserves_native_absence_with_project_matching ... ok
+test tests::unminify_error_command_echoes_original_and_flags_change ... ok
+
+failures:
+
+---- tests::original_callback_code_action_demands_current_source_header_projection stdout ----
+
+thread 'tests::original_callback_code_action_demands_current_source_header_projection' (776736) panicked at rust/tcl-lsp-server/src/lib.rs:39420:9:
+assertion `left == right` failed
+  left: []
+ right: ["E003"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::original_callback_pull_uses_current_source_and_external_headers stdout ----
+
+thread 'tests::original_callback_pull_uses_current_source_and_external_headers' (776740) panicked at rust/tcl-lsp-server/src/lib.rs:39319:9:
+assertion `left == right` failed
+  left: []
+ right: ["E003"]
+
+---- tests::original_callback_push_and_pull_keep_known_source_barriers stdout ----
+
+thread 'tests::original_callback_push_and_pull_keep_known_source_barriers' (776752) panicked at rust/tcl-lsp-server/src/lib.rs:39386:9:
+the negative result retains a genuine terminal source barrier
+
+---- tests::original_callback_push_and_pull_share_source_signature_advice stdout ----
+
+thread 'tests::original_callback_push_and_pull_share_source_signature_advice' (776775) panicked at rust/tcl-lsp-server/src/lib.rs:39277:9:
+assertion `left == right` failed: genuine held target must issue source advice
+  left: 0
+ right: 1
+
+---- tests::original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity stdout ----
+
+thread 'tests::original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity' (776987) panicked at rust/tcl-lsp-server/src/lib.rs:34781:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- tests::original_package_consumers_keep_constraints_and_dependency_preference stdout ----
+
+thread 'tests::original_package_consumers_keep_constraints_and_dependency_preference' (777360) panicked at rust/tcl-lsp-server/src/lib.rs:35144:9:
+assertion `left == right` failed
+  left: 0
+ right: 4
+
+
+failures:
+    tests::original_callback_code_action_demands_current_source_header_projection
+    tests::original_callback_pull_uses_current_source_and_external_headers
+    tests::original_callback_push_and_pull_keep_known_source_barriers
+    tests::original_callback_push_and_pull_share_source_signature_advice
+    tests::original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity
+    tests::original_package_consumers_keep_constraints_and_dependency_preference
+
+test result: FAILED. 25 passed; 6 failed; 0 ignored; 0 measured; 627 filtered out; finished in 385.58s
+

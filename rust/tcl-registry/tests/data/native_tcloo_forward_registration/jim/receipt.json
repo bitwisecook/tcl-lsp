@@ -1,0 +1,45 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "provider": "jim",
+  "input_channel": "separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source",
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "source_sha256": "9426f3bb7655531c34759934ddeccf94534b3cf6d106fc229c5d35133ae7ed0b",
+  "queue_sha256": "4b75633ac8519e93e441680edc9fb50dcb392cb95be0fc6fd1eb26ee3068f4fd",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "environment": {},
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/current-native-tcloo-forward-registration174/probe.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/current-native-tcloo-forward-registration174/output/jim/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "10fc320da024334c6f5aa546cb2838b3c22efbd2a5550d22f36068db8e5d9858",
+  "stdout_sha256": "0abca9e3d45d6d4a98e0674698d86a7c00289ff7bea962f438ac5b273f3e074b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "0.84-9-g5bac7c9",
+  "rows": [
+    "VERSION|0|0|302e38342d392d6735626163376339",
+    "AVAILABILITY|0|0|"
+  ],
+  "seconds": 0.14822153899876866
+}

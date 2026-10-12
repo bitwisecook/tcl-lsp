@@ -1,0 +1,121 @@
+int
+Tcl_IncrObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Tcl_Obj *newValuePtr, *incrPtr;
+
+    if ((objc != 2) && (objc != 3)) {
+	Tcl_WrongNumArgs(interp, 1, objv, "varName ?increment?");
+	return TCL_ERROR;
+    }
+
+    if (objc == 3) {
+	incrPtr = objv[2];
+    } else {
+	incrPtr = Tcl_NewIntObj(1);
+    }
+    Tcl_IncrRefCount(incrPtr);
+    newValuePtr = TclIncrObjVar2(interp, objv[1], NULL,
+	    incrPtr, TCL_LEAVE_ERR_MSG);
+    Tcl_DecrRefCount(incrPtr);
+
+    if (newValuePtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Set the interpreter's object result to refer to the variable's new
+     * value object.
+     */
+
+    Tcl_SetObjResult(interp, newValuePtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclInitInfoCmd --
+ *
+ *	This function is called to create the "info" Tcl command. See the user
+ *	documentation for details on what it does.
+ *
+ * Results:
+ *	FIXME
+ *
+ * Side effects:
+ *	none
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+TclInitInfoCmd(
+    Tcl_Interp *interp)		/* Current interpreter. */
+{
+    return TclMakeEnsemble(interp, "info", defaultInfoMap);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InfoArgsCmd --
+ *
+ *	Called to implement the "info args" command that returns the argument
+ *	list for a procedure. Handles the following syntax:
+ *
+ *	    info args procName
+ *
+ * Results:
+ *	Returns TCL_OK if successful and TCL_ERROR if there is an error.
+ *
+ * Side effects:
+ *	Returns a result in the interpreter's result object. If there is an
+ *	error, the result is an error message.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+InfoArgsCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    register Interp *iPtr = (Interp *) interp;
+    char *name;
+    Proc *procPtr;
+    CompiledLocal *localPtr;
+    Tcl_Obj *listObjPtr;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "procname");
+	return TCL_ERROR;
+    }
+
+    name = TclGetString(objv[1]);
+    procPtr = TclFindProc(iPtr, name);
+    if (procPtr == NULL) {
+	Tcl_AppendResult(interp, "\"", name, "\" isn't a procedure", NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Build a return list containing the arguments.
+     */
+
+    listObjPtr = Tcl_NewListObj(0, NULL);
+    for (localPtr = procPtr->firstLocalPtr;  localPtr != NULL;
+	    localPtr = localPtr->nextPtr) {
+	if (TclIsVarArgument(localPtr)) {
+	    Tcl_ListObjAppendElement(interp, listObjPtr,
+		    Tcl_NewStringObj(localPtr->name, -1));
+	}
+    }
+    Tcl_SetObjResult(interp, listObjPtr);
+    return TCL_OK;
+}

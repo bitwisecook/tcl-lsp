@@ -1,0 +1,104 @@
+{
+  "collections": [
+    {
+      "collection": "648",
+      "scripts": [
+        {
+          "path": "648/protocol/run-native-source-filename648.py",
+          "original_sha256": "2a72badf632abf0fc6245c3185c32173cea4154bb0302ee12e2c297ff48dfd25",
+          "literal_replacements": [
+            {
+              "old": "request = Path('/tmp/sourceperf-source-filename-request648')",
+              "new": "request = Path(__replay_request)"
+            },
+            {
+              "old": "output = Path('/workspace/.proofs/root-native-source-filename648')",
+              "new": "output = Path(__replay_output)"
+            }
+          ]
+        },
+        {
+          "path": "648/protocol/run-native-library-version648.py",
+          "original_sha256": "27c8eac6734731b07a1c2fa4cdfdea6cc08e9139fdf27a4e9bdf8b332c95b933",
+          "literal_replacements": [
+            {
+              "old": "root = Path('/workspace/.proofs/root-native-source-filename648')",
+              "new": "root = Path(__replay_output)"
+            },
+            {
+              "old": "source = Path('/workspace/.proofs/native-string-replacement-library-version629.c')",
+              "new": "source = Path(__replay_version_source)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "650",
+      "scripts": [
+        {
+          "path": "650/protocol/run-native-source-filename-codec650.py",
+          "original_sha256": "f76ed17090bc1bcecb16792b4e5ba1c65c5c119059d0db17177fc65428d7bf44",
+          "literal_replacements": [
+            {
+              "old": "request = Path('/tmp/sourceperf-source-filename-codec-request650')",
+              "new": "request = Path(__replay_request)"
+            },
+            {
+              "old": "output = Path('/workspace/.proofs/root-native-source-filename-codec650')",
+              "new": "output = Path(__replay_output)"
+            }
+          ]
+        },
+        {
+          "path": "650/protocol/run-native-library-version650.py",
+          "original_sha256": "5f3f6296c6e00a909ac2feb0095cab085819d13ad74b5f6e1f8f4514b3d0ba57",
+          "literal_replacements": [
+            {
+              "old": "root = Path('/workspace/.proofs/root-native-source-filename-codec650')",
+              "new": "root = Path(__replay_output)"
+            },
+            {
+              "old": "source = Path('/workspace/.proofs/native-string-replacement-library-version629.c')",
+              "new": "source = Path(__replay_version_source)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collection": "651",
+      "scripts": [
+        {
+          "path": "651/protocol/run-native-source-filename-strict651.py",
+          "original_sha256": "535e9c7c388a29f4743e532b0dd47857819bc34d59857a23fce8a2336f992e4e",
+          "literal_replacements": [
+            {
+              "old": "request = Path('/tmp/sourceperf-source-filename-strict-request651')",
+              "new": "request = Path(__replay_request)"
+            },
+            {
+              "old": "output = Path('/workspace/.proofs/root-native-source-filename-strict651')",
+              "new": "output = Path(__replay_output)"
+            }
+          ]
+        },
+        {
+          "path": "651/protocol/run-native-library-version-strict651.py",
+          "original_sha256": "3873a9324c16e39b35c73646e0724b7c10b6d8d21722f99cfffc2522287fc512",
+          "literal_replacements": [
+            {
+              "old": "root = Path('/workspace/.proofs/root-native-source-filename-strict651')",
+              "new": "root = Path(__replay_output)"
+            },
+            {
+              "old": "source = Path('/workspace/.proofs/native-string-replacement-library-version629.c')",
+              "new": "source = Path(__replay_version_source)"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scope": "Only request/output and identical version-source constants redirect. Original compiler/library/provider/environment/case/probe algorithms remain unchanged; replay is unexecuted by publication."
+}

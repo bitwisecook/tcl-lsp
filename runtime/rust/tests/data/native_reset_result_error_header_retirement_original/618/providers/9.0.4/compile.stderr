@@ -1,0 +1,20 @@
+/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c: In function 'update_string':
+/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c:99:19: warning: request for implicit conversion from 'void *' to 'char *' not permitted in C++ [-Wc++-compat]
+   99 |     passed->bytes = Tcl_Alloc((unsigned int) sizeof(payload) + 1);
+      |                   ^
+/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c: At top level:
+/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c:104:20: warning: duplicate declaration of 'lazy_type' is invalid in C++ [-Wc++-compat]
+  104 | static Tcl_ObjType lazy_type = {
+      |                    ^~~~~~~~~
+/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c:26:20: note: previous declaration of 'lazy_type' with type 'Tcl_ObjType'
+   26 | static Tcl_ObjType lazy_type;
+      |                    ^~~~~~~~~
+/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c:106:1: warning: missing initializer for field 'version' of 'Tcl_ObjType' [-Wmissing-field-initializers]
+  106 | };
+      | ^
+In file included from /workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPort.h:25,
+                 from /workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h:63,
+                 from /workspace/.proofs/native-reset-result-error-header-retirement618/probe.c:2:
+/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h:674:12: note: 'version' declared here
+  674 |     size_t version;             /* Version field for future-proofing. */
+      |            ^~~~~~~

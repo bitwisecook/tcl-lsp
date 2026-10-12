@@ -1,0 +1,18 @@
+
+running 2 tests
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... 
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (597452) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12322:5:
+assertion `left == right` failed: a package requirement alone cannot authenticate callback entry
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads ... ok
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8188 filtered out; finished in 379.63s
+

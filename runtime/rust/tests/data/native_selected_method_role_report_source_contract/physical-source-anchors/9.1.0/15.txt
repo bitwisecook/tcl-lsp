@@ -1,0 +1,12 @@
+    fPtr->tsdPtr = tsdPtr;
+
+    TclNewLiteralStringObj(fPtr->unknownMethodNameObj, "unknown");
+    TclNewLiteralStringObj(fPtr->constructorName, "<constructor>");
+    TclNewLiteralStringObj(fPtr->destructorName, "<destructor>");
+    TclNewLiteralStringObj(fPtr->clonedName, "<cloned>");
+    TclNewLiteralStringObj(fPtr->defineName, "::oo::define");
+    TclNewLiteralStringObj(fPtr->myName, "my");
+    TclNewLiteralStringObj(fPtr->slotGetName, "Get");
+    TclNewLiteralStringObj(fPtr->slotSetName, "Set");
+    TclNewLiteralStringObj(fPtr->slotResolveName, "Resolve");
+    TclNewLiteralStringObj(fPtr->slotDefOpName, "--default-operation");

@@ -1,0 +1,6 @@
+before0|0
+after0|1
+before1|0
+after1|1
+before2|-1
+after2|-1

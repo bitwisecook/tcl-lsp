@@ -1,0 +1,12 @@
+    Foundation *fPtr = GetFoundation(interp);
+
+    TclDecrRefCount(fPtr->unknownMethodNameObj);
+    TclDecrRefCount(fPtr->constructorName);
+    TclDecrRefCount(fPtr->destructorName);
+    TclDecrRefCount(fPtr->clonedName);
+    TclDecrRefCount(fPtr->defineName);
+    TclOODecrRefCount(fPtr->objectCls->thisPtr);
+    TclOODecrRefCount(fPtr->classCls->thisPtr);
+
+    ckfree(fPtr);
+}

@@ -49,19 +49,20 @@
 //!
 //! A word shape the emitter cannot prove — `{*}` expansion, backslash
 //! substitution, a computed variable name — keeps its whole statement on the
-//! older tier, which boxes the command / condition as a Tcl string in the
-//! module's data section and hands it to the runtime to interpret. Conditions
-//! always take this path:
+//! source-evaluation tier, which boxes a Tcl string from the module's data
+//! section and hands it to the runtime. Conditions use the completion-bearing
+//! `tcl_codegen_expr_bool` to retain Guest and Host outcomes independently:
 //!
 //! ```text
 //! command   :  code = tcl_eval_code(tcl_obj_new_string(off, len)); …dispatch on code…
-//! condition :  if (tcl_expr_bool(tcl_obj_new_string(off, len)))  …
+//! condition :  status = tcl_codegen_expr_bool(owned_expr, completion, truth); …
 //! ```
 //!
 //! The emitted control flow inspects the completion `code` a leaf command
-//! returns and honours it — an `error` / `return` unwinds the function, a
-//! `break` / `continue` re-enters the enclosing loop's structural scopes — so
-//! abrupt completion propagates like the tree-walker's command loop.
+//! returns and honours it — an `error` / `return` unwinds the function, and a
+//! `break` / `continue` follows the appropriate enclosing loop boundary. A
+//! condition's Guest completion remains independent of its success-only truth
+//! output. Host refusal writes neither completion nor truth.
 //! [`tcl_eval`] (returning the result object) is retained
 //! for a host that wants the *value* of an evaluated script (the whole-program
 //! bootstrap reads a query result through it), but the AOT command emitter uses
@@ -101,7 +102,10 @@ use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 
-use crate::interp::{drop_fresh, obj_bytes, Interp, NativeProcEntry};
+use crate::interp::native_operation_currency::NativeOperationScope;
+#[cfg(test)]
+use crate::interp::obj_bytes;
+use crate::interp::{Interp, NativeProcEntry};
 use crate::obj::{self, new_string_bytes, TclObj};
 #[cfg(target_arch = "wasm32")]
 use tcl_runtime_api::codegen_abi::{
@@ -148,6 +152,8 @@ pub const TCL_INVOKE_ABI_INVALID_ARGC: i32 = -3;
 pub const TCL_INVOKE_ABI_NULL_ARGV: i32 = -4;
 /// At least one argv entry was null.
 pub const TCL_INVOKE_ABI_NULL_WORD: i32 = -5;
+/// A reached host refusal writes no Tcl completion output.
+pub const TCL_INVOKE_ABI_HOST_REFUSED: i32 = -6;
 /// The requested guarded intrinsic cannot run directly; use generic argv invoke.
 ///
 /// No completion is written for this status, so the caller must not release
@@ -354,9 +360,113 @@ fn detached_error_completion(message: &[u8]) -> TclCompletionAbi {
 ///
 /// # Safety
 /// `out` must be non-null, aligned, and writable for one [`TclCompletionAbi`].
-unsafe fn write_completion(out: *mut TclCompletionAbi, completion: TclCompletionAbi) {
-    // SAFETY: guaranteed by the caller of this helper.
+unsafe fn write_detached_completion(out: *mut TclCompletionAbi, completion: TclCompletionAbi) {
+    // SAFETY: detached transport has no interpreter or entered Guest producer.
     unsafe { out.write(completion) };
+}
+
+/// Transport adapter over the shared entered-operation and completion owners.
+/// The retained original interpreter, rather than mutable TLS after a callback,
+/// supplies every getter, reached effect and completion in this operation.
+pub(crate) struct CodegenOperation {
+    pub(crate) interpreter: Interp,
+    scope: NativeOperationScope,
+}
+
+impl CodegenOperation {
+    pub(crate) fn enter() -> Result<Self, i32> {
+        Self::enter_for(original_frame_owner::interpreter()?)
+    }
+
+    fn enter_installed() -> Result<Self, i32> {
+        // SAFETY: explicit entry borrows the host's live installed interpreter.
+        Self::enter_for(unsafe { current_interp().as_ref() }.cloned())
+    }
+
+    fn enter_for(interpreter: Option<Interp>) -> Result<Self, i32> {
+        let Some(mut interpreter) = interpreter else {
+            return Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP);
+        };
+        let scope = NativeOperationScope::enter(&interpreter).map_err(|first| {
+            interpreter.refuse_native_execution(first);
+            TCL_INVOKE_ABI_HOST_REFUSED
+        })?;
+        Ok(Self { interpreter, scope })
+    }
+
+    pub(crate) fn ensure_current(&self) -> Result<(), i32> {
+        self.scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| TCL_INVOKE_ABI_HOST_REFUSED)
+    }
+
+    fn scalar(
+        &mut self,
+        value: *mut TclObj,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, i32> {
+        self.ensure_current()?;
+        let result = crate::capi::read_scalar_for_interpreter(&self.interpreter, value, kind);
+        self.ensure_current()?;
+        result.map_err(|error| {
+            error.publish(&mut self.interpreter);
+            self.ensure_current()
+                .map_or_else(|status| status, |_| TCL_VALUE_GET_ERROR)
+        })
+    }
+
+    fn original_string(&mut self, value: *mut TclObj) -> Result<std::rc::Rc<[u8]>, i32> {
+        self.ensure_current()?;
+        let result = self.interpreter.native_object_string_bytes(value);
+        self.ensure_current()?;
+        result.map_err(|error| {
+            self.interpreter.report_cmd_error(error.into());
+            self.ensure_current().map_or_else(|status| status, |_| 1)
+        })
+    }
+
+    pub(crate) fn finish_code(&self, code: crate::interp::Code) -> i32 {
+        self.ensure_current().map_or_else(
+            |status| status,
+            |_| i32::try_from(code.as_int()).unwrap_or(1),
+        )
+    }
+
+    /// Capture while the activation still owns its Guest error state, then
+    /// unwind it before final output publication. All cleanup remains reached.
+    unsafe fn settle(
+        &mut self,
+        code: crate::interp::Code,
+        mut activation: Option<AbiActivation>,
+        out: *mut TclCompletionAbi,
+        status: i32,
+    ) -> i32 {
+        let captured = crate::state_traits::capture_completion_checked(
+            &mut self.interpreter,
+            self.scope.currency(),
+            code,
+        );
+        if let Some(active) = activation.as_mut() {
+            active.code = code;
+        }
+        drop(activation);
+        let completion = match captured {
+            Ok(completion) => completion_abi(completion),
+            Err(_) => return TCL_INVOKE_ABI_HOST_REFUSED,
+        };
+        if self.ensure_current().is_err() {
+            // SAFETY: capture owns each non-null handle until publication.
+            unsafe {
+                obj::decr_ref_count(completion.result);
+                obj::decr_ref_count(completion.options);
+            }
+            return TCL_INVOKE_ABI_HOST_REFUSED;
+        }
+        // SAFETY: the ABI caller provided writable output storage.
+        unsafe { out.write(completion) };
+        status
+    }
 }
 
 /// Keep caller-owned argv references alive for exactly one dispatch.
@@ -430,6 +540,7 @@ pub(crate) fn current_interp() -> *mut Interp {
 /// null to clear it (e.g. before the interp is deleted).
 #[no_mangle]
 pub extern "C" fn tcl_runtime_set_current_interp(interp: *mut Interp) {
+    original_frame_owner::explicit_bootstrap();
     #[cfg(not(target_arch = "wasm32"))]
     {
         CURRENT_INTERP.with(|c| c.set(interp));
@@ -450,12 +561,13 @@ pub extern "C" fn tcl_runtime_set_current_interp(interp: *mut Interp) {
 /// so the compiled script runs against a fully initialised interpreter.
 #[no_mangle]
 pub extern "C" fn tcl_runtime_init_library() -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 1;
+    };
+    let code = operation.interpreter.init_library();
+    if operation.ensure_current().is_err() {
+        return TCL_INVOKE_ABI_HOST_REFUSED;
     }
-    // SAFETY: `interp` is the live current interp set by the bootstrap.
-    let code = unsafe { (*interp).init_library() };
     i32::from(code == crate::interp::Code::Error)
 }
 
@@ -477,12 +589,10 @@ pub extern "C" fn tcl_runtime_init_library() -> i32 {
 /// be non-negative.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_runtime_identity(out: *mut u8, capacity: i32) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(Some(interpreter)) = original_frame_owner::interpreter() else {
         return 0;
-    }
-    // SAFETY: `interp` is the live current interp set by the bootstrap.
-    let bytes = unsafe { (*interp).held_identity() }.to_bytes();
+    };
+    let bytes = interpreter.held_identity().to_bytes();
     let Ok(len) = i32::try_from(bytes.len()) else {
         return 0;
     };
@@ -569,18 +679,6 @@ pub extern "C" fn tcl_value_new_bool(value: i32) -> *mut TclObj {
     object
 }
 
-/// Report a failed typed read on the current interpreter, exactly as the
-/// corresponding `Tcl_Get*FromObj` does: C's message as the interpreter result,
-/// C's `-errorcode`. Returns the ABI's error status.
-///
-/// # Safety
-/// `interp` must be the live current interpreter.
-unsafe fn typed_read_error(interp: *mut Interp, error: &crate::typed_value::TypedError) -> i32 {
-    // SAFETY: forwarded per this function's contract.
-    unsafe { (*interp).error_with_code(&error.message, error.code) };
-    TCL_VALUE_GET_ERROR
-}
-
 /// `tcl_value_get_wide_int(value, out) -> status` — read a boxed Tcl value as a
 /// native `i64` (`Tcl_GetWideIntFromObj`).
 ///
@@ -602,73 +700,201 @@ unsafe fn typed_read_error(interp: *mut Interp, error: &crate::typed_value::Type
 /// be writable, properly aligned `i64` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_value_get_wide_int(value: *mut TclObj, out: *mut i64) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
-    match crate::typed_value::wide_int(value) {
-        Ok(parsed) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
+    match operation.scalar(
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(parsed)) => {
+            // SAFETY: the caller provides aligned writable output storage.
             unsafe { out.write(parsed) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, &error) },
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
 /// `tcl_value_get_double(value, out) -> status` — read a boxed Tcl value as a
 /// native `f64` (`Tcl_GetDoubleFromObj`), with the same status contract and the
-/// same write-back as [`tcl_value_get_wide_int`]. An integer or bignum widens;
-/// `NaN` is a value here, not an error (only the boolean context refuses it).
+/// same original-object conversion contract as [`tcl_value_get_wide_int`].
+/// Acceptance and cache changes follow the selected actual engine, including
+/// its release-specific NaN and overflow behaviour.
 ///
 /// # Safety
 /// `value` must be a live object with a caller-owned reference, and `out` must
 /// be writable, properly aligned `f64` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
-    match crate::typed_value::double(value) {
-        Ok(parsed) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
+    match operation.scalar(
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(parsed)) => {
+            // SAFETY: the caller provides aligned writable output storage.
             unsafe { out.write(parsed) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, &error) },
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
-/// `tcl_value_get_bool(value, out) -> status` — read a boxed Tcl value in
-/// **boolean context** (`Tcl_GetBooleanFromObj`), writing `0`/`1`.
-///
-/// This is the acceptor behind `if`, `while`, and `expr`'s `?:`/`&&`/`||`/`!`:
-/// a boolean word by unique case-insensitive prefix (`tru`, `ye`, `of`; the
-/// ambiguous `o` is refused), else any number compared against zero. The words
-/// come from [`tcl_syntax::boolean`], the shared owner every boolean acceptor in
-/// this tree uses, so compiled code cannot drift from interpreted code. `NaN` is
-/// C's `floating point value is Not a Number` domain error.
+/// Read the selected public primitive Boolean getter's truth projection.
+/// Expression instructions use `tcl_value_get_bool_for_purpose`; evaluated
+/// expression results use `tcl_value_get_expression_bool`, which performs the
+/// genuine result producer before conversion. Jim's primitive integer output
+/// has an independent public C API and cannot stand in for expression truth.
 ///
 /// # Safety
 /// `value` must be a live object with a caller-owned reference, and `out` must
 /// be writable, properly aligned `i32` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_value_get_bool(value: *mut TclObj, out: *mut i32) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
-    match crate::typed_value::boolean(value) {
-        Ok(parsed) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
-            unsafe { out.write(i32::from(parsed)) };
+    match operation.scalar(
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(parsed)) => {
+            // SAFETY: the caller provides aligned writable output storage.
+            unsafe { out.write(i32::from(parsed.is_true())) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, &error) },
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
+    }
+}
+
+fn unexpected_scalar_output(interpreter: &mut Interp) -> i32 {
+    interpreter.refuse_native_access(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+    );
+    TCL_VALUE_GET_ERROR
+}
+
+/// Convert the original value at a reached expression operand instruction.
+/// Tags4/5 require a genuine expression result producer and are refused here.
+/// Unknown purpose tags refuse before getters and never select a default.
+/// # Safety
+/// `value` carries a live caller-owned reference; `out` is writable aligned i32.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_bool_for_purpose(
+    value: *mut TclObj,
+    purpose_tag: i32,
+    out: *mut i32,
+) -> i32 {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let result =
+        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::from_abi(purpose_tag)
+            .ok_or_else(|| {
+                tcl_cmd_core::CmdError::from(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Boolean operand purpose tag",
+                    ),
+                )
+            })
+            .and_then(|purpose| {
+                crate::typed_value::native_boolean_for_interp(
+                    &mut operation.interpreter,
+                    value,
+                    purpose,
+                )
+            });
+    if operation.ensure_current().is_err() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let status = finish_original_boolean(&mut operation.interpreter, result, out);
+    if operation.ensure_current().is_err() {
+        TCL_VALUE_GET_ERROR
+    } else {
+        status
+    }
+}
+
+/// Perform the selected outer Boolean expression result producer, then convert
+/// its actual owned result. Tags0/1 select InlineExpression/PublicExpressionApi;
+/// a public tag never attests that another caller already normalised an object.
+/// # Safety
+/// `value` carries a live caller-owned reference; `out` is writable aligned i32.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_expression_bool(
+    value: *mut TclObj,
+    production_tag: i32,
+    out: *mut i32,
+) -> i32 {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let result =
+        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::from_abi(
+            production_tag,
+        )
+        .ok_or_else(|| {
+            tcl_cmd_core::CmdError::from(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Boolean expression producer tag",
+            ))
+        })
+        .and_then(|purpose| {
+            crate::typed_value::expression_boolean_for_interp(
+                &mut operation.interpreter,
+                value,
+                purpose,
+            )
+        });
+    if operation.ensure_current().is_err() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let status = finish_original_boolean(&mut operation.interpreter, result, out);
+    if operation.ensure_current().is_err() {
+        TCL_VALUE_GET_ERROR
+    } else {
+        status
+    }
+}
+
+fn finish_original_boolean(
+    interp: &mut Interp,
+    result: Result<bool, tcl_cmd_core::CmdError>,
+    out: *mut i32,
+) -> i32 {
+    if interp.host_refusal_pending() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match result {
+        Ok(truth) => {
+            // SAFETY: each ABI caller has already validated writable aligned out.
+            unsafe { out.write(i32::from(truth)) };
+            TCL_VALUE_GET_OK
+        }
+        Err(error) => {
+            interp.report_cmd_error(error);
+            TCL_VALUE_GET_ERROR
+        }
     }
 }
 
@@ -711,15 +937,10 @@ impl AbiActivation {
     /// `interp` must be the live current interpreter for the whole guard's life.
     unsafe fn enter(interp: *mut Interp) -> Option<Self> {
         // SAFETY: forwarded per this function's contract.
-        unsafe { (*interp).codegen_activation_enter() }.then_some(AbiActivation {
+        unsafe { (*interp).codegen_activation_enter() }.then(|| AbiActivation {
             interp,
             code: crate::interp::Code::Ok,
         })
-    }
-
-    /// Record the completion this activation ends with, before it is left.
-    fn complete(&mut self, code: tcl_runtime_api::Code) {
-        self.code = crate::interp::Code::from_int(i32::try_from(code.as_int()).unwrap_or(1));
     }
 }
 
@@ -751,12 +972,7 @@ impl Drop for AbiActivation {
 /// not leave one.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
-        return 1;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    i32::from(!unsafe { (*interp).codegen_activation_enter() })
+    original_frame_owner::activation_enter()
 }
 
 /// `tcl_codegen_activation_leave(code)` — leave the activation entered by the
@@ -769,32 +985,20 @@ pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
 /// queued background errors are drained with the current handler.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_activation_leave(code: i32) {
-    let interp = current_interp();
-    if interp.is_null() {
-        return;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).codegen_activation_leave(crate::interp::Code::from_int(code)) };
+    original_frame_owner::activation_leave(code);
 }
 
-/// Push a name-addressable Tcl frame for a generated procedure.
+/// Attempt a name-addressable Tcl frame on the explicitly installed interpreter.
+/// Every attempt, including refusal, requires exactly one matching pop.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_frame_push() {
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: the bootstrap installed a live current interpreter.
-        unsafe { (*interp).codegen_frame_push() };
-    }
+    original_frame_owner::frame_push();
 }
 
-/// Pop the current generated procedure frame.
+/// Retire the matching original frame attempt, independent of mutable TLS.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_frame_pop() {
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: the bootstrap installed a live current interpreter.
-        unsafe { (*interp).codegen_frame_pop() };
-    }
+    original_frame_owner::frame_pop();
 }
 
 /// Bind a compiled slot index to the Tcl-visible variable cell and store value.
@@ -808,21 +1012,52 @@ pub unsafe extern "C" fn tcl_codegen_local_bind(
     name_len: i32,
     value: *mut TclObj,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || slot < 0 || value.is_null() {
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
+    };
+    if slot < 0 {
+        drop(value);
+        return operation.finish_code(crate::interp::Code::Error);
     }
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    interp.codegen_bind_slot(usize::try_from(slot).unwrap_or(0), name);
-    let code = match interp.var_set(name, value) {
-        Ok(()) => 0,
-        Err(e) => i32::try_from(crate::builtins::var_error(interp, name, e).as_int()).unwrap_or(1),
+    let bound = operation
+        .interpreter
+        .codegen_bind_slot(usize::try_from(slot).unwrap(), name);
+    let code = if operation.ensure_current().is_err() {
+        crate::interp::Code::Error
+    } else {
+        match bound {
+            Err(error) => operation.interpreter.report_cmd_error(error),
+            Ok(()) => {
+                let stored = operation.interpreter.var_set(name, value.as_ptr());
+                if operation.ensure_current().is_err() {
+                    crate::interp::Code::Error
+                } else {
+                    match stored {
+                        Ok(()) => crate::interp::Code::Ok,
+                        Err(error) => {
+                            crate::builtins::var_error(&mut operation.interpreter, name, error)
+                        }
+                    }
+                }
+            }
+        }
     };
-    // SAFETY: generated assignment transfers its operand-stack reference.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Store through an indexed compiled-local port.
@@ -831,24 +1066,37 @@ pub unsafe extern "C" fn tcl_codegen_local_bind(
 /// `value` must be a live owned reference transferred by generated code.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_local_set(slot: i32, value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || slot < 0 || value.is_null() {
-        return 1;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let Some(name) = interp.codegen_slot_name(usize::try_from(slot).unwrap_or(0)) else {
-        // SAFETY: generated assignment transfers its operand-stack reference.
-        unsafe { obj::decr_ref_count(value) };
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
     };
-    let code = match interp.var_set(&name, value) {
-        Ok(()) => 0,
-        Err(e) => i32::try_from(crate::builtins::var_error(interp, &name, e).as_int()).unwrap_or(1),
+    let Some(name) = slot_name(&operation.interpreter, slot) else {
+        drop(value);
+        return operation.finish_code(crate::interp::Code::Error);
     };
-    // SAFETY: generated assignment transfers its operand-stack reference.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    let stored = operation.interpreter.var_set(&name, value.as_ptr());
+    let code = if operation.ensure_current().is_err() {
+        crate::interp::Code::Error
+    } else {
+        match stored {
+            Ok(()) => crate::interp::Code::Ok,
+            Err(error) => crate::builtins::var_error(&mut operation.interpreter, &name, error),
+        }
+    };
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Load through an indexed port, returning an owned operand-stack value.
@@ -857,32 +1105,37 @@ pub unsafe extern "C" fn tcl_codegen_local_set(slot: i32, value: *mut TclObj) ->
 /// The current interpreter and generated frame must remain live for the call.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() || slot < 0 {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return ptr::null_mut();
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let slot = usize::try_from(slot).unwrap_or(0);
-    // The indexed path: one array index to the frame's cell, taken whenever
-    // nothing can observe the read differently (an untraced plain scalar).
-    if let Some(value) = interp.codegen_slot_scalar(slot) {
-        // SAFETY: the cell owns the existing reference; the stack claims another.
+    };
+    let Ok(slot) = usize::try_from(slot) else {
+        return ptr::null_mut();
+    };
+    if let Some(value) = operation.interpreter.codegen_slot_scalar(slot) {
+        if operation.ensure_current().is_err() {
+            return ptr::null_mut();
+        }
+        // SAFETY: the original cell owns this live value.
         unsafe { obj::incr_ref_count(value) };
         return value;
     }
-    let Some(name) = interp.codegen_slot_name(slot) else {
+    let Some(name) = operation.interpreter.codegen_slot_name(slot) else {
         return ptr::null_mut();
     };
-    if interp.fire_read_trace(&name, None).is_some() {
+    let traced = operation.interpreter.fire_read_trace(&name, None);
+    if operation.ensure_current().is_err() || traced.is_some() {
         return ptr::null_mut();
     }
-    let Some(value) = interp.var_get(&name) else {
-        let msg = interp.read_miss_msg(&name, None);
-        interp.set_error(&msg);
+    let value = operation.interpreter.var_get(&name);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    let Some(value) = value else {
+        let message = operation.interpreter.read_miss_msg(&name, None);
+        operation.interpreter.set_error(&message);
+        let _ = operation.ensure_current();
         return ptr::null_mut();
     };
-    // SAFETY: the frame owns the existing reference; the stack claims another.
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -898,20 +1151,23 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
 /// conservative in one direction only: `1` may be broader than the exact
 /// access, `0` is a promise that nothing can observe the cell.
 ///
-/// Returns `1` when traced, `0` when not (including a name that does not
-/// resolve, and when there is no current interpreter).
+/// Returns `1` when traced or the original operation is unavailable/refused,
+/// and `0` only when the current cell owner reports an untraced access.
 ///
 /// # Safety
 /// The name range must be readable shared linear memory.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_var_traced(name_ptr: *const u8, name_len: i32) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
-        return 0;
-    }
+    let Ok(operation) = CodegenOperation::enter() else {
+        return 1;
+    };
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    i32::from(unsafe { (*interp).var_is_traced(name) })
+    let traced = operation.interpreter.var_is_traced(name);
+    if operation.ensure_current().is_err() {
+        1
+    } else {
+        i32::from(traced)
+    }
 }
 
 /// `tcl_codegen_slot_traced(slot) -> i32` — [`tcl_codegen_var_traced`] for the
@@ -924,15 +1180,18 @@ pub unsafe extern "C" fn tcl_codegen_var_traced(name_ptr: *const u8, name_len: i
 /// rather than trusted.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_slot_traced(slot: i32) -> i32 {
-    let interp = current_interp();
-    let Ok(slot) = usize::try_from(slot) else {
-        return 0;
+    let Ok(operation) = CodegenOperation::enter() else {
+        return 1;
     };
-    if interp.is_null() {
-        return 0;
+    let Ok(slot) = usize::try_from(slot) else {
+        return 1;
+    };
+    let traced = operation.interpreter.codegen_slot_is_traced(slot);
+    if operation.ensure_current().is_err() {
+        1
+    } else {
+        i32::from(traced)
     }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    i32::from(unsafe { (*interp).codegen_slot_is_traced(slot) })
 }
 
 /// Resolve a compiled slot's Tcl-visible name, or `None` when it is unbound.
@@ -965,14 +1224,12 @@ fn slot_name(interp: &Interp, slot: i32) -> Option<Vec<u8>> {
 /// # Safety
 /// `interp` must be the live current interpreter and `value` a live object.
 unsafe fn slot_modify(
-    interp: *mut Interp,
+    interp: &mut Interp,
     slot: i32,
     head: &[u8],
     value: Option<*mut TclObj>,
     command: fn(&mut Interp, &[*mut TclObj]) -> crate::interp::Code,
 ) -> crate::interp::Code {
-    // SAFETY: the caller passes the live current interpreter.
-    let interp = unsafe { &mut *interp };
     let Some(name) = slot_name(interp, slot) else {
         let mut message = head.to_vec();
         message.extend_from_slice(b" on an unbound compiled slot");
@@ -1009,46 +1266,37 @@ unsafe fn slot_modify(
 /// `out` must be null or writable, properly aligned `i64` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *mut i64) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return TCL_VALUE_GET_ERROR;
-    }
-    let delta_obj = obj::new_wide_int_obj(delta);
-    // Give the fresh operand a reference of its own before handing it over:
-    // `slot_modify` borrows its words and releases that borrow after the
-    // call, which would take a bare `rc 0` operand back to zero and free it
-    // here — leaving the release below a double free.
-    // SAFETY: `delta_obj` is a fresh live object.
-    unsafe { obj::incr_ref_count(delta_obj) };
-    // SAFETY: `interp` is live; `delta_obj` is a fresh live object.
+    };
+    let delta = obj::Owned::fresh(obj::new_wide_int_obj(delta));
     let code = unsafe {
         slot_modify(
-            interp,
+            &mut operation.interpreter,
             slot,
             b"incr",
-            Some(delta_obj),
-            // The trace-safe `incr` — see `cmd_var::installed_incr`.
+            Some(delta.as_ptr()),
             crate::cmd_var::installed_incr(),
         )
     };
-    // SAFETY: releases exactly the reference taken above.
-    unsafe { obj::decr_ref_count(delta_obj) };
-    if code != crate::interp::Code::Ok {
+    drop(delta);
+    if operation.ensure_current().is_err() || code != crate::interp::Code::Ok {
         return TCL_VALUE_GET_ERROR;
     }
     if out.is_null() {
         return TCL_VALUE_GET_OK;
     }
-    // SAFETY: `interp` is live; the result is `incr`'s new value.
-    let result = unsafe { (*interp).result_obj() };
-    match crate::typed_value::wide_int(result) {
-        Ok(value) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
+    let value = operation.interpreter.result_obj();
+    match operation.scalar(
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value)) => {
             unsafe { out.write(value) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, &error) },
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
@@ -1063,21 +1311,29 @@ pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *
 /// `value` must be a live object with a caller-owned reference.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            }
+        }
+    };
+    if value.is_null() {
         return 1;
     }
-    // SAFETY: `interp` is live and `value` is caller-owned for the call.
     let code = unsafe {
         slot_modify(
-            interp,
+            &mut operation.interpreter,
             slot,
             b"append",
             Some(value),
             crate::cmd_string::append,
         )
     };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    operation.finish_code(code)
 }
 
 /// `tcl_codegen_slot_lappend(slot, value) -> code` — Tcl `lappend` onto the
@@ -1090,21 +1346,29 @@ pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) 
 /// `value` must be a live object with a caller-owned reference.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_slot_lappend(slot: i32, value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            }
+        }
+    };
+    if value.is_null() {
         return 1;
     }
-    // SAFETY: `interp` is live and `value` is caller-owned for the call.
     let code = unsafe {
         slot_modify(
-            interp,
+            &mut operation.interpreter,
             slot,
             b"lappend",
             Some(value),
             crate::cmd_list::lappend,
         )
     };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    operation.finish_code(code)
 }
 
 /// `tcl_codegen_slot_get(slot) -> obj` — the ABI v2 spelling of
@@ -1156,20 +1420,34 @@ pub unsafe extern "C" fn tcl_codegen_var_set(
     name_len: i32,
     value: *mut TclObj,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
-        return 1;
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let code = match interp.var_set(name, value) {
-        Ok(()) => 0,
-        Err(e) => i32::try_from(crate::builtins::var_error(interp, name, e).as_int()).unwrap_or(1),
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
     };
-    // SAFETY: generated assignment transfers its operand-stack reference.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    let Some(value) = value else {
+        return 1;
+    };
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let stored = operation.interpreter.var_set_named(name, value.as_ptr());
+    let code = if operation.ensure_current().is_err() {
+        crate::interp::Code::Error
+    } else {
+        match stored {
+            Ok(()) => crate::interp::Code::Ok,
+            Err(error) => crate::builtins::var_error(&mut operation.interpreter, name, error),
+        }
+    };
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Load a top-level or namespace variable by name as an owned stack value.
@@ -1178,22 +1456,17 @@ pub unsafe extern "C" fn tcl_codegen_var_set(
 /// The name range must be readable shared linear memory.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_var_get(name_ptr: *const u8, name_len: i32) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() {
-        return ptr::null_mut();
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    if interp.fire_read_trace(name, None).is_some() {
-        return ptr::null_mut();
-    }
-    let Some(value) = interp.var_get(name) else {
-        let msg = interp.read_miss_msg(name, None);
-        interp.set_error(&msg);
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return ptr::null_mut();
     };
-    // SAFETY: variable storage owns the existing reference; the stack claims one.
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let read = operation.interpreter.read_named_variable(name);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    let Ok(value) = read else {
+        return ptr::null_mut();
+    };
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -1201,10 +1474,10 @@ pub unsafe extern "C" fn tcl_codegen_var_get(name_ptr: *const u8, name_len: i32)
 /// Read one Tcl array element as an owned generated-word value.
 ///
 /// This is the array-element half of the compiled word-evaluation surface:
-/// [`tcl_codegen_var_get`] reads a variable under its exact name (the scalar a
-/// `${a(b)}` spelling names), while this reads `name(key)` as the element
-/// access a `$name(key)` spelling means. The compiler already split the two,
-/// so the runtime never re-parses a variable reference here.
+/// [`tcl_codegen_var_get`] resolves a complete variable name, including a
+/// literal element key in `${a(b)}`. This entry receives an already separated
+/// root and evaluated key, as produced by `$name(key)`. It does not substitute
+/// either supplied byte range again.
 ///
 /// Fires `name`'s read traces first, exactly as the interpreted `$name(key)`
 /// substitution does. A read-trace error, a missing array, or a missing
@@ -1220,23 +1493,25 @@ pub unsafe extern "C" fn tcl_codegen_var_get_element(
     key_ptr: *const u8,
     key_len: i32,
 ) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() {
-        return ptr::null_mut();
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    let key = unsafe { input_bytes(key_ptr, key_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    if interp.fire_read_trace(name, Some(key)).is_some() {
-        return ptr::null_mut();
-    }
-    let Some(value) = interp.var_get_elem(name, key) else {
-        let msg = interp.read_miss_msg(name, Some(key));
-        interp.set_error(&msg);
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return ptr::null_mut();
     };
-    // SAFETY: the array cell owns the existing reference; the stack claims one.
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let key = unsafe { input_bytes(key_ptr, key_len) };
+    let traced = operation.interpreter.fire_read_trace(name, Some(key));
+    if operation.ensure_current().is_err() || traced.is_some() {
+        return ptr::null_mut();
+    }
+    let value = operation.interpreter.var_get_elem(name, key);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    let Some(value) = value else {
+        let message = operation.interpreter.read_miss_msg(name, Some(key));
+        operation.interpreter.set_error(&message);
+        let _ = operation.ensure_current();
+        return ptr::null_mut();
+    };
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -1264,27 +1539,36 @@ pub unsafe extern "C" fn tcl_codegen_word_concat(
     let Ok(count) = usize::try_from(count) else {
         return ptr::null_mut();
     };
-    let joined = if count == 0 {
-        Vec::new()
+    if count > 0 && parts.is_null() {
+        return ptr::null_mut();
+    }
+    let words = if count == 0 {
+        &[][..]
     } else {
-        if parts.is_null() {
-            return ptr::null_mut();
-        }
-        // SAFETY: the caller guarantees `count` readable pointers.
-        let words = unsafe { core::slice::from_raw_parts(parts, count) };
-        if words.iter().any(|word| word.is_null()) {
-            return ptr::null_mut();
-        }
-        let mut joined = Vec::new();
-        for &word in words {
-            joined.extend_from_slice(&obj_bytes(word));
-        }
-        joined
+        // SAFETY: the caller retains count readable pointer slots.
+        unsafe { core::slice::from_raw_parts(parts, count) }
     };
-    let value = new_string_bytes(&joined);
-    // SAFETY: a generated operand-stack value owns one reference.
-    unsafe { obj::incr_ref_count(value) };
-    value
+    if words.iter().any(|word| word.is_null()) {
+        return ptr::null_mut();
+    }
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return ptr::null_mut();
+    };
+    // SAFETY: each word is live and caller-owned; this temporary borrow is balanced.
+    let borrowed = unsafe { BorrowedArgv::retain(words) };
+    let mut joined = Vec::new();
+    for &word in words {
+        let bytes = match operation.original_string(word) {
+            Ok(bytes) => bytes,
+            Err(_) => return ptr::null_mut(),
+        };
+        joined.extend_from_slice(&bytes);
+    }
+    drop(borrowed);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    obj::Owned::fresh(new_string_bytes(&joined)).into_raw()
 }
 
 /// Add two owned stack values through Tcl's numeric tower.
@@ -1297,63 +1581,68 @@ pub unsafe extern "C" fn tcl_codegen_expr_add(
     left: *mut TclObj,
     right: *mut TclObj,
 ) -> *mut TclObj {
-    if left.is_null() || right.is_null() {
-        unsafe {
-            obj::decr_ref_count(left);
-            obj::decr_ref_count(right);
+    // SAFETY: non-null inputs each transfer exactly one generated +1.
+    let left = (!left.is_null()).then(|| unsafe { obj::Owned::from_raw(left) });
+    let right = (!right.is_null()).then(|| unsafe { obj::Owned::from_raw(right) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(_) => {
+            drop(left);
+            drop(right);
+            return ptr::null_mut();
         }
+    };
+    let result = match (left, right) {
+        (Some(left), Some(right)) => crate::builtins::eval_binary_operands(
+            &mut operation.interpreter,
+            tcl_syntax::expr::BinOp::Add,
+            left,
+            right,
+        ),
+        (left, right) => {
+            drop(left);
+            drop(right);
+            let _ = operation.ensure_current();
+            return ptr::null_mut();
+        }
+    };
+    let result = match result {
+        Ok(result) => Some(result),
+        Err(error) => {
+            operation.interpreter.report_expr_error(error);
+            None
+        }
+    };
+    if operation.ensure_current().is_err() {
+        drop(result);
         return ptr::null_mut();
     }
-    let interp = current_interp();
-    let result = crate::bignum::add(left, right);
-    // SAFETY: the operation consumes both generated operand-stack references.
-    unsafe {
-        obj::decr_ref_count(left);
-        obj::decr_ref_count(right);
-    }
-    match result {
-        Ok(value) => {
-            // SAFETY: transfer a single owned result to generated code.
-            unsafe { obj::incr_ref_count(value) };
-            value
-        }
-        Err(e) => {
-            if !interp.is_null() {
-                let err = crate::expr::arith_err(e);
-                // SAFETY: the bootstrap installed a live current interpreter.
-                unsafe { (*interp).set_error(&err.msg) };
-            }
-            ptr::null_mut()
-        }
-    }
+    result.map_or(ptr::null_mut(), obj::Owned::into_raw)
 }
 
-/// Report that arithmetic is unavailable in a deliberately reduced runtime.
+/// Report unavailable arithmetic while consuming every transferred reference.
 ///
 /// # Safety
-/// Both operands must be live references owned by generated code.
+/// Non-null inputs transfer one live generated +1 each.
 #[no_mangle]
 #[cfg(not(have_tommath))]
 pub unsafe extern "C" fn tcl_codegen_expr_add(
     left: *mut TclObj,
     right: *mut TclObj,
 ) -> *mut TclObj {
-    if left.is_null() || right.is_null() {
-        unsafe {
-            obj::decr_ref_count(left);
-            obj::decr_ref_count(right);
+    // SAFETY: adopt both inputs before any operation/refusal/null branch.
+    let left = (!left.is_null()).then(|| unsafe { obj::Owned::from_raw(left) });
+    let right = (!right.is_null()).then(|| unsafe { obj::Owned::from_raw(right) });
+    let operation = CodegenOperation::enter();
+    drop(left);
+    drop(right);
+    if let Ok(mut operation) = operation {
+        if operation.ensure_current().is_ok() {
+            operation
+                .interpreter
+                .set_error(b"arithmetic support is not available");
+            let _ = operation.ensure_current();
         }
-        return ptr::null_mut();
-    }
-    // SAFETY: the operation consumes both generated operand-stack references.
-    unsafe {
-        obj::decr_ref_count(left);
-        obj::decr_ref_count(right);
-    }
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: the bootstrap installed a live current interpreter.
-        unsafe { (*interp).set_error(b"arithmetic support is not available") };
     }
     ptr::null_mut()
 }
@@ -1364,17 +1653,30 @@ pub unsafe extern "C" fn tcl_codegen_expr_add(
 /// `value` must be a live reference owned by generated code.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_puts(value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
-    }
-    let command = new_string_bytes(b"puts");
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let code = unsafe { crate::cmd_chan::puts_cmd(&mut *interp, &[command, value]) };
-    drop_fresh(command);
-    // SAFETY: the command consumes the generated stack reference after dispatch.
-    unsafe { obj::decr_ref_count(value) };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    };
+    let command = obj::Owned::fresh(new_string_bytes(b"puts"));
+    let code = crate::cmd_chan::puts_cmd(
+        &mut operation.interpreter,
+        &[command.as_ptr(), value.as_ptr()],
+    );
+    drop(command);
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Register source metadata for a generated procedure without evaluating `proc`.
@@ -1430,24 +1732,56 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_native(
     body_len: i32,
     entry: Option<NativeProcEntry>,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            }
+        }
+    };
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let parameters = unsafe { input_bytes(params_ptr, params_len) };
+    let body = unsafe { input_bytes(body_ptr, body_len) };
+    let original_parameters = obj::Owned::fresh(new_string_bytes(parameters));
+    let parsed = crate::cmd_proc::parse_params_object(
+        &mut operation.interpreter,
+        original_parameters.as_ptr(),
+        name,
+    );
+    if operation.ensure_current().is_err() {
+        drop(original_parameters);
+        return operation.finish_code(crate::interp::Code::Error);
+    }
+    let parameters = match parsed {
+        Ok(parameters) => parameters,
+        Err(error) => {
+            let code = operation.interpreter.report_cmd_error(error);
+            drop(original_parameters);
+            return operation.finish_code(code);
+        }
+    };
+    let body = obj::Owned::fresh(new_string_bytes(body));
+    let installed = operation.interpreter.install_proc_original_storage(
+        name,
+        parameters,
+        Some(original_parameters.as_ptr()),
+        body.as_ptr(),
+        entry,
+        None,
+    );
+    drop(body);
+    drop(original_parameters);
+    if operation.ensure_current().is_err() {
+        return TCL_INVOKE_ABI_HOST_REFUSED;
+    }
+    if installed.is_none() {
         return 1;
     }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    let params = unsafe { input_bytes(params_ptr, params_len) };
-    let body = unsafe { input_bytes(body_ptr, body_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let params = match crate::cmd_proc::parse_params(params) {
-        Ok(params) => params,
-        Err(message) => return i32::try_from(interp.set_error(&message).as_int()).unwrap_or(1),
-    };
-    let body_obj = new_string_bytes(body);
-    interp.define_proc_native(name, params, body_obj, entry);
-    drop_fresh(body_obj);
-    interp.set_result_bytes(b"");
-    0
+    operation.interpreter.set_result_bytes(b"");
+    operation.finish_code(crate::interp::Code::Ok)
 }
 
 /// Log one `while executing` / `invoked from within` `errorInfo` frame for a
@@ -1474,16 +1808,15 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_native(
 /// `src_ptr`/`src_len` must be a readable range of shared linear memory.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, src_len: i32) {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return;
-    }
-    let src = unsafe { input_bytes(src_ptr, src_len) };
-    // Lines are 1-based; a caller that has no line still gets a logged frame
-    // rather than a silently dropped one.
+    };
+    let source = unsafe { input_bytes(src_ptr, src_len) };
     let line = u32::try_from(line).unwrap_or(1).max(1);
-    // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).log_command_bytes(line, src) };
+    operation
+        .interpreter
+        .log_evaluated_command_bytes(line, source);
+    let _ = operation.ensure_current();
 }
 
 /// Record the pending `return -level`/`-code` state, exactly as the `return`
@@ -1502,13 +1835,14 @@ pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, 
 /// error code, the same way the `return` command's own parsing bounds them.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_return_state(level: i32, code: i32) {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return;
-    }
+    };
     let level = usize::try_from(level).unwrap_or(0);
-    // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).set_return_state(level, crate::interp::Code::from_int(code)) };
+    operation
+        .interpreter
+        .set_return_state(level, crate::interp::Code::from_int(code));
+    let _ = operation.ensure_current();
 }
 
 /// The number of proc bodies the current interpreter has run through a native
@@ -1521,12 +1855,10 @@ pub extern "C" fn tcl_codegen_return_state(level: i32, code: i32) {
 /// behavioural assertion green.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_native_proc_dispatches() -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(Some(interpreter)) = original_frame_owner::interpreter() else {
         return -1;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let dispatches = unsafe { (*interp).native_proc_dispatches() };
+    };
+    let dispatches = interpreter.native_proc_dispatches();
     i32::try_from(dispatches).unwrap_or(i32::MAX)
 }
 
@@ -1562,28 +1894,26 @@ pub unsafe extern "C" fn tcl_obj_new_string_owned(ptr: *const u8, len: i32) -> *
 /// interp (if set) must be live.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_eval(script: *mut TclObj) -> *mut TclObj {
-    // Copy the script text out, then free the adopted script object.
-    let src = obj_bytes(script);
-    drop_fresh(script);
-
-    let interp = current_interp();
-    if interp.is_null() {
-        // Misuse (no current interp); stay leak-safe — return an owned empty.
-        let empty = new_string_bytes(b"");
-        // SAFETY: `empty` is a live fresh object.
-        unsafe { obj::incr_ref_count(empty) };
-        return empty;
-    }
-    // SAFETY: `interp` is the live current interp; `eval_str` takes `&mut`.
-    let result = unsafe {
-        (*interp).eval_str(&src);
-        (*interp).get_obj_result()
+    // This legacy input transfers a fresh rc-0 object, including refusal paths.
+    let script = obj::Owned::fresh(script);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            return obj::Owned::fresh(new_string_bytes(b"")).into_raw();
+        }
+        Err(_) => return ptr::null_mut(),
     };
-    // The result is borrowed (interp keeps its `+1`); take our own `+1` so the
-    // caller's `tcl_obj_release` does not free the interp's reference.
-    // SAFETY: `result` is the live interp result object.
-    unsafe { obj::incr_ref_count(result) };
-    result
+    let source = match operation.original_string(script.as_ptr()) {
+        Ok(source) => source,
+        Err(_) => return ptr::null_mut(),
+    };
+    operation.interpreter.eval_str(&source);
+    let result = obj::Owned::retain(operation.interpreter.get_obj_result());
+    drop(script);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    result.into_raw()
 }
 
 /// `tcl_eval_code(script) -> i32` — evaluate `script` against the current interp
@@ -1604,19 +1934,20 @@ pub unsafe extern "C" fn tcl_eval(script: *mut TclObj) -> *mut TclObj {
 /// interp (if set) must be live.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_eval_code(script: *mut TclObj) -> i32 {
-    // Copy the script text out, then free the adopted script object.
-    let src = obj_bytes(script);
-    drop_fresh(script);
-
-    let interp = current_interp();
-    if interp.is_null() {
-        return 0; // Misuse (no current interp): nothing ran — report ok.
-    }
-    // SAFETY: `interp` is the live current interp; `eval_str` takes `&mut`.
-    let code = unsafe { (*interp).eval_str(&src) };
-    // Every completion code (0..=4 or a `return -code N`) is an `i32`; the
-    // `unwrap_or` is unreachable (kept so a future wider code degrades to error).
-    i32::try_from(code.as_int()).unwrap_or(1)
+    let script = obj::Owned::fresh(script);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        // Explicit detached compatibility: no interpreter exists to execute.
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => return 0,
+        Err(status) => return status,
+    };
+    let source = match operation.original_string(script.as_ptr()) {
+        Ok(source) => source,
+        Err(status) => return status,
+    };
+    let code = operation.interpreter.eval_str(&source);
+    drop(script);
+    operation.finish_code(code)
 }
 
 /// `tcl_obj_release(obj)` — release one owned reference (the result of
@@ -1664,44 +1995,58 @@ fn intrinsic_registry() -> &'static CommandRegistry {
 /// This examines only already-boxed argv values. It neither parses source nor
 /// replays substitutions, and a non-text Tcl word is conservatively declined.
 fn resolve_intrinsic_argv(
+    operation: &mut CodegenOperation,
     words: &[*mut TclObj],
     dialect: Option<SurfaceQuery<'_>>,
-) -> Option<ResolvedIntrinsicArgv> {
-    let spellings: Vec<String> = words
-        .iter()
-        .map(|word| String::from_utf8(obj_bytes(*word)).ok())
-        .collect::<Option<_>>()?;
-    let (head, arguments) = spellings.split_first()?;
-    let arguments: Vec<_> = arguments.iter().map(String::as_str).collect();
-    let resolved = intrinsic_registry().resolve_invocation(head, &arguments, dialect)?;
-    let SemanticOperationId::Intrinsic(intrinsic) = resolved.semantics.operation else {
-        return None;
+) -> Result<Option<ResolvedIntrinsicArgv>, i32> {
+    let mut spellings = Vec::with_capacity(words.len());
+    for &word in words {
+        let bytes = operation.original_string(word)?;
+        let Ok(spelling) = String::from_utf8(bytes.to_vec()) else {
+            return Ok(None);
+        };
+        spellings.push(spelling);
+    }
+    let Some((head, arguments)) = spellings.split_first() else {
+        return Ok(None);
     };
-    Some(ResolvedIntrinsicArgv {
+    let arguments: Vec<_> = arguments.iter().map(String::as_str).collect();
+    let Some(resolved) = intrinsic_registry().resolve_invocation(head, &arguments, dialect) else {
+        return Ok(None);
+    };
+    let SemanticOperationId::Intrinsic(intrinsic) = resolved.semantics.operation else {
+        return Ok(None);
+    };
+    Ok(Some(ResolvedIntrinsicArgv {
         intrinsic,
         argument_offset: resolved.semantics.argument_offset,
         head: head.as_bytes().to_vec(),
-    })
+    }))
 }
 
 fn guarded_intrinsic_request(
+    operation: &mut CodegenOperation,
     intrinsic_id: u32,
     words: &[*mut TclObj],
     expected: GuardIdentity,
-    runtime_version: tcl_dialect::TclVersion,
+    characters: tcl_dialect::StringCharacterModel,
     dialect: Option<SurfaceQuery<'_>>,
-) -> Option<ResolvedIntrinsicArgv> {
-    let intrinsic = IntrinsicId::from_stable_id(intrinsic_id)?;
+) -> Result<Option<ResolvedIntrinsicArgv>, i32> {
+    let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
+        return Ok(None);
+    };
     if expected
         != GuardIdentity::registry_intrinsic_with_semantics(
             intrinsic.stable_id(),
-            intrinsic.guard_semantics_key(runtime_version),
+            intrinsic.guard_semantics_key_for_characters(characters),
         )
     {
-        return None;
+        return Ok(None);
     }
-    let resolved = resolve_intrinsic_argv(words, dialect)?;
-    (resolved.intrinsic == intrinsic).then_some(resolved)
+    let Some(resolved) = resolve_intrinsic_argv(operation, words, dialect)? else {
+        return Ok(None);
+    };
+    Ok((resolved.intrinsic == intrinsic).then_some(resolved))
 }
 
 fn guard_domains_from_abi(domains: i32) -> Option<GuardDomains> {
@@ -1734,7 +2079,7 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     if argv.is_null() {
         return 0;
     }
-    // SAFETY: the caller contract guarantees `argc` readable entries.
+    // SAFETY: caller guarantees these readable pointer slots.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
         return 0;
@@ -1742,41 +2087,37 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     let Some(domains) = guard_domains_from_abi(domains) else {
         return 0;
     };
-    let expected = GuardIdentity::new(identity_namespace, identity_value);
-    let interp = current_interp();
-    if interp.is_null() {
-        return 0;
-    }
-    // Runtime version is interpreter policy, not a compile-time constant. The
-    // Interpreter guard domain makes a later policy change stale this token,
-    // while resolving against the live environment prevents a version-gated
-    // form from entering the fast path in the first place. The release name
-    // resolves through the one ingress seam, fail-closed: an undeclared name
-    // declines rather than entering the guarded path under the lenient
-    // environment's permissive mask.
-    let runtime_version = unsafe { (*interp).runtime_version() };
-    let Some(dialect) =
-        crate::environment::known_surface_point_for_dialect(runtime_version.dialect_profile_name())
-    else {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 0;
     };
-    let Some(resolved) = guarded_intrinsic_request(
+    // Retain borrowed words before the first original getter.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let native = operation.interpreter.native_invocation_dialect();
+    let (Some(characters), Some(dialect)) = (native.characters, native.authoring_query()) else {
+        return 0;
+    };
+    let expected = GuardIdentity::new(identity_namespace, identity_value);
+    let resolved = match guarded_intrinsic_request(
+        &mut operation,
         intrinsic_id,
         words,
         expected,
-        runtime_version,
-        Some(dialect.query()),
-    ) else {
-        return 0;
+        characters,
+        Some(dialect),
+    ) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) | Err(_) => return 0,
     };
-    // SAFETY: every word was validated non-null and is caller-owned.
-    let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // SAFETY: `interp` is the live current interpreter.
-    unsafe {
-        (*interp)
-            .prepare_command_guard(&resolved.head, expected, domains)
-            .map_or(0, GuardToken::raw)
+    let token = operation
+        .interpreter
+        .prepare_command_guard(&resolved.head, expected, domains);
+    if operation.ensure_current().is_err() {
+        if let Ok(token) = token {
+            let _ = operation.interpreter.release_command_guard(token);
+        }
+        return 0;
     }
+    token.map_or(0, GuardToken::raw)
 }
 
 /// `tcl_codegen_guard_check(token, intrinsic, argv, argc) -> i32`.
@@ -1801,7 +2142,6 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
     if argv.is_null() {
         return 0;
     }
-    // SAFETY: the caller contract guarantees `argc` readable entries.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
         return 0;
@@ -1809,50 +2149,45 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
     let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
         return 0;
     };
-    let interp = current_interp();
-    if interp.is_null() {
-        return 0;
-    }
-    let runtime_version = unsafe { (*interp).runtime_version() };
-    let expected = GuardIdentity::registry_intrinsic_with_semantics(
-        intrinsic.stable_id(),
-        intrinsic.guard_semantics_key(runtime_version),
-    );
-    let Some(dialect) =
-        crate::environment::known_surface_point_for_dialect(runtime_version.dialect_profile_name())
-    else {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 0;
     };
-    let Some(resolved) = guarded_intrinsic_request(
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let native = operation.interpreter.native_invocation_dialect();
+    let (Some(characters), Some(dialect)) = (native.characters, native.authoring_query()) else {
+        return 0;
+    };
+    let expected = GuardIdentity::registry_intrinsic_with_semantics(
+        intrinsic.stable_id(),
+        intrinsic.guard_semantics_key_for_characters(characters),
+    );
+    let resolved = match guarded_intrinsic_request(
+        &mut operation,
         intrinsic_id,
         words,
         expected,
-        runtime_version,
-        Some(dialect.query()),
-    ) else {
-        return 0;
+        characters,
+        Some(dialect),
+    ) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) | Err(_) => return 0,
     };
-    // SAFETY: every word was validated non-null and is caller-owned.
-    let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // SAFETY: `interp` is the live current interpreter.
-    i32::from(unsafe {
-        (*interp).check_command_guard_identity(
-            GuardToken::from_raw(token),
-            &resolved.head,
-            expected,
-        )
-    })
+    let valid = operation.interpreter.check_command_guard_identity(
+        GuardToken::from_raw(token),
+        &resolved.head,
+        expected,
+    );
+    if operation.ensure_current().is_err() {
+        return 0;
+    }
+    i32::from(valid)
 }
 
 /// `tcl_codegen_guard_release(token)` — release a token exactly once.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_guard_release(token: u64) {
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: `interp` is the live current interpreter.
-        unsafe {
-            let _ = (*interp).release_command_guard(GuardToken::from_raw(token));
-        }
+    if let Some(interpreter) = original_frame_owner::cleanup_interpreter() {
+        let _ = interpreter.release_command_guard(GuardToken::from_raw(token));
     }
 }
 
@@ -1878,17 +2213,21 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     if out.is_null() {
         return TCL_INVOKE_ABI_NULL_OUT;
     }
-    let interp = current_interp();
-    if interp.is_null() {
-        // SAFETY: `out` was checked above and meets this function's contract.
-        unsafe {
-            write_completion(
-                out,
-                detached_error_completion(b"no current interpreter for tcl_intrinsic_invoke_argv"),
-            )
-        };
-        return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
-    }
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(
+                        b"no current interpreter for tcl_intrinsic_invoke_argv",
+                    ),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
     let argc = match usize::try_from(argc) {
         Ok(argc) if argc > 0 => argc,
         _ => return TCL_INTRINSIC_ABI_DECLINED,
@@ -1896,7 +2235,6 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     if argv.is_null() {
         return TCL_INTRINSIC_ABI_DECLINED;
     }
-    // SAFETY: the caller contract guarantees `argc` readable entries.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
         return TCL_INTRINSIC_ABI_DECLINED;
@@ -1904,13 +2242,18 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(dialect) = crate::environment::known_surface_point_for_dialect(unsafe {
-        (*interp).runtime_version().dialect_profile_name()
-    }) else {
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let Some(dialect) = operation
+        .interpreter
+        .native_invocation_dialect()
+        .authoring_query()
+    else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(resolved) = resolve_intrinsic_argv(words, Some(dialect.query())) else {
-        return TCL_INTRINSIC_ABI_DECLINED;
+    let resolved = match resolve_intrinsic_argv(&mut operation, words, Some(dialect)) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) => return TCL_INTRINSIC_ABI_DECLINED,
+        Err(status) => return status,
     };
     if resolved.intrinsic != intrinsic {
         return TCL_INTRINSIC_ABI_DECLINED;
@@ -1921,37 +2264,24 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     let Some(args) = words.get(args_start..) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    // SAFETY: every word was validated non-null and is caller-owned.
-    let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // An intrinsic reached from generated code is an activation for the same
-    // reason a dispatched command is (see [`AbiActivation`]): the implementation
-    // may evaluate a body, and this call is the only enclosing activation there
-    // is.
-    // SAFETY: the current interpreter is live for this ABI call.
-    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(
-                    &mut *interp,
-                    crate::interp::Code::Error,
-                )),
-            );
-        }
-        return TCL_INVOKE_ABI_OK;
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
+        };
+    }
+    let code = operation.interpreter.execute_intrinsic(intrinsic, args);
+    if operation.ensure_current().is_err() {
+        drop(activation);
+        return TCL_INVOKE_ABI_HOST_REFUSED;
+    }
+    let Some(code) = code else {
+        drop(activation);
+        return operation
+            .ensure_current()
+            .map_or_else(|status| status, |_| TCL_INTRINSIC_ABI_DECLINED);
     };
-    // SAFETY: `interp` is live; direct execution only borrows `args`.
-    let Some(code) = (unsafe { (*interp).execute_intrinsic(intrinsic, args) }) else {
-        return TCL_INTRINSIC_ABI_DECLINED;
-    };
-    // SAFETY: `interp` is live and `out` is caller-provided writable storage.
-    let completion = unsafe { crate::state_traits::capture_completion(&mut *interp, code) };
-    activation.complete(completion.code);
-    drop(activation);
-    // SAFETY: `out` is caller-provided writable storage.
-    unsafe { write_completion(out, completion_abi(completion)) };
-    TCL_INVOKE_ABI_OK
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
 /// `tcl_invoke_argv(argv, argc, out) -> status` — invoke an already-evaluated
@@ -1966,9 +2296,9 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
 ///
 /// The return value reports ABI handling only: [`TCL_INVOKE_ABI_OK`] means
 /// `out` was written, even when `out.code` is Tcl `error`; a negative status
-/// reports a malformed boundary request. When `out` is valid, every status
-/// except [`TCL_INVOKE_ABI_NULL_OUT`] still writes an owned error completion so
-/// the caller has a uniform release path.
+/// reports a malformed boundary request or an operational Host refusal.
+/// Host refusal leaves `out` untouched. Other boundary failures with valid
+/// output storage write an owned error completion for the caller's release path.
 ///
 /// ## Ownership
 ///
@@ -1995,91 +2325,51 @@ pub unsafe extern "C" fn tcl_invoke_argv(
     if out.is_null() {
         return TCL_INVOKE_ABI_NULL_OUT;
     }
-
-    let interp = current_interp();
-    if interp.is_null() {
-        // SAFETY: `out` was checked above and meets this function's contract.
-        unsafe {
-            write_completion(
-                out,
-                detached_error_completion(b"no current interpreter for tcl_invoke_argv"),
-            )
-        };
-        return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
-    }
-
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(b"no current interpreter for tcl_invoke_argv"),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
     let argc = match usize::try_from(argc) {
         Ok(argc) if argc > 0 => argc,
         _ => {
-            // SAFETY: current interp and `out` are live per the function contract.
-            unsafe {
-                let code = (*interp).set_error(b"tcl_invoke_argv requires a command head");
-                write_completion(
-                    out,
-                    completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-                );
-            }
-            return TCL_INVOKE_ABI_INVALID_ARGC;
+            let code = operation
+                .interpreter
+                .set_error(b"tcl_invoke_argv requires a command head");
+            return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_INVALID_ARGC) };
         }
     };
     if argv.is_null() {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            let code = (*interp).set_error(b"tcl_invoke_argv received a null argv");
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-            );
-        }
-        return TCL_INVOKE_ABI_NULL_ARGV;
+        let code = operation
+            .interpreter
+            .set_error(b"tcl_invoke_argv received a null argv");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_ARGV) };
     }
-
-    // SAFETY: caller guarantees `argv` references `argc` readable pointers.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            let code = (*interp).set_error(b"tcl_invoke_argv received a null word");
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-            );
-        }
-        return TCL_INVOKE_ABI_NULL_WORD;
+        let code = operation
+            .interpreter
+            .set_error(b"tcl_invoke_argv received a null word");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_WORD) };
     }
-
-    // Keep the caller's borrowed words alive through dispatch. `Drop` restores
-    // their exact pre-call reference counts after the completion has captured
-    // independent result/options references.
-    // SAFETY: null words were rejected; the caller guarantees every word is
-    // live and holds an owned reference for this call.
+    // All caller-owned argv references remain borrowed through dispatch and capture.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // Dispatching directly skips the eval loop, so this call *is* the enclosing
-    // activation: it must count as one while the dispatched command runs (a
-    // `catch` body would otherwise trip the outermost-eval rule and lose its
-    // `-errorcode`), and it applies that rule itself on the way out — which is
-    // what publishes an uncaught error's trace to `::errorInfo`/`::errorCode`.
-    // SAFETY: the current interpreter is live for this ABI call.
-    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(
-                    &mut *interp,
-                    crate::interp::Code::Error,
-                )),
-            );
-        }
-        return TCL_INVOKE_ABI_OK;
-    };
-    // SAFETY: the current interpreter is live for this ABI call.
-    let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
-    activation.complete(completion.code);
-    drop(activation);
-    // SAFETY: `out` is live and properly aligned per this function's contract.
-    unsafe { write_completion(out, completion_abi(completion)) };
-    TCL_INVOKE_ABI_OK
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
+        };
+    }
+    let code = operation.interpreter.dispatch(words);
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
 /// Release both owned object references in a [`TclCompletionAbi`] and reset its
@@ -2112,36 +2402,39 @@ pub unsafe extern "C" fn tcl_completion_release(completion: *mut TclCompletionAb
 }
 
 /// `tcl_expr_bool(expr) -> i32` — evaluate `expr` as a Tcl boolean (`1`/`0`).
-/// **Adopts (frees)** the `rc 0` `expr`. On an expression error — or in a build
+/// **Adopts (frees)** the `rc 0` `expr`. On a genuine Guest expression error — or in a build
 /// without the numeric tower (no `expr` evaluator) — yields `0`. The wasm
 /// runtime now links libtommath (`build.rs`), so `have_tommath` is set and this
-/// uses the real evaluator there too — AOT-emitted `if`/`while` conditions
-/// evaluate correctly.
+/// uses the real evaluator there too. This compatibility export projects
+/// genuine Guest failure to false; full compiler conditions use the completion-
+/// bearing `tcl_codegen_expr_bool`. Host refusal returns `-6` and stays in the
+/// independent interpreter channel.
 ///
 /// # Safety
 /// `expr` must be a live `rc 0` object from [`tcl_obj_new_string`]; the current
 /// interp (if set) must be live.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_expr_bool(expr: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    // SAFETY: `expr` is live for the duration of the read; `interp` (if non-null)
-    // is the live current interp.
-    let truth = unsafe { expr_bool_impl(interp, expr) };
-    drop_fresh(expr);
-    truth
+    let expr = obj::Owned::fresh(expr);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => return 0,
+        Err(status) => return status,
+    };
+    let truth = unsafe { expr_bool_impl(&mut operation.interpreter, expr.as_ptr()) };
+    drop(expr);
+    operation
+        .ensure_current()
+        .map_or_else(|status| status, |_| truth)
 }
 
 /// The expression-condition path, present only with the numeric tower.
 ///
 /// # Safety
-/// `expr` must be live; `interp` must be null or the live current interp.
+/// `expr` must be live; `interp` is the retained original operation target.
 #[cfg(have_tommath)]
-unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
-    if interp.is_null() {
-        return 0;
-    }
-    // SAFETY: `interp` is the live current interp.
-    let ok = crate::builtins::eval_bool_expr(unsafe { &mut *interp }, expr);
+unsafe fn expr_bool_impl(interp: &mut Interp, expr: *mut TclObj) -> i32 {
+    let ok = crate::builtins::eval_bool_expr(interp, expr);
     i32::from(matches!(ok, Ok(true)))
 }
 
@@ -2154,9 +2447,18 @@ unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
 /// # Safety
 /// Trivially safe (dereferences nothing).
 #[cfg(not(have_tommath))]
-unsafe fn expr_bool_impl(_interp: *mut Interp, _expr: *mut TclObj) -> i32 {
+unsafe fn expr_bool_impl(_interp: &mut Interp, _expr: *mut TclObj) -> i32 {
     0
 }
+
+/// Query retained operational failures before any guest catch/finally transition.
+/// This does not reset the failure or publish a catchable Tcl completion.
+#[unsafe(no_mangle)]
+pub extern "C" fn tcl_codegen_host_refusal_pending() -> i32 {
+    i32::from(original_frame_owner::refusal_pending())
+}
+
+mod original_frame_owner;
 
 #[cfg(test)]
 mod tests {
@@ -2171,6 +2473,84 @@ mod tests {
     use tcl_platform::{Capabilities, Clock, Env, Filesystem, Host, Process, StdIo};
     use tcl_runtime_api::codegen_abi::{NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_RAN};
     use tcl_runtime_api::guard::GuardDomain;
+
+    #[test]
+    fn reached_unicode_refusal_keeps_argv_completion_output_untouched() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [b"string".as_slice(), b"toupper", b"A\xff"].map(|bytes| {
+                tcl_obj_new_string_owned(bytes.as_ptr(), i32::try_from(bytes.len()).unwrap())
+            });
+            let mut out = TclCompletionAbi {
+                code: 77,
+                result: core::ptr::null_mut(),
+                options: core::ptr::null_mut(),
+            };
+            assert_eq!(
+                tcl_invoke_argv(words.as_ptr(), 3, &mut out),
+                TCL_INVOKE_ABI_HOST_REFUSED
+            );
+            assert_eq!(tcl_codegen_host_refusal_pending(), 1);
+            assert_eq!(out.code, 77);
+            assert!(out.result.is_null());
+            assert!(out.options.is_null());
+            assert_eq!((*interp).unicode_access_refusal().unwrap().valid_up_to, 1);
+            for word in words {
+                tcl_obj_release(word);
+            }
+            tcl_runtime_set_current_interp(core::ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn reached_refusal_bypasses_capture_finally_and_rmw_read_error_recovery() {
+        for script in [
+            b"incr prior; catch {string toupper $raw} captured options; set after YES".as_slice(),
+            b"incr prior; try {string toupper $raw} finally {set final YES}; set after YES",
+            b"incr prior; set x 10; proc cb {args} {string toupper $::raw}; trace add variable x read cb; incr x; set after YES",
+            b"incr prior; array set a {k 1}; proc cb {args} {string toupper $::raw}; trace add variable a(k) read cb; catch {array get a} captured options; set after YES",
+        ] {
+            leak_free(|| {
+                let mut interp = Interp::new();
+                let raw = new_string_bytes(b"A\xff");
+                interp.var_set(b"raw", raw).unwrap();
+                interp.var_set(b"prior", crate::obj::new_wide_int_obj(0)).unwrap();
+                assert_eq!(interp.eval_str(script), Code::Error);
+                assert!(interp.host_refusal_pending());
+                assert_eq!(obj_bytes(interp.var_get(b"prior").unwrap()), b"1");
+                for name in [b"captured".as_slice(), b"options", b"final", b"after"] {
+                    assert!(!interp.var_exists(name));
+                }
+                if let Some(x) = interp.var_get(b"x") { assert_eq!(obj_bytes(x), b"10"); }
+            });
+        }
+    }
+
+    #[test]
+    fn byte_guest_error_metadata_is_captured_without_host_refusal() {
+        fn fail(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+            interp.report_cmd_error(tcl_cmd_core::CmdError::with_byte_error_details(
+                b"BOOM\xff".to_vec(),
+                b"RAW \xfe".to_vec(),
+                Some(b"TRACE\xfd".to_vec()),
+                Some(7),
+            ))
+        }
+        leak_free(|| {
+            let mut interp = Interp::new();
+            interp.register_builtin(b"rawfail", fail);
+            assert_eq!(interp.eval_str(b"catch {rawfail} r opts"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"1");
+            assert!(!interp.host_refusal_pending());
+            assert_eq!(obj_bytes(interp.var_get(b"r").unwrap()), b"BOOM\xff");
+            assert_eq!(interp.eval_str(b"dict get $opts -errorcode"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"RAW \xfe");
+            assert_eq!(interp.eval_str(b"dict get $opts -errorinfo"), Code::Ok);
+            assert!(interp.result_bytes().starts_with(b"TRACE\xfd"));
+        });
+    }
 
     struct CaptureHost {
         native: NativeHost,
@@ -2302,10 +2682,12 @@ mod tests {
             "test helper requires a current interpreter"
         );
         // SAFETY: tests install a live current interpreter before using this helper.
-        let runtime_version = unsafe { (*interp).runtime_version() };
+        let characters = unsafe { (*interp).native_invocation_dialect() }
+            .characters
+            .expect("test runtime has a selected character protocol");
         let identity = GuardIdentity::registry_intrinsic_with_semantics(
             intrinsic.stable_id(),
-            intrinsic.guard_semantics_key(runtime_version),
+            intrinsic.guard_semantics_key_for_characters(characters),
         );
         // SAFETY: `words` is a Rust slice of live caller-owned object handles.
         unsafe {
@@ -2364,6 +2746,29 @@ mod tests {
             ];
             let counts = words.map(|word| (*word).ref_count);
             let domains = i32::from(GuardDomains::one(GuardDomain::CommandEnvironment).bits());
+            let native = (*interp).native_invocation_dialect();
+            assert!(
+                resolve_intrinsic_argv(
+                    &mut CodegenOperation::enter().unwrap(),
+                    &words,
+                    native.authoring_query()
+                )
+                .unwrap()
+                .is_some(),
+                "actual Jim StringLength form is retained"
+            );
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                IntrinsicId::StringLength.stable_id(),
+                IntrinsicId::StringLength
+                    .guard_semantics_key_for_characters(native.characters.unwrap()),
+            );
+            let direct = (*interp).prepare_command_guard(
+                b"string",
+                identity,
+                GuardDomains::one(GuardDomain::Interpreter),
+            );
+            assert!(direct.is_ok(), "native stock string identity: {direct:?}");
+            tcl_codegen_guard_release(direct.unwrap().raw());
             let token = prepare_intrinsic_guard(IntrinsicId::StringLength, &words, domains);
             assert_ne!(token, 0);
             assert_eq!(
@@ -2444,9 +2849,99 @@ mod tests {
                 "a Tcl 9 scalar-count identity must not enter a Tcl 8 runtime",
             );
             let (status, mut completion) = invoke_intrinsic(IntrinsicId::StringLength, &words);
+            assert_eq!(status, TCL_INVOKE_ABI_HOST_REFUSED);
+            assert_eq!(
+                (*interp).native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native string count cache origin",
+                    ),
+                )
+            );
+            tcl_completion_release(&mut completion);
+            assert_eq!((*interp).eval_str(b""), Code::Ok);
+            let c86_words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word("é🙂".as_bytes()),
+            ];
+            let (status, mut completion) = invoke_intrinsic(IntrinsicId::StringLength, &c86_words);
             assert_eq!(status, TCL_INVOKE_ABI_OK);
             assert_eq!(obj_bytes(completion.result), b"3");
             tcl_completion_release(&mut completion);
+            release_words(&words);
+            release_words(&c86_words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn guarded_intrinsic_jim_character_identity_ignores_the_c_assistance_release() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            (*interp).set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word("é🙂".as_bytes()),
+            ];
+            let domains = i32::from(GuardDomains::one(GuardDomain::Interpreter).bits());
+            let c_identity = GuardIdentity::registry_intrinsic_with_semantics(
+                IntrinsicId::StringLength.stable_id(),
+                IntrinsicId::StringLength.guard_semantics_key((*interp).runtime_version()),
+            );
+            assert_eq!(
+                tcl_codegen_guard_prepare(
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    3,
+                    c_identity.namespace(),
+                    c_identity.value(),
+                    domains,
+                ),
+                0
+            );
+            let native = (*interp).native_invocation_dialect();
+            assert!(
+                resolve_intrinsic_argv(
+                    &mut CodegenOperation::enter().unwrap(),
+                    &words,
+                    native.authoring_query()
+                )
+                .unwrap()
+                .is_some(),
+                "actual Jim StringLength form is retained"
+            );
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                IntrinsicId::StringLength.stable_id(),
+                IntrinsicId::StringLength
+                    .guard_semantics_key_for_characters(native.characters.unwrap()),
+            );
+            let direct = (*interp).prepare_command_guard(
+                b"string",
+                identity,
+                GuardDomains::one(GuardDomain::Interpreter),
+            );
+            assert!(direct.is_ok(), "native stock string identity: {direct:?}");
+            tcl_codegen_guard_release(direct.unwrap().raw());
+            let token = prepare_intrinsic_guard(IntrinsicId::StringLength, &words, domains);
+            assert_ne!(token, 0);
+            assert_eq!(
+                tcl_codegen_guard_check(
+                    token,
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    3
+                ),
+                1
+            );
+            let (status, mut completion) = invoke_intrinsic(IntrinsicId::StringLength, &words);
+            assert_eq!(status, TCL_INVOKE_ABI_OK);
+            assert_eq!(obj_bytes(completion.result), b"2");
+            tcl_completion_release(&mut completion);
+            tcl_codegen_guard_release(token);
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
@@ -3031,8 +3526,16 @@ mod tests {
     /// real error options instead of an empty placeholder.
     #[test]
     fn invoke_argv_reports_unknown_error_with_options() {
+        // naming.runtime.original-procedure-error-context
+        // docs/design/analysis/name-resolution-proofs/runtime-original-procedure-error-context.md
+        // The default ABI interpreter selects C9.0. Native295's ordinary-miss
+        // public errorCode differs from the namespace-origin error producer.
         leak_free(|| unsafe {
             let interp = tcl_runtime_create_interp();
+            assert_eq!(
+                (*interp).native_invocation_dialect().tcl_version,
+                Some(tcl_dialect::TclVersion::V9_0)
+            );
             tcl_runtime_set_current_interp(interp);
             let words = [owned_word(b"definitely_missing_command")];
 
@@ -3041,7 +3544,10 @@ mod tests {
             assert!(obj_bytes(completion.result).starts_with(b"invalid command name"));
             assert_eq!(option(&completion, b"-code"), b"1");
             assert_eq!(option(&completion, b"-level"), b"0");
-            assert_eq!(option(&completion, b"-errorcode"), b"NONE");
+            assert_eq!(
+                option(&completion, b"-errorcode"),
+                b"TCL LOOKUP COMMAND definitely_missing_command"
+            );
             assert!(option(&completion, b"-errorinfo").starts_with(b"invalid command name"));
 
             tcl_completion_release(&mut completion);
@@ -3097,6 +3603,477 @@ mod tests {
         // SAFETY: `value` is live and `out` is local aligned storage.
         let status = unsafe { tcl_value_get_bool(value, &mut out) };
         (status, out)
+    }
+
+    fn scalar_interpreter(environment: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment(environment).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn boxed_primitive_reads_share_actual_environment_and_raw_boolean_projection() {
+        // Software adapters: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        leak_free(|| unsafe {
+            for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+                let mut interp = scalar_interpreter(environment);
+                tcl_runtime_set_current_interp(&mut interp);
+                let wide = owned_word(b"0x10");
+                let double = owned_word(b"1.5");
+                assert_eq!(get_wide(wide), (TCL_VALUE_GET_OK, 16), "{environment}");
+                assert_eq!(get_double(double), (TCL_VALUE_GET_OK, 1.5), "{environment}");
+                assert_eq!(obj_bytes(wide), b"0x10");
+                assert_eq!(obj_bytes(double), b"1.5");
+                release_words(&[wide, double]);
+                for number in [17, 4_294_967_296] {
+                    let primitive = obj::Owned::fresh(obj::new_wide_int_obj(number));
+                    let boxed = obj::Owned::fresh(obj::new_wide_int_obj(number));
+                    let mut raw = 777;
+                    assert_eq!(
+                        crate::capi::Tcl_GetBooleanFromObj(
+                            &mut interp,
+                            primitive.as_ptr(),
+                            &mut raw,
+                        ),
+                        0
+                    );
+                    let expected = if environment == "jim" {
+                        if number == 17 {
+                            17
+                        } else {
+                            0
+                        }
+                    } else {
+                        1
+                    };
+                    assert_eq!(raw, expected, "{environment}, {number}");
+                    assert_eq!(
+                        get_bool(boxed.as_ptr()),
+                        (TCL_VALUE_GET_OK, i32::from(raw != 0))
+                    );
+                    assert!(!interp.host_refusal_pending());
+                }
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    struct ScalarNumericHost {
+        actual: Rc<dyn Host>,
+        interpreter: RefCell<Option<Interp>>,
+        double_calls: std::cell::Cell<usize>,
+        abi_calls: std::cell::Cell<usize>,
+        change_abi_context: std::cell::Cell<bool>,
+        abi_query_fails: std::cell::Cell<bool>,
+        abi_available: bool,
+        change_context: bool,
+    }
+
+    impl Host for ScalarNumericHost {
+        fn capabilities(&self) -> Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn Env {
+            self.actual.env()
+        }
+        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+            self.abi_available.then_some(self)
+        }
+    }
+
+    impl ScalarNumericHost {
+        fn actual(&self) -> &dyn tcl_platform::NumericEnvironment {
+            self.actual
+                .numeric_environment()
+                .expect("actual native numeric environment")
+        }
+        fn change_and_restore_context(&self) {
+            let mut interp = self.interpreter.borrow().as_ref().unwrap().clone();
+            let original = interp.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("boxed-scalar-currency".to_owned(), "1.0".to_owned())];
+            interp.pin_context(&changed).unwrap();
+            interp.pin_context(&original).unwrap();
+        }
+    }
+
+    impl tcl_platform::NumericEnvironment for ScalarNumericHost {
+        fn c_integer_abi(
+            &self,
+        ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            let result = self.actual().c_integer_abi();
+            self.abi_calls.set(self.abi_calls.get() + 1);
+            if self.change_abi_context.get() {
+                self.change_and_restore_context();
+            }
+            if self.abi_query_fails.get() {
+                Err(tcl_platform::NumericEnvironmentUnavailable::Target)
+            } else {
+                result
+            }
+        }
+        fn state(
+            &self,
+        ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            self.actual().state()
+        }
+        fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
+            self.actual().reset()
+        }
+        fn unsigned_c84(
+            &self,
+            input: &[u8],
+            offset: usize,
+            long: bool,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned_c84(input, offset, long)
+        }
+        fn unsigned(
+            &self,
+            input: &[u8],
+            offset: usize,
+            base: u32,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned(input, offset, base)
+        }
+        fn signed_long(
+            &self,
+            input: &[u8],
+            base: u32,
+        ) -> Result<
+            tcl_platform::SignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().signed_long(input, base)
+        }
+        fn double(
+            &self,
+            input: &[u8],
+            reset: bool,
+        ) -> Result<
+            tcl_platform::DoubleNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            let result = self.actual().double(input, reset);
+            self.double_calls.set(self.double_calls.get() + 1);
+            if self.change_context {
+                self.change_and_restore_context();
+            }
+            result
+        }
+    }
+
+    fn scalar_host(
+        interp: &Interp,
+        abi_available: bool,
+        change_context: bool,
+    ) -> Rc<ScalarNumericHost> {
+        let host = Rc::new(ScalarNumericHost {
+            actual: interp.host(),
+            interpreter: RefCell::new(None),
+            double_calls: std::cell::Cell::new(0),
+            abi_calls: std::cell::Cell::new(0),
+            change_abi_context: std::cell::Cell::new(false),
+            abi_query_fails: std::cell::Cell::new(false),
+            abi_available,
+            change_context,
+        });
+        interp.set_host(host.clone());
+        host
+    }
+
+    #[test]
+    fn boxed_primitive_reads_keep_missing_abi_and_first_host_terminal() {
+        // Software owner: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        leak_free(|| unsafe {
+            for first_host in [false, true] {
+                let mut interp = scalar_interpreter("tcl8.4");
+                let host = scalar_host(&interp, false, false);
+                interp.set_result_bytes(b"PRIOR\0\xff");
+                if first_host {
+                    interp.refuse_host_command("original first refusal");
+                }
+                let first = interp.native_execution_refusal();
+                let value = owned_word(b"17");
+                let before = obj::native_object_snapshot(value).unwrap();
+                tcl_runtime_set_current_interp(&mut interp);
+                assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+                let double = get_double(value);
+                assert_eq!(double.0, TCL_VALUE_GET_ERROR);
+                assert!(double.1.is_nan());
+                assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+                assert_eq!(host.double_calls.get(), 0);
+                assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+                assert!(interp.host_refusal_pending());
+                if first_host {
+                    assert_eq!(interp.native_execution_refusal(), first);
+                }
+                release_words(&[value]);
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn boxed_primitive_reads_refuse_foreign_and_restored_engine_issuers() {
+        // Software owner: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        leak_free(|| unsafe {
+            for foreign in [false, true] {
+                let mut owner = scalar_interpreter("tcl8.6");
+                let mut other = scalar_interpreter("tcl8.6");
+                let value = owned_word(b"17");
+                crate::capi::bind_scalar_getter_context(&owner, value).unwrap();
+                let before = obj::native_object_snapshot(value).unwrap();
+                let original = owner.runtime_context();
+                if !foreign {
+                    let mut changed = original.clone();
+                    changed.packages = vec![("boxed-scalar-owner".to_owned(), "1.0".to_owned())];
+                    owner.pin_context(&changed).unwrap();
+                    owner.pin_context(&original).unwrap();
+                }
+                let selected = if foreign { &mut other } else { &mut owner };
+                selected.set_result_bytes(b"UNCHANGED");
+                tcl_runtime_set_current_interp(selected);
+                assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+                assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+                assert!(selected.host_refusal_pending());
+                assert_eq!(selected.result_bytes(), b"UNCHANGED");
+                assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                release_words(&[value]);
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn boxed_primitive_host_change_and_restore_stops_before_cache_and_output() {
+        // Software currency: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            for environment in ["tcl8.4", "jim"] {
+                let mut interp = scalar_interpreter(environment);
+                let host = scalar_host(&interp, true, true);
+                *host.interpreter.borrow_mut() = Some(interp.clone());
+                let context = interp.runtime_context();
+                let profile = interp.dialect_profile();
+                interp.set_result_bytes(b"PRIOR\0\xff");
+                let prior = interp.get_obj_result();
+                let value = owned_word(b"1.5");
+                let before = obj::native_object_snapshot(value).unwrap();
+                tcl_runtime_set_current_interp(&mut interp);
+                let outcome = get_double(value);
+                assert_eq!(outcome.0, TCL_VALUE_GET_ERROR);
+                assert!(outcome.1.is_nan());
+                assert_eq!(host.double_calls.get(), 1, "{environment}");
+                assert_eq!(interp.runtime_context(), context);
+                assert!(std::ptr::eq(interp.dialect_profile(), profile));
+                let first = interp.native_execution_refusal().unwrap();
+                assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                ));
+                assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                assert_eq!(interp.get_obj_result(), prior);
+                assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+                assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+                assert_eq!(host.double_calls.get(), 1);
+                assert_eq!(interp.native_execution_refusal(), Some(first));
+                tcl_runtime_set_current_interp(ptr::null_mut());
+                release_words(&[value]);
+                host.interpreter.borrow_mut().take();
+            }
+        });
+    }
+
+    #[test]
+    fn scalar_abi_query_change_and_restore_cannot_issue_or_refresh_a_receipt() {
+        // Software currency: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            for retained in [false, true] {
+                for query_fails in [false, true] {
+                    let mut interp = scalar_interpreter("tcl8.6");
+                    let host = scalar_host(&interp, true, false);
+                    *host.interpreter.borrow_mut() = Some(interp.clone());
+                    let value = owned_word(b"1.5");
+                    if retained {
+                        crate::capi::bind_scalar_getter_context(&interp, value).unwrap();
+                    }
+                    let before = obj::native_object_snapshot(value).unwrap();
+                    let context = interp.runtime_context();
+                    let calls = host.abi_calls.get();
+                    host.change_abi_context.set(true);
+                    host.abi_query_fails.set(query_fails);
+                    interp.set_result_bytes(b"PRIOR");
+                    let error = crate::capi::probe_scalar_getter(
+                        if retained { None } else { Some(&interp) },
+                        value,
+                        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+                    )
+                    .unwrap_err();
+                    let first = interp.native_execution_refusal().unwrap();
+                    assert!(
+                        matches!(error, crate::capi::NativeScalarObjectAccessError::Execution(ref cause) if *cause == first)
+                    );
+                    assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "stale entered native operation",
+                        ),
+                    ));
+                    assert_eq!(host.abi_calls.get(), calls + 1);
+                    assert_eq!(host.double_calls.get(), 0);
+                    assert_eq!(interp.runtime_context(), context);
+                    assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                    assert_eq!(interp.result_bytes(), b"PRIOR");
+                    if !retained {
+                        assert!(obj::scalar_object_context(value).unwrap().is_none());
+                    }
+                    tcl_runtime_set_current_interp(&mut interp);
+                    let outcome = get_double(value);
+                    assert_eq!(outcome.0, TCL_VALUE_GET_ERROR);
+                    assert!(outcome.1.is_nan());
+                    assert_eq!(host.abi_calls.get(), calls + 1);
+                    assert_eq!(interp.native_execution_refusal(), Some(first));
+                    tcl_runtime_set_current_interp(ptr::null_mut());
+                    release_words(&[value]);
+                    host.interpreter.borrow_mut().take();
+                }
+            }
+        });
+    }
+
+    thread_local! {
+        static SCALAR_UPDATER_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    extern "C" fn scalar_context_changing_updater(value: *mut TclObj) {
+        SCALAR_UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
+        // SAFETY: the actual caller retains this original interpreter for the
+        // updater. The clone shares its real state without borrowing it.
+        let mut interp = unsafe { current_interp().as_ref() }.unwrap().clone();
+        let original = interp.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("boxed-scalar-updater".to_owned(), "1.0".to_owned())];
+        interp.pin_context(&changed).unwrap();
+        interp.pin_context(&original).unwrap();
+        // SAFETY: this actual descriptor owns the live original header.
+        unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
+    }
+
+    static SCALAR_CONTEXT_TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalScalarCurrency".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(scalar_context_changing_updater),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn boxed_primitive_updater_change_and_restore_keeps_only_reached_string_effects() {
+        // Software stages: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            let mut interp = scalar_interpreter("tcl8.6");
+            let original = obj::Owned::fresh(obj::alloc_typed(&SCALAR_CONTEXT_TYPE, 0));
+            let value = original.as_ptr();
+            let context = interp.runtime_context();
+            let references = (*value).ref_count;
+            interp.set_result_bytes(b"PRIOR");
+            let result = interp.get_obj_result();
+            SCALAR_UPDATER_CALLS.with(|calls| calls.set(0));
+            tcl_runtime_set_current_interp(&mut interp);
+            assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+            let first = interp.native_execution_refusal().unwrap();
+            assert_eq!(
+                first,
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                )
+            );
+            SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+            assert_eq!(interp.runtime_context(), context);
+            assert_eq!(obj::bytes_of(value), b"17");
+            assert_eq!(obj::obj_type_ptr(value), &SCALAR_CONTEXT_TYPE as *const _);
+            assert!(obj::native_scalar_cache(value).unwrap().is_none());
+            assert_eq!((*value).ref_count, references);
+            assert_eq!(interp.get_obj_result(), result);
+            assert_eq!(interp.result_bytes(), b"PRIOR");
+            assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+            SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+            assert_eq!(interp.native_execution_refusal(), Some(first));
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn entered_expression_number_updater_stops_before_cache_and_truth_output() {
+        // Software stages: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            for production in [0, 1] {
+                let mut interp = scalar_interpreter("tcl8.6");
+                let original = obj::Owned::fresh(obj::alloc_typed(&SCALAR_CONTEXT_TYPE, 0));
+                let value = original.as_ptr();
+                let context = interp.runtime_context();
+                let references = (*value).ref_count;
+                interp.set_result_bytes(b"PRIOR");
+                let result = interp.get_obj_result();
+                SCALAR_UPDATER_CALLS.with(|calls| calls.set(0));
+                tcl_runtime_set_current_interp(&mut interp);
+                let mut out = -17;
+                assert_eq!(
+                    tcl_value_get_expression_bool(value, production, &mut out),
+                    TCL_VALUE_GET_ERROR
+                );
+                assert_eq!(out, -17);
+                let first = interp.native_execution_refusal().unwrap();
+                assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                ));
+                SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+                assert_eq!(interp.runtime_context(), context);
+                assert_eq!(obj::bytes_of(value), b"17");
+                assert_eq!(obj::obj_type_ptr(value), &SCALAR_CONTEXT_TYPE as *const _);
+                assert!(obj::native_scalar_cache(value).unwrap().is_none());
+                assert_eq!((*value).ref_count, references);
+                assert_eq!(interp.get_obj_result(), result);
+                assert_eq!(interp.result_bytes(), b"PRIOR");
+                assert_eq!(
+                    tcl_value_get_expression_bool(value, production, &mut out),
+                    TCL_VALUE_GET_ERROR
+                );
+                assert_eq!(out, -17);
+                SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+                assert_eq!(interp.native_execution_refusal(), Some(first));
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
     }
 
     /// A successful typed read caches the parsed rep onto the object — C's
@@ -3161,7 +4138,10 @@ mod tests {
                 (*interp).result_bytes(),
                 b"integer value too large to represent"
             );
-            assert_eq!((*interp).error_code(), b"ARITH IOVERFLOW");
+            assert_eq!(
+                (*interp).error_code(),
+                b"ARITH IOVERFLOW {integer value too large to represent}"
+            );
             // The same value still widens to a double.
             assert_eq!(get_double(huge), (TCL_VALUE_GET_OK, 1e23));
 
@@ -3244,11 +4224,37 @@ mod tests {
             );
             assert_eq!(
                 get_double(nan).0,
-                TCL_VALUE_GET_OK,
-                "a double read accepts NaN"
+                TCL_VALUE_GET_ERROR,
+                "the actual C9 primitive double read rejects cached NaN"
             );
 
             release_words(&[ambiguous, nan]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn actual_cached_getter_preserves_private_c85_code_and_exact_result_extent() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            (*interp).set_dialect_profile(crate::environment::profile_for_dialect("tcl8.5"));
+            (*interp).set_error_state(b"KEEP CODE");
+            let value = owned_word(b"1.5\0tail");
+            assert_eq!(get_double(value), (TCL_VALUE_GET_OK, 1.5));
+            assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"1.5\0tail\""
+            );
+            assert_eq!((*interp).error_code(), b"KEEP CODE");
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(value),
+                &obj::TCL_DOUBLE_TYPE
+            ));
+            assert!(!(*interp).host_refusal_pending());
+            release_words(&[value]);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
         });
@@ -3320,15 +4326,21 @@ mod tests {
         });
     }
 
-    /// An explicit compiled activation is an eval-loop activation: an uncaught
-    /// error inside it is *not* published while it is held (the enclosing
-    /// activation, not the dispatch, is the outermost one), and the matching
-    /// leave publishes `::errorInfo`/`::errorCode` exactly as the eval loop's
-    /// tail does.
+    /// A compiled activation's matching leave retains the native error
+    /// objects. Public original-name reads reach their hidden core read hooks
+    /// without starting an eval loop or resetting the error episode.
     #[test]
-    fn compiled_activation_defers_error_publication_to_its_own_leave() {
+    fn compiled_activation_leave_retains_native_errors_for_public_read() {
+        // naming.runtime.compiled-procedure-fallback-and-source-log
+        // docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md
         leak_free(|| unsafe {
-            let interp = tcl_runtime_create_interp();
+            let native = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("tcl9.0"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let interp = Box::into_raw(Box::new(native));
             tcl_runtime_set_current_interp(interp);
 
             assert_eq!(tcl_codegen_activation_enter(), 0);
@@ -3336,29 +4348,200 @@ mod tests {
             let mut completion = invoke(&words);
             assert_eq!(completion.code, 1);
 
-            // Still inside the activation, so the globals are untouched — the
-            // eval loop would not have published at depth 1 either. Read them
-            // straight out of the interpreter: an intervening `eval` would
-            // reset the very error episode under test.
+            // The ordinary cell has no eager write. This is not a claim that
+            // a public Read cannot reach an active native private exception.
+            // An intervening eval would reset the error episode under test.
             assert!(
                 (*interp).var_get(b"::errorInfo").is_none(),
-                "a held activation is not the outermost one"
+                "no eager ordinary error-variable cell write"
             );
 
             tcl_codegen_activation_leave(1);
+            let info_name = obj::Owned::fresh(obj::new_string_bytes(b"::errorInfo"));
             let published = (*interp)
-                .var_get(b"::errorInfo")
-                .expect("leaving the outermost activation publishes the trace");
+                .read_original_named_variable(info_name.as_ptr())
+                .expect("the public Read reaches the published native trace");
             assert!(obj_bytes(published).starts_with(b"boom"));
-            assert_eq!(
-                obj_bytes((*interp).var_get(b"::errorCode").expect("::errorCode")),
-                b"NONE"
-            );
+            let code_name = obj::Owned::fresh(obj::new_string_bytes(b"::errorCode"));
+            let published = (*interp)
+                .read_original_named_variable(code_name.as_ptr())
+                .expect("the public Read reaches the published native error code");
+            assert_eq!(obj_bytes(published), b"NONE");
 
             tcl_completion_release(&mut completion);
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    fn hold_actual_activation_bound() -> usize {
+        // Reach the real entry bound without modifying interpreter depth fields.
+        for entered in 0..1024 {
+            if tcl_codegen_activation_enter() != 0 {
+                assert!(entered > 0, "the genuine interpreter enters an activation");
+                return entered;
+            }
+        }
+        panic!("the bounded software fixture did not reach the actual activation refusal");
+    }
+
+    fn selected_c86_activation_interpreter() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn activation_refusal_preserves_first_host_and_all_caller_owned_outputs() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // This reaches the actual software activation bound; it does not assert
+        // a C Tcl nesting limit or an original provider callback chronology.
+        leak_free(|| unsafe {
+            let mut interp = selected_c86_activation_interpreter();
+            tcl_runtime_set_current_interp(&raw mut interp);
+            let entered = hold_actual_activation_bound();
+            interp.set_result_bytes(b"PRIOR\0\xff");
+            let prior = interp.result_obj();
+            let first =
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
+            interp.refuse_native_access(first.clone());
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let counts = words.map(|word| (*word).ref_count);
+            let result = owned_word(b"CALLER RESULT");
+            let options = owned_word(b"-caller YES");
+            let output_counts = ((*result).ref_count, (*options).ref_count);
+            let mut out = TclCompletionAbi {
+                code: 77,
+                result,
+                options,
+            };
+            for intrinsic in [false, true] {
+                let status = if intrinsic {
+                    tcl_intrinsic_invoke_argv(
+                        IntrinsicId::StringLength.stable_id(),
+                        words.as_ptr(),
+                        3,
+                        &raw mut out,
+                    )
+                } else {
+                    tcl_invoke_argv(words.as_ptr(), 3, &raw mut out)
+                };
+                assert_eq!(status, TCL_INVOKE_ABI_HOST_REFUSED);
+                assert_eq!(
+                    interp.native_execution_refusal(),
+                    Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        first.clone()
+                    ),)
+                );
+                assert_eq!(out.code, 77);
+                assert_eq!(out.result, result);
+                assert_eq!(out.options, options);
+                assert_eq!(((*result).ref_count, (*options).ref_count), output_counts);
+                assert_eq!(words.map(|word| (*word).ref_count), counts);
+                assert_eq!(interp.result_obj(), prior);
+                assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+            }
+            for _ in 0..entered {
+                tcl_codegen_activation_leave(0);
+            }
+            tcl_completion_release(&raw mut out);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn original_refused_abi_activation_keeps_every_genuinely_held_entry() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software entry refusal and paired ownership only; this records
+        // no C Tcl nesting limit or original provider callback chronology.
+        leak_free(|| unsafe {
+            let mut interp = selected_c86_activation_interpreter();
+            tcl_runtime_set_current_interp(&raw mut interp);
+            let entered = hold_actual_activation_bound();
+            for _ in 0..3 {
+                assert!(AbiActivation::enter(&raw mut interp).is_none());
+                assert_ne!(
+                    tcl_codegen_activation_enter(),
+                    0,
+                    "a refused ABI attempt cannot retire a genuinely held entry"
+                );
+            }
+            tcl_codegen_activation_leave(0);
+            assert_eq!(
+                tcl_codegen_activation_enter(),
+                0,
+                "only a matching leave makes room for the next actual entry"
+            );
+            tcl_codegen_activation_leave(0);
+            for _ in 1..entered {
+                tcl_codegen_activation_leave(0);
+            }
+            assert!(interp.native_execution_refusal().is_none());
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn activation_guest_refusal_keeps_its_real_owned_completion() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Both public routes reach the genuine software entry bound; this only
+        // checks its Guest/Host separation and ownership, not a native depth claim.
+        leak_free(|| unsafe {
+            let mut interp = selected_c86_activation_interpreter();
+            tcl_runtime_set_current_interp(&raw mut interp);
+            let entered = hold_actual_activation_bound();
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let counts = words.map(|word| (*word).ref_count);
+            for intrinsic in [false, true] {
+                let mut out = TclCompletionAbi {
+                    code: 77,
+                    result: ptr::null_mut(),
+                    options: ptr::null_mut(),
+                };
+                let status = if intrinsic {
+                    tcl_intrinsic_invoke_argv(
+                        IntrinsicId::StringLength.stable_id(),
+                        words.as_ptr(),
+                        3,
+                        &raw mut out,
+                    )
+                } else {
+                    tcl_invoke_argv(words.as_ptr(), 3, &raw mut out)
+                };
+                assert_eq!(status, TCL_INVOKE_ABI_OK);
+                assert_eq!(out.code, 1);
+                assert!(!out.result.is_null());
+                assert!(!out.options.is_null());
+                assert_eq!(
+                    obj_bytes(out.result),
+                    b"too many nested evaluations (infinite loop?)"
+                );
+                assert_eq!(option(&out, b"-code"), b"1");
+                assert!(interp.native_execution_refusal().is_none());
+                assert_eq!(words.map(|word| (*word).ref_count), counts);
+                tcl_completion_release(&raw mut out);
+            }
+            for _ in 0..entered {
+                tcl_codegen_activation_leave(0);
+            }
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
         });
     }
 
@@ -3677,6 +4860,119 @@ mod tests {
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
         });
+    }
+
+    #[test]
+    fn var_get_named_preserves_a_literal_element_key() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"set a(k) dynamic; set {a($key)} literal; set key k"
+                )),
+                0
+            );
+            let value = tcl_codegen_var_get(b"a($key)".as_ptr(), 7);
+            assert!(!value.is_null());
+            assert_eq!(obj_bytes(value), b"literal");
+            tcl_obj_release(value);
+            let value = tcl_codegen_var_get_element(b"a".as_ptr(), 1, b"k".as_ptr(), 1);
+            assert!(!value.is_null());
+            assert_eq!(obj_bytes(value), b"dynamic");
+            tcl_obj_release(value);
+
+            let value = owned_word(b"updated");
+            assert_eq!(tcl_codegen_var_set(b"a($key)".as_ptr(), 7, value), 0);
+            assert_eq!(tcl_eval_code(box_str(b"list ${a($key)} $a($key)")), 0);
+            assert_eq!((*interp).result_bytes(), b"updated dynamic");
+
+            assert!(tcl_codegen_var_get(b"a(missing)".as_ptr(), 10).is_null());
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"can't read \"a(missing)\": no such element in array"
+            );
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn named_element_store_runs_its_observer_before_reporting_the_error() {
+        for engine in tcl_test_support::available_tclshs() {
+            let trace = if engine.version == TclVersion::V8_4 {
+                "trace variable {arr($i)} rw observer"
+            } else {
+                "trace add variable {arr($i)} {read write} observer"
+            };
+            let setup = format!(
+                "set {{arr($i)}} OLD; set i k; set arr(k) DYNAMIC; set events {{}}; \
+                 proc observer {{name key op}} {{lappend ::events [list $name $key $op]; \
+                 if {{$op eq \"w\" || $op eq \"write\"}} {{error REJECT}}}}; {trace}"
+            );
+            let expected = tcl_test_support::run_script(
+                &engine.path,
+                format!(
+                    "{setup}; set before ${{arr($i)}}; \
+                     set code [catch {{set {{arr($i)}} NEW}} result]; \
+                     puts [list $before $code $result ${{arr($i)}} $arr($i) $events]\n"
+                )
+                .as_bytes(),
+            )
+            .expect("native named-element observer execution");
+            assert!(
+                expected.success() && expected.stderr.is_empty(),
+                "{expected:?}"
+            );
+            leak_free(|| unsafe {
+                let interp = tcl_runtime_create_interp();
+                (*interp).set_runtime_version(engine.version);
+                tcl_runtime_set_current_interp(interp);
+                assert_eq!(tcl_eval_code(box_str(setup.as_bytes())), 0);
+                let before = tcl_codegen_var_get(b"arr($i)".as_ptr(), 7);
+                assert!(!before.is_null());
+                let before_bytes = obj_bytes(before);
+                tcl_obj_release(before);
+                let code = tcl_codegen_var_set(b"arr($i)".as_ptr(), 7, owned_word(b"NEW"));
+                let message = (*interp).result_bytes();
+                let after = tcl_codegen_var_get(b"arr($i)".as_ptr(), 7);
+                assert!(!after.is_null());
+                let after_bytes = obj_bytes(after);
+                tcl_obj_release(after);
+                let sibling = tcl_codegen_var_get_element(b"arr".as_ptr(), 3, b"k".as_ptr(), 1);
+                assert!(!sibling.is_null());
+                let sibling_bytes = obj_bytes(sibling);
+                tcl_obj_release(sibling);
+                assert_eq!(tcl_eval_code(box_str(b"set events")), 0);
+                let values = [
+                    before_bytes,
+                    code.to_string().into_bytes(),
+                    message,
+                    after_bytes,
+                    sibling_bytes,
+                    (*interp).result_bytes(),
+                ];
+                let mut observed = Vec::new();
+                for (index, value) in values.iter().enumerate() {
+                    if index > 0 {
+                        observed.push(b' ');
+                    }
+                    crate::list::append_list_element(&mut observed, value, index == 0);
+                }
+                assert_eq!(
+                    observed,
+                    expected
+                        .stdout
+                        .strip_suffix(b"\n")
+                        .unwrap_or(&expected.stdout),
+                    "{:?}",
+                    engine.path
+                );
+                assert!(!(*interp).host_refusal_pending());
+                tcl_runtime_set_current_interp(ptr::null_mut());
+                tcl_runtime_delete_interp(interp);
+            });
+        }
     }
 
     /// `tcl_codegen_word_concat` borrows its parts and returns one owned join.
@@ -4115,6 +5411,8 @@ mod tests {
 
     #[test]
     fn a_declining_entry_falls_back_to_the_source_body_observably_unchanged() {
+        // naming.runtime.compiled-procedure-fallback-and-source-log
+        // docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md
         leak_free(|| unsafe {
             with_current_interp(|interp| {
                 // The same proc, same name, same body — once with a
@@ -4323,12 +5621,14 @@ mod tests {
         });
     }
 
-    /// With the statement's site logged, a compiled body's error is
-    /// indistinguishable from the interpreted one — the whole point of
-    /// `tcl_codegen_log_command`, proved here with a stub standing in for the
-    /// emitter so the emitter has a target rather than a guess.
+    /// Source logging reproduces the public source trace. A generic argv
+    /// invocation retains its own inner error-stack context, independently from
+    /// the original body's selected native instruction.
     #[test]
-    fn a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one() {
+    fn a_logged_statement_site_preserves_the_source_trace_without_instruction_identity() {
+        // naming.runtime.compiled-procedure-fallback-and-source-log
+        // docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md
+        // This ABI stub exercises source logging, not native returnImm admission.
         leak_free(|| unsafe {
             with_current_interp(|interp| {
                 define_native(b"boom", b"a", BOOM_BODY, None);
@@ -4345,7 +5645,15 @@ mod tests {
                 assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
 
                 assert_eq!(eval(interp, "dict get $o -errorinfo").1, source_info);
-                assert_eq!(eval(interp, "dict get $o -errorstack").1, source_stack);
+                assert_eq!(
+                    source_stack, b"INNER {returnImm {bad Q} {}} CALL {boom Q}",
+                    "the source body owns its selected native instruction context"
+                );
+                assert_eq!(
+                    eval(interp, "dict get $o -errorstack").1,
+                    b"INNER {error \"bad $a\"} CALL {boom Q}",
+                    "logging source text does not grant an instruction context"
+                );
                 assert_eq!(
                     String::from_utf8_lossy(&source_info),
                     "bad Q\n    while executing\n\"error \"bad $a\"\"\n    \
@@ -4487,9 +5795,9 @@ mod tests {
 
     #[test]
     fn the_runtime_states_its_identity_to_a_host() {
+        use tcl_runtime_api::ArtefactIdentityManifest;
         use tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION;
         use tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION;
-        use tcl_runtime_api::ArtefactIdentityManifest;
 
         // SAFETY: every buffer is as long as the capacity it is passed with.
         unsafe {
@@ -4532,3 +5840,11 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "codegen_abi/original_ingress_tests.rs"]
+mod original_ingress_tests;
+
+#[cfg(test)]
+#[path = "codegen_abi/original_receiver_tests.rs"]
+mod original_receiver_tests;

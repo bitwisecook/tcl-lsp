@@ -1,0 +1,37 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-callback-alias-source255/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.02233041200088337,
+  "reported_version_row": "version 9.1.0 alias_command {}",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "aa5887af2a1f90a6ef9658d0ac679ef72567670eb67df30b08753ee3830454b0",
+  "stdout_sha256": "bcb8acf99d7c78ce9ad9391b323b4afc33c0ebc59f51587911a1a9156a725f92",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d"
+  },
+  "rows": [
+    "version 9.1.0 alias_command {}",
+    "single 0 {2 1} {{FIXED 2 1}}",
+    "baked 0 {2 1} {{FIXED BAKED 2 1}}",
+    "nested 0 {2 1} {{INNER OUTER BAKED 2 1}}",
+    "moved_alias 0 {2 1} {{FIXED 2 1}}",
+    "moved_target 1 {invalid command name \"target\"} {}",
+    "replacement_four 1 {wrong # args: should be \"moved_cb b c d\"}",
+    "replacement_baked_four 0 {2 1}"
+  ],
+  "input_channel": "Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.",
+  "question": "naming.callback.alias-capture-source-control"
+}

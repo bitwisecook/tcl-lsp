@@ -1,0 +1,28 @@
+provider	C-Tcl
+case	22	sort-real-two-nan-key
+operation	lsort
+mode	real
+extra	absent
+input-key0	counted-string	4e614e
+input-key1	counted-string	312e30
+input-pattern	absent
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=2
+before-key0	none	1	1	3
+before-key1	none	1	1	3
+before-pattern	absent
+before-container	list	0	1	0
+code	1
+reached-key0	double	1	1	3
+reached-key1	none	1	1	3
+reached-pattern	absent
+reached-container	list	1	1	7
+reached-result	none	1	1	36
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572
+materialised-result	none	1	1	36
+after-result-getter-key0	double	1	1	3
+after-result-getter-key1	none	1	1	3
+after-result-getter-pattern	absent
+after-result-getter-container	list	1	1	7
+error-code-bytes	4e4f4e45
+error-info-bytes	666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d6265720a202020207768696c6520657865637574696e670a226c736f7274202d7265616c207b4e614e20312e307d22

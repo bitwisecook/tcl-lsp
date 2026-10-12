@@ -1,0 +1,165 @@
+static int JimObjectHTKeyCompare(void *privdata, const void *key1, const void *key2)
+{
+    return Jim_StringEqObj((Jim_Obj *)key1, (Jim_Obj *)key2);
+}
+
+static void *JimObjectHTKeyValDup(void *privdata, const void *val)
+{
+    Jim_IncrRefCount((Jim_Obj *)val);
+    return (void *)val;
+}
+
+/* Destroy an object-table value and release its referenced object. */
+static void JimObjectHTKeyValDestructor(void *interp, void *val)
+{
+    Jim_DecrRefCount(interp, (Jim_Obj *)val);
+}
+
+
+static void *JimVariablesHTValDup(void *privdata, const void *val)
+{
+    JimIncrVarRef((Jim_VarVal *)val);
+    return (void *)val;
+}
+
+static const Jim_HashTableType JimVariablesHashTableType = {
+    JimObjectHTHashFunction, /* hash function */
+    JimObjectHTKeyValDup,       /* key dup */
+    JimVariablesHTValDup,       /* val dup */
+    JimObjectHTKeyCompare,      /* key compare */
+    JimObjectHTKeyValDestructor,    /* key destructor */
+    JimVariablesHTValDestructor /* val destructor */
+};
+
+/* Commands HashTable Type.
+ *
+ * Keys are Jim Objects where any leading namespace qualifier
+ * is ignored. Values are Jim_Cmd structures.
+ */
+
+/**
+ * Like Jim_GetString() but strips any leading namespace qualifier.
+ */
+static const char *Jim_GetStringNoQualifier(Jim_Obj *objPtr, int *length)
+{
+    int len;
+    const char *str = Jim_GetString(objPtr, &len);
+    if (len >= 2 && str[0] == ':' && str[1] == ':') {
+        while (len && *str == ':') {
+            len--;
+            str++;
+        }
+    }
+    *length = len;
+    return str;
+}
+
+/* Hash a command-table key, ignoring any namespace prefix. */
+static unsigned int JimCommandsHT_HashFunction(const void *key)
+{
+    int len;
+    const char *str = Jim_GetStringNoQualifier((Jim_Obj *)key, &len);
+    return Jim_GenHashFunction((const unsigned char *)str, len);
+}
+
+/* Compare command names, allowing namespace-qualified lookups to match local entries. */
+static int JimCommandsHT_KeyCompare(void *privdata, const void *key1, const void *key2)
+{
+    int len1, len2;
+    const char *str1 = Jim_GetStringNoQualifier((Jim_Obj *)key1, &len1);
+    const char *str2 = Jim_GetStringNoQualifier((Jim_Obj *)key2, &len2);
+    return len1 == len2 && *str1 == *str2 && memcmp(str1, str2, len1) == 0;
+}
+
+/* Destroy a command-table value. */
+static void JimCommandsHT_ValDestructor(void *interp, void *val)
+{
+    JimDecrCmdRefCount(interp, val);
+}
+
+static const Jim_HashTableType JimCommandsHashTableType = {
+    JimCommandsHT_HashFunction,    /* hash function */
+    JimObjectHTKeyValDup,       /* key dup */
+    NULL,                           /* val dup */
+    JimCommandsHT_KeyCompare,      /* key compare */
+    JimObjectHTKeyValDestructor,    /* key destructor */
+    JimCommandsHT_ValDestructor     /* val destructor */
+};
+
+/* ------------------------- Commands related functions --------------------- */
+
+/**
+ * If nameObjPtr starts with "::", returns it.
+ * Otherwise returns a new object with nameObjPtr prefixed with "::".
+ * In this case, decrements the ref count of nameObjPtr.
+ */
+Jim_Obj *Jim_MakeGlobalNamespaceName(Jim_Interp *interp, Jim_Obj *nameObjPtr)
+{
+#ifdef jim_ext_namespace
+    Jim_Obj *resultObj;
+
+    const char *name = Jim_String(nameObjPtr);
+    if (name[0] == ':' && name[1] == ':') {
+        return nameObjPtr;
+    }
+    Jim_IncrRefCount(nameObjPtr);
+    resultObj = Jim_NewStringObj(interp, "::", -1);
+    Jim_AppendObj(interp, resultObj, nameObjPtr);
+    Jim_DecrRefCount(interp, nameObjPtr);
+
+    return resultObj;
+#else
+    return nameObjPtr;
+#endif
+}
+
+/**
+ * If the name in objPtr is not fully qualified, and a non-global namespace
+ * is in effect, qualifies the name with the current namespace and returns the new name.
+ * Otherwise returns objPtr.
+ *
+ * In either case the ref count is incremented and should be decremented by the caller.
+ * with Jim_DecrRefCount()
+ */
+static Jim_Obj *JimQualifyName(Jim_Interp *interp, Jim_Obj *objPtr)
+{
+#ifdef jim_ext_namespace
+    if (Jim_Length(interp->framePtr->nsObj)) {
+        int len;
+        const char *name = Jim_GetString(objPtr, &len);
+        if (len < 2 || name[0] != ':' || name[1] != ':') {
+            /* OK. Need to qualify this name */
+            objPtr = Jim_DuplicateObj(interp, interp->framePtr->nsObj);
+            Jim_AppendStrings(interp, objPtr, "::", name, NULL);
+        }
+    }
+#endif
+    Jim_IncrRefCount(objPtr);
+    return objPtr;
+}
+
+/**
+ * Add the command to the commands hash table
+ */
+static void JimCreateCommand(Jim_Interp *interp, Jim_Obj *nameObjPtr, Jim_Cmd *cmd)
+{
+    /* If the entry already exists, nameObjPtr will not be used,
+     * so the refCount of nameObjPtr can't be zero, relying on this function to
+     * release it in that case.
+     */
+    JimPanic((nameObjPtr->refCount == 0, "JimCreateCommand called with zero ref count name"));
+
+    /* It may already exist, so we try to delete the old one.
+     * Note that reference count means that it won't be deleted yet if
+     * it exists in the call stack.
+     *
+     * BUT, if 'local' is in force, instead of deleting the existing
+     * proc, we stash a reference to the old proc here.
+     */
+    if (interp->local) {
+        Jim_HashEntry *he = Jim_FindHashEntry(&interp->commands, nameObjPtr);
+        if (he) {
+            /* Push this command over the top of the previous one */
+            cmd->prevCmd = Jim_GetHashEntryVal(he);
+            Jim_SetHashVal(&interp->commands, he, cmd);
+            /* Need to increment the proc epoch here so that the new command will be used */

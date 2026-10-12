@@ -1,0 +1,19 @@
+{
+  "ordinal": 189,
+  "selector": "dict::tests::build_get_size",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "dict::tests::build_get_size",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.12479882800835185,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.03s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/189.log",
+  "log_sha256": "2d3c1eb01fdb63719dca64d59b794661382a54ca769315bb3b9f6e749b6c940b"
+}

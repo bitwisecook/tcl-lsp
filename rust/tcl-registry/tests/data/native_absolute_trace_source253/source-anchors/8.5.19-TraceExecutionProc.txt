@@ -1,0 +1,7 @@
+	     * interpreter.
+	     */
+
+	    traceCode = Tcl_Eval(interp, Tcl_DStringValue(&cmd));
+	    tcmdPtr->flags &= ~TCL_TRACE_EXEC_IN_PROGRESS;
+
+	    /*

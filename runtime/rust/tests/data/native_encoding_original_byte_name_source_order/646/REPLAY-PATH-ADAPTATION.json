@@ -1,0 +1,33 @@
+{
+  "scripts": [
+    {
+      "path": "collector.py",
+      "original_sha256": "1f371b2698cb7e9a4b658aa26874c7f75343e3dd694c6cd0d852d3906c1c6a80",
+      "literal_replacements": [
+        {
+          "old": "request = Path('/tmp/sourceperf-encoding-read-order-request643d')",
+          "new": "request = Path(__replay_request)"
+        },
+        {
+          "old": "output = Path('/workspace/.proofs/root-native-source-read-order646')",
+          "new": "output = Path(__replay_output)"
+        }
+      ]
+    },
+    {
+      "path": "protocol/run-native-library-version646.py",
+      "original_sha256": "1bfa77e4f663ff14d3b6dd04d2cc59f25d3b407e074e5bf56738ed34779af094",
+      "literal_replacements": [
+        {
+          "old": "root = Path('/workspace/.proofs/root-native-source-read-order646')",
+          "new": "root = Path(__replay_output)"
+        },
+        {
+          "old": "source = Path('/workspace/.proofs/native-string-replacement-library-version629.c')",
+          "new": "source = Path(__replay_version_source)"
+        }
+      ]
+    }
+  ],
+  "scope": "Only original request/output and identical retained version source paths redirect. No replay launched by publication."
+}

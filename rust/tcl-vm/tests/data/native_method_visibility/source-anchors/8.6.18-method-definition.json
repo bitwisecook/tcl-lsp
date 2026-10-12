@@ -1,0 +1,15 @@
+{
+  "provider": "tcl8.6",
+  "version": "8.6.18",
+  "revision": "Pinned Tcl 8.6.18 release source, retained full-file SHA-256",
+  "original_path": "generic/tclOODefineCmds.c",
+  "function": "TclOODefineMethodObjCmd",
+  "lines": [
+    1572,
+    1616
+  ],
+  "source_sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+  "snippet": "TclOODefineMethodObjCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    int isInstanceMethod = (clientData != NULL);\n    Object *oPtr;\n    int isPublic;\n\n    if (objc != 4) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name args body\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceMethod && !oPtr->classPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to misuse API\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"OO\", \"MONKEY_BUSINESS\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n    isPublic = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t    ? PUBLIC_METHOD : 0;\n\n    /*\n     * Create the method by using the right back-end API.\n     */\n\n    if (isInstanceMethod) {\n\tif (TclOONewProcInstanceMethod(interp, oPtr, isPublic, objv[1],\n\t\tobjv[2], objv[3], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    } else {\n\tif (TclOONewProcMethod(interp, oPtr->classPtr, isPublic, objv[1],\n\t\tobjv[2], objv[3], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n    return TCL_OK;\n}\n",
+  "snippet_sha256": "149f61556901b38088f841f849e86b9e55a4b7d2730a1fa0ccd39871531f1ca4",
+  "evidence": "tcl8.6-method-source"
+}

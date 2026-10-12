@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "/tmp/receiver-native-method-role-report513b/capture.py"
+  ],
+  "cwd": "/tmp/receiver-native-method-role-report513b",
+  "manifest_sha256": "7ea7ed3a1065ce5f1a155d4237cc92ab940887a7c7d34b07350f5237c0d2d401",
+  "exit_code": 0,
+  "started_ns": 1791691514371293096,
+  "ended_ns": 1791691515061150690,
+  "manifest_unchanged": true,
+  "manifested_inputs_unchanged": true,
+  "stdout_sha256": "c5c50d809f04b94f42dd931ac80b275b2fa22a4eb3ae2455b6ee1c94be755e79",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

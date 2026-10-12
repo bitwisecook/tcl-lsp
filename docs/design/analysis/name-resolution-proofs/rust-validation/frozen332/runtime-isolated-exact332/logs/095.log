@@ -1,0 +1,16 @@
+
+running 1 test
+test cmd_oo::native_properties::original_slot_boundary_tests::original_property_slot_list_callback_stops_before_cache_and_storage ... 
+thread 'cmd_oo::native_properties::original_slot_boundary_tests::original_property_slot_list_callback_stops_before_cache_and_storage' (1215912) panicked at src/cmd_oo/native_properties.rs:1308:13:
+assertion failed: matches!(obj::native_object_snapshot(original.as_ptr()).unwrap().cache,
+    NativeObjectCacheSnapshot::None,)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_properties::original_slot_boundary_tests::original_property_slot_list_callback_stops_before_cache_and_storage
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.09s
+

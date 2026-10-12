@@ -26,19 +26,10 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
-// Tcl 8.5's SYNOPSIS is `lassign list varName ?varName ...?` — at least one
-// varName is required there (`lassign $lst` alone is a "wrong # args"
-// error). Tcl 8.6 relaxed this to `lassign list ?varName ...?`, making
-// every varName optional; Tcl 9.0 and 9.1 keep the 8.6 shape unchanged.
-// The two dialect-scoped forms below capture the exact legal shape per
-// version — the broader 8.6+ shape is listed first since
-// `CommandSpec::primary_synopsis` (the arity-diagnostic "usage: …" suffix)
-// picks the first non-empty form regardless of dialect, and 8.6+ covers
-// three of the four dialects `lassign` is available in. The command-level
-// `arity` floor below stays at 1 (the 8.6+ minimum) since `Arity` has no
-// per-dialect axis of its own — a real but narrow gap for arity
-// diagnostics against code specifically targeting Tcl 8.5 and calling
-// `lassign` with a list but no varName at all.
+// Presentation forms describe the C-family source shapes. Selected execution
+// arity comes from the shared list-assignment invocation protocol: C Tcl 8.5
+// and current Jim require a target; C Tcl 8.6–9.1 permit none. Catalogue arity
+// remains a presentation fallback when no actual invocation point is retained.
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "lassign list ?varName ...?",
@@ -52,18 +43,19 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-/// `lassign list ?varName ...?` accepts variable-name args from index 1
-/// onward to the end of the call.  Resolve `VarWrite` dynamically so calls with
-/// arbitrarily many vars don't false-fire W210 on the unmodelled tail.
-fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    (1..args.len())
-        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
-        .collect()
-}
+// Variable names follow the list value at fixed positions, even when that
+// value is dynamic. The shared role owner can resolve this without evaluating it.
+const REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarWrite, 1)];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ListAssignment,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListAssign),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("lassign"),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::FRAME_HASH_BUILTIN
@@ -91,9 +83,9 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Lassign),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::LASSIGN),
         forms: FORMS,
+        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_WRITE),
         side_effects: SIDE_EFFECTS,
-        arg_role_resolver: Some(lassign_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::VarWrite],
+        repeated_args: REPEATED,
         arg_types: &[(
             0,
             ArgTypeHint {

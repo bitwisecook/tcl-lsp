@@ -1,0 +1,56 @@
+
+running 23 tests
+test cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows ... 
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows' (945672) panicked at rust/tcl-vm/src/cmd_dict.rs:1484:17:
+assertion `left == right` failed: tcl8.6/compiled-with-dict-write-error
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 100, 34, 58, 32, 87, 82, 73, 84, 69, 125, 32, 48, 32, 123, 107, 32, 66, 65, 83, 69, 125]
+ right: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 100, 34, 58, 32, 87, 82, 73, 84, 69, 125, 32, 48, 32, 119, 111, 114, 107]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... native-string-unavailable reason=retired-header protocol=C(V8_6) primary=none live=false references=1 resident=false
+
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes' (946013) panicked at rust/tcl-vm/src/value.rs:5050:18:
+selected compound updater requires checked child storage: StringUpdater
+FAILED
+test cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... 
+thread 'cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls' (946098) panicked at rust/tcl-vm/src/cmd_mathop.rs:172:13:
+assertion `left == right` failed: jim/0
+  left: 1
+ right: 0
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (946154) panicked at rust/tcl-vm/src/cmd_mathop.rs:127:13:
+assertion `left == right` failed: jim/0
+  left: 1
+ right: 0
+FAILED
+test command::tests::original_command_core_refusal_keeps_typed_first_host_cause ... ok
+test error::tests::typed_access_refusal_bypasses_catch_and_finally ... ok
+test exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors ... ok
+test exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims ... ok
+test exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity ... ok
+test exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch ... ok
+test interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate ... ok
+test interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore ... ok
+test interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes ... ok
+test interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol ... ok
+test interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release ... ok
+test interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal ... ok
+test value::tests::byte_array_carrier_retains_original_storage_and_string_presence ... ok
+test value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion ... ok
+test value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal ... ok
+test value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table ... ok
+
+failures:
+
+failures:
+    cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows
+    cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes
+    cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+
+test result: FAILED. 19 passed; 4 failed; 0 ignored; 0 measured; 712 filtered out; finished in 140.90s
+

@@ -1,0 +1,161 @@
+Tcl_Obj *
+TclPtrIncrObjVar(
+    Tcl_Interp *interp,		/* Command interpreter in which variable is to
+				 * be found. */
+    Var *varPtr,		/* Reference to the variable to set. */
+    Var *arrayPtr,		/* Reference to the array containing the
+				 * variable, or NULL if the variable is a
+				 * scalar. */
+    Tcl_Obj *part1Ptr,		/* Points to an object holding the name of an
+				 * array (if part2 is non-NULL) or the name of
+				 * a variable. */
+    Tcl_Obj *part2Ptr,		/* If non-null, points to an object holding
+				 * the name of an element in the array
+				 * part1Ptr. */
+    Tcl_Obj *incrPtr,		/* Increment value. */
+/* TODO: Which of these flag values really make sense? */
+    const int flags,		/* Various flags that tell how to incr value:
+				 * any of TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_APPEND_VALUE, TCL_LIST_ELEMENT,
+				 * TCL_LEAVE_ERR_MSG. */
+    int index)			/* Index into the local variable table of the
+				 * variable, or -1. Only used when part1Ptr is
+				 * NULL. */
+{
+    register Tcl_Obj *varValuePtr;
+
+    if (TclIsVarInHash(varPtr)) {
+	VarHashRefCount(varPtr)++;
+    }
+    varValuePtr = TclPtrGetVar(interp, varPtr, arrayPtr, part1Ptr, part2Ptr,
+	    flags, index);
+    if (TclIsVarInHash(varPtr)) {
+	VarHashRefCount(varPtr)--;
+    }
+    if (varValuePtr == NULL) {
+	varValuePtr = Tcl_NewIntObj(0);
+    }
+    if (Tcl_IsShared(varValuePtr)) {
+	/* Copy on write */
+	varValuePtr = Tcl_DuplicateObj(varValuePtr);
+
+	if (TCL_OK == TclIncrObj(interp, varValuePtr, incrPtr)) {
+	    return TclPtrSetVar(interp, varPtr, arrayPtr, part1Ptr, part2Ptr,
+		    varValuePtr, flags, index);
+	} else {
+	    Tcl_DecrRefCount(varValuePtr);
+	    return NULL;
+	}
+    } else {
+	/* Unshared - can Incr in place */
+	if (TCL_OK == TclIncrObj(interp, varValuePtr, incrPtr)) {
+
+	    /*
+	     * This seems dumb to write the incremeted value into the var
+	     * after we just adjusted the value in place, but the spec for
+	     * [incr] requires that write traces fire, and making this call
+	     * is the way to make that happen.
+	     */
+
+	    return TclPtrSetVar(interp, varPtr, arrayPtr, part1Ptr, part2Ptr,
+		    varValuePtr, flags, index);
+	} else {
+	    return NULL;
+	}
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_UnsetVar --
+ *
+ *	Delete a variable, so that it may not be accessed anymore.
+ *
+ * Results:
+ *	Returns TCL_OK if the variable was successfully deleted, TCL_ERROR if
+ *	the variable can't be unset. In the event of an error, if the
+ *	TCL_LEAVE_ERR_MSG flag is set then an error message is left in the
+ *	interp's result.
+ *
+ * Side effects:
+ *	If varName is defined as a local or global variable in interp, it is
+ *	deleted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+#undef Tcl_UnsetVar
+int
+Tcl_UnsetVar(
+    Tcl_Interp *interp,		/* Command interpreter in which varName is to
+				 * be looked up. */
+    const char *varName,	/* Name of a variable in interp. May be either
+				 * a scalar name or an array name or an
+				 * element in an array. */
+    int flags)			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY or
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    return Tcl_UnsetVar2(interp, varName, NULL, flags);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_UnsetVar2 --
+ *
+ *	Delete a variable, given a 2-part name.
+ *
+ * Results:
+ *	Returns TCL_OK if the variable was successfully deleted, TCL_ERROR if
+ *	the variable can't be unset. In the event of an error, if the
+ *	TCL_LEAVE_ERR_MSG flag is set then an error message is left in the
+ *	interp's result.
+ *
+ * Side effects:
+ *	If part1 and part2 indicate a local or global variable in interp, it
+ *	is deleted. If part1 is an array name and part2 is NULL, then the
+ *	whole array is deleted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_UnsetVar2(
+    Tcl_Interp *interp,		/* Command interpreter in which varName is to
+				 * be looked up. */
+    const char *part1,		/* Name of variable or array. */
+    const char *part2,		/* Name of element within array or NULL. */
+    int flags)			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    int result;
+    Tcl_Obj *part2Ptr = NULL, *part1Ptr = Tcl_NewStringObj(part1, -1);
+
+    if (part2) {
+	part2Ptr = Tcl_NewStringObj(part2, -1);
+    }
+
+    /*
+     * Filter to pass through only the flags this interface supports.
+     */
+
+    flags &= (TCL_GLOBAL_ONLY|TCL_NAMESPACE_ONLY|TCL_LEAVE_ERR_MSG);
+    result = TclObjUnsetVar2(interp, part1Ptr, part2Ptr, flags);
+
+    Tcl_DecrRefCount(part1Ptr);
+    if (part2Ptr) {
+	Tcl_DecrRefCount(part2Ptr);
+    }
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclObjUnsetVar2 --
+ *
+ *	Delete a variable, given a 2-object name.
+ *

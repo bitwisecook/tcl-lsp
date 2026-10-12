@@ -1,0 +1,365 @@
+{
+  "values": [
+    {
+      "provider": "8.6.18",
+      "tag": "ctor-derived",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "8.6.18",
+      "tag": "ctor-base",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "8.6.18",
+      "tag": "named-literal",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "8.6.18",
+      "tag": "active-renamed",
+      "byte_length": 5,
+      "hex": "6d6f766564"
+    },
+    {
+      "provider": "8.6.18",
+      "tag": "dtor-derived",
+      "byte_length": 12,
+      "hex": "3c64657374727563746f723e"
+    },
+    {
+      "provider": "8.6.18",
+      "tag": "dtor-base",
+      "byte_length": 12,
+      "hex": "3c64657374727563746f723e"
+    },
+    {
+      "provider": "9.0.4",
+      "tag": "ctor-derived",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "9.0.4",
+      "tag": "ctor-base",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "9.0.4",
+      "tag": "named-literal",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "9.0.4",
+      "tag": "active-renamed",
+      "byte_length": 5,
+      "hex": "6d6f766564"
+    },
+    {
+      "provider": "9.0.4",
+      "tag": "dtor-derived",
+      "byte_length": 12,
+      "hex": "3c64657374727563746f723e"
+    },
+    {
+      "provider": "9.0.4",
+      "tag": "dtor-base",
+      "byte_length": 12,
+      "hex": "3c64657374727563746f723e"
+    },
+    {
+      "provider": "9.1.0",
+      "tag": "ctor-derived",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "9.1.0",
+      "tag": "ctor-base",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "9.1.0",
+      "tag": "named-literal",
+      "byte_length": 13,
+      "hex": "3c636f6e7374727563746f723e"
+    },
+    {
+      "provider": "9.1.0",
+      "tag": "active-renamed",
+      "byte_length": 5,
+      "hex": "6d6f766564"
+    },
+    {
+      "provider": "9.1.0",
+      "tag": "dtor-derived",
+      "byte_length": 12,
+      "hex": "3c64657374727563746f723e"
+    },
+    {
+      "provider": "9.1.0",
+      "tag": "dtor-base",
+      "byte_length": 12,
+      "hex": "3c64657374727563746f723e"
+    }
+  ],
+  "physical_source_joins": [
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "byte_start": 10750,
+      "byte_end": 11338,
+      "first_line": 345,
+      "last_line": 356,
+      "snippet_sha256": "d6c15097163e22ebf352e1ee97256112178bb09e5aa2bf1bf4151d3f3f70b7cc"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "byte_start": 10999,
+      "byte_end": 11642,
+      "first_line": 350,
+      "last_line": 361,
+      "snippet_sha256": "3bc3de38561a45b2d3f62b918e544d47fc1760c68eb3c01ee835b3b068736364"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "byte_start": 18190,
+      "byte_end": 18569,
+      "first_line": 588,
+      "last_line": 599,
+      "snippet_sha256": "862c2663c3092ded6aa8c6f4d9d9a91d4fadac1178d1cdf30cb48f9299503c73"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "byte_start": 33901,
+      "byte_end": 34241,
+      "first_line": 1141,
+      "last_line": 1152,
+      "snippet_sha256": "a41d94746d92e5de6a1e97398c8b638e8d03ee54f0fd622f658837e9153bfe3c"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "source_sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "byte_start": 48044,
+      "byte_end": 48357,
+      "first_line": 1663,
+      "last_line": 1674,
+      "snippet_sha256": "e6f2359fda3e88c3ff330382c968d86208023291c6ab88755a66e40576eba2f3"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c",
+      "source_sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "byte_start": 29820,
+      "byte_end": 30453,
+      "first_line": 1030,
+      "last_line": 1046,
+      "snippet_sha256": "87df332f81f8c44a59232afc4330af9a324829be0de77c2280dc3a89827ee124"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 24735,
+      "byte_end": 25199,
+      "first_line": 899,
+      "last_line": 910,
+      "snippet_sha256": "80957b44c0d4c2d68eb5f65ff9a68c9be4010197cb633a3bf8098fa859a19a88"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 27229,
+      "byte_end": 27782,
+      "first_line": 978,
+      "last_line": 989,
+      "snippet_sha256": "3746772280ade134bd7899853e29141ce222e481c8fc87ee1f7c0945df01036f"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "source_sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "byte_start": 8121,
+      "byte_end": 8411,
+      "first_line": 305,
+      "last_line": 318,
+      "snippet_sha256": "b4e62d5f46392bc1a71c8f6d8a8305c3ac84088b9578f519b320e33444698dff"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "byte_start": 12967,
+      "byte_end": 13606,
+      "first_line": 423,
+      "last_line": 434,
+      "snippet_sha256": "56c3d3d9787b74ff4f8011e60670c4b3eb841dfc4667f5266d2584d6db280be9"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "byte_start": 13472,
+      "byte_end": 14031,
+      "first_line": 433,
+      "last_line": 444,
+      "snippet_sha256": "4d164db0cb8bc834811291c18dc79eac181653ed3a3a2c8fe76e301227f390a5"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "byte_start": 26522,
+      "byte_end": 26984,
+      "first_line": 818,
+      "last_line": 829,
+      "snippet_sha256": "0c3ef3643cf53b4850b5d39977835aa6c16b38bdbe8020afe972423d1e3acb11"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "byte_start": 44078,
+      "byte_end": 44430,
+      "first_line": 1439,
+      "last_line": 1450,
+      "snippet_sha256": "be30c96af7a741699328d944108a26ea8eb123408070492e2a11495b54bbcc47"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "byte_start": 58555,
+      "byte_end": 58893,
+      "first_line": 1990,
+      "last_line": 2001,
+      "snippet_sha256": "346c423621f385f38bd9498973a1c2c13274c1a2e7c70de94c919baf1c2af3ed"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+      "source_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "byte_start": 45751,
+      "byte_end": 46338,
+      "first_line": 1555,
+      "last_line": 1570,
+      "snippet_sha256": "e55af9af95837a289ccaecd83eaf5db100a73c30f5147b9f6c2f7edec7f81c68"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "byte_start": 13162,
+      "byte_end": 13801,
+      "first_line": 426,
+      "last_line": 437,
+      "snippet_sha256": "56c3d3d9787b74ff4f8011e60670c4b3eb841dfc4667f5266d2584d6db280be9"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "byte_start": 13667,
+      "byte_end": 14226,
+      "first_line": 436,
+      "last_line": 447,
+      "snippet_sha256": "4d164db0cb8bc834811291c18dc79eac181653ed3a3a2c8fe76e301227f390a5"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "byte_start": 26412,
+      "byte_end": 26874,
+      "first_line": 806,
+      "last_line": 817,
+      "snippet_sha256": "0c3ef3643cf53b4850b5d39977835aa6c16b38bdbe8020afe972423d1e3acb11"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "byte_start": 44107,
+      "byte_end": 44459,
+      "first_line": 1432,
+      "last_line": 1443,
+      "snippet_sha256": "be30c96af7a741699328d944108a26ea8eb123408070492e2a11495b54bbcc47"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "byte_start": 58409,
+      "byte_end": 58747,
+      "first_line": 1970,
+      "last_line": 1981,
+      "snippet_sha256": "346c423621f385f38bd9498973a1c2c13274c1a2e7c70de94c919baf1c2af3ed"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "source_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "byte_start": 44412,
+      "byte_end": 44818,
+      "first_line": 1510,
+      "last_line": 1527,
+      "snippet_sha256": "84bb8e9b0dbdc7f9e6c25f6b0f78ae676647995a7ba0f1ff840792f463e5487f"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "source_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "byte_start": 47389,
+      "byte_end": 47729,
+      "first_line": 1625,
+      "last_line": 1634,
+      "snippet_sha256": "9dae228c5a29b863365b467ff7a1fd95078540ffd42e0bdfee021e1db9144217"
+    },
+    {
+      "provider": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c",
+      "source_sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "byte_start": 22727,
+      "byte_end": 23844,
+      "first_line": 791,
+      "last_line": 824,
+      "snippet_sha256": "d541b328b08a8bafe2f4b7d3869097e8c45e0852e286e4a27bf641d3e1b2005d"
+    },
+    {
+      "provider": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+      "source_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "byte_start": 38820,
+      "byte_end": 39917,
+      "first_line": 1317,
+      "last_line": 1350,
+      "snippet_sha256": "5990872a60380896ed7e78d3dfcdc3c107840fd838fd1ce166b6b7c66d5fd75c"
+    },
+    {
+      "provider": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "source_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "byte_start": 40341,
+      "byte_end": 41271,
+      "first_line": 1371,
+      "last_line": 1400,
+      "snippet_sha256": "487a5b005d15cf722de29ac6e28e52b804c70d28d9aaa7070546e0b497466acf"
+    }
+  ],
+  "limits": "Printed report bytes do not authenticate native role, physical header, refcount or Method lifetime. Source/API facts remain independently inspected."
+}

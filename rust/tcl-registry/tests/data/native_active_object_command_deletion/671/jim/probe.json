@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "/tmp/native-active-command-retirement671/jim/probe.elf"
+  ],
+  "cwd": "/tmp/native-active-command-retirement671/jim",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "exit": 0,
+  "seconds": 0.005507457011844963,
+  "stdout": "/tmp/native-active-command-retirement671/jim/probe.stdout",
+  "stdout_sha256": "c1608cccab519410e8c307547744ecfd31b4686625e81c7c956f3fd94c8ec2dc",
+  "stderr": "/tmp/native-active-command-retirement671/jim/probe.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

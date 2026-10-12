@@ -30,7 +30,6 @@
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
-use crate::word_subst::whole_word_command_tokens;
 
 use super::super::cmd_subst::is_pure_cmd_subst;
 use super::super::{CodegenCtx, Op, Operand};
@@ -79,6 +78,9 @@ impl CodegenCtx<'_> {
                 ..
             } => {
                 self.emit_return(value.as_deref(), expr.as_ref(), *braced);
+            }
+            Terminator::Complete { .. } => {
+                unreachable!("analysis completion summary cannot be emitted as bytecode");
             }
         }
     }
@@ -271,12 +273,7 @@ impl CodegenCtx<'_> {
             }
         } else if self.is_proc && is_cmd_subst {
             // In a proc body, a return value of [cmd ...] inlines.
-            let tokens = value_word.as_ref().and_then(|word| {
-                whole_word_command_tokens(
-                    word,
-                    tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-                )
-            });
+            let tokens = self.nested_command_tokens(value_word.as_ref());
             self.emit_inline_cmd_subst_with_tokens(val, tokens.as_ref());
         } else if *braced {
             // Literal text, pushed verbatim so the VM's runtime word
@@ -474,7 +471,7 @@ mod tests {
         };
         ctx.emit_term(&cfg, &term, Some("next_0"));
         // No jump emitted on fallthrough
-        assert!(ctx.instructions.is_empty());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
     }
 
     #[test]
@@ -561,6 +558,8 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: Some("hello".into()),
             value_word: None,
             span: None,
@@ -577,6 +576,8 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,

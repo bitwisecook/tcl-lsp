@@ -1,0 +1,156 @@
+1941:     }
+1942:     return result;
+1943: #undef ALIAS_CMDV_PREALLOC
+1944: }
+1945: 
+1946: int
+1947: TclLocalAliasObjCmd(
+1948:     void *clientData,		/* Alias record. */
+1949:     Tcl_Interp *interp,		/* Current interpreter. */
+1950:     int objc,			/* Number of arguments. */
+1951:     Tcl_Obj *const objv[])	/* Argument vector. */
+1952: {
+1953: #define ALIAS_CMDV_PREALLOC 10
+1954:     Alias *aliasPtr = (Alias *) clientData;
+1955:     int result;
+1956:     Tcl_Size prefc, cmdc, i;
+1957:     Tcl_Obj **prefv, **cmdv;
+1958:     Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+1959:     int isRootEnsemble;
+1960: 
+1961:     /*
+1962:      * Append the arguments to the command prefix and invoke the command in
+1963:      * the global namespace.
+1964:      */
+1965: 
+1966:     prefc = aliasPtr->objc;
+1967:     prefv = &aliasPtr->objPtr;
+1968:     cmdc = prefc + objc - 1;
+1969:     if (cmdc <= ALIAS_CMDV_PREALLOC) {
+1970: 	cmdv = cmdArr;
+1971:     } else {
+1972: 	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+1973:     }
+1974: 
+1975:     memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+1976:     memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+1977: 
+1978:     for (i=0; i<cmdc; i++) {
+1979: 	Tcl_IncrRefCount(cmdv[i]);
+1980:     }
+1981: 
+1982:     /*
+1983:      * Use the ensemble rewriting machinery to ensure correct error messages:
+1984:      * only the source command should show, not the full target prefix.
+1985:      */
+1986: 
+1987:     isRootEnsemble = TclInitRewriteEnsemble(interp, 1, prefc, objv);
+1988: 
+1989:     /*
+1990:      * Execute the target command in the target interpreter.
+1991:      */
+1992: 
+1993:     result = Tcl_EvalObjv(interp, cmdc, cmdv, TCL_EVAL_INVOKE);
+1994: 
+1995:     /*
+1996:      * Clean up the ensemble rewrite info if we set it in the first place.
+1997:      */
+1998: 
+1999:     if (isRootEnsemble) {
+2000: 	TclResetRewriteEnsemble(interp, 1);
+2001:     }
+2002: 
+2003:     for (i=0; i<cmdc; i++) {
+2004: 	Tcl_DecrRefCount(cmdv[i]);
+2005:     }
+2006:     if (cmdv != cmdArr) {
+2007: 	TclStackFree(interp, cmdv);
+2008:     }
+2009:     return result;
+2010: #undef ALIAS_CMDV_PREALLOC
+2011: }
+2012: 
+2013: 
+2014: /*
+2015:  *----------------------------------------------------------------------
+2016:  *
+2017:  * AliasObjCmdDeleteProc --
+2018:  *
+2019:  *	Is invoked when an alias command is deleted in a child. Cleans up all
+2020:  *	storage associated with this alias.
+2021:  *
+2022:  * Results:
+2023:  *	None.
+2024:  *
+2025:  * Side effects:
+2026:  *	Deletes the alias record and its entry in the alias table for the
+2027:  *	interpreter.
+2028:  *
+2029:  *----------------------------------------------------------------------
+2030:  */
+2031: 
+2032: static void
+2033: AliasObjCmdDeleteProc(
+2034:     void *clientData)		/* The alias record for this alias. */
+2035: {
+2036:     Alias *aliasPtr = (Alias *) clientData;
+2037:     Target *targetPtr;
+2038:     Tcl_Size i;
+2039:     Tcl_Obj **objv;
+2040: 
+2041:     Tcl_DecrRefCount(aliasPtr->token);
+2042:     objv = &aliasPtr->objPtr;
+2043:     for (i = 0; i < aliasPtr->objc; i++) {
+2044: 	Tcl_DecrRefCount(objv[i]);
+2045:     }
+2046:     Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+2047: 
+2048:     /*
+2049:      * Splice the target record out of the target interpreter's parent list.
+2050:      */
+2051: 
+2052:     targetPtr = aliasPtr->targetPtr;
+2053:     if (targetPtr->prevPtr != NULL) {
+2054: 	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+2055:     } else {
+2056: 	Parent *parentPtr = &INTERP_INFO(aliasPtr->targetInterp)->parent;
+2057: 
+2058: 	parentPtr->targetsPtr = targetPtr->nextPtr;
+2059:     }
+2060:     if (targetPtr->nextPtr != NULL) {
+2061: 	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+2062:     }
+2063: 
+2064:     Tcl_Free(targetPtr);
+2065:     Tcl_Free(aliasPtr);
+2066: }
+2067: 
+2068: 
+2069: /*
+2070:  *----------------------------------------------------------------------
+2071:  *
+2072:  * Tcl_CreateChild --
+2073:  *
+2074:  *	Creates a child interpreter. The childPath argument denotes the name
+2075:  *	of the new child relative to the current interpreter; the child is a
+2076:  *	direct descendant of the one-before-last component of the path,
+2077:  *	e.g. it is a descendant of the current interpreter if the childPath
+2078:  *	argument contains only one component. Optionally makes the child
+2079:  *	interpreter safe.
+2080:  *
+2081:  * Results:
+2082:  *	Returns the interpreter structure created, or NULL if an error
+2083:  *	occurred.
+2084:  *
+2085:  * Side effects:
+2086:  *	Creates a new interpreter and a new interpreter object command in the
+2087:  *	interpreter indicated by the childPath argument.
+2088:  *
+2089:  *----------------------------------------------------------------------
+2090:  */
+2091: 
+2092: Tcl_Interp *
+2093: Tcl_CreateChild(
+2094:     Tcl_Interp *interp,		/* Interpreter to start search at. */
+2095:     const char *childPath,	/* Name of child to create. */
+2096:     int isSafe)			/* Should new child be "safe" ? */

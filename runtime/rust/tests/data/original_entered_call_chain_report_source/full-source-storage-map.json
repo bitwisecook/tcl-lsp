@@ -1,0 +1,74 @@
+{
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOCall.c.gz",
+    "gzip_sha256": "229c50f1acdf5ebf194e7084bee5d9410dee91ec7492f34998ef96d7418fccc1",
+    "original_sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+    "original_bytes": 63872
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOO.c.gz",
+    "gzip_sha256": "b1c664defdf2b7f5308bf580db03fd18010db2eaa7719ee94aa46a3f49c84468",
+    "original_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+    "original_bytes": 99274
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOMethod.c.gz",
+    "gzip_sha256": "519deb377ce7a8a3d5d60d4deac9f5341d8895aecbc891db548ce24aaaa9c735",
+    "original_sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+    "original_bytes": 58997
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOProp.c.gz",
+    "gzip_sha256": "7c91177bd05c0cffa3fee909749df371b089b10ac2a6a00267118c7b230f0cc9",
+    "original_sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+    "original_bytes": 35905
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOODefineCmds.c.gz",
+    "gzip_sha256": "676dc9a245e73c8dde16a95a4ffddee70b50281cf719df61f519c71075fda290",
+    "original_sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+    "original_bytes": 115346
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOInfo.c.gz",
+    "gzip_sha256": "029e4919fee8ee9e17154e2a0167da219bfe2a2ecd3cf2c1c4f759fed0348da0",
+    "original_sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "original_bytes": 45060
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOCall.c.gz",
+    "gzip_sha256": "0133ec6624299ec402a29aeea8d55092f338989268a0f8c96f99a73975b599d4",
+    "original_sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+    "original_bytes": 64701
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOO.c.gz",
+    "gzip_sha256": "84ba97815d87fa815902e8e5c1efabffe636ba0355126b35e48a27719cc60082",
+    "original_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+    "original_bytes": 98735
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOMethod.c.gz",
+    "gzip_sha256": "73afb462dacfd811f1e9d8c5748a3159fdd257a78f10bd0ec3b49d2e444a9513",
+    "original_sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+    "original_bytes": 60880
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOProp.c.gz",
+    "gzip_sha256": "794ef09bb04b32ddd5a7a12aabb5542b43414197cd86572f5de1d0877d791438",
+    "original_sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+    "original_bytes": 39406
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOODefineCmds.c.gz",
+    "gzip_sha256": "ba3c1ac83506d4f059ee8617ab4310049ca33152ad80f3a19e1f81bd863a44e3",
+    "original_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "original_bytes": 111662
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": {
+    "path": "runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOInfo.c.gz",
+    "gzip_sha256": "be558db902568df2169b2b9dc9260455e65beda51e6d25be8a81d4b223c212de",
+    "original_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "original_bytes": 44306
+  }
+}

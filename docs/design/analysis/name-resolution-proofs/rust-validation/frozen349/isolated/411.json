@@ -1,0 +1,19 @@
+{
+  "ordinal": 411,
+  "selector": "interp::tests::release_hidden_alias_target_uses_unknown_under_tcl84",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::release_hidden_alias_target_uses_unknown_under_tcl84",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 12.157429236976895,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 12.11s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/411.log",
+  "log_sha256": "fd172382919cf81024f3dd8b02bfc6cac139734d6d3b898e7fd1275a8699bea6"
+}

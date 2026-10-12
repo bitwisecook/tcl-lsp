@@ -1,0 +1,22 @@
+case=0 seed=0
+before exists=1 value=old
+delete-enter exists=1 value=old
+replace-token=1
+after exists=1 value=outer
+case=1 seed=0
+before exists=1 value=old
+delete-enter exists=1 value=old
+delete-status=0
+after exists=0 value=none
+case=2 seed=0
+before exists=1 value=old
+delete-enter exists=1 value=old
+delete-created exists=1 value=nested
+replace-token=1
+after exists=1 value=outer
+case=3 seed=0
+before exists=1 value=old
+delete-enter exists=1 value=old
+delete-created exists=1 value=nested
+delete-status=0
+after exists=1 value=nested

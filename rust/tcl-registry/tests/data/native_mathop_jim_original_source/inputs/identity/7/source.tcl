@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; catch {{odd name}} message; set message}

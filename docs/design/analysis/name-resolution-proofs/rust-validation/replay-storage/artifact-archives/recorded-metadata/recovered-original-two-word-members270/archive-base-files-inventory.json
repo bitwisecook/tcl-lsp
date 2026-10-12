@@ -1,0 +1,267 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/recovered-original-two-word-members270.base-files.tar.gz",
+  "archive_sha256": "a30095cbe1eb2da8b1106259fcfb63a5f18f0871a9d6ffb272b94197bafbcdb6",
+  "archive_bytes": 160170,
+  "uncompressed_bytes": 776037,
+  "source_manifest_sha256": "84bf5fe2ed725f8ee60ab871613fd3219c362c51ac9b6acf281f69419246c6c6",
+  "source_patch_sha256": "03d96685156adca3b851bc3cc8c67d6adf9365c9602653dcd06490eec843c7cd",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/03d96685156adca3b851bc3cc8c67d6adf9365c9602653dcd06490eec843c7cd.patch",
+  "original_application_journal_sha256": "03d96685156adca3b851bc3cc8c67d6adf9365c9602653dcd06490eec843c7cd",
+  "member_count": 28,
+  "members": {
+    "recovered-original-two-word-members270/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1221635,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1303124,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1221635,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1327808,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1221635,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/analyser/original_members.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1296682,
+      "size": 90853,
+      "sha256": "a65b511b8bc73a4d1e793400dd02fa498d9bac959827372efd385f600dd5b624"
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1327808,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/command_binding/source_transition_advice": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1340492,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.13428,
+      "size": 31285,
+      "sha256": "7e6618174e8c06388aea055d7b8f18f13c469bfced511d81034b982c47c398f4"
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_reference.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.133557,
+      "size": 16625,
+      "sha256": "0efc2a92639e5f665c98d59f1a40d2613df9daeccc453f6d4ae96d270b7c0b75"
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.133895,
+      "size": 19368,
+      "sha256": "5f358fc36ebe15df2bed59e3fc516382fedead44fd259644473247939710180e"
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1303124,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1303124,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/base/rust/tcl-registry/src/definer.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.131888,
+      "size": 226156,
+      "sha256": "e75e4447ecaa5e2347518ce234104cafe3ca18e8ace266d9f04adc6463affc7b"
+    },
+    "recovered-original-two-word-members270/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1296682,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.131888,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1296682,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.133557,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.1296682,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/analyser/original_members.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595749.5339558,
+      "size": 96426,
+      "sha256": "b25d2f41dbc93565b2efe4efd2bf153786a3be5e37839c84ef610b0d790e7d7b"
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.133557,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/command_binding/source_transition_advice": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.13428,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.2301626,
+      "size": 30773,
+      "sha256": "793c3baffd39ed46fd2aa06d755caf40ea7ac2c08c2979e3e86764e6dcc36dd8"
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_reference.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.2221627,
+      "size": 17344,
+      "sha256": "02d3fc64b89db2ea48df73e26283645e0697c1e5e18842bb218e5c290f76a5cb"
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.2261627,
+      "size": 20504,
+      "sha256": "b02eda94e3424d24487a05f8db548fcab41d97db86cbf581d05635c341ea84c8"
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.131888,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.131888,
+      "size": 0,
+      "sha256": null
+    },
+    "recovered-original-two-word-members270/files/rust/tcl-registry/src/definer.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791595723.2141628,
+      "size": 226703,
+      "sha256": "7067a7b42f02cd7835182777118bcad7fe3a89eb2c072522f7f593c4f9202e37"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

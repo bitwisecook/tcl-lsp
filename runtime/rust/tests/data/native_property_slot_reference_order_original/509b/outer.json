@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "/tmp/receiver-native-property-order509b/capture.py"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "started_ns": 1791686822090723753,
+  "ended_ns": 1791686835745901398,
+  "exit_code": 0,
+  "manifest_sha256": "34c66eb3efd7a4c4476f1179825b46530d2218c0f7ff89ac4ce3ed4ff6b9c86a",
+  "stdout": {
+    "path": "/workspace/.proofs/native-property-order509b-outer.stdout",
+    "sha256": "9f7a5586f62ee21429556f901d8a4cb5ce1106435ba38b99fe4720b24548c9a2"
+  },
+  "stderr": {
+    "path": "/workspace/.proofs/native-property-order509b-outer.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

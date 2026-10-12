@@ -1,0 +1,5 @@
+version 0.84-9-g5bac7c9
+OBSERVATION builtin 0 4
+OBSERVATION alias_expression 1 {wrong # args: should be "interp"}
+OBSERVATION shadowed_expression 0 VALUE
+OBSERVATION alias_setter 1 {wrong # args: should be "interp"}

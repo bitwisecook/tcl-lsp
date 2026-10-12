@@ -1,0 +1,19 @@
+TclObjCommandComplete(objPtr)
+    Tcl_Obj *objPtr;			/* Points to object holding script
+					 * to check. */
+{
+    CONST char *script;
+    int length;
+
+    script = Tcl_GetStringFromObj(objPtr, &length);
+    return CommandComplete(script, length);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclIsLocalScalar --
+ *
+ *	Check to see if a given string is a legal scalar variable
+ *	name with no namespace qualifiers or substitutions.
+ *

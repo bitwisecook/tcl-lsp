@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records ... 
+thread 'interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records' (1360725) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:964:60:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("retired native object header")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 5.75s
+

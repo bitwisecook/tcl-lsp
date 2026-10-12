@@ -1,0 +1,26 @@
+VERSION	0	302e38342d392d673562616337633920302e3834
+BUILD	JIM_GITVERSION=0.84-9-g5bac7c9	JIM_VERSION=84	JIM_ABI_VERSION=102	JIM_UTF8=1
+ABI	int=4	long=8	ptr=8	CHAR_BIT=8
+EVENT	case=0	sequence=1	label=CREATE_ORIGINAL_RETURN	status=0	original_calls=0	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=0	sequence=2	label=INVOKE_ENTER	status=0	original_calls=1	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=0	sequence=3	label=DELETE_API_RETURN	status=0	original_calls=1	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=0	sequence=4	label=INVOKE_RETURN	status=0	original_calls=1	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=0	sequence=5	label=DELETE_ORIGINAL	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+RESULT	case=0	sequence=6	stage=first-public-invocation-returned	status=0	hex=4f524947494e414c5f52455455524e
+EVENT	case=0	sequence=7	label=BEFORE_SECOND_INVOKE	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+RESULT	case=0	sequence=8	stage=second-public-invocation-returned	status=1	hex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722
+EVENT	case=0	sequence=9	label=CALLER_WORD_RELEASED	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+EVENT	case=0	sequence=10	label=INTERPRETER_DESTROYED	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+EVENT	case=1	sequence=1	label=CREATE_ORIGINAL_RETURN	status=0	original_calls=0	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=1	sequence=2	label=INVOKE_ENTER	status=0	original_calls=1	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=1	sequence=3	label=DELETE_API_RETURN	status=0	original_calls=1	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=1	sequence=4	label=INVOKE_RETURN	status=0	original_calls=1	replacement_calls=0	original_deletes=0	replacement_deletes=0
+EVENT	case=1	sequence=5	label=DELETE_ORIGINAL	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+EVENT	case=1	sequence=6	label=RECREATE_RETURN	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+RESULT	case=1	sequence=7	stage=first-public-invocation-returned	status=0	hex=4f524947494e414c5f52455455524e
+EVENT	case=1	sequence=8	label=BEFORE_SECOND_INVOKE	status=0	original_calls=1	replacement_calls=0	original_deletes=1	replacement_deletes=0
+EVENT	case=1	sequence=9	label=REPLACEMENT_INVOKE	status=0	original_calls=1	replacement_calls=1	original_deletes=1	replacement_deletes=0
+RESULT	case=1	sequence=10	stage=second-public-invocation-returned	status=0	hex=5245504c4143454d454e54
+EVENT	case=1	sequence=11	label=CALLER_WORD_RELEASED	status=0	original_calls=1	replacement_calls=1	original_deletes=1	replacement_deletes=0
+EVENT	case=1	sequence=12	label=DELETE_REPLACEMENT	status=0	original_calls=1	replacement_calls=1	original_deletes=1	replacement_deletes=1
+EVENT	case=1	sequence=13	label=INTERPRETER_DESTROYED	status=0	original_calls=1	replacement_calls=1	original_deletes=1	replacement_deletes=1

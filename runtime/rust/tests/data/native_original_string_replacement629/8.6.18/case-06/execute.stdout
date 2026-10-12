@@ -1,0 +1,21 @@
+provider	C-Tcl
+case	6	utf-four-byte-deleted
+input-subject	41c3a9e282acf09f98805a
+input-first	33
+input-last	33
+input-replacement	
+input-roles	omit=1	first=subject:0	last=first:0	replacement=subject:0
+before-arg2	none	1	1	11
+before-arg3	none	1	1	1
+before-arg4	none	1	1	1
+before-arg5	none	1	1	0
+code	0
+reached-arg2	string	1	1	11
+reached-arg3	int	1	1	1
+reached-arg4	int	1	1	1
+reached-arg5	none	1	1	0
+reached-result	string	0	1	0
+result-alias	subject=0	first=0	last=0	replacement=0
+result-bytes	41c3a9e282acedb8805a
+materialised-result	string	1	1	10
+subject-bytes	41c3a9e282acf09f98805a

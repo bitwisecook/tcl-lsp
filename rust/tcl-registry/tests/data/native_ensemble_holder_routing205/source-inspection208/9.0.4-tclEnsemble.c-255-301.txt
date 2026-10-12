@@ -1,0 +1,47 @@
+ *
+ *----------------------------------------------------------------------
+ */
+static Tcl_Command
+InitEnsembleFromOptions(
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    Namespace *nsPtr = (Namespace *) TclGetCurrentNamespace(interp);
+    Namespace *cxtPtr = nsPtr->parentPtr;
+    Namespace *altFoundNsPtr, *actualCxtPtr;
+    const char *name = nsPtr->name;
+    Tcl_Size len;
+    int allocatedMapFlag = 0;
+    enum EnsCreateOpts index;
+    Tcl_Command token;		/* The created ensemble command. */
+    Namespace *foundNsPtr;
+    const char *simpleName;
+    /*
+     * Defaults
+     */
+    Tcl_Obj *subcmdObj = NULL;
+    Tcl_Obj *mapObj = NULL;
+    int permitPrefix = 1;
+    Tcl_Obj *unknownObj = NULL;
+    Tcl_Obj *paramObj = NULL;
+
+    /*
+     * Parse the option list, applying type checks as we go. Note that we are
+     * not incrementing any reference counts in the objects at this stage, so
+     * the presence of an option multiple times won't cause any memory leaks.
+     */
+
+    for (; objc>1 ; objc-=2,objv+=2) {
+	if (Tcl_GetIndexFromObj(interp, objv[0], ensembleCreateOptions,
+		"option", 0, &index) != TCL_OK) {
+	    goto error;
+	}
+	switch (index) {
+	case CRT_CMD:
+	    name = TclGetString(objv[1]);
+	    cxtPtr = nsPtr;
+	    continue;
+	case CRT_SUBCMDS:
+	    if (TclListObjLength(interp, objv[1], &len) != TCL_OK) {
+		goto error;

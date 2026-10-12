@@ -1,0 +1,28 @@
+{
+  "actual_exact_selectors": [
+    "command_binding::semantic_equality::cfg_replay_retains_actual_entry_without_later_world_mutations",
+    "command_binding::semantic_equality::cfg_replay_declines_conflicting_or_missing_retained_entry_contexts",
+    "command_binding::semantic_equality::source_proof_equality_ignores_query_caches_but_retains_authority",
+    "command_binding::semantic_equality::native_entry_grammar_selects_original_reads_before_assistance",
+    "command_binding::semantic_equality::unavailable_native_grammar_retains_supplied_lexical_configuration",
+    "command_binding::semantic_equality::source_lookup_snapshot_memo_is_lazy_and_preserves_clone_semantics",
+    "command_binding::semantic_equality::source_lookup_snapshot_memo_keeps_realm_and_full_state_identity",
+    "command_binding::semantic_equality::source_lookup_snapshot_join_invalidates_only_the_detached_point",
+    "command_binding::semantic_equality::original_snapshot_equality_shares_world_without_initialising_full_hash",
+    "command_binding::semantic_equality::original_snapshot_equality_retains_source_frame_alias_epoch_and_native_context",
+    "command_binding::deferred_body_index::tests::original_body_index_preserves_innermost_source_and_boundary_ownership",
+    "command_binding::deferred_body_index::tests::original_body_index_invalidates_real_inventory_without_cloning_body_buffers",
+    "command_binding::deferred_body_index::tests::original_body_index_retains_equal_span_conflicts_and_layout_config",
+    "command_binding::conditional_body::original_body_frame_tests::nested_declaration_context_requires_unchanged_original_procedure_source",
+    "command_binding::conditional_body::original_body_frame_tests::declared_caller_navigation_keeps_definition_without_an_actual_dispatch",
+    "command_binding::conditional_body::original_body_frame_tests::original_multiline_caller_navigation_retains_the_declared_procedure",
+    "command_binding::conditional_body::original_body_frame_tests::entered_original_body_frames_keep_declaration_and_allocation_independent",
+    "command_binding::conditional_body::original_body_frame_tests::rejected_formal_binding_cannot_supply_an_entered_original_body_frame",
+    "regex_source::tests::literal_flows_to_regexp_in_a_large_multi_proc_file"
+  ],
+  "actual_own_list_sha256": "70232907d371bf26654f44094dacd0aa0e81e971e6e298028e6457743930e7df",
+  "pinned_own_image_sha256": "b08cb4b3ca024a5f28086ee5c10c3e95aad917837d42ebeeb6b459ec6c69c4ce",
+  "request_sha256": "dd25d3e549ae5b4fc7fce80c35e513d2012bb88492a164449dccaf5e42ceb0c3",
+  "original_performance_whole_source_sha256": "607692bab0dc91bd4136f3d3b2610e74949b10c1fc2cb8f1f51ba5ec8ad3978a",
+  "unchanged_test_body_sha256": "911fe19b50814cee273b36725e34076e3e1a73024f67e0ed0050fdce8ddfa901"
+}

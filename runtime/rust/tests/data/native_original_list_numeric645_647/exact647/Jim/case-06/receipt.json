@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-list-numeric-exact647/Jim/probe.elf",
+    "6"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-numeric-exact647/Jim/case-06",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.0015083519974723458,
+  "stdout": "/workspace/.proofs/root-native-list-numeric-exact647/Jim/case-06/execute.stdout",
+  "stdout_sha256": "f1e5d3c6dfc414febb16224583439d80906dda841356fbec4b6981855d066a61",
+  "stderr": "/workspace/.proofs/root-native-list-numeric-exact647/Jim/case-06/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 6,
+  "executable_sha256_before": "a196eb17870ead68217664e81c782594db8359786494540c6e178c1630d5910b",
+  "executable_sha256_after": "a196eb17870ead68217664e81c782594db8359786494540c6e178c1630d5910b"
+}

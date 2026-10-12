@@ -1,0 +1,62 @@
+CompileComparisonOpCmd(
+    Tcl_Interp *interp,
+    Tcl_Parse *parsePtr,
+    int instruction,
+    CompileEnv *envPtr)
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+
+    /* TODO: Consider support for compiling expanded args. */
+    if (OutOfUintRange(parsePtr->numWords)) {
+	return TCL_ERROR;
+    }
+    if (parsePtr->numWords < 3) {
+	PUSH(			"1");
+    } else if (parsePtr->numWords == 3) {
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	PUSH_TOKEN(		tokenPtr, 1);
+	tokenPtr = TokenAfter(tokenPtr);
+	PUSH_TOKEN(		tokenPtr, 2);
+	TclEmitOpcode(instruction, envPtr);
+    } else if (!EnvIsProc(envPtr)) {
+	/*
+	 * No local variable space!
+	 */
+
+	return TCL_ERROR;
+    } else {
+	Tcl_LVTIndex tmpIndex = AnonymousLocal(envPtr);
+	Tcl_Size words;
+
+	if (OutOfUintRangeUpper(tmpIndex)) {
+	    return TCL_ERROR;
+	}
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	PUSH_TOKEN(		tokenPtr, 1);
+	tokenPtr = TokenAfter(tokenPtr);
+	PUSH_TOKEN(		tokenPtr, 2);
+	OP4(			STORE_SCALAR, tmpIndex);
+	TclEmitOpcode(instruction, envPtr);
+	for (words=3 ; words<parsePtr->numWords ;) {
+	    OP4(		LOAD_SCALAR, tmpIndex);
+	    tokenPtr = TokenAfter(tokenPtr);
+	    PUSH_TOKEN(		tokenPtr, words);
+	    if (++words < parsePtr->numWords) {
+		OP4(		STORE_SCALAR, tmpIndex);
+	    }
+	    TclEmitOpcode(instruction, envPtr);
+	}
+	for (; words>3 ; words--) {
+	    OP(			BITAND);
+	}
+
+	/*
+	 * Drop the value from the temp variable; retaining that reference
+	 * might be expensive elsewhere.
+	 */
+
+	OP14(			UNSET_SCALAR, 0, tmpIndex);
+    }
+    return TCL_OK;
+}

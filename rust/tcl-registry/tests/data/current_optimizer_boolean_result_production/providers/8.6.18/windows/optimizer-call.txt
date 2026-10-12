@@ -1,0 +1,21 @@
+	TclEmitOpcode(INST_DONE, &compEnv);
+	assert (compEnv.atCmdStart > 1);
+    }
+
+    /*
+     * Apply some peephole optimizations that can cross specific/generic
+     * instruction generator boundaries.
+     */
+
+    if (iPtr->extra.optimizer) {
+	(iPtr->extra.optimizer)(&compEnv);
+    }
+
+    /*
+     * Invoke the compilation hook procedure if one exists.
+     */
+
+    if (hookProc) {
+	result = hookProc(interp, &compEnv, clientData);
+    }
+

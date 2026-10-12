@@ -1,0 +1,137 @@
+{
+  "utc": "2026-10-07T00:44:54.561056+00:00",
+  "engines": [
+    {
+      "engine": "9.0.4",
+      "source_sha256": "c687dddc068d14cc5f717f2e67a4ef455e40bba1b103406814447712784bf2da",
+      "native_library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "native_elf_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+      "probe_elf_sha256": "60936b9cd47a9bca3ab26ece5a9f9a88e318c8ae5ff9904bf89ca931150b1766",
+      "compiler_elf_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "headers": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.h": "22f512199d2e57370496d8a6713921d9ac57538497a3a64966fa1dee7a6a5dc5"
+      },
+      "native_sources": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclScan.c": "92ace5461ef924d87253e89c9e1bc447f7c4dc672e7f55c8d180d77c63e7a39b",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclVar.c": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c": "d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclResult.c": "29f06b862e3448ecf827971f5cf1519c2cb6b8159ff99713fc0527b3308233a1"
+      },
+      "receipts": [
+        {
+          "argv": [
+            "/usr/bin/cc",
+            "-std=c11",
+            "-DSTDC_HEADERS=1",
+            "-DHAVE_UNISTD_H=1",
+            "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+            "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+            "/workspace/.proofs/2286-native-scan-modern-c9-current/probe.c",
+            "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+            "-lm",
+            "-ldl",
+            "-lpthread",
+            "-lz",
+            "-o",
+            "/workspace/.proofs/2286-native-scan-modern-c9-current/probe-9.0.4"
+          ],
+          "status": 0,
+          "slot": "/workspace/.proofs/2286-test-slot-0.lock",
+          "timeout_seconds": 60,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "9.0.4-compile.stdout",
+          "stderr": "9.0.4-compile.stderr"
+        },
+        {
+          "argv": [
+            "/workspace/.proofs/2286-native-scan-modern-c9-current/probe-9.0.4"
+          ],
+          "status": 0,
+          "slot": "/workspace/.proofs/2286-test-slot-0.lock",
+          "timeout_seconds": 60,
+          "stdout_sha256": "d131722e346e2ccd56c5656a1747cb31bb1c20fba4d5d1dcafe4495d130664a1",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "9.0.4-run.stdout",
+          "stderr": "9.0.4-run.stderr"
+        }
+      ]
+    },
+    {
+      "engine": "9.1.0",
+      "source_sha256": "c687dddc068d14cc5f717f2e67a4ef455e40bba1b103406814447712784bf2da",
+      "native_library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "native_elf_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+      "probe_elf_sha256": "9179c2e12a5a136ce5da04fbdec684d16c475c8bc9b6f98a68c3b0b125e7318b",
+      "compiler_elf_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "headers": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.h": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e"
+      },
+      "native_sources": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclScan.c": "4df006e6b925c2c681df1423b7ff1d9b4cefb587d90c6c8f6d52246660f50b63",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclResult.c": "0dc7c5d3c2bd48c90723507d3d1001f7b8aab1abcebbfaf5c1084adf16f84c3b"
+      },
+      "receipts": [
+        {
+          "argv": [
+            "/usr/bin/cc",
+            "-std=c11",
+            "-DSTDC_HEADERS=1",
+            "-DHAVE_UNISTD_H=1",
+            "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+            "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+            "/workspace/.proofs/2286-native-scan-modern-c9-current/probe.c",
+            "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+            "-lm",
+            "-ldl",
+            "-lpthread",
+            "-lz",
+            "-o",
+            "/workspace/.proofs/2286-native-scan-modern-c9-current/probe-9.1.0"
+          ],
+          "status": 0,
+          "slot": "/workspace/.proofs/2286-test-slot-1.lock",
+          "timeout_seconds": 60,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "9.1.0-compile.stdout",
+          "stderr": "9.1.0-compile.stderr"
+        },
+        {
+          "argv": [
+            "/workspace/.proofs/2286-native-scan-modern-c9-current/probe-9.1.0"
+          ],
+          "status": 0,
+          "slot": "/workspace/.proofs/2286-test-slot-0.lock",
+          "timeout_seconds": 60,
+          "stdout_sha256": "b6995d7c5c4a79028dd1470552f44d1f4799b33b8cb9fada0521ab4efdbcc60b",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "9.1.0-run.stdout",
+          "stderr": "9.1.0-run.stderr"
+        }
+      ]
+    }
+  ],
+  "source_stage": "Original C9 modern write-trace callback failure; later assignment continuation and result headers before/after actual getters",
+  "root_cargo": false,
+  "file_sha256": {
+    "9.0.4-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4-run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4-run.stdout": "d131722e346e2ccd56c5656a1747cb31bb1c20fba4d5d1dcafe4495d130664a1",
+    "9.1.0-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0-run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0-run.stdout": "b6995d7c5c4a79028dd1470552f44d1f4799b33b8cb9fada0521ab4efdbcc60b",
+    "README.md": "e1e0aa75f40422367721eb6279d24f2b97d23bce3d76edea28fbf01ef3721673",
+    "case.tcl": "e38456af82e5c18b1e21733b06209bcb73e9a7d833af2dd1a4d4f2447d38c1fc",
+    "probe.c": "c687dddc068d14cc5f717f2e67a4ef455e40bba1b103406814447712784bf2da",
+    "replay.py": "06e1627db81233c1f9afefdb8866615a3bb9343dc7158a5a093605b566ec2772"
+  }
+}

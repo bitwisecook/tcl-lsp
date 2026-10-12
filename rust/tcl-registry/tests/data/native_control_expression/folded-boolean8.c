@@ -1,0 +1,7 @@
+#include "tclInt.h"
+#include "tclCompile.h"
+#include <stdio.h>
+#include <string.h>
+static const char *bodies[]={"set before 1; expr {false || (1+2)}","expr {false || (1+2)}; expr {false || (1+2)}"};
+static void state(Tcl_Obj*o){printf("%s,%d,%d",o->typePtr?o->typePtr->name:"none",o->bytes!=NULL,o->refCount);if(o->bytes){putchar(',');for(int k=0;k<o->length;k++)printf("%02x",(unsigned char)o->bytes[k]);}}
+int main(void){for(int k=0;k<2;k++){Tcl_Interp*i=Tcl_CreateInterp();Tcl_Obj*def[4]={Tcl_NewStringObj("proc",-1),Tcl_NewStringObj("p",-1),Tcl_NewStringObj("x",-1),Tcl_NewStringObj(bodies[k],-1)};for(int j=0;j<4;j++)Tcl_IncrRefCount(def[j]);int dc=Tcl_EvalObjv(i,4,def,0);Tcl_Obj*call[2]={Tcl_NewStringObj("p",-1),Tcl_NewStringObj("3",-1)};for(int j=0;j<2;j++)Tcl_IncrRefCount(call[j]);int c=Tcl_EvalObjv(i,2,call,0);printf("CASE\t%d\t%d\t%d\t",k,dc,c);state(Tcl_GetObjResult(i));putchar('\n');Proc*p=TclFindProc((Interp*)i,"p");if(p&&p->bodyPtr->typePtr&&!strcmp(p->bodyPtr->typePtr->name,"bytecode")){ByteCode*b=(ByteCode*)p->bodyPtr->internalRep.twoPtrValue.ptr1;for(int j=0;j<b->numLitObjects;j++){printf("L\t%d\t%d\t",k,j);state(b->objArrayPtr[j]);putchar('\n');printf("SAME\t%d\t%d\t%d\t%d\n",k,j,b->objArrayPtr[j]==Tcl_GetObjResult(i),b->objArrayPtr[j]==b->objArrayPtr[0]);}}for(int j=0;j<2;j++)Tcl_DecrRefCount(call[j]);for(int j=0;j<4;j++)Tcl_DecrRefCount(def[j]);Tcl_DeleteInterp(i);}return 0;}

@@ -1,0 +1,137 @@
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-dialect)
+    Checking tcl-core-types v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-core-types)
+    Checking tcl-platform v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-platform)
+    Checking tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-host-c-abi)
+    Checking tcl-host-native v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-host-native)
+    Checking tcl-engine-api v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-engine-api)
+    Checking tcl-userdirs v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-userdirs)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-version)
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lexer)
+    Checking tcl-test-support v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-test-support)
+    Checking tcl-sandbox v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-sandbox)
+   Compiling tcl-cli v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cli)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-syntax)
+    Checking tcl-f5mku v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-f5mku)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bytecode)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-pkg)
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-vm)
+warning: function `lookup_var_error_code` is never used
+    --> rust/tcl-vm/src/command.rs:3070:4
+     |
+3070 | fn lookup_var_error_code(name: &str) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `bad_link_name` is never used
+    --> rust/tcl-vm/src/command.rs:3078:4
+     |
+3078 | fn bad_link_name(name: &str) -> Completion<Value> {
+     |    ^^^^^^^^^^^^^
+
+warning: function `upvar_link_error` is never used
+    --> rust/tcl-vm/src/command.rs:3088:15
+     |
+3088 | pub(crate) fn upvar_link_error(
+     |               ^^^^^^^^^^^^^^^^
+
+warning: `tcl-vm` (lib) generated 3 warnings
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+    Checking tcl-irules v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-sslictcl)
+    Checking tcl-bigip v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip)
+    Checking tcl-lsp-core v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-core)
+warning: field `source` is never read
+  --> rust/tcl-lsp-core/src/original_invocation.rs:26:16
+   |
+19 | pub(crate) struct OriginalRegistryWords {
+   |                   --------------------- field in this struct
+...
+26 |     pub(crate) source: OriginalRegistrySource,
+   |                ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib) generated 2 warnings
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-spec-hooks)
+    Checking tcl-spectcl v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-spectcl)
+    Checking tcl-spec-studio v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-spec-studio)
+    Checking tcl-explorer v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-explorer)
+    Checking tcl-lsp-db v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-db)
+    Checking tcl-diagram v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-diagram)
+    Checking tcl-cli-support v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cli-support)
+    Checking tcl-bigip-query v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip-query)
+    Checking f5-xc v0.1.0 (/workspace/.checkpoints/naming091/rust/f5-xc)
+warning: unused import: `formatting_with`
+  --> rust/tcl-cli/src/commands/transform.rs:30:62
+   |
+30 | use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
+   |                                                              ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-cli` (lib) generated 1 warning (run `cargo fix --lib -p tcl-cli` to apply 1 suggestion)
+    Checking tcl-lsp-server v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-lsp-server)
+    Checking tcl-bigip-io v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-bigip-io)
+    Checking tcl-irule-test v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-irule-test)
+    Checking f5-cli v0.1.0 (/workspace/.checkpoints/naming091/rust/f5-cli)
+    Checking tcl-mcp v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-mcp)
+    Checking xtask v0.1.0 (/workspace/.checkpoints/naming091/rust/xtask)
+warning: `tcl-cli` (lib test) generated 1 warning (1 duplicate)
+warning: `tcl-registry` (lib test) generated 1 warning (1 duplicate)
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+error[E0277]: the trait bound `i32: From<CompletionCode>` is not satisfied
+   --> rust/tcl-vm/src/cmd_oo/native_info_option_tests.rs:262:21
+    |
+262 |                     i32::from(completion.code),
+    |                     ^^^ the trait `From<CompletionCode>` is not implemented for `i32`
+    |
+    = help: `i32` implements trait `From<T>`:
+              From<bool>
+              From<i16>
+              From<i8>
+              From<u16>
+              From<u8>
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `tcl-vm` (lib test) due to 1 previous error

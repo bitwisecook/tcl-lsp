@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {interp alias {} aliasplus {} ::tcl::mathop::+; aliasplus 2 3}

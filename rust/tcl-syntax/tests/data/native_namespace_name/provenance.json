@@ -1,0 +1,59 @@
+{
+  "source": "producer_getter.c",
+  "source_sha256": "8161c6ac39fb84c076e20a0f6cdef5f6ae5957d890443d99cda49aadd68a2b2c",
+  "observation_window": "Original namespace-result primary before byte materialization, counted result bytes, and input primary/resolution after reached parent getter. No return-option or refcount equivalence claim.",
+  "result_windows": 103,
+  "native_rows": 532,
+  "runs": [
+    {
+      "version": "8.4.20",
+      "binary": "/workspace/.proofs/2286-nsname-producers3-8.4.20",
+      "binary_sha256": "c2596e165ed556a99ebe4eca81754e223c3618a59859bdc9127d1bf56174c284",
+      "log": "/workspace/.proofs/2286-root-nsname-native-8.4.20.jsonl",
+      "log_sha256": "b6ae6e3d619a015438a49c79d57059ee340572f658dd3d8c02084679a447b800",
+      "rows": 105
+    },
+    {
+      "version": "8.5.19",
+      "binary": "/workspace/.proofs/2286-nsname-producers3-8.5.19",
+      "binary_sha256": "65602d5cc8570b2e9c9f500d7c84e710188870661397587376a2f3e477c51dde",
+      "log": "/workspace/.proofs/2286-root-nsname-native-8.5.19.jsonl",
+      "log_sha256": "aca247440077cfc2d46a7f74e580b7ea01f995b62c85e4242ecebbb8b322a073",
+      "rows": 105
+    },
+    {
+      "version": "8.6.18",
+      "binary": "/workspace/.proofs/2286-nsname-producers3-8.6.18",
+      "binary_sha256": "211f1c1c697ac748cd57aed54d11ba34d2d8be2ef4062da77f8fad17b485ed78",
+      "log": "/workspace/.proofs/2286-root-nsname-native-8.6.18.jsonl",
+      "log_sha256": "aca247440077cfc2d46a7f74e580b7ea01f995b62c85e4242ecebbb8b322a073",
+      "rows": 105
+    },
+    {
+      "version": "9.0.4",
+      "binary": "/workspace/.proofs/2286-nsname-producers3-9.0.4",
+      "binary_sha256": "a67c5a796806d256ca7d8d6cef501acec8b9dfc0cd635e787993709e5f0ef2b4",
+      "log": "/workspace/.proofs/2286-root-nsname-native-9.0.4.jsonl",
+      "log_sha256": "86517cb139bbe11b58e735531a9578d82d347f30036575d6cd06b755908a002c",
+      "rows": 105
+    },
+    {
+      "version": "9.1.0",
+      "binary": "/workspace/.proofs/2286-nsname-producers3-9.1.0",
+      "binary_sha256": "00c256b7557f76c3b011cdf19e40d72414eb422426fba647ef434bd998c6d1e4",
+      "log": "/workspace/.proofs/2286-root-nsname-native-9.1.0.jsonl",
+      "log_sha256": "86517cb139bbe11b58e735531a9578d82d347f30036575d6cd06b755908a002c",
+      "rows": 105
+    },
+    {
+      "version": "Jim",
+      "binary": "/workspace/.proofs/2286-nsname-producers3-Jim",
+      "binary_sha256": "c3d665bc13ac6378b50b9a35636ce6d52d30978a689682f0a1ab2880cf0e8d7d",
+      "log": "/workspace/.proofs/2286-root-nsname-native-Jim.jsonl",
+      "log_sha256": "f59d3d899c580a298c6f45b532eeed258f7d52bd5491a16cae8fc5e3d7364d30",
+      "rows": 7,
+      "source_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03"
+    }
+  ],
+  "rust_comparisons": 0
+}

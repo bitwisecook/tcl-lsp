@@ -80,7 +80,6 @@ use tcl_compiler::def_use::{DefKind, DefUseChain, UseKind};
 use tcl_compiler::ssa::Version;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
-use tcl_registry::model::semantic::SemanticContext;
 
 // Shared helpers
 
@@ -108,12 +107,28 @@ fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
 
 /// Look up the def-use chain for `(name, version)` in a unit.
 fn chain<'a>(fu: &'a FunctionUnit, name: &str, version: Version) -> Option<&'a DefUseChain> {
-    fu.def_use.chain_for(name, version)
+    let symbol = fu.ssa.var_symbol(name)?;
+    fu.def_use.chain_for(fu.ssa.cell_key(symbol), version)
 }
 
 /// All SSA versions defined for `name` in a unit.
 fn reaching_defs(fu: &FunctionUnit, name: &str) -> Vec<(String, Version)> {
-    fu.def_use.reaching_defs(name)
+    let Some(symbol) = fu.ssa.var_symbol(name) else {
+        return Vec::new();
+    };
+    fu.def_use
+        .reaching_defs(fu.ssa.cell_key(symbol))
+        .into_iter()
+        .map(|(key, version)| {
+            (
+                fu.ssa.cell_symbol(&key).map_or_else(
+                    || key.compatibility_name(),
+                    |symbol| fu.ssa.var_name(symbol).to_owned(),
+                ),
+                version,
+            )
+        })
+        .collect()
 }
 
 /// Build the module data-flow graph from a (memory-SSA populated) unit.
@@ -136,10 +151,7 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
 
 /// Build the data-flow graph for `source`, with memory-SSA populated.
 fn graph_for(source: &str) -> DataFlowGraph {
-    let cu = build_cu(source).with_memory_ssa(
-        &CommandRegistry::build_default(),
-        Some(SemanticContext::for_environment("tcl8.6")),
-    );
+    let cu = build_cu(source).with_retained_memory_ssa(registry());
     build_graph(&cu)
 }
 
@@ -211,7 +223,12 @@ fn def_use_if_merge_creates_phi_chain() {
         .def_use
         .chains
         .iter()
-        .filter(|(k, c)| k.0 == "a" && c.definition.kind == DefKind::Phi)
+        .filter(|(k, c)| {
+            fu.ssa
+                .var_symbol("a")
+                .is_some_and(|symbol| k.0 == *fu.ssa.cell_key(symbol))
+                && c.definition.kind == DefKind::Phi
+        })
         .collect();
     assert!(!phi_defs.is_empty(), "expected ≥1 phi def for `a`");
     let (_, phi_chain) = phi_defs[0];
@@ -477,10 +494,7 @@ fn dataflow_prebuilt_cu() {
     // the same ≥2 defs. The API *only* consumes pre-built per-function inputs,
     // so this is the same path as `build_graph` but spelled out: reuse one
     // `CompilationUnit`.
-    let cu = build_cu("set x 1\nset y $x").with_memory_ssa(
-        &CommandRegistry::build_default(),
-        Some(SemanticContext::for_environment("tcl8.6")),
-    );
+    let cu = build_cu("set x 1\nset y $x").with_retained_memory_ssa(registry());
     let g = build_graph(&cu);
     assert!(g.total_defs() >= 2);
 }

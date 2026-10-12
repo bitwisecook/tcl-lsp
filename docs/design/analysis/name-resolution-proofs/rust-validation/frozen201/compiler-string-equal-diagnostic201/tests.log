@@ -1,0 +1,64 @@
+
+running 1 test
+test command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape ... NATIVE_ORIGINAL_COMPILER_WORLD head=[112, 114, 111, 99] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[112, 114, 111, 99] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([112, 114, 111, 99]) } alternatives=Some([("target", Some("::proc"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[112, 114, 111, 99] namespace=Some("::") generic=false unknown=false targets=[("::proc", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[115, 101, 116] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[115, 101, 116] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([115, 101, 116]) } alternatives=Some([("target", Some("::set"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[115, 101, 116] namespace=Some("::") generic=false unknown=false targets=[("::set", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[115, 116, 114, 105, 110, 103] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[115, 116, 114, 105, 110, 103] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([115, 116, 114, 105, 110, 103]) } alternatives=Some([("target", Some("::string"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[115, 116, 114, 105, 110, 103] namespace=Some("::") generic=false unknown=false targets=[("::string", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[112, 114, 111, 99] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[112, 114, 111, 99] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([112, 114, 111, 99]) } alternatives=Some([("target", Some("::proc"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_WORLD head=[115, 101, 116] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[115, 101, 116] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([115, 101, 116]) } alternatives=Some([("target", Some("::set"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_WORLD head=[115, 116, 114, 105, 110, 103] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[115, 116, 114, 105, 110, 103] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([115, 116, 114, 105, 110, 103]) } alternatives=Some([("target", Some("::string"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[115, 116, 114, 105, 110, 103] namespace=Some("::") generic=false unknown=false targets=[("::string", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[112, 114, 111, 99] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[112, 114, 111, 99] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([112, 114, 111, 99]) } alternatives=Some([("target", Some("::proc"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[112, 114, 111, 99] namespace=Some("::") generic=false unknown=false targets=[("::proc", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[115, 101, 116] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[115, 101, 116] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([115, 101, 116]) } alternatives=Some([("target", Some("::set"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[115, 101, 116] namespace=Some("::") generic=false unknown=false targets=[("::set", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[114, 101, 116, 117, 114, 110] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[114, 101, 116, 117, 114, 110] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([114, 101, 116, 117, 114, 110]) } alternatives=Some([("target", Some("::return"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[114, 101, 116, 117, 114, 110] namespace=Some("::") generic=false unknown=false targets=[("::return", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[114, 101, 116, 117, 114, 110] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[114, 101, 116, 117, 114, 110] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([114, 101, 116, 117, 114, 110]) } alternatives=Some([("target", Some("::return"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[114, 101, 116, 117, 114, 110] namespace=Some("::") generic=false unknown=false targets=[("::return", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[114, 101, 116, 117, 114, 110] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[114, 101, 116, 117, 114, 110] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([114, 101, 116, 117, 114, 110]) } alternatives=Some([("target", Some("::return"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[114, 101, 116, 117, 114, 110] namespace=Some("::") generic=false unknown=false targets=[("::return", true, Builtin, None)]
+NATIVE_ORIGINAL_COMPILER_WORLD head=[114, 101, 116, 117, 114, 110] opaque=false policy=Some(NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation }) input_policy=NamePolicyProtocol { recipe: C(V8_4), authority: AuthoredSimulation } scope=Some(C(ByteNamespacePath([]))) root=Some(Authored("::")) namespace_rows=None
+NATIVE_ORIGINAL_COMPILER_LOOKUP head=[114, 101, 116, 117, 114, 110] selected_unknown=false absent=false keys=1
+NATIVE_ORIGINAL_COMPILER_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([114, 101, 116, 117, 114, 110]) } alternatives=Some([("target", Some("::return"), Some(true), None, None)])
+NATIVE_ORIGINAL_COMPILER_TARGET head=[114, 101, 116, 117, 114, 110] namespace=Some("::") generic=false unknown=false targets=[("::return", true, Builtin, None)]
+NATIVE_COMPILER_ATTACHMENT offset=0 reason=reached-without-child selection=Some(Generic)
+
+thread 'command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape' (750233) panicked at rust/tcl-compiler/src/command_binding/compiled_invocation.rs:3206:17:
+assertion `left == right` failed: V8_4: equal
+  left: true
+ right: false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::compiled_invocation::tests::string_equal_public_replacement_follows_its_original_compiler_shape
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8419 filtered out; finished in 0.33s
+

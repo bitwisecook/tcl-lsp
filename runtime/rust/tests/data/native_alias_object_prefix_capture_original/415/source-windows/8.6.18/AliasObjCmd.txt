@@ -1,0 +1,156 @@
+1844:     }
+1845:     TclSkipTailcall(interp);
+1846:     return Tcl_NREvalObj(interp, listPtr, flags);
+1847: }
+1848: 
+1849: static int
+1850: AliasObjCmd(
+1851:     ClientData clientData,	/* Alias record. */
+1852:     Tcl_Interp *interp,		/* Current interpreter. */
+1853:     int objc,			/* Number of arguments. */
+1854:     Tcl_Obj *const objv[])	/* Argument vector. */
+1855: {
+1856: #define ALIAS_CMDV_PREALLOC 10
+1857:     Alias *aliasPtr = (Alias *)clientData;
+1858:     Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+1859:     int result, prefc, cmdc, i;
+1860:     Tcl_Obj **prefv, **cmdv;
+1861:     Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+1862:     Interp *tPtr = (Interp *) targetInterp;
+1863:     int isRootEnsemble;
+1864: 
+1865:     /*
+1866:      * Append the arguments to the command prefix and invoke the command in
+1867:      * the target interp's global namespace.
+1868:      */
+1869: 
+1870:     prefc = aliasPtr->objc;
+1871:     prefv = &aliasPtr->objPtr;
+1872:     cmdc = prefc + objc - 1;
+1873:     if (cmdc <= ALIAS_CMDV_PREALLOC) {
+1874: 	cmdv = cmdArr;
+1875:     } else {
+1876: 	cmdv = (Tcl_Obj **)TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+1877:     }
+1878: 
+1879:     memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+1880:     memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+1881: 
+1882:     Tcl_ResetResult(targetInterp);
+1883: 
+1884:     for (i=0; i<cmdc; i++) {
+1885: 	Tcl_IncrRefCount(cmdv[i]);
+1886:     }
+1887: 
+1888:     /*
+1889:      * Use the ensemble rewriting machinery to ensure correct error messages:
+1890:      * only the source command should show, not the full target prefix.
+1891:      */
+1892: 
+1893:     isRootEnsemble = TclInitRewriteEnsemble((Tcl_Interp *)tPtr, 1, prefc, objv);
+1894: 
+1895:     /*
+1896:      * Protect the target interpreter if it isn't the same as the source
+1897:      * interpreter so that we can continue to work with it after the target
+1898:      * command completes.
+1899:      */
+1900: 
+1901:     if (targetInterp != interp) {
+1902: 	Tcl_Preserve(targetInterp);
+1903:     }
+1904: 
+1905:     /*
+1906:      * Execute the target command in the target interpreter.
+1907:      */
+1908: 
+1909:     result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+1910: 
+1911:     /*
+1912:      * Clean up the ensemble rewrite info if we set it in the first place.
+1913:      */
+1914: 
+1915:     if (isRootEnsemble) {
+1916: 	TclResetRewriteEnsemble((Tcl_Interp *)tPtr, 1);
+1917:     }
+1918: 
+1919:     /*
+1920:      * If it was a cross-interpreter alias, we need to transfer the result
+1921:      * back to the source interpreter and release the lock we previously set
+1922:      * on the target interpreter.
+1923:      */
+1924: 
+1925:     if (targetInterp != interp) {
+1926: 	Tcl_TransferResult(targetInterp, result, interp);
+1927: 	Tcl_Release(targetInterp);
+1928:     }
+1929: 
+1930:     for (i=0; i<cmdc; i++) {
+1931: 	Tcl_DecrRefCount(cmdv[i]);
+1932:     }
+1933:     if (cmdv != cmdArr) {
+1934: 	TclStackFree(interp, cmdv);
+1935:     }
+1936:     return result;
+1937: #undef ALIAS_CMDV_PREALLOC
+1938: }
+1939: 
+1940: 
+1941: /*
+1942:  *----------------------------------------------------------------------
+1943:  *
+1944:  * AliasObjCmdDeleteProc --
+1945:  *
+1946:  *	Is invoked when an alias command is deleted in a child. Cleans up all
+1947:  *	storage associated with this alias.
+1948:  *
+1949:  * Results:
+1950:  *	None.
+1951:  *
+1952:  * Side effects:
+1953:  *	Deletes the alias record and its entry in the alias table for the
+1954:  *	interpreter.
+1955:  *
+1956:  *----------------------------------------------------------------------
+1957:  */
+1958: 
+1959: static void
+1960: AliasObjCmdDeleteProc(
+1961:     ClientData clientData)	/* The alias record for this alias. */
+1962: {
+1963:     Alias *aliasPtr = (Alias *)clientData;
+1964:     Target *targetPtr;
+1965:     int i;
+1966:     Tcl_Obj **objv;
+1967: 
+1968:     Tcl_DecrRefCount(aliasPtr->token);
+1969:     objv = &aliasPtr->objPtr;
+1970:     for (i = 0; i < aliasPtr->objc; i++) {
+1971: 	Tcl_DecrRefCount(objv[i]);
+1972:     }
+1973:     Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+1974: 
+1975:     /*
+1976:      * Splice the target record out of the target interpreter's parent list.
+1977:      */
+1978: 
+1979:     targetPtr = aliasPtr->targetPtr;
+1980:     if (targetPtr->prevPtr != NULL) {
+1981: 	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+1982:     } else {
+1983: 	Parent *parentPtr = &((InterpInfo *) ((Interp *)
+1984: 		aliasPtr->targetInterp)->interpInfo)->parent;
+1985: 
+1986: 	parentPtr->targetsPtr = targetPtr->nextPtr;
+1987:     }
+1988:     if (targetPtr->nextPtr != NULL) {
+1989: 	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+1990:     }
+1991: 
+1992:     ckfree(targetPtr);
+1993:     ckfree(aliasPtr);
+1994: }
+1995: 
+1996: 
+1997: /*
+1998:  *----------------------------------------------------------------------
+1999:  *

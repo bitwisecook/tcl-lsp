@@ -1,0 +1,5 @@
+VERSION|0|392e312e30
+INPUT|string-astral|none|1|f09f9880
+RETURN|0|bytearray|0
+INPUT_AFTER|none|1
+RAW|4|f09f9880

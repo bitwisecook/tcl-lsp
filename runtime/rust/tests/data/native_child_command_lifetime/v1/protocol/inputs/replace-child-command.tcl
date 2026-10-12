@@ -1,0 +1,1 @@
+interp create kid; proc kid {} {return REPLACEMENT}; list [interp slaves] [kid]

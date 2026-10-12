@@ -1,0 +1,75 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+    Checking typenum v1.20.1
+   Compiling syn v3.0.6
+    Checking hybrid-array v0.4.15
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-dialect)
+   Compiling thiserror v2.0.21
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking bitflags v2.13.2
+    Checking const-oid v0.10.2
+    Checking tcl-core-types v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-core-types)
+   Compiling libm v0.2.16
+   Compiling thiserror-impl v2.0.21
+error[E0308]: mismatched types
+   --> rust/tcl-dialect/src/profile.rs:453:31
+    |
+453 |             surface_packages: self.surface_packages,
+    |                               ^^^^^^^^^^^^^^^^^^^^^ expected `&[PackageFloor<'_>]`, found `&[&str]`
+    |
+    = note: expected reference `&'static [PackageFloor<'static>]`
+               found reference `&'static [&'static str]`
+
+error[E0063]: missing field `evaluation_evidence` in initializer of `DialectProfile`
+   --> rust/tcl-dialect/src/profile.rs:443:9
+    |
+443 |         DialectProfile {
+    |         ^^^^^^^^^^^^^^ missing `evaluation_evidence`
+
+error[E0027]: pattern does not mention field `evaluation_evidence`
+    --> rust/tcl-dialect/src/profile.rs:1520:13
+     |
+1520 |           let Self {
+     |  _____________^
+1521 | |             core_point,
+1522 | |             name,
+1523 | |             aliases,
+...    |
+1544 | |             help_terms,
+1545 | |         } = self;
+     | |_________^ missing field `evaluation_evidence`
+     |
+help: include the missing field in the pattern
+     |
+1544 -             help_terms,
+1545 -         } = self;
+1544 +             help_terms, evaluation_evidence } = self;
+     |
+help: if you don't care about this missing field, you can explicitly ignore it
+     |
+1544 -             help_terms,
+1545 -         } = self;
+1544 +             help_terms, evaluation_evidence: _ } = self;
+     |
+help: or always ignore missing fields here
+     |
+1544 -             help_terms,
+1545 -         } = self;
+1544 +             help_terms, .. } = self;
+     |
+
+error[E0308]: mismatched types
+    --> rust/tcl-dialect/src/profile.rs:1556:13
+     |
+1556 |             surface_packages,
+     |             ^^^^^^^^^^^^^^^^ expected `&[&str]`, found `&&[PackageFloor<'_>]`
+     |
+     = note: expected reference `&'static [&'static str]`
+                found reference `&&'static [PackageFloor<'static>]`
+
+Some errors have detailed explanations: E0027, E0063, E0308.
+For more information about an error, try `rustc --explain E0027`.
+error: could not compile `tcl-dialect` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...

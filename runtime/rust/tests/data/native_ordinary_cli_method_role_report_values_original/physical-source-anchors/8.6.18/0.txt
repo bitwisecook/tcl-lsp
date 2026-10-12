@@ -1,0 +1,12 @@
+    fPtr->epoch = 0;
+    fPtr->tsdPtr = tsdPtr;
+    TclNewLiteralStringObj(fPtr->unknownMethodNameObj, "unknown");
+    TclNewLiteralStringObj(fPtr->constructorName, "<constructor>");
+    TclNewLiteralStringObj(fPtr->destructorName, "<destructor>");
+    TclNewLiteralStringObj(fPtr->clonedName, "<cloned>");
+    TclNewLiteralStringObj(fPtr->defineName, "::oo::define");
+    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);
+    Tcl_IncrRefCount(fPtr->constructorName);
+    Tcl_IncrRefCount(fPtr->destructorName);
+    Tcl_IncrRefCount(fPtr->clonedName);
+    Tcl_IncrRefCount(fPtr->defineName);

@@ -1,0 +1,15 @@
+{
+  "question": "naming.callback.absolute-trace-source-lookup",
+  "problem": "Do absolute trace callback heads resolve independently of trigger namespace while relative heads resolve in the triggering namespace for variable, command and execution traces?",
+  "channel": "Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.",
+  "source_sha256": "fedbb2fc9b26c70cfaf67624bfa331a48bc218f1674e3e8d484a16235d183855",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested; hosted event trace availability independently measured externally"
+}

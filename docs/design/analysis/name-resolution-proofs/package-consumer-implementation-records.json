@@ -1,0 +1,249 @@
+[
+  {
+    "id": "naming.workspace.original-package-requirement-transport",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/workspace-original-package-requirement-transport.md",
+    "problem_statement": "A workspace require projected to a display name or bare package key loses exact-version matching, alternative version requirements and preference. A computed name must stay Unknown, and source graph cycles must preserve independently owned requirement records without manufacturing execution order.",
+    "question": "Does the workspace requirement projection and generic ancestor graph retain original package identity, all version constraints, exact matching, local/caller preference and explicit Unknown?",
+    "conclusion": "WorkspacePackageRequire retains an optional original package key plus requirements, exact and local preference separately from its report label. original_advice preserves Unknown and combines the local Latest latch with independently supplied entry preference. The generic ancestor/descendant graph transports complete caller-owned requirement records and positioned source bounds. Document removal withdraws its advice. Reachability and these projections supply source assistance; they do not prove completed require, package loading or a native interpreter preference.",
+    "scope": "Current Core implementation contract. The exact regression distinguishes an opaque surrogate-unit package key, exact1.2 from alternatives1.0/2.0, Stable from local/caller Latest, computed Unknown, a source cycle and document removal. The named test asserts ancestor transport; positioned descendant transport is an inspected shared owner, not an asserted outcome of this regression. No Rust test outcome or native observation is claimed.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "workspace-requirements",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "sha256": "806bbb1db56e6e3b1b92d411bd63a0ba18c642dace68c9d05b90d51edb424276",
+        "description": "Inspected original requirement metadata/projection and exact constraints/preference/unknown/withdrawal regression."
+      },
+      {
+        "id": "generic-source-graph",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/source_graph.rs",
+        "sha256": "7d6c7bd5d966018be3acc2235af12d18874c24a0ed78d415e51941aeb6cb9747",
+        "description": "Inspected generic ancestor/positioned descendant requirement transport retaining complete K records."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "selector": "workspace_index::tests::original_requirement_graph_keeps_constraints_preference_and_unknowns",
+        "assertion": "Checks exact opaque key, complete version alternatives/exact flag, local/caller preference, Unknown, cyclic ancestor transport and removal.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "WorkspacePackageRequire::original_advice",
+        "purpose": "Retain original or Unknown key, every version alternative, exact selection and independent preference latch."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "original_package_requirement_advice_for",
+        "purpose": "Project the current document-owned complete package requirements."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/source_graph.rs",
+        "symbol": "ancestor_requirements",
+        "purpose": "Traverse document ancestors without encoding requirement records as display strings."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/source_graph.rs",
+        "symbol": "descendant_requirements",
+        "purpose": "Retain complete requirement records at independent source statement positions and body bounds."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The linked assertion must be executed under the coherent Rust workspace before claiming a passing result. Source hashes bind the inspected implementation and test; a source edit or formatter requires review/reissue. Package graph advice and provider selection do not establish that a Tcl loader or source file executed."
+    }
+  },
+  {
+    "id": "naming.server.original-package-consumer-resolution",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/server-original-package-consumer-resolution.md",
+    "problem_statement": "A diagnostic consumer that reacquires a package by name/default version can silently select a different provider or dependency preference from the original require. W123 suppression must be based on the exact original requirement context rather than a package label or a blanket package-command inventory.",
+    "question": "Does the Server original package consumer select provider commands and transitive dependencies using the same complete requirement constraints and propagated preference?",
+    "conclusion": "The original Server consumer passes complete PackageRequirementAdvice to package closure, preserving original identity, alternatives, exact matching and independently supplied preference. The selected provider's source preference propagates to its dependencies. Diagnostic refinement preserves unresolved typed subjects for commands outside that selected closure. Source inheritance carries complete records in both directions with original positions and independently resolved URI edges; an unresolved source edge retains abstention. These are advisory consumer joins, not loader execution or source-command dispatch receipts.",
+    "scope": "Current Server implementation contract. The concrete regression exercises original W123 refinement with exact w1.2 versus caller-Latest w1.0, the selected provider's local Latest dependency preference and the actual unresolved original command-byte set. It does not execute Tcl loaders, assert an LSP push/pull roundtrip or verify native provider behavior. Source inheritance and positioned records are inspected production owners; the test contains no claimed execution result.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "server-package-consumers",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "1f4ab37e5d4cd6aed65cd27efdce10bc4326d3e87da7243c000cc20e265011c9",
+        "description": "Inspected shared original inheritance/refinement consumer and constraint/dependency-preference regression."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "selector": "tests::original_package_consumers_keep_constraints_and_dependency_preference",
+        "assertion": "Exact w1.2 leaves beta_command and dep_old unresolved; caller-Latest w1.0 selects beta and leaves old_command plus both unrelated dependency commands unresolved.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "compute_source_inheritance",
+        "purpose": "Carry original complete ancestor and positioned descendant requirement advice with configured/ancestor preference."
+      },
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "symbol": "refine_original_w123_diagnostics",
+        "purpose": "Refine typed unresolved commands only through the selected complete package/provider dependency closure."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The linked assertion must be executed under the coherent Rust workspace before claiming a passing result. Source hashes bind the inspected implementation and test; a source edit or formatter requires review/reissue. Package graph advice and provider selection do not establish that a Tcl loader or source file executed."
+    }
+  }
+]

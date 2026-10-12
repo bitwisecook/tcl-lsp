@@ -1,0 +1,47 @@
+TclCompileInfoExistsCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    int isScalar, localIndex;
+
+    if (parsePtr->numWords != 2) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we need
+     * to emit code to compute and push the name at runtime. We use a frame
+     * slot (entry in the array of local vars) if we are compiling a procedure
+     * body and if the name is simple text that does not include namespace
+     * qualifiers.
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PushVarNameWord(interp, tokenPtr, envPtr, 0, &localIndex, &isScalar, 1);
+
+    /*
+     * Emit instruction to check the variable for existence.
+     */
+
+    if (isScalar) {
+	if (localIndex < 0) {
+	    TclEmitOpcode(	INST_EXIST_STK,			envPtr);
+	} else {
+	    TclEmitInstInt4(	INST_EXIST_SCALAR, localIndex,	envPtr);
+	}
+    } else {
+	if (localIndex < 0) {
+	    TclEmitOpcode(	INST_EXIST_ARRAY_STK,		envPtr);
+	} else {
+	    TclEmitInstInt4(	INST_EXIST_ARRAY, localIndex,	envPtr);
+	}
+    }
+
+    return TCL_OK;
+}

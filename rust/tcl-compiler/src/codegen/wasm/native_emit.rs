@@ -54,8 +54,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use tcl_core_types::Code as CompletionCode;
 use tcl_runtime_api::codegen_abi::{
-    CodegenAbiImportId, NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_CODE_OFFSET,
-    WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
+    CodegenAbiImportId, NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN,
+    WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+    WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
 };
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
@@ -108,15 +109,20 @@ pub(super) struct NativeImports {
     value_new_bool: u32,
     value_get_wide_int: u32,
     value_get_double: u32,
+    /// Primitive getter used only for the runtime comparison's canonical 0/1.
     value_get_bool: u32,
+    value_get_bool_for_purpose: u32,
+    value_get_expression_bool: u32,
     value_try_wide_int: u32,
     value_try_double: u32,
     expr_eval: u32,
+    expr_bool_eval: u32,
     mathop: u32,
     mathfunc: u32,
     proc_define_native: u32,
     log_command: u32,
     return_state: u32,
+    host_refusal_pending: u32,
 }
 
 /// Declare every import the native tier uses.
@@ -151,14 +157,48 @@ pub(super) fn add_native_imports(
         value_get_wide_int: add(wasm, CodegenAbiImportId::ValueGetWideInt),
         value_get_double: add(wasm, CodegenAbiImportId::ValueGetDouble),
         value_get_bool: add(wasm, CodegenAbiImportId::ValueGetBool),
+        value_get_bool_for_purpose: add(wasm, CodegenAbiImportId::ValueGetBoolForPurpose),
+        value_get_expression_bool: add(wasm, CodegenAbiImportId::ValueGetExpressionBool),
         value_try_wide_int: add(wasm, CodegenAbiImportId::ValueTryWideInt),
         value_try_double: add(wasm, CodegenAbiImportId::ValueTryDouble),
         expr_eval: add(wasm, CodegenAbiImportId::ExprEval),
+        expr_bool_eval: add(wasm, CodegenAbiImportId::ExprBoolEval),
         mathop: add(wasm, CodegenAbiImportId::MathOp),
         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
         proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
         log_command: add(wasm, CodegenAbiImportId::LogCommand),
         return_state: add(wasm, CodegenAbiImportId::ReturnState),
+        host_refusal_pending: add(wasm, CodegenAbiImportId::HostRefusalPending),
+    }
+}
+
+impl NativeImports {
+    /// Only transport imports can omit the check. Unlisted imports remain
+    /// checked, including future operation imports and compiled proc calls.
+    fn requires_host_refusal_check(self, index: u32) -> bool {
+        use CodegenAbiImportId as Id;
+        let transport = [
+            (self.activation_enter, Id::ActivationEnter),
+            (self.activation_leave, Id::ActivationLeave),
+            (self.frame_push, Id::FramePush),
+            (self.frame_pop, Id::FramePop),
+            (self.call_frame_alloc, Id::CallFrameAlloc),
+            (self.call_frame_free, Id::CallFrameFree),
+            (self.new_owned_string, Id::NewOwnedString),
+            (self.obj_new_string, Id::ObjectNewString),
+            (self.obj_retain, Id::ObjectRetain),
+            (self.obj_release, Id::ObjectRelease),
+            (self.value_new_wide_int, Id::ValueNewWideInt),
+            (self.value_new_double, Id::ValueNewDouble),
+            (self.value_new_bool, Id::ValueNewBool),
+            (self.log_command, Id::LogCommand),
+            (self.return_state, Id::ReturnState),
+            (self.host_refusal_pending, Id::HostRefusalPending),
+        ];
+        transport
+            .into_iter()
+            .find_map(|(candidate, id)| (candidate == index).then_some(id))
+            .is_none_or(CodegenAbiImportId::requires_host_refusal_check)
     }
 }
 
@@ -733,6 +773,19 @@ impl Emitter<'_, '_> {
     }
 
     fn call(&mut self, index: u32) {
+        self.call_unchecked(index);
+        if self.labels.contains(&Label::Exit) && self.imports.requires_host_refusal_check(index) {
+            // A reached host refusal is not a Tcl completion. Branch before
+            // adopting out slots or dispatching catch/try, then run the same
+            // null-safe ownership cleanup as every other function exit.
+            self.call_unchecked(self.imports.host_refusal_pending);
+            self.open(WasmOp::If, Label::Plain);
+            self.br(Label::Exit);
+            self.close();
+        }
+    }
+
+    fn call_unchecked(&mut self, index: u32) {
         self.body.push(WasmInstruction::with_operands(
             WasmOp::Call,
             leb128_unsigned(u64::from(index)),
@@ -969,7 +1022,10 @@ impl Emitter<'_, '_> {
         self.call(self.imports.call_frame_free);
         self.push(WasmOp::Drop);
         if self.proc_entry() {
+            self.i32(i64::from(NATIVE_PROC_STATUS_HOST_REFUSED));
             self.i32(i64::from(NATIVE_PROC_STATUS_RAN));
+            self.call_unchecked(self.imports.host_refusal_pending);
+            self.push(WasmOp::Select);
         } else {
             self.get(LOCAL_EXIT_CODE);
             self.call(self.imports.activation_leave);
@@ -1256,6 +1312,28 @@ impl Emitter<'_, '_> {
         self.release_scratch();
     }
 
+    /// Both stage imports retain their own first-Host-cause check through
+    /// `call`; a Guest failure abandons this statement before any later stage.
+    fn boolean_conversion(
+        &mut self,
+        dst: NativeValueId,
+        src: NativeValueId,
+        tag: i32,
+        import: u32,
+        completion: crate::executable_ir::CompletionId,
+    ) {
+        self.get(self.local_of(src));
+        self.i32(i64::from(tag));
+        self.frame_offset(FRAME_SCRATCH_I32);
+        self.call(import);
+        self.open(WasmOp::If, Label::Plain);
+        self.fail(completion);
+        self.close();
+        self.get(LOCAL_FRAME);
+        self.load_i32(FRAME_SCRATCH_I32);
+        self.set(self.local_of(dst));
+    }
+
     #[allow(clippy::too_many_lines)]
     fn emit_op(&mut self, op: &NativeOp, completion: crate::executable_ir::CompletionId) {
         match op {
@@ -1285,7 +1363,9 @@ impl Emitter<'_, '_> {
                 let (import, offset) = match target {
                     NativeType::I64 => (self.imports.value_get_wide_int, FRAME_SCRATCH_I64),
                     NativeType::F64 => (self.imports.value_get_double, FRAME_SCRATCH_I64),
-                    NativeType::Bool => (self.imports.value_get_bool, FRAME_SCRATCH_I32),
+                    NativeType::Bool => {
+                        unreachable!("Boolean operands carry their reached purpose")
+                    }
                     NativeType::Obj => (self.imports.obj_retain, 0),
                 };
                 if *target == NativeType::Obj {
@@ -1305,6 +1385,28 @@ impl Emitter<'_, '_> {
                     _ => self.load_i32(offset),
                 }
                 self.set(self.local_of(*dst));
+            }
+            NativeOp::UnboxBool { dst, src, purpose } => {
+                self.boolean_conversion(
+                    *dst,
+                    *src,
+                    *purpose as i32,
+                    self.imports.value_get_bool_for_purpose,
+                    completion,
+                );
+            }
+            NativeOp::BooleanExpressionResult {
+                dst,
+                src,
+                production,
+            } => {
+                self.boolean_conversion(
+                    *dst,
+                    *src,
+                    *production as i32,
+                    self.imports.value_get_expression_bool,
+                    completion,
+                );
             }
             NativeOp::Truth { dst, src } => {
                 self.get(self.local_of(*src));
@@ -1418,6 +1520,32 @@ impl Emitter<'_, '_> {
                 self.call(self.imports.expr_eval);
                 self.push(WasmOp::Drop);
                 self.take_frame_result(*dst, completion);
+            }
+            NativeOp::ExprBoolEval { dst, text } => {
+                self.text_pair(text);
+                self.call(self.imports.new_owned_string);
+                self.set_owned(LOCAL_SCRATCH_OBJ_A);
+                self.scratch_owned.push(LOCAL_SCRATCH_OBJ_A);
+                self.get(LOCAL_SCRATCH_OBJ_A);
+                self.frame_offset(FRAME_COMPLETION);
+                self.frame_offset(FRAME_SCRATCH_I32);
+                self.call(self.imports.expr_bool_eval);
+                self.push(WasmOp::Drop);
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_CODE_OFFSET));
+                self.open(WasmOp::If, Label::Plain);
+                self.fail_with_frame_completion(completion);
+                self.close();
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_SCRATCH_I32);
+                self.set(self.local_of(*dst));
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_RESULT_OFFSET));
+                self.call(self.imports.obj_release);
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_OPTIONS_OFFSET));
+                self.call(self.imports.obj_release);
+                self.release_scratch();
             }
             NativeOp::IfElse {
                 condition,
@@ -1937,7 +2065,9 @@ impl Emitter<'_, '_> {
         self.frame_offset(FRAME_COMPLETION);
         self.call(self.imports.mathop);
         self.push(WasmOp::Drop);
-        // The runtime's answer is a boxed 0/1: read it in boolean context.
+        // The runtime comparison returns canonical boxed 0/1. This
+        // primitive read consumes that result contract; it is not a reached
+        // source-operand truth or expression-result-normalisation stage.
         self.get(LOCAL_FRAME);
         self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_CODE_OFFSET));
         self.open(WasmOp::If, Label::Plain);
@@ -2117,5 +2247,193 @@ const fn compare_op(op: CmpOp, kind: CompareKind) -> WasmOp {
         (CompareKind::F64, CmpOp::Le) => WasmOp::F64Le,
         (CompareKind::F64, CmpOp::Gt) => WasmOp::F64Gt,
         (CompareKind::F64, CmpOp::Ge) => WasmOp::F64Ge,
+    }
+}
+
+#[cfg(test)]
+mod original_boolean_transport_tests {
+    use super::*;
+    use crate::executable_ir::{CompletionId, ExecutableFunctionId};
+    use crate::native_lowering::ir::{NativeBlock, NativeStatement, NativeValue};
+    use crate::native_lowering::representation::Representation;
+    use tcl_registry::native_boolean_truth::{
+        NativeBooleanExpressionResultProduction as Production, NativeBooleanTruthPurpose as Purpose,
+    };
+
+    #[test]
+    fn original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        // Typed software transport only. The original provider rows attest
+        // reached getter/result effects separately from emitted instructions.
+        let mut wasm = WasmModule::new();
+        let mut declared = Vec::new();
+        let imports = add_native_imports(&mut wasm, &mut |_, id| {
+            let index = u32::try_from(declared.len()).unwrap();
+            declared.push(id);
+            index
+        });
+        let completion = CompletionId::new(ExecutableFunctionId::new(0), 0);
+        let function = NativeFunction {
+            native_compilation_admission: None,
+            values: vec![
+                NativeValue {
+                    ty: NativeType::Obj,
+                    rep: Representation::Boxed(None),
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+            ],
+            blocks: vec![NativeBlock {
+                id: NativeBlockId(0),
+                statements: vec![NativeStatement {
+                    completion,
+                    node: None,
+                    site: None,
+                    ops: vec![
+                        NativeOp::ConstStr {
+                            dst: NativeValueId(0),
+                            text: "opaque".into(),
+                        },
+                        NativeOp::UnboxBool {
+                            dst: NativeValueId(1),
+                            src: NativeValueId(0),
+                            purpose: Purpose::LogicalAndInstruction,
+                        },
+                        NativeOp::BooleanExpressionResult {
+                            dst: NativeValueId(2),
+                            src: NativeValueId(0),
+                            production: Production::InlineExpression,
+                        },
+                        NativeOp::BooleanExpressionResult {
+                            dst: NativeValueId(3),
+                            src: NativeValueId(0),
+                            production: Production::PublicExpressionApi,
+                        },
+                        NativeOp::ExprBoolEval {
+                            dst: NativeValueId(4),
+                            text: "[original_callback]".into(),
+                        },
+                    ],
+                }],
+                terminator: NativeTerminator::Return(completion),
+            }],
+            entry: NativeBlockId(0),
+            completion_count: 1,
+            max_argc: 0,
+            protocol: EntryProtocol::Script,
+        };
+        let slots = BTreeMap::new();
+        let mut data = Vec::new();
+        let mut offset = 0;
+        let emitted = emit_function(
+            "::top",
+            "top",
+            &function,
+            imports,
+            EntryTable {
+                slots: &slots,
+                base_global: 0,
+            },
+            ConstantPool {
+                data: &mut data,
+                offset: &mut offset,
+            },
+        );
+        let reached: Vec<_> = emitted
+            .body
+            .iter()
+            .enumerate()
+            .filter_map(|(index, instruction)| {
+                if instruction.op != WasmOp::Call {
+                    return None;
+                }
+                [
+                    imports.value_get_bool_for_purpose,
+                    imports.value_get_expression_bool,
+                ]
+                .into_iter()
+                .find(|candidate| instruction.operands == leb128_unsigned(u64::from(*candidate)))
+                .map(|import| (index, declared[import as usize]))
+            })
+            .collect();
+        assert_eq!(
+            reached.iter().map(|(_, id)| *id).collect::<Vec<_>>(),
+            [
+                CodegenAbiImportId::ValueGetBoolForPurpose,
+                CodegenAbiImportId::ValueGetExpressionBool,
+                CodegenAbiImportId::ValueGetExpressionBool,
+            ]
+        );
+        for ((index, _), tag) in reached.into_iter().zip([6, 0, 1]) {
+            assert_eq!(emitted.body[index - 4].op, WasmOp::I32Const);
+            assert_eq!(emitted.body[index - 4].operands, leb128_signed(tag));
+            let after = &emitted.body[index + 1..index + 7];
+            assert_eq!(after[0].op, WasmOp::Call);
+            assert_eq!(
+                after[0].operands,
+                leb128_unsigned(u64::from(imports.host_refusal_pending))
+            );
+            assert_eq!(after[1].op, WasmOp::If);
+            assert_eq!(after[2].op, WasmOp::Br);
+            assert_eq!(after[3].op, WasmOp::End);
+            assert_eq!(
+                after[4].op,
+                WasmOp::If,
+                "Guest status is read after first Host cause"
+            );
+            assert!(
+                !after
+                    .iter()
+                    .any(|instruction| instruction.op == WasmOp::I32Load)
+            );
+        }
+        let combined: Vec<_> = emitted
+            .body
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| {
+                instruction.op == WasmOp::Call
+                    && instruction.operands == leb128_unsigned(u64::from(imports.expr_bool_eval))
+            })
+            .map(|(index, _)| index)
+            .collect();
+        assert_eq!(combined.len(), 1);
+        let index = combined[0];
+        let after = &emitted.body[index + 1..index + 9];
+        assert_eq!(after[0].op, WasmOp::Call);
+        assert_eq!(
+            after[0].operands,
+            leb128_unsigned(u64::from(imports.host_refusal_pending))
+        );
+        assert_eq!(after[1].op, WasmOp::If);
+        assert_eq!(after[2].op, WasmOp::Br);
+        assert_eq!(after[3].op, WasmOp::End);
+        assert_eq!(after[4].op, WasmOp::Drop);
+        assert_eq!(after[5].op, WasmOp::LocalGet);
+        assert_eq!(
+            after[6].op,
+            WasmOp::I32Load,
+            "the original Guest completion is inspected only after first Host"
+        );
+        assert_eq!(after[7].op, WasmOp::If);
+        assert_eq!(
+            declared[imports.expr_bool_eval as usize],
+            CodegenAbiImportId::ExprBoolEval
+        );
     }
 }

@@ -1,0 +1,112 @@
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    int mixinc, i;
+    Tcl_Obj **mixinv;
+    Class **mixins;
+
+    if (Tcl_ObjectContextSkippedArgs(context) + 1 != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		"mixinList");
+	return TCL_ERROR;
+    }
+    objv += Tcl_ObjectContextSkippedArgs(context);
+
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    } else if (TclListObjGetElements(interp, objv[0], &mixinc,
+	    &mixinv) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    mixins = TclStackAlloc(interp, sizeof(Class *) * mixinc);
+
+    for (i = 0; i < mixinc; i++) {
+	mixins[i] = GetClassInOuterContext(interp, mixinv[i],
+		"may only mix in classes");
+	if (mixins[i] == NULL) {
+	    i--;
+	    goto freeAndError;
+	}
+	if (TclOOIsReachable(oPtr->classPtr, mixins[i])) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "may not mix a class into itself", -1));
+	    Tcl_SetErrorCode(interp, "TCL", "OO", "SELF_MIXIN", (char *)NULL);
+	    goto freeAndError;
+	}
+    }
+
+    TclOOClassSetMixins(interp, oPtr->classPtr, mixinc, mixins);
+    TclStackFree(interp, mixins);
+    return TCL_OK;
+
+  freeAndError:
+    TclStackFree(interp, mixins);
+    return TCL_ERROR;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * ClassSuperGet, ClassSuperSet --
+ *	Implementation of the "superclass" slot accessors of the "oo::define"
+ *	command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+ClassSuperGet(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    Tcl_Obj *resultObj;
+    Class *superPtr;
+    int i;
+
+    if (Tcl_ObjectContextSkippedArgs(context) != objc) {
+	Tcl_WrongNumArgs(interp, Tcl_ObjectContextSkippedArgs(context), objv,
+		NULL);
+	return TCL_ERROR;
+    }
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    } else if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    TclNewObj(resultObj);
+    FOREACH(superPtr, oPtr->classPtr->superclasses) {
+	Tcl_ListObjAppendElement(NULL, resultObj,
+		TclOOObjectName(interp, superPtr->thisPtr));
+    }
+    Tcl_SetObjResult(interp, resultObj);
+    return TCL_OK;
+}
+
+static int
+ClassSuperSet(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    int superc, i, j;
+    Tcl_Obj **superv;
+    Class **superclasses, *superPtr;
+

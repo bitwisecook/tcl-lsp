@@ -1,0 +1,19 @@
+{
+  "ordinal": 424,
+  "selector": "interp::tests::the_lookup_domains_move_on_a_hidden_invocation_into_a_namespace_and_on_oo_copy",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::the_lookup_domains_move_on_a_hidden_invocation_into_a_namespace_and_on_oo_copy",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.790344606997678,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.76s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/424.log",
+  "log_sha256": "5d3614c1d6a61b09f8da576baa664736dcaa2195d466a2259ec7548cace74c11"
+}

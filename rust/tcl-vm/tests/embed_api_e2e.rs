@@ -58,9 +58,11 @@ impl NativeCommand for RelativeHostProcDefiner {
     fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         match vm.define_procedure("host_relative", &[], "namespace current") {
             Ok(()) => Completion::new(Code::Ok, Value::empty(), Value::empty()),
-            Err(error) => {
-                Completion::new(Code::Error, Value::string(error.message), Value::empty())
-            }
+            Err(error) => Completion::new(
+                Code::Error,
+                error.into_value().expect("guest fixture compilation error"),
+                Value::empty(),
+            ),
         }
     }
 }
@@ -277,7 +279,12 @@ fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
         vm.remove_command("lassign"),
         "embedder teardown must see the raw registered command"
     );
-    assert!(!vm.command_names().iter().any(|name| name == "lassign"));
+    assert!(
+        !vm.command_names()
+            .expect("Unicode command names")
+            .iter()
+            .any(|name| name == "lassign")
+    );
 
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
@@ -376,11 +383,16 @@ fn an_unlimited_vm_still_counts_commands() {
 #[test]
 fn retain_commands_reduces_the_table_to_a_whitelist() {
     let mut vm = vm();
-    let before = vm.command_names().len();
+    let before = vm.command_names().expect("Unicode command names").len();
     let allowed = ["set", "expr", "if", "string", "list", "lindex", "return"];
     let removed = vm.retain_commands(&|name| allowed.contains(&name));
     assert!(removed > 0 && removed < before);
-    assert!(vm.command_names().iter().all(|n| allowed.contains(&&**n)));
+    assert!(
+        vm.command_names()
+            .expect("Unicode command names")
+            .iter()
+            .all(|n| allowed.contains(&&**n))
+    );
 
     // A whitelisted command still works …
     let ok = vm.invoke_command("string", &[Value::string("length"), Value::string("abc")]);
@@ -515,8 +527,11 @@ fn info_loaded_lists_the_libraries_a_host_recorded() {
     );
 }
 
-fn failed(result: Result<Value, tcl_vm::Completion<Value>>) -> String {
-    let completion = result.expect_err("an error");
+fn failed(result: Result<Value, tcl_vm::TclError>) -> String {
+    let completion = result
+        .expect_err("an error")
+        .into_completion()
+        .expect("original guest completion");
     assert_eq!(completion.code, Code::Error);
     completion.result.to_str().to_string()
 }
@@ -556,6 +571,8 @@ fn a_variable_is_read_written_and_unset_as_set_and_unset_do() {
     assert_eq!(
         vm.write_variable("a", Value::string("2"))
             .expect_err("an array is not a scalar")
+            .into_completion()
+            .expect("original guest completion")
             .result
             .to_str()
             .as_ref(),
@@ -569,6 +586,8 @@ fn a_variable_is_read_written_and_unset_as_set_and_unset_do() {
     assert_eq!(
         vm.unset_variable("nosuch")
             .expect_err("nothing to unset")
+            .into_completion()
+            .expect("original guest completion")
             .result
             .to_str()
             .as_ref(),
@@ -598,12 +617,106 @@ fn the_variable_forms_fire_the_traces_a_script_would() {
     );
 }
 
+struct VariableTraceHostRefusal;
+
+impl NativeCommand for VariableTraceHostRefusal {
+    fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
+        vm.set_var("::reached", Value::string("BEFORE"))
+            .expect("actual trace entry marker");
+        vm.refuse_host_command("original variable trace refusal".into())
+    }
+}
+
+#[test]
+fn variable_embedding_returns_original_trace_host_cause_and_preserves_prior_effects() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for version in tcl_dialect::TclVersion::ALL {
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        for operation in ["r", "w", "u"] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(profile);
+            vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+            vm.register_native_command("trace_refusal", Rc::new(VariableTraceHostRefusal));
+            vm.try_eval_source(&format!(
+                "set target ORIGINAL; set prior BEFORE; trace variable target {operation} trace_refusal",
+            )).unwrap();
+            let error = match operation {
+                "r" => vm.read_variable("target").map(|_| ()),
+                "w" => vm.write_variable("target", Value::string("REPLACEMENT")),
+                "u" => vm.unset_variable("target"),
+                _ => unreachable!(),
+            }
+            .expect_err("actual reached trace host refusal");
+            let Err(tcl_vm::TclHostFailure::Execution(
+                tcl_runtime_api::NativeExecutionError::HostCommandRefusal(original),
+            )) = error.into_completion()
+            else {
+                panic!("a host trace failure cannot supply a guest completion");
+            };
+            assert_eq!(original.reason, "original variable trace refusal");
+            assert_eq!(original.source_profile, profile.cache_key());
+            assert_eq!(original.native_profile, profile.cache_key());
+            assert_eq!(original.namespace.as_ref(), "::");
+            assert_eq!(original.frame, 0);
+            assert_eq!(
+                vm.get_var("prior").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
+            assert_eq!(
+                vm.get_var("reached").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
+            vm.write_variable("next", Value::string("NEXT")).unwrap();
+            assert_eq!(
+                vm.read_variable("next").unwrap().string_bytes().as_ref(),
+                b"NEXT"
+            );
+        }
+    }
+}
+
+#[test]
+fn embedding_entry_refuses_an_earlier_original_cause_before_new_variable_or_package_effects() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let original = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+        "original embedding operation",
+    );
+    for operation in ["read", "write", "unset", "package"] {
+        let mut vm = vm();
+        vm.write_variable("kept", Value::string("BEFORE")).unwrap();
+        let _ = vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(original));
+        let error = match operation {
+            "read" => vm.read_variable("kept").map(|_| ()),
+            "write" => vm.write_variable("kept", Value::string("AFTER")),
+            "unset" => vm.unset_variable("kept"),
+            "package" => vm.package_provide("unentered", "1.0"),
+            _ => unreachable!(),
+        }
+        .expect_err("earlier original cause wins before another operation");
+        assert_eq!(
+            error.into_completion().unwrap_err(),
+            tcl_vm::TclHostFailure::Execution(
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+            ),
+        );
+        assert_eq!(
+            vm.get_var("kept").unwrap().string_bytes().as_ref(),
+            b"BEFORE"
+        );
+        vm.package_provide("unentered", "2.0").unwrap();
+    }
+}
+
 fn failure(message: &str, options: Value) -> Completion<Value> {
     Completion::new(Code::Error, Value::string(message), options)
 }
 
 #[test]
 fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
+    // Software metadata contract: naming.diagnostics.original-error-code-metadata-not-message
+    // docs/design/analysis/name-resolution-proofs/diagnostics-original-error-code-metadata-not-message.md
     let mut vm = vm();
     assert_eq!(
         run(&mut vm, "info exists errorCode"),
@@ -613,11 +726,13 @@ fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
     vm.publish_caught_error(&failure(
         "boom",
         Value::list(vec![Value::string("-errorcode"), Value::string("MY CODE")]),
-    ));
+    ))
+    .unwrap();
     assert_eq!(run(&mut vm, "set errorCode"), "MY CODE");
     assert_eq!(run(&mut vm, "set errorInfo"), "boom");
 
-    vm.publish_caught_error(&failure("plain", Value::empty()));
+    vm.publish_caught_error(&failure("plain", Value::empty()))
+        .unwrap();
     assert_eq!(
         run(&mut vm, "set errorCode"),
         "NONE",
@@ -625,19 +740,30 @@ fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
     );
     assert_eq!(run(&mut vm, "set errorInfo"), "plain");
 
-    vm.publish_caught_error(&failure("wrong # args: should be \"x\"", Value::empty()));
+    vm.publish_caught_error(&failure("wrong # args: should be \"x\"", Value::empty()))
+        .unwrap();
     assert_eq!(
         run(&mut vm, "set errorCode"),
-        "TCL WRONGARGS",
-        "and the code a usage error defaults to is the one a catch gives it"
+        "NONE",
+        "arbitrary guest text does not supply structured wrong-arguments metadata"
     );
+    vm.publish_caught_error(&failure(
+        "explicit usage failure",
+        Value::list(vec![
+            Value::string("-errorcode"),
+            Value::string("TCL WRONGARGS"),
+        ]),
+    ))
+    .unwrap();
+    assert_eq!(run(&mut vm, "set errorCode"), "TCL WRONGARGS");
 }
 
 #[test]
 fn a_completion_that_is_not_an_error_publishes_nothing() {
     let mut vm = vm();
     for code in [Code::Ok, Code::Return, Code::Break, Code::Continue] {
-        vm.publish_caught_error(&Completion::new(code, Value::string("x"), Value::empty()));
+        vm.publish_caught_error(&Completion::new(code, Value::string("x"), Value::empty()))
+            .unwrap();
     }
     assert_eq!(run(&mut vm, "info exists errorCode"), "0");
     assert_eq!(run(&mut vm, "info exists errorInfo"), "0");
@@ -647,11 +773,81 @@ fn a_completion_that_is_not_an_error_publishes_nothing() {
 fn confined_stores_keep_a_taken_error_out_of_the_globals() {
     let mut vm = vm();
     vm.set_stores_confined(true);
-    vm.publish_caught_error(&failure("boom", Value::empty()));
+    vm.publish_caught_error(&failure("boom", Value::empty()))
+        .unwrap();
     vm.set_stores_confined(false);
     assert_eq!(
         run(&mut vm, "info exists errorCode"),
         "0",
         "a body confined to its own frame leaves no global behind"
     );
+}
+
+#[test]
+fn caught_guest_publication_preserves_opaque_message_info_and_explicit_code_bytes() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = vm();
+    let original = Completion::new_error_metadata(
+        Code::Error,
+        Value::from_string_bytes(b"GUEST \xff\0tail".as_slice()),
+        Value::list(vec![
+            Value::string("-errorinfo"),
+            Value::from_string_bytes(b"INFO \xfe\0exact".as_slice()),
+            Value::string("-errorcode"),
+            Value::from_string_bytes(b"RAW \xfd\0CODE".as_slice()),
+        ]),
+    );
+    vm.publish_caught_error(&original).unwrap();
+    assert_eq!(
+        vm.read_variable("::errorInfo")
+            .unwrap()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"INFO \xfe\0exact"
+    );
+    assert_eq!(
+        vm.read_variable("::errorCode")
+            .unwrap()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"RAW \xfd\0CODE"
+    );
+    assert_eq!(
+        original.result.resident_string_bytes().unwrap().as_ref(),
+        b"GUEST \xff\0tail"
+    );
+}
+
+#[test]
+fn caught_publication_preserves_first_typed_host_cause_before_any_guest_access() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = vm();
+    vm.set_var("kept", Value::string("BEFORE")).unwrap();
+    let original = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+        "original caught-value ingress",
+    );
+    let _ = vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(original));
+    let error = vm
+        .publish_caught_error(&failure("unentered", Value::empty()))
+        .unwrap_err();
+    assert_eq!(
+        error.into_completion().unwrap_err(),
+        tcl_vm::TclHostFailure::Execution(
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+        )
+    );
+    assert_eq!(
+        vm.get_var("kept")
+            .unwrap()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"BEFORE"
+    );
+    assert!(vm.get_var("errorInfo").is_none());
+    assert!(vm.get_var("errorCode").is_none());
 }

@@ -1,0 +1,17 @@
+
+running 1 test
+test typed_value::native_scalar_input_tests::original_resident_scalar_input_keeps_selected_parsing_and_cached_no_string_path ... 
+thread 'typed_value::native_scalar_input_tests::original_resident_scalar_input_keeps_selected_parsing_and_cached_no_string_path' (1218575) panicked at src/typed_value/native_scalar_input_tests.rs:37:9:
+assertion `left == right` failed: jim
+  left: Some(Int(10))
+ right: Some(Int(8))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    typed_value::native_scalar_input_tests::original_resident_scalar_input_keeps_selected_parsing_and_cached_no_string_path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 5.05s
+

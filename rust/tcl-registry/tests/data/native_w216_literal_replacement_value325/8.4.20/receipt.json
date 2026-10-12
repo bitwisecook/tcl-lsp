@@ -1,0 +1,40 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/native-w216-literal-replacement-value325/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.016111802018713206,
+  "provider": "8.4.20",
+  "provider_version_association": "version 8.4.20 initial_class {} alias_command {}",
+  "version_association_receipt": "/workspace/.proofs/native-jim-class-source269/8.4.20/receipt.json",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "cb4ad7c2bea77e75c7588d3ee7992c6090ba2798c92176ef919f054b0a4f6513",
+  "stdout_sha256": "6ae5aedc598d54805de1a788af08d1ad4ce3832ffdef99d8b9f43716f32fd82a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9"
+  },
+  "rows": [
+    "dollar 0 1 1 VALUE_dollar",
+    "quote 0 1 1 VALUE_quote",
+    "brackets 0 1 1 VALUE_brackets",
+    "backslash 0 1 1 VALUE_backslash",
+    "unicode 0 1 1 VALUE_unicode",
+    "quoted_index 0 1 1 VALUE_quoted_index",
+    "nested_command 0 1 1 VALUE_nested_command",
+    "split_root 0 1 1 VALUE_split_root",
+    "replaced_set CHANGED"
+  ],
+  "input_channel": "Exact UTF-8 source-file CLI with a literal U+00E9 and literal split-line root, ASCII escaped proposal strings. Public catch codes/value equality/info-exists/results only. No native name/header pointers/current-cell completeness/compiler-entry claims.",
+  "question": "naming.variable.original-w216-literal-replacement-public-values"
+}

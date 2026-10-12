@@ -1,0 +1,86 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-lexer v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lexer)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error: this function has too many lines (101/100)
+   --> rust/tcl-vm/src/cmd_array.rs:266:1
+    |
+266 | / fn array_op_after_trace(
+267 | |     vm: &mut Vm,
+268 | |     sub: &str,
+269 | |     rest: &[Value],
+270 | |     target: Option<&ArrayTarget>,
+271 | | ) -> Completion<Value> {
+    | |______________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `tcl-vm` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: this function has too many lines (101/100)
+   --> rust/tcl-compiler/src/command_binding/original_class_configuration.rs:333:5
+    |
+333 | /     fn original_configuration_operation(
+334 | |         &self,
+335 | |         tokens: &crate::ir::CommandTokens,
+336 | |         config: tcl_lexer::LexerConfig,
+337 | |         registry: &tcl_registry::CommandRegistry,
+338 | |     ) -> Option<(String, usize, tcl_registry::ObjectDispatchLayer)> {
+    | |___________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: consider adding a `;` to the last statement for consistent formatting
+    --> rust/tcl-compiler/src/command_binding/compiled_preflight.rs:1042:21
+     |
+1042 |                     self.declare_source_local(Some(name))
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `self.declare_source_local(Some(name));`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#semicolon_if_nothing_returned
+     = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> rust/tcl-compiler/src/optimiser/tail_call/inventory.rs:331:25
+    |
+331 |                         self.original_script(ctx, arena.image(), *body, tokens, depth + 1, returned)
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `self.original_script(ctx, arena.image(), *body, tokens, depth + 1, returned);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> rust/tcl-compiler/src/optimiser/tail_call/inventory.rs:334:25
+    |
+334 |                         self.complete = false
+    |                         ^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `self.complete = false;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#semicolon_if_nothing_returned
+
+error: this function has too many lines (107/100)
+   --> rust/tcl-compiler/src/optimiser/tail_call.rs:196:1
+    |
+196 | / fn emit_loop_conversion(
+197 | |     ctx: &mut PassContext<'_>,
+198 | |     proc: &crate::ir::Procedure,
+199 | |     inventory: &Inventory,
+200 | |     sites: &[TailSite],
+201 | | ) {
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: could not compile `tcl-compiler` (lib) due to 5 previous errors

@@ -1,0 +1,6 @@
+
+running 1 test
+test value::native_scalar_target_tests::retained_jim_context_queries_its_actual_host_target_without_default_width ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.00s
+

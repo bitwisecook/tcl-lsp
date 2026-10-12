@@ -1,0 +1,6 @@
+
+running 1 test
+test expr::native_math::tests::original_stateful_math_seed_first_host_preserves_prior_result_and_generator_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.54s
+

@@ -1,0 +1,8 @@
+{
+  "question_id": "naming.variable.original-array-observer-renamed-alias-controls",
+  "problem": "Does renaming or aliasing the original array handler preserve its whole-array read, requiring point-aware compiler observers rather than Registry role lookup by head spelling?",
+  "original_source_sha256": "0d2c19184b7e5ac5a88eff114dff52279a15527afb71e8b0d0097c52b1a60b2d",
+  "executed_source_sha256": "798ba687127cd5eb8e2e462e4befbeb30265b81c2e92b07311f8077f1d880b11",
+  "version_prefix_sha256": "08a6befb0b0d65cfeb07730b46bfb78fee58eef83748e2122899aed702c65dc6",
+  "limits": "Caught sequential CLI observations attest values/alias setup only. Source-point read inventory and dead-store/observer decisions require independent compiler assertions."
+}

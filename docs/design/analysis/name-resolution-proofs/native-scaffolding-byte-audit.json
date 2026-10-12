@@ -1,0 +1,405 @@
+{
+  "scope": "Offline exact-byte inspection of the bounded Native-assigned input/hash/duplicate artifacts; no native execution or semantic question classification is asserted.",
+  "files": [
+    {
+      "path": "rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/retained-fixture-hashes.json",
+      "sha256": "ccadcdbbeb1d098b29d2c87bfb6a97a01f09a1ad035730534b8f1dde601cb6f9",
+      "role": "provider-scaffolding",
+      "hash_references": [
+        {
+          "relative_path": "free-native-8.6.txt",
+          "recorded_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "actual_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-empty-foreach-probe.c",
+          "recorded_sha256": "52c7b83ea0c29348f286645ee96b28ee8de50944871e2be0575f2ea414e26694",
+          "actual_sha256": "52c7b83ea0c29348f286645ee96b28ee8de50944871e2be0575f2ea414e26694",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "native-8.5.txt",
+          "recorded_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "actual_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-empty-foreach-native.txt",
+          "recorded_sha256": "082c636323a0700a9c3aed8830be9fc7403645bccf6cc8aa57f36024a9c24002",
+          "actual_sha256": "082c636323a0700a9c3aed8830be9fc7403645bccf6cc8aa57f36024a9c24002",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "free-native-8.5.txt",
+          "recorded_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "actual_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "empty-foreach-8.6.txt",
+          "recorded_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "actual_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "native-9.1.txt",
+          "recorded_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "actual_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "free-probe.c",
+          "recorded_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+          "actual_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "native-8.4.txt",
+          "recorded_sha256": "4095502b327899fb1925874c2916c0d6de3c219cb6aeed15cd275e7e31b58f8b",
+          "actual_sha256": "4095502b327899fb1925874c2916c0d6de3c219cb6aeed15cd275e7e31b58f8b",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "empty-foreach-8.4.txt",
+          "recorded_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "actual_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "empty-foreach-probe.c",
+          "recorded_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+          "actual_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "free-native-8.4.txt",
+          "recorded_sha256": "974de803f20fcf1d95f2ae9d1fb2ab9b578dff7730f6a9bec3f0a18f5b19153d",
+          "actual_sha256": "974de803f20fcf1d95f2ae9d1fb2ab9b578dff7730f6a9bec3f0a18f5b19153d",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "empty-foreach-8.5.txt",
+          "recorded_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "actual_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "native-9.0.txt",
+          "recorded_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "actual_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "free-native-9.0.txt",
+          "recorded_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "actual_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "free-native-9.1.txt",
+          "recorded_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "actual_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "probe.c",
+          "recorded_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+          "actual_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "empty-foreach-9.1.txt",
+          "recorded_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "actual_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "native-8.6.txt",
+          "recorded_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "actual_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-native.txt",
+          "recorded_sha256": "5ad65a6ed8721e022be0b714af346bc6e2edb849ddce55b4ba1c8b14562065f1",
+          "actual_sha256": "5ad65a6ed8721e022be0b714af346bc6e2edb849ddce55b4ba1c8b14562065f1",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "empty-foreach-9.0.txt",
+          "recorded_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "actual_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-probe.c",
+          "recorded_sha256": "e522e32b22ed79df9b1f89b413269d285f8dfce15787ba1d76f30894e63783f8",
+          "actual_sha256": "e522e32b22ed79df9b1f89b413269d285f8dfce15787ba1d76f30894e63783f8",
+          "matches": true,
+          "present": true
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/fixture-hashes.json",
+      "sha256": "68e3176f008a441b179962c673b9d1449da87b86acd699be1062c34d1a26be9b",
+      "role": "provider-scaffolding",
+      "hash_references": [
+        {
+          "relative_path": "probe.c",
+          "recorded_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+          "actual_sha256": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-probe.c",
+          "recorded_sha256": "2fceee0127a18505c754ab255b89bb33d14abcce0485adb1885d07152d81428d",
+          "actual_sha256": "2fceee0127a18505c754ab255b89bb33d14abcce0485adb1885d07152d81428d",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks.c",
+          "recorded_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+          "actual_sha256": "4c25d07c8527043cfa982c2b0452d19aa9d144091a5e222a7033e1a274c5fa64",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-math-hooks.c",
+          "recorded_sha256": "62015c23986f1b04726599a367a4988817f821a87936da6228c1878cc0d57d73",
+          "actual_sha256": "62015c23986f1b04726599a367a4988817f821a87936da6228c1878cc0d57d73",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing.c",
+          "recorded_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+          "actual_sha256": "51836eea19f0e4a025a169f06c368cbf7da6fff39c8e1471c7269e0682ba2a90",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "manifest.json",
+          "recorded_sha256": "1fcd6050b8820dd07d75cd05b1fd36855b176afbf5baa191944616dfc92f9a8b",
+          "actual_sha256": "1fcd6050b8820dd07d75cd05b1fd36855b176afbf5baa191944616dfc92f9a8b",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks-manifest.json",
+          "recorded_sha256": "1812590a1b0025e65eaa82f9cb78aff148c373683c62ca28529cbfab090ecdb4",
+          "actual_sha256": "1812590a1b0025e65eaa82f9cb78aff148c373683c62ca28529cbfab090ecdb4",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing-manifest.json",
+          "recorded_sha256": "f7edbd8b16833aaafb6031e6c07eca23b080cf1566f5bc6ecf757ed779508c36",
+          "actual_sha256": "f7edbd8b16833aaafb6031e6c07eca23b080cf1566f5bc6ecf757ed779508c36",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-increment-manifest.json",
+          "recorded_sha256": "cff27e95a2ff43b49e77c99f934797242bd0a1a3955a07595423b20a33451b11",
+          "actual_sha256": "cff27e95a2ff43b49e77c99f934797242bd0a1a3955a07595423b20a33451b11",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-math-hooks-manifest.json",
+          "recorded_sha256": "e4e46bed7b5016ad10780ab5913664dc2194649641c0be0f6384558788450b5b",
+          "actual_sha256": "e4e46bed7b5016ad10780ab5913664dc2194649641c0be0f6384558788450b5b",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim.txt",
+          "recorded_sha256": "8ccd214792b0b576bb9fdc8f4e3095a5ad7f2b99eb97a5aa3ec626470b1c7988",
+          "actual_sha256": "8ccd214792b0b576bb9fdc8f4e3095a5ad7f2b99eb97a5aa3ec626470b1c7988",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "jim-math-hooks.txt",
+          "recorded_sha256": "f90f2e106c90f9db8ae2fe642fc71c2c67b64293b5c805c3ce1d362757607ea2",
+          "actual_sha256": "f90f2e106c90f9db8ae2fe642fc71c2c67b64293b5c805c3ce1d362757607ea2",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "8.4.20.txt",
+          "recorded_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "actual_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks-8.4.20.txt",
+          "recorded_sha256": "95dee75b304d18c1d8dcade994240a6967038eb475987c3f08134ef0d2d495a8",
+          "actual_sha256": "95dee75b304d18c1d8dcade994240a6967038eb475987c3f08134ef0d2d495a8",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing-8.4.20.txt",
+          "recorded_sha256": "53d9eae361301f97342daf050a779bf87131c7889ad27d652a894019fe5926b9",
+          "actual_sha256": "53d9eae361301f97342daf050a779bf87131c7889ad27d652a894019fe5926b9",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "8.5.19.txt",
+          "recorded_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "actual_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks-8.5.19.txt",
+          "recorded_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "actual_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing-8.5.19.txt",
+          "recorded_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "actual_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "8.6.18.txt",
+          "recorded_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "actual_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks-8.6.18.txt",
+          "recorded_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "actual_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing-8.6.18.txt",
+          "recorded_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "actual_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "9.0.4.txt",
+          "recorded_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "actual_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks-9.0.4.txt",
+          "recorded_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "actual_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing-9.0.4.txt",
+          "recorded_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "actual_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "9.1.0.txt",
+          "recorded_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "actual_sha256": "dbe76149c3b8c316e805d51d6e402eb8474a5e2aee05af706a302dc54ab875de",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-hooks-9.1.0.txt",
+          "recorded_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "actual_sha256": "75f0144c6ed60704a655a521a0f224bbb249882094ce5e7be73dd77130f98909",
+          "matches": true,
+          "present": true
+        },
+        {
+          "relative_path": "math-timing-9.1.0.txt",
+          "recorded_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "actual_sha256": "c7a60be13eb7fa16a0c22db2ca6b2f18fae66e6475a24a33e2edc6e72d503256",
+          "matches": true,
+          "present": true
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_list_assignment_order/cases.json",
+      "sha256": "eedb56ec5f6452a924791f6444c304a1205e31aa8e89f64658b7d5a1d181febd",
+      "role": "input-fixture",
+      "inspection": "Inspected JSON contains only fixed input scripts or original-object producer parameters, not native execution rows.",
+      "inputs": [
+        "lassign $name first [set first]; list $first $A",
+        "catch {lassign $name first [error STOP]} caught; list $first $caught",
+        "lassign $name first a([set first]); list $first $a(A)",
+        "lassign $name first [proc lassign args {return CUSTOM}; set first]; list $first $A"
+      ]
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json",
+      "sha256": "a8a1495d5808748a26cf5635f2bb9ea5c73889bbcecf96ecc21890ff513be6a8",
+      "role": "input-fixture",
+      "inspection": "Inspected JSON contains only fixed input scripts or original-object producer parameters, not native execution rows.",
+      "inputs": [
+        "0",
+        "end",
+        "end-1",
+        "0 1",
+        "bad",
+        "{",
+        "2147483647",
+        "-1",
+        "1+1"
+      ]
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_simple/manifest.json",
+      "sha256": "abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef",
+      "role": "native-observation",
+      "exact_duplicate_path": "rust/tcl-vm/tests/data/native_alias_simple/manifest.json",
+      "duplicate_bytes_equal": true
+    },
+    {
+      "path": "runtime/rust/tests/data/native_global_cache_token/manifest.json",
+      "sha256": "32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0",
+      "role": "native-observation",
+      "exact_duplicate_path": "rust/tcl-vm/tests/data/native_global_cache_token/manifest.json",
+      "duplicate_bytes_equal": true
+    }
+  ]
+}

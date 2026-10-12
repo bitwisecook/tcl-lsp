@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "/workspace/.proofs/freeze-isolated-validation323.py",
+    "330"
+  ],
+  "exit": 1,
+  "failure": "OSError ENOSPC during immutable archive hardlink directory creation at naming330/rust/tcl-registry/tests/data/native_info_inventory_original/9.1.0/exact-nameofexecutable",
+  "receipt_written": false,
+  "cargo_launched": false,
+  "working_source_phase": "completed before failed archive copy; resumed source capture must independently verify every current working and existing partial archive byte",
+  "source_archive_status": "incomplete; not eligible for compilation, pin or assertion credit"
+}

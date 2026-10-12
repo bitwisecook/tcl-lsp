@@ -1,0 +1,1 @@
+list [info commands ::oo::class] [info commands ::oo::configuresupport::readableproperties] [info commands ::oo::configuresupport::objreadableproperties] [info commands ::oo::configuresupport::writableproperties]

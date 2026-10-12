@@ -1,0 +1,20 @@
+{
+  "scope": "Actual fixed Python proof-consumer controls; no native or Rust test execution.",
+  "captured_utc": "2026-10-08T18:06:32.878598+00:00",
+  "command": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "scripts/dev/test_name_resolution_proofs.py"
+  ],
+  "python_version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "python_executable_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "source_sha256": {
+    "scripts/dev/check-name-resolution-proofs.py": "85ad39c694e1268b4396a0da6edcd9edd300fda926c3cf5d3870e85e89cb6409",
+    "scripts/dev/test_name_resolution_proofs.py": "73d3a6ecfdd4369f0496f51937626fca35bdd7ae1f3bec16bd73b576f19a73f1",
+    "scripts/dev/update-name-resolution-proof-index.py": "3e04c6dc9fe8fa712582f5c4807ed9b1f08ca0197d5dd4e2406398ee319cdf12"
+  },
+  "exit_code": 0,
+  "stdout_hex": "",
+  "stderr_hex": "2e2e2e2e2e2e2e2e2e2e2e2e0a2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d0a52616e20313220746573747320696e20302e303337730a0a4f4b0a",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "d32e122ffe790748a6fb1382a6a573b63904f2cadcea19c168e4a7e3c3139334"
+}

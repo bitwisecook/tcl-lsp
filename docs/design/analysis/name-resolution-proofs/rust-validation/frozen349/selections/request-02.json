@@ -1,0 +1,12 @@
+{
+  "Runtime": [
+    "interp::native_name_queries::tests::original_procedure_query_retains_selected_binding_through_reached_defaults_and_body",
+    "interp::native_name_queries::tests::generic_proc_body_preserves_first_host_without_missing_procedure_or_default_getters",
+    "interp::native_name_queries::tests::original_alias_query_checks_actual_generation_and_namespace_after_lazy_member_callbacks"
+  ],
+  "VM": [
+    "interp::native_name_queries::tests::original_procedure_query_checks_selected_declaration_after_each_actual_string_stage",
+    "interp::native_name_queries::tests::shared_proc_body_consumer_preserves_outer_refusal_instead_of_reporting_missing_procedure",
+    "interp::native_name_queries::tests::original_alias_query_keeps_resident_headers_and_pending_first_host"
+  ]
+}

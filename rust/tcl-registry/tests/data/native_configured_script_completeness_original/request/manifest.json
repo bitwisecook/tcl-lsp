@@ -1,0 +1,32 @@
+{
+  "name": "GrammarInfoCompleteRequest452",
+  "request": {
+    "path": "/tmp/grammar-info-complete-request452/request.json",
+    "resolved_path": "/tmp/grammar-info-complete-request452/request.json",
+    "bytes": 47122,
+    "sha256": "889f417702076bd3aad31f8324296d6c9912b2996f207f56f9b2fbfc33d99a5b"
+  },
+  "launcher": {
+    "path": "/tmp/grammar-info-complete-request452/launch.py",
+    "resolved_path": "/tmp/grammar-info-complete-request452/launch.py",
+    "bytes": 4754,
+    "sha256": "21f2bee80a0725bbd22d7cdb853ddaef5b9624fb0a1a1927174db466b7ed7474"
+  },
+  "probe": {
+    "path": "/tmp/grammar-info-complete-request452/probe.tcl",
+    "resolved_path": "/tmp/grammar-info-complete-request452/probe.tcl",
+    "bytes": 2806,
+    "sha256": "43020e0c55df0c59bd8cbcf3a9b4cf8ba6606f52dda0cdf5e0c860545191489e"
+  },
+  "cases": {
+    "path": "/tmp/grammar-info-complete-request452/cases.json",
+    "resolved_path": "/tmp/grammar-info-complete-request452/cases.json",
+    "bytes": 10626,
+    "sha256": "fdfa5641863b91b6df7892e2dd508eb0a9b44d7cb8ab3f836e2a23c905009953"
+  },
+  "status": "READY unlaunched",
+  "static_validation": "launcher parsed with Python AST only; all pinned input files exist",
+  "provider_count": 6,
+  "cases_per_provider": 41,
+  "no_cargo_native_launch": true
+}

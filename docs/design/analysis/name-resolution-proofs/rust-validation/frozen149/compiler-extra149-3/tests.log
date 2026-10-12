@@ -1,0 +1,18 @@
+
+running 2 tests
+test analyser::diagnostics::version_gate::tests::original_format_gates_keep_alias_ordinals_and_written_template_anchors ... ok
+test analyser::diagnostics::version_gate::tests::original_format_gates_read_literal_values_without_promoting_dynamic_words ... 
+thread 'analyser::diagnostics::version_gate::tests::original_format_gates_read_literal_values_without_promoting_dynamic_words' (588593) panicked at rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs:2395:13:
+assertion `left == right` failed: format \x25b 5
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::version_gate::tests::original_format_gates_read_literal_values_without_promoting_dynamic_words
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8172 filtered out; finished in 2.49s
+

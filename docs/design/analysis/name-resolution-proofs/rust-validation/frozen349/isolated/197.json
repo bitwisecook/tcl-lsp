@@ -1,0 +1,19 @@
+{
+  "ordinal": 197,
+  "selector": "engine::tests::original_object_view_and_logical_native_receipts_refuse_explicitly",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "engine::tests::original_object_view_and_logical_native_receipts_refuse_explicitly",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.896112437010743,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 5.88s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/197.log",
+  "log_sha256": "7308d44ea259818748175cced86f0dc84b1d29cae033cd8a858180736e2618c5"
+}

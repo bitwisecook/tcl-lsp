@@ -1,0 +1,35 @@
+provider	Jim
+case	7	stride-integer-three-members
+operation	lsort
+mode	integer
+index	0
+input-roles	key-holds=sole-containing-list	additional-key-observer-holds=0	argv-caller-hold=1	returned-original-explicit-hold=0	flat-length=3
+input-key0	counted-string	32
+input-key1	counted-string	41
+input-key2	counted-string	31
+input-key3	absent
+input-callback-return	absent
+before-key0	none	1	1	1
+before-key1	none	1	1	1
+before-key2	none	1	1	1
+before-key3	absent
+before-container	list	0	1	0
+before-prefix	absent
+before-callback-return	absent
+before-pattern	absent
+code	1
+callback-count	0
+reached-key0	none	1	1	1
+reached-key1	none	1	1	1
+reached-key2	none	1	1	1
+reached-key3	absent
+reached-container	list	0	2	0
+reached-prefix	absent
+reached-callback-return	absent
+reached-pattern	absent
+reached-result	none	1	1	49
+result-alias	container=0	callback-return=0
+result-bytes	6c6973742073697a65206d7573742062652061206d756c7469706c65206f662074686520737472696465206c656e677468
+materialised-result	none	1	1	49
+after-result-getter-container	list	0	2	0
+after-result-getter-callback-return	absent

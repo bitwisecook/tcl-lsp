@@ -1,0 +1,13 @@
+Loading configuration...
+  /var/tmp/r2286m-caller-neutral-cleanup.conf
+neutral-caller-load ACCEPTED
+01070265:3: The rule (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider) cannot be deleted because it is in use by a rule (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_caller).
+provider-delete-with-neutral-caller REJECTED
+neutral-caller-delete ACCEPTED
+01070265:3: The rule (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider) cannot be deleted because it is in use by a rule (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_caller).
+provider-delete-after-caller REJECTED
+010713f9:3: The folder /R2286_r2286m/lifetime cannot be deleted because it contains configuration item (iRule /R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider)
+folder-delete REJECTED
+0107082a:3: All objects must be removed from a partition (R2286_r2286m) before the partition may be removed, type ID (1082)
+partition-delete REJECTED
+owned objects remain; capture retained

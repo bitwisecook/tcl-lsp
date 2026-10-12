@@ -1,0 +1,48 @@
+{
+  "purpose": "Narrow source-shell namespace export/import/forget controls; expectation criteria are scaffolding, not observed answers.",
+  "channel": "ASCII source-file shell ingress; opaque Tcl units are produced by source backslash substitutions. No raw counted NativeString NUL or physical object cache claim.",
+  "source": "cases.tcl",
+  "source_sha256": "e1d2be49ba164055fb4e72d7007466b16fc14f70b77317a86604303c1dba5978",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "case_ids": [
+    "exported-distinct-source-units",
+    "export-filter-keeps-distinct-units",
+    "import-source-move-identity",
+    "forget-local-distinct-units",
+    "forget-renamed-import-by-origin",
+    "import-invalid-no-source",
+    "import-missing-source",
+    "import-same-namespace",
+    "export-qualified-invalid",
+    "force-replacement-order",
+    "export-leading-clear"
+  ],
+  "questions": [
+    "Do exact source-produced adjacent surrogate units remain distinct in export filtering and imported callable names?",
+    "Does imported command-token identity survive source rename and does qualified forget compare the original source tail after local rename?",
+    "What native error/flag distinctions apply to missing, local and same-namespace imports, qualified exports, leading export clear and force replacement?"
+  ],
+  "expectation_criteria": {
+    "C": {
+      "exported-distinct-source-units": "code 0, FIRST SECOND",
+      "export-filter-keeps-distinct-units": "code 0, 1 0",
+      "import-source-move-identity": "code 0, HELD",
+      "forget-local-distinct-units": "code 0, 0 SECOND",
+      "forget-renamed-import-by-origin": "code 0, 0",
+      "import-invalid-no-source": "code 1",
+      "import-missing-source": "code 1",
+      "import-same-namespace": "code 1",
+      "export-qualified-invalid": "code 1",
+      "force-replacement-order": "code 0, 1 DESTINATION SOURCE",
+      "export-leading-clear": "code 0, 0 AFTER"
+    },
+    "Jim": "Actual source-name import/export behaviour must be observed separately; do not substitute C expectations."
+  }
+}

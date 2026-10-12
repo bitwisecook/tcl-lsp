@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_increment::selected_dictionary_root_tests::original_jim_tuple_retirement_refuses_before_root_lookup_or_adoption ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.37s
+

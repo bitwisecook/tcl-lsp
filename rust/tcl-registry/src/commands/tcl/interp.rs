@@ -24,6 +24,7 @@ use crate::world_effect::{
     StaticSubjectScope, SubjectScope,
 };
 use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -37,6 +38,15 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     // read/write mix.
     reads: true,
     writes: true,
+    ..SideEffect::DEFAULT
+}];
+
+// Alias forms select interpreter paths and change command bindings. They do
+// not alter interpreter policy; lifecycle effects remain in their transitions.
+const ALIAS_SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: true,
+    writes: false,
     ..SideEffect::DEFAULT
 }];
 
@@ -88,6 +98,7 @@ const INTERP_POLICY_DYNAMIC_EFFECTS: StaticEffectFootprint = StaticEffectFootpri
 
 const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_create_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -100,6 +111,7 @@ const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
 
 const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_delete_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -117,6 +129,7 @@ const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
 
 const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_mark_trusted_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -129,6 +142,7 @@ const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransiti
 
 const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_recursion_limit_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -141,6 +155,7 @@ const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTrans
 
 const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_bgerror_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -153,6 +168,7 @@ const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
 
 const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_hide_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -165,6 +181,7 @@ const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescri
 
 const INTERP_EXPOSE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(interp_expose_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -414,8 +431,11 @@ fn interp_alias_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, A
     }
 }
 
-fn interp_alias_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 4)
+fn interp_alias_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 4)
         .then_some((3, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -432,8 +452,11 @@ fn interp_bgerror_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8,
     }
 }
 
-fn interp_bgerror_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    (args.len() >= 2)
+fn interp_bgerror_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    let Some(count) = args.exact_argv_len() else {
+        return Vec::new();
+    };
+    (count >= 2)
         .then_some((1, ScriptTiming::Deferred))
         .into_iter()
         .collect()
@@ -472,9 +495,26 @@ const LIMIT_TYPE_VALUES: &[ArgValue] = &[
     },
 ];
 
+// TclInterpInit registers the public dispatcher directly with no compileProc
+// in every pinned C release. Selected members share that absence; body entry
+// remains an independent runtime script-object boundary.
+const NATIVE_INTERP: crate::native_compilation::NativeCompilationSpec =
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::ScriptObject,
+    };
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "alias",
+        // Alias installation records a deferred command prefix. The handler
+        // does not evaluate that prefix; command-table transitions retain its
+        // actual interpreter/slot/prefix obligations independently of compilation.
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::CommandBindingTransition,
+        ),
         arity: Arity::at_least(2),
         detail: "Manage command aliases.",
         synopsis: "interp alias path cmd",
@@ -482,13 +522,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_alias_command_prefixes),
         script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
-
+        side_effects: ALIAS_SIDE_EFFECTS,
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         // Declared once, by naming the stock descriptor (ledger C8).
         state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "aliases",
         arity: Arity::new(0, 1),
         detail: "List aliases.",
@@ -499,6 +540,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "bgerror",
         // Added in Tcl 8.5 (TIP 221).
         surface: Some(SpecSurface::TCL85_PLUS),
@@ -513,6 +555,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "cancel",
         // Added in Tcl 8.6 (TIP 285).
         surface: Some(SpecSurface::TCL86_PLUS),
@@ -556,11 +599,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "create",
         // Positional arity is `?name?` only (0..=1); the `-safe` / `--`
         // option words are consumed by the leading-option skip, not counted
         // here. A prior `Arity::new(0, 2)` masked a genuine extra-name error.
-        arity: Arity::new(0, 1),
+        arity: Arity::new(0, 1).with_positionals(),
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
         // `interp create NAME` binds NAME as the child interpreter's command
@@ -599,6 +643,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "debug",
         // Added in Tcl 8.5, not 8.6: the tcl8.5/TclCmd/interp.html SYNOPSIS
         // and body both already document `interp debug path ?-frame
@@ -630,6 +675,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "delete",
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(0),
@@ -647,6 +693,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "eval",
         arity: Arity::at_least(2),
         detail: "Evaluate script in another interpreter.",
@@ -669,6 +716,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "exists",
         // `path` is optional in every release: `interp exists` with no path
         // returns 1 (the current interpreter always exists).
@@ -681,6 +729,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "expose",
         arity: Arity::new(2, 3),
         detail: "Expose a hidden command.",
@@ -692,6 +741,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "hidden",
         // `path` is optional (`interp hidden` lists the current interpreter's
         // hidden commands).
@@ -704,6 +754,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "hide",
         arity: Arity::new(2, 3),
         detail: "Hide a command.",
@@ -715,7 +766,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "invokehidden",
+        // C Tcl's InterpObjCmd scans from objv[3], after the path at objv[2]:
+        // retained tclInterp.c 8.6.18, case OPT_INVOKEHID.
+        // The prefix is data even when its value is computed or dash-leading.
+        option_prefix_words: 1,
         // Positional arity is `path hiddenCmdName` plus an unbounded
         // `?arg ...?` tail; `-namespace`/`-global`/`--` sit after `path`
         // (not leading), but since the tail is already open-ended their
@@ -768,6 +824,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "issafe",
         // `path` is optional (`interp issafe` reports on the current
         // interpreter).
@@ -780,6 +837,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "limit",
         // Added in Tcl 8.5 (TIP 143).
         surface: Some(SpecSurface::TCL85_PLUS),
@@ -857,6 +915,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "marktrusted",
         arity: Arity::exact(1),
         detail: "Mark interpreter as trusted.",
@@ -867,6 +926,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "recursionlimit",
         arity: Arity::new(1, 2),
         detail: "Get or set recursion limit.",
@@ -877,6 +937,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "set",
         // Brand new in Tcl 9.1: absent from the 9.0.4 SYNOPSIS and body,
         // present in the 9.1b0 SYNOPSIS and body as `interp set path
@@ -901,6 +962,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "share",
         arity: Arity::exact(3),
         detail: "Share a channel.",
@@ -909,6 +971,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "target",
         arity: Arity::exact(2),
         detail: "Get alias target.",
@@ -922,6 +985,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "transfer",
         arity: Arity::exact(3),
         detail: "Transfer a channel.",
@@ -930,6 +994,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "slaves",
         // `children` was added in Tcl 8.6 as the preferred spelling. Tcl
         // 9.0.4 still accepts `slaves` even though interp(n) documents only
@@ -953,6 +1018,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        native_compilation: Some(NATIVE_INTERP),
         name: "children",
         // Added in Tcl 8.6 (child/parent terminology; the preferred name for
         // the older `interp slaves`).
@@ -967,8 +1033,47 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+fn jim_interp_create_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if arguments.exact_argv_len() == Some(0) {
+        transitions.push(StateTransition::Interpreter(
+            InterpreterTransition::Create {
+                interpreter: None,
+                safety: ChildInterpreterSafety::Inherited,
+            },
+        ));
+    }
+    transitions
+}
+
+/// Jim's interpreter command is a factory, rather than the C ensemble.
+pub fn jim_spec() -> CommandSpec {
+    CommandSpec {
+        native_compilation: Some(NATIVE_INTERP),
+        name: "interp",
+        surface: Some(surface![SpecSurface::core_in(
+            tcl_dialect::model::Family::Jim,
+            &[("0.84", None)]
+        )]),
+        arity: Arity::exact(0),
+        traits: Traits::NOT_PROC_FACTORY | Traits::REFLECTS_COMMAND_NAMES,
+        forms: &[FormSpec {
+            synopsis: "interp",
+            ..FormSpec::DEFAULT
+        }],
+        side_effects: SIDE_EFFECTS,
+        state_transitions: Some(StateTransitionDescriptor {
+            success_resolver: None,
+            resolver: Some(jim_interp_create_transitions),
+            ..StateTransitionDescriptor::EMPTY
+        }),
+        ..CommandSpec::DEFAULT
+    }
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        native_compilation: Some(NATIVE_INTERP),
         name: "interp",
         runtime_backing: RuntimeBacking::shipped("interp"),
         surface: Some(SpecSurface::ALL_TCL),
@@ -1017,14 +1122,14 @@ mod tests {
         assert!(matches!(
             &inherited.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Create {
-                interpreter: Some(TransitionSubject::Literal(path)),
+                interpreter: Some(TransitionSubject::LocatedLiteral { value: path, .. }),
                 safety: ChildInterpreterSafety::Inherited,
             }) if path == "child"
         ));
         assert!(matches!(
             &safe.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Create {
-                interpreter: Some(TransitionSubject::Literal(path)),
+                interpreter: Some(TransitionSubject::LocatedLiteral { value: path, .. }),
                 safety: ChildInterpreterSafety::Safe,
             }) if path == "child"
         ));
@@ -1127,6 +1232,47 @@ mod tests {
     }
 
     #[test]
+    fn parent_command_projection_requires_one_actual_native_child_component() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            for (path, command) in [
+                ("sandbox", Some("sandbox")),
+                ("{space name}", Some("space name")),
+                ("a b", None),
+                ("", None),
+                ("{", None),
+            ] {
+                let transition = InterpreterTransition::Create {
+                    interpreter: Some(TransitionSubject::Literal(path.to_owned())),
+                    safety: ChildInterpreterSafety::Safe,
+                };
+                assert_eq!(
+                    transition.created_parent_command(dialect).as_deref(),
+                    command,
+                    "{version:?}: {path}"
+                );
+            }
+        }
+        let transition = InterpreterTransition::Create {
+            interpreter: Some(TransitionSubject::Literal("sandbox".to_owned())),
+            safety: ChildInterpreterSafety::Safe,
+        };
+        for name in ["jim", "f5-irules"] {
+            let owner = crate::model::ingress::static_context_for(name);
+            let dialect = crate::InvocationDialect::of_profile(
+                owner
+                    .commands()
+                    .profile()
+                    .expect("selected profile fixture"),
+            );
+            assert!(
+                transition.created_parent_command(dialect).is_none(),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
     fn delete_preserves_left_to_right_may_commit_transitions() {
         let transitions = INTERP_DELETE_TRANSITIONS.resolve(InvocationArguments::literals(&[
             "delete", "first", "missing",
@@ -1141,13 +1287,13 @@ mod tests {
         assert!(matches!(
             &transitions.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Delete {
-                interpreter: TransitionSubject::Literal(path),
+                interpreter: TransitionSubject::LocatedLiteral { value: path, .. },
             }) if path == "first"
         ));
         assert!(matches!(
             &transitions.facts()[1].transition,
             StateTransition::Interpreter(InterpreterTransition::Delete {
-                interpreter: TransitionSubject::Literal(path),
+                interpreter: TransitionSubject::LocatedLiteral { value: path, .. },
             }) if path == "missing"
         ));
     }
@@ -1236,6 +1382,137 @@ mod tests {
     }
 
     #[test]
+    fn alias_normal_binding_contract_does_not_license_interp_script_execution() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        let irules = tcl_dialect::DialectProfile::irules();
+        let irules_registry = CommandRegistry::build_default().project_for_profile(irules);
+        assert!(
+            irules_registry
+                .resolve_structured_invocation(
+                    InvocationWords::literals("interp", &["alias", "", "parts", "", "split"])
+                        .with_dialect(crate::InvocationDialect::of_profile(irules)),
+                    irules_registry.own_surface_query(),
+                )
+                .resolved()
+                .is_none(),
+            "the contract does not add a missing host command"
+        );
+        for (args, expected) in [
+            (vec!["alias", "", "parts", "", "split"], true),
+            (vec!["alias", "", "parts"], true),
+            (vec!["eval", "", "puts YES"], false),
+            (vec!["delete", "child"], false),
+        ] {
+            let words = InvocationWords::literals("interp", &args).with_dialect(dialect);
+            let invocation =
+                registry.resolve_structured_invocation(words, registry.own_surface_query());
+            let facts = invocation
+                .resolved()
+                .expect("authored interp member")
+                .facts();
+            assert_eq!(
+                facts
+                    .successful_handler_effects(
+                        words.arguments(),
+                        crate::VariableAliasFrame::Global
+                    )
+                    .is_some(),
+                expected,
+                "{args:?}"
+            );
+            if expected {
+                assert_eq!(
+                    facts.successful_handler,
+                    Some(
+                        crate::native_compilation::SuccessfulHandlerSpec::CommandBindingTransition
+                    )
+                );
+                assert_eq!(
+                    facts.native_compilation.unwrap().select_for_facts(
+                        words,
+                        &vec![
+                            crate::native_compilation::NativeCompilationWordShape::Literal;
+                            args.len()
+                        ],
+                        &facts,
+                        Some(dialect),
+                        crate::native_compilation::NativeCompilationContext {
+                            mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
+                            frame: crate::native_compilation::NativeCompilationFrame::ProcedureCode,
+                            loop_depth: 0,
+                            catch_depth: Some(0)
+                        }
+                    ),
+                    crate::native_compilation::NativeCompilationSelection::Generic
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_alias_effects_separate_policy_reads_from_binding_lifecycle() {
+        // Implementation contract: naming.alias.original-fresh-creation-transfer
+        // docs/design/analysis/name-resolution-proofs/original-fresh-alias-creation-transfer.md
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for (arguments, mutation) in [
+                (vec!["alias", "", "forward", "", "future", "HELD"], true),
+                (vec!["alias", "", "forward", ""], true),
+                (vec!["alias", "", "forward"], false),
+            ] {
+                let invocation = registry.resolve_structured_invocation(
+                    InvocationWords::literals("interp", &arguments).with_dialect(dialect),
+                    registry.own_surface_query(),
+                );
+                let facts = invocation.resolved().unwrap().facts();
+                let effects = facts.world_state_effects();
+                assert!(effects.accesses().iter().any(|access| {
+                    access.domain == WorldStateDomain::InterpreterPolicy
+                        && access.mode == EffectAccessMode::Read
+                }));
+                assert!(effects.accesses().iter().all(|access| {
+                    access.domain != WorldStateDomain::InterpreterPolicy
+                        || access.mode == EffectAccessMode::Read
+                }));
+                let transitions = facts.state_transitions.declared().unwrap();
+                assert_eq!(!transitions.facts().is_empty(), mutation);
+                if mutation {
+                    assert!(transitions.facts().iter().all(|fact| {
+                        matches!(fact.transition, StateTransition::CommandBinding(_))
+                            && fact.commit == StateTransitionCommit::MayCommitBeforeAbruptCompletion
+                    }));
+                    assert!(
+                        effects
+                            .callback()
+                            .kinds
+                            .contains(crate::world_effect::CallbackKinds::TRACE)
+                    );
+                }
+            }
+            let invocation = registry.resolve_structured_invocation(
+                InvocationWords::literals("interp", &["create", "child"]).with_dialect(dialect),
+                registry.own_surface_query(),
+            );
+            assert!(
+                invocation
+                    .resolved()
+                    .unwrap()
+                    .facts()
+                    .state_transitions
+                    .declared()
+                    .unwrap()
+                    .facts()
+                    .iter()
+                    .any(|fact| { matches!(fact.transition, StateTransition::Interpreter(_)) })
+            );
+        }
+    }
+
+    #[test]
     fn policy_setter_uses_the_transition_write_only_on_completion() {
         let registry = CommandRegistry::build_default();
         let invocation = registry.resolve_structured_invocation(
@@ -1267,16 +1544,16 @@ mod tests {
         assert!(matches!(
             &hidden.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Hide {
-                visible: TransitionSubject::Literal(visible),
-                hidden: TransitionSubject::Literal(hidden),
+                visible: TransitionSubject::LocatedLiteral { value: visible, .. },
+                hidden: TransitionSubject::LocatedLiteral { value: hidden, .. },
                 ..
             }) if visible == "puts" && hidden == "puts"
         ));
         assert!(matches!(
             &exposed.facts()[0].transition,
             StateTransition::Interpreter(InterpreterTransition::Expose {
-                hidden: TransitionSubject::Literal(hidden),
-                visible: TransitionSubject::Literal(visible),
+                hidden: TransitionSubject::LocatedLiteral { value: hidden, .. },
+                visible: TransitionSubject::LocatedLiteral { value: visible, .. },
                 ..
             }) if hidden == "puts" && visible == "puts"
         ));

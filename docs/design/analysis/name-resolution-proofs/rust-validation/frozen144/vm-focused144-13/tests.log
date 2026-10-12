@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_hidden_byte_names::hidden_tokens_index_exact_native_bytes_and_keep_original_invocation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 668 filtered out; finished in 12.29s
+

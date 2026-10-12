@@ -1,0 +1,19 @@
+{
+  "ordinal": 405,
+  "selector": "interp::tests::original_publication_holder_refuses_initial_dead_or_absent_namespace",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::original_publication_holder_refuses_initial_dead_or_absent_namespace",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.2328773100161925,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 5.20s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/405.log",
+  "log_sha256": "fe4cfc6ff77e0f7fd73b2f09d6531548fc4e7b0894b5bca6127401f43dea6531"
+}

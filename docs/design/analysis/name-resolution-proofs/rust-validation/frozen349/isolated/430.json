@@ -1,0 +1,19 @@
+{
+  "ordinal": 430,
+  "selector": "interp::tests::trace_registration_invalidates_matching_guard_domains",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::trace_registration_invalidates_matching_guard_domains",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 4.4915483460063115,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.45s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/430.log",
+  "log_sha256": "4c2214650499864cff94d40c1b4dd485c24d995bb3858cc8d0b0426194949857"
+}

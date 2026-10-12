@@ -1,0 +1,29 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "source_sha256": "9426f3bb7655531c34759934ddeccf94534b3cf6d106fc229c5d35133ae7ed0b",
+  "input_channel": "separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "rows": [
+    "VERSION",
+    "AVAILABILITY",
+    "MISSING_REGISTER",
+    "MISSING_INVOKE",
+    "PREFIX_CAPTURE",
+    "NO_TARGET_CALL",
+    "SCRIPT_REPLACED",
+    "FORWARD_REPLACED",
+    "EMPTY_TARGET_REGISTER",
+    "PREFIX_REQUIRED",
+    "SUPER_FORWARD"
+  ],
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "process_limit_seconds": 30,
+  "native_launch_status": "not-launched"
+}

@@ -64,7 +64,7 @@ use crate::model::family::{Family, Release};
 /// One word-shaped binary (or, for iRules' `not`, unary) expr operator,
 /// with the oldest release on its family's ladder whose lexeme table
 /// contains it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WordOperator {
     /// The operator spelling (`"eq"`, `"contains"`).
     pub spelling: &'static str,
@@ -89,7 +89,7 @@ const fn word(spelling: &'static str, since: Release) -> WordOperator {
 /// trees. The table is a per-family fact; release gating of individual
 /// operators lives in [`ExprGrammar::word_operators`] /
 /// [`ExprGrammar::symbolic_operators`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrecedenceTable {
     rows: &'static [(&'static str, u16, u16)],
 }
@@ -115,7 +115,7 @@ impl PrecedenceTable {
 /// One expr math function with the oldest release on its family's ladder
 /// that ships it, and whether shipping it also depends on the build's
 /// math extension.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MathFunc {
     /// The function name, matched verbatim (mathfunc lookup is
     /// case-sensitive).
@@ -163,7 +163,7 @@ const fn math_ext_func(name: &'static str, since: Release) -> MathFunc {
 /// [`CoreProfile::mathfunc`](crate::model::family::CoreProfile::mathfunc)
 /// via the capability record — this type answers for the canonical build
 /// only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MathFuncSet {
     rows: &'static [MathFunc],
     ceiling: Release,
@@ -224,7 +224,7 @@ pub enum ExprSubstitution {
 
 /// The full expr grammar of one `(family, release)` — §3.1's contract,
 /// every field data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExprGrammar {
     /// The numeral grammar, including the special-float set.
     pub numbers: NumberSyntax,
@@ -295,11 +295,10 @@ const TCL_WORDS_90: &[WordOperator] = &[
 /// table. The iRules offshoot overrides nothing here — it answers with
 /// this same slice along the fork edge.
 ///
-/// The bare `matches` is the tenth and was added last: §4a's `e_matches`
-/// case (`expr {"abc" matches "abc"}`) answered `1` in all three F5
-/// contexts and failed on both host builds, and §4b's model
-/// recommendation lists it beside `matches_glob`/`matches_regex` among
-/// the trunk's `expr` extensions.
+/// Bare `matches` is measured as a whole-string glob on BIG-IP 21.1.0.1
+/// build 0.0.26 in `HTTP_REQUEST`, tmsh CLI scripts, iApp implementation
+/// actions and triggered iCall scripts. Presentation/APL and other iCall
+/// forms have no expression execution receipt from that payload.
 const F5_TCL_WORDS: &[WordOperator] = &[
     word("eq", Release::TCL_8_4),
     word("ne", Release::TCL_8_4),
@@ -386,13 +385,9 @@ const TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
 // extensions at the equality level. A trunk fact: tmsh and iApp accept
 // the identical operator set (measurements §4a).
 //
-// `matches` sits at the equality level with its siblings by
-// **inference, not measurement**: the transcripts pin only that the
-// operator parses and answers `1` for `expr {"abc" matches "abc"}` (§4a
-// `e_matches`), a single-operator expression that exercises no binding
-// power at all. §12 carries the discriminating re-probe; until it is
-// run, the operator takes the class every other F5 string-comparison
-// word form was measured at.
+// The exact BIG-IP 21.1.0.1 build 0.0.26 payload establishes `matches`
+// above `or`, and prefix `not` above `starts_with`. Equality-level binding
+// remains an authored grammar choice; that payload does not uniquely pin it.
 const F5_TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("||", 4, 5),
     ("or", 4, 5),
@@ -1288,12 +1283,8 @@ mod tests {
         assert!(g.symbolic_operators.contains(&("=~", Release::JIM_0_84)));
         // Tcl and the F5 tree have no symbolic extensions beyond the
         // shared C-Tcl set.
-        assert!(
-            expr(Family::Tcl, Release::TCL_9_1)
-                .symbolic_operators
-                .is_empty()
-        );
-        assert!(EXPR_F5_TCL.symbolic_operators.is_empty());
+        assert_eq!(expr(Family::Tcl, Release::TCL_9_1).symbolic_operators, []);
+        assert_eq!(EXPR_F5_TCL.symbolic_operators, []);
     }
 
     /// Measured: `expr 1 + 2` answers 3 on `jimsh 0.76` and `0.79` and

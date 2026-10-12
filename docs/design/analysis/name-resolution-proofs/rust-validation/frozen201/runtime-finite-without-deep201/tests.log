@@ -1,0 +1,173 @@
+
+running 52 tests
+test cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables ... ok
+test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... FAILED
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... FAILED
+test cmd_alias::tests::jim_interpreter_handle_isolation ... FAILED
+test cmd_coro::tests::coroinject_runs_on_next_resume ... FAILED
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... FAILED
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... FAILED
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... ok
+test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... ok
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... ok
+test cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy ... ok
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... ok
+test cmd_oo::tests::define_context_self_arity ... ok
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... FAILED
+test cmd_oo::tests::definitionnamespace_semantics ... ok
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... ok
+test cmd_oo::tests::object_builtin_variable_varname_eval ... ok
+test cmd_oo::tests::unknown_method_preserves_original_selector_for_returned_slot_data ... ok
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... ok
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... ok
+test cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces ... ok
+test cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies ... ok
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... ok
+test cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes ... FAILED
+test codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged ... ok
+test codegen_abi::tests::a_logged_statement_site_preserves_the_source_trace_without_instruction_identity ... ok
+test codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read ... ok
+test codegen_abi::tests::invoke_argv_reports_unknown_error_with_options ... ok
+test dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... FAILED
+test interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... FAILED
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... FAILED
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... ok
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers ... FAILED
+test interp::native_children::tests::child_host_failure_keeps_its_typed_cause_and_parent_result ... ok
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... ok
+test interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... ok
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... ok
+test interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch ... ok
+test interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards ... FAILED
+test interp::tests::missing_arity_protocol_refuses_before_guest_state_changes ... FAILED
+test interp::tests::native_wrong_arguments_string_result_requires_the_structured_presenter ... ok
+test interp::tests::unchanged_primitive_projection_preserves_the_original_string_result ... ok
+test list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow ... ok
+test native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary ... ok
+test native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit ... ok
+test native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series ... ok
+test obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings ... FAILED
+test value_ops::tests::original_value_append_does_not_rebuild_after_unavailable_storage ... ok
+test value_ops::tests::original_value_append_preserves_storage_for_the_next_native_mutation ... ok
+
+failures:
+
+---- cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis stdout ----
+
+thread 'cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis' (743869) panicked at src/cmd_alias.rs:1149:13:
+jim: admission None, native access Some(CommandProtocolUnavailable("Jim original object interpreter"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion stdout ----
+
+thread 'cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion' (743870) panicked at src/cmd_alias.rs:1347:9:
+assertion `left == right` failed: result=[], admission=None, access=Some(CommandProtocolUnavailable("Jim original object interpreter"))
+  left: Error
+ right: Ok
+
+---- cmd_alias::tests::jim_interpreter_handle_isolation stdout ----
+
+thread 'cmd_alias::tests::jim_interpreter_handle_isolation' (743871) panicked at src/cmd_alias.rs:1359:9:
+assertion `left == right` failed: result=[], admission=None, access=Some(CommandProtocolUnavailable("Jim original object interpreter"))
+  left: Error
+ right: Ok
+
+---- cmd_coro::tests::coroinject_runs_on_next_resume stdout ----
+
+thread 'cmd_coro::tests::coroinject_runs_on_next_resume' (743872) panicked at src/cmd_coro.rs:1048:9:
+admission None, native access Some(CommandProtocolUnavailable("original coroutine injection protocol"))
+
+---- cmd_info::tests::info_consts_includes_only_tcloo_instance_links stdout ----
+
+thread 'cmd_info::tests::info_consts_includes_only_tcloo_instance_links' (743874) panicked at src/cmd_info.rs:974:9:
+assertion `left == right` failed: eval "const G 9; oo::class create C {variable X; constructor {} {const X 1}; method inspect {} {global G; upvar #0 ::G U; list [info consts] [info constant G] [info constant U]}; method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; method shadow {X} {list $X [info consts]}}; set o [C new]; oo::object create O; oo::objdefine O {variable P; method init {} {const P 2}; method inspect {} {info consts}}; O init; oo::class create CA {variable X; method inspect {} {list [info consts] [info constant X] $X}}; set oa [CA new]; namespace eval [info object namespace $oa] {namespace upvar :: G X}; oo::class create CP {method inspect {} {info consts}}; CP create op; oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] [$oa inspect] [op inspect] [info constant [info object namespace op]::Q]": result [118, 97, 114, 105, 97, 98, 108, 101, 32, 34, 88, 34, 32, 97, 108, 114, 101, 97, 100, 121, 32, 101, 120, 105, 115, 116, 115], admission None, native access None
+  left: Error
+ right: Ok
+
+---- cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation stdout ----
+
+thread 'cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation' (743875) panicked at src/cmd_list.rs:1170:17:
+assertion `left == right` failed: jim: result=[], access=Some(CommandProtocolUnavailable("object list length storage"))
+  left: Error
+ right: Ok
+
+---- cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages stdout ----
+
+thread 'cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages' (743908) panicked at src/cmd_oo.rs:8663:13:
+errorInfo should name the renamed class ::def, got [102, 111, 111, 10, 32, 32, 32, 32, 119, 104, 105, 108, 101, 32, 101, 120, 101, 99, 117, 116, 105, 110, 103, 10, 34, 101, 114, 114, 111, 114, 32, 102, 111, 111, 32, 34, 10, 32, 32, 32, 32, 40, 105, 110, 32, 100, 101, 102, 105, 110, 105, 116, 105, 111, 110, 32, 115, 99, 114, 105, 112, 116, 32, 102, 111, 114, 32, 99, 108, 97, 115, 115, 32, 34, 58, 58, 111, 111, 58, 58, 100, 101, 102, 105, 110, 101, 58, 58, 100, 101, 102, 34, 32, 108, 105, 110, 101, 32, 49, 41, 10, 32, 32, 32, 32, 105, 110, 118, 111, 107, 101, 100, 32, 102, 114, 111, 109, 32, 119, 105, 116, 104, 105, 110, 10, 34, 111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 97, 98, 99, 32, 123, 32, 115, 117, 112, 101, 114, 99, 108, 97, 115, 115, 32, 98, 97, 115, 101, 59, 32, 114, 101, 110, 97, 109, 101, 32, 97, 98, 99, 32, 100, 101, 102, 59, 32, 101, 114, 114, 111, 114, 32, 102, 111, 111, 32, 125, 34]
+
+---- cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes stdout ----
+
+thread 'cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes' (743955) panicked at src/cmd_var.rs:574:21:
+assertion `left == right` failed: V8_4: variable_array_unset_active_member_read_guard_survives
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 115, 101, 101, 110, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101, 125]
+ right: [48, 32, 123, 49, 32, 88, 32, 123, 69, 76, 69, 77, 69, 78, 84, 82, 69, 65, 68, 32, 82, 79, 79, 84, 85, 78, 83, 69, 84, 125, 125]
+
+---- interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows stdout ----
+
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows' (743987) panicked at src/interp/native_body_artifact/native_introspection.rs:300:17:
+assertion `left == right` failed: tcl8.6/23
+  left: "none"
+ right: "parsedVarName"
+
+---- interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows stdout ----
+
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows' (743988) panicked at src/interp/native_body_artifact/native_introspection.rs:281:17:
+assertion `left == right` failed: tcl9.0/12
+  left: "string"
+ right: "none"
+
+---- interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs stdout ----
+
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (743989) panicked at src/interp/native_body_artifact/native_list_operations.rs:276:9:
+tcl8.4/catch {lassign $name first [error STOP]} caught; list $first $caught: Some(CommandProtocolUnavailable("native errorInfo append extent"))
+
+---- interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers stdout ----
+
+thread 'interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers' (744001) panicked at src/interp/native_body_artifact/native_upvar_info_exists_tests.rs:193:17:
+assertion `left == right` failed: tcl8.4/16 reached originals
+  left: ["localVarName|1|3|78"]
+ right: ["none|1|3|78"]
+
+---- interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards stdout ----
+
+thread 'interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards' (744008) panicked at src/interp.rs:15544:22:
+called `Result::unwrap()` on an `Err` value: IdentityUnavailable
+
+---- interp::tests::missing_arity_protocol_refuses_before_guest_state_changes stdout ----
+
+thread 'interp::tests::missing_arity_protocol_refuses_before_guest_state_changes' (744009) panicked at src/interp.rs:14763:13:
+assertion `left == right` failed
+  left: None
+ right: Some(CommandProtocolUnavailable("variable naming"))
+
+---- obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings stdout ----
+
+thread 'obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings' (744016) panicked at src/obj.rs:2391:13:
+assertion `left == right` failed
+  left: "0 12"
+ right: "1 12"
+
+
+failures:
+    cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis
+    cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion
+    cmd_alias::tests::jim_interpreter_handle_isolation
+    cmd_coro::tests::coroinject_runs_on_next_resume
+    cmd_info::tests::info_consts_includes_only_tcloo_instance_links
+    cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation
+    cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages
+    cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes
+    interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows
+    interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers
+    interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards
+    interp::tests::missing_arity_protocol_refuses_before_guest_state_changes
+    obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings
+
+test result: FAILED. 37 passed; 15 failed; 0 ignored; 0 measured; 1197 filtered out; finished in 31.77s
+

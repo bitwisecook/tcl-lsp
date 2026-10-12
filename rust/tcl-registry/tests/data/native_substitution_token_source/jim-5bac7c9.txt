@@ -1,0 +1,27 @@
+jim.c: JimExpandDictSugar
+Full-file SHA-256: fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867
+
+static Jim_Obj *JimExpandDictSugar(Jim_Interp *interp, Jim_Obj *objPtr)
+{
+    Jim_Obj *resObjPtr = NULL;
+    Jim_Obj *substKeyObjPtr = NULL;
+
+    if (interp->safeexpr) {
+        return objPtr;
+    }
+
+    SetDictSubstFromAny(interp, objPtr);
+
+    if (Jim_SubstObj(interp, objPtr->internalRep.dictSubstValue.indexObjPtr,
+            &substKeyObjPtr, JIM_NONE)
+        != JIM_OK) {
+        return NULL;
+    }
+    Jim_IncrRefCount(substKeyObjPtr);
+    resObjPtr =
+        JimDictExpandArrayVariable(interp, objPtr->internalRep.dictSubstValue.varNameObjPtr,
+        substKeyObjPtr, 0);
+    Jim_DecrRefCount(interp, substKeyObjPtr);
+
+    return resObjPtr;
+}

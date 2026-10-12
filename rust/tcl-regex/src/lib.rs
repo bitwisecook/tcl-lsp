@@ -16,15 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A pure-Rust implementation of Tcl 9's Advanced Regular Expression (ARE)
-//! dialect. The goal is behavioural fidelity with `tclsh` 9.0 — the same match
+//! Pure-Rust engines for Tcl 9's Advanced Regular Expression (ARE) dialect and
+//! Jim084's bundled integer-program regexp dialect. The ARE engine preserves
+//! behavioural fidelity with `tclsh` 9.0 — the same match
 //! positions, submatch participation, [`Regex::nsub`], [`Regex::info`] bits,
 //! and [`ErrorCode`] compile errors.
 //!
 //! # Relationship to Henry Spencer's engine
 //!
 //! The ARE dialect and its reference implementation are the work of Henry
-//! Spencer (Copyright © 1998, 1999 Henry Spencer). **This crate is an
+//! Spencer (Copyright © 1998, 1999 Henry Spencer). **The ARE engine is an
 //! independent, from-scratch implementation: it shares no source code with
 //! Spencer's C, and it uses a different matching algorithm and different data
 //! structures.** Spencer's engine compiles the pattern to a *colored NFA* and
@@ -34,8 +35,9 @@
 //! ([`parser`]) and matches it *directly* by reachable-set (Thompson-style)
 //! simulation plus a recursive submatch dissector, with a separate
 //! continuation-passing backtracker for backreferences ([`exec`]). There is no
-//! color map, no NFA of states and arcs, and no DFA construction anywhere in
-//! this crate.
+//! color map, no NFA of states and arcs, and no DFA construction in the ARE
+//! implementation. [`jim`] retains Jim's distinct integer program, original
+//! `CString` extents, byte ranges and pinned UTF8 decoding/case rules.
 //!
 //! What this implementation takes from Spencer is the *specification*, not the
 //! code: the ARE syntax and semantics it must reproduce, a few well-known
@@ -64,6 +66,7 @@ mod ast;
 pub mod cmd_core;
 pub mod defs;
 mod exec;
+pub mod jim;
 mod parser;
 
 pub use defs::Err as ErrorCode;

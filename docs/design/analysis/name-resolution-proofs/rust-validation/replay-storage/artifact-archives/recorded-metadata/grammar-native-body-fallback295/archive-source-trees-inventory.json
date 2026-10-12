@@ -1,0 +1,158 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/grammar-native-body-fallback295.source-trees.tar.gz",
+  "archive_sha256": "ef6615503d465c60807b0f3af9b5ea7dbc06ddc352ef386be46587079997ea12",
+  "archive_bytes": 436970,
+  "uncompressed_bytes": 1881136,
+  "source_manifest_sha256": "20b6f7532ac38db42993e5d835fc1ef3c9f4e6a4c519e2519d86984532b3547b",
+  "source_patch_sha256": "2d57f0281ba73d24486b73d9d82dd6139128cd5dd44e2ab54f1b8271e69eb499",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 12,
+  "members": {
+    "grammar-native-body-fallback295/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9583797,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9583797,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9583797,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9691362,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/base/runtime/rust/src/codegen_abi.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9717004,
+      "size": 198466,
+      "sha256": "6f174f4c711f35346a76eb28d93e57f964e8536e30827f5d8a9b2d90bfaf1234"
+    },
+    "grammar-native-body-fallback295/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9652538,
+      "size": 741307,
+      "sha256": "cfb54011367c66546ead290a8280279c382872c23cfa2f131277a4e311fc499d"
+    },
+    "grammar-native-body-fallback295/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9652538,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/files/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9652538,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/files/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9652538,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/files/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9717004,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-native-body-fallback295/files/runtime/rust/src/codegen_abi.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603418.1301756,
+      "size": 199491,
+      "sha256": "933d4bb63f70e7984a7049bd07e1e46eba82fe4885c601408303828ff1586d9d"
+    },
+    "grammar-native-body-fallback295/files/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791603391.9801958,
+      "size": 741872,
+      "sha256": "e9e62d63aa2fa74bfdcd227c4dea7c881a734923c2b8164478093ef74c1ecbc2"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "e9e62d63aa2fa74bfdcd227c4dea7c881a734923c2b8164478093ef74c1ecbc2",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "base_sha256",
+      "sha256": "cfb54011367c66546ead290a8280279c382872c23cfa2f131277a4e311fc499d",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/codegen_abi.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "933d4bb63f70e7984a7049bd07e1e46eba82fe4885c601408303828ff1586d9d",
+      "trees": [
+        "files"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/codegen_abi.rs",
+      "hash_key": "base_sha256",
+      "sha256": "6f174f4c711f35346a76eb28d93e57f964e8536e30827f5d8a9b2d90bfaf1234",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

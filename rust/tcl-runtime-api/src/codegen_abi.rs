@@ -192,6 +192,16 @@ pub enum CodegenAbiImportId {
     /// Read a Tcl value in boolean context — [`Self::ValueGetWideInt`]'s
     /// contract over an `i32` (`0`/`1`) out pointer.
     ValueGetBool,
+    /// Convert an already reached operand for its exact Boolean instruction.
+    /// Parameters are the borrowed value handle, a native truth purpose and
+    /// an i32 out pointer. The result is the typed getter status. This direct
+    /// operand conversion does not normalise an expression result.
+    ValueGetBoolForPurpose,
+    /// Produce and convert an actual held expression result. Parameters are
+    /// the borrowed result handle, its inline/public expression production and
+    /// an i32 out pointer. The runtime retains result-normalisation ownership
+    /// before the final conversion; no operand purpose can grant this stage.
+    ValueGetExpressionBool,
     /// Bind an indexed compiled slot to a named frame cell and store a value.
     ///
     /// The ABI v2 spelling of [`Self::LocalBind`]; both address the same cell.
@@ -254,8 +264,16 @@ pub enum CodegenAbiImportId {
     ValueTryDouble,
     /// Evaluate a borrowed boxed expression object with the runtime's
     /// expression evaluator, writing the completion triple to the
-    /// caller-owned completion storage. The i32 result is ABI status.
+    /// caller-owned completion storage. The i32 result is ABI status. First
+    /// Host refusal leaves completion storage untouched.
     ExprEval,
+    /// Evaluate a borrowed expression, perform its actual public result
+    /// producer and truth once, and write its owned completion plus a
+    /// success-only Bool output. Parameters are the expression handle,
+    /// completion pointer and i32 truth pointer. The i32 result is ABI status;
+    /// first Host refusal leaves both outputs untouched. A Guest completion
+    /// writes its exact code/result/options and leaves truth untouched.
+    ExprBoolEval,
     /// Apply the `expr` operator spelled by a name pointer and length to
     /// `argc` borrowed operands (an argv pointer) through the runtime's
     /// `::tcl::mathop` implementation, writing the completion triple.
@@ -299,9 +317,41 @@ pub enum CodegenAbiImportId {
     /// rather than the source body, which is otherwise unobservable because
     /// both produce the same Tcl result.
     NativeProcDispatches,
+    /// Whether a host-only refusal is retained after a reached operation.
+    /// This does not consume the refusal or publish a Tcl completion.
+    HostRefusalPending,
 }
 
 impl CodegenAbiImportId {
+    /// Check the retained host channel before using this call's result or
+    /// entering Tcl completion handling. New operation imports require the
+    /// check unless their descriptor explicitly proves a transport-only role.
+    #[must_use]
+    pub const fn requires_host_refusal_check(self) -> bool {
+        !matches!(
+            self,
+            Self::CallFrameAlloc
+                | Self::CallFrameFree
+                | Self::NewOwnedString
+                | Self::CompletionRelease
+                | Self::ObjectRetain
+                | Self::ObjectRelease
+                | Self::ObjectNewString
+                | Self::ValueNewString
+                | Self::ValueNewWideInt
+                | Self::ValueNewDouble
+                | Self::ValueNewBool
+                | Self::FramePush
+                | Self::FramePop
+                | Self::GuardRelease
+                | Self::ActivationEnter
+                | Self::ActivationLeave
+                | Self::LogCommand
+                | Self::ReturnState
+                | Self::NativeProcDispatches
+                | Self::HostRefusalPending
+        )
+    }
     /// Every import, in declaration order: the table [`CODEGEN_ABI_VERSION`] is
     /// derived from.
     pub const ALL: &'static [Self] = &[
@@ -342,6 +392,8 @@ impl CodegenAbiImportId {
         Self::ValueGetWideInt,
         Self::ValueGetDouble,
         Self::ValueGetBool,
+        Self::ValueGetBoolForPurpose,
+        Self::ValueGetExpressionBool,
         Self::SlotBind,
         Self::SlotSet,
         Self::SlotGet,
@@ -358,12 +410,14 @@ impl CodegenAbiImportId {
         Self::ValueTryWideInt,
         Self::ValueTryDouble,
         Self::ExprEval,
+        Self::ExprBoolEval,
         Self::MathOp,
         Self::MathFunc,
         Self::ProcDefineNative,
         Self::LogCommand,
         Self::ReturnState,
         Self::NativeProcDispatches,
+        Self::HostRefusalPending,
     ];
 
     /// Return this import's shared ABI descriptor.
@@ -425,6 +479,12 @@ impl CodegenAbiImportId {
             Self::ValueGetWideInt => tcl_import("tcl_value_get_wide_int", I32_I32, I32),
             Self::ValueGetDouble => tcl_import("tcl_value_get_double", I32_I32, I32),
             Self::ValueGetBool => tcl_import("tcl_value_get_bool", I32_I32, I32),
+            Self::ValueGetBoolForPurpose => {
+                tcl_import("tcl_value_get_bool_for_purpose", I32_I32_I32, I32)
+            }
+            Self::ValueGetExpressionBool => {
+                tcl_import("tcl_value_get_expression_bool", I32_I32_I32, I32)
+            }
             Self::SlotBind => tcl_import("tcl_codegen_slot_bind", I32_I32_I32_I32, I32),
             Self::SlotSet => tcl_import("tcl_codegen_slot_set", I32_I32, I32),
             Self::SlotGet => tcl_import("tcl_codegen_slot_get", I32, I32),
@@ -443,6 +503,7 @@ impl CodegenAbiImportId {
             Self::ValueTryWideInt => tcl_import("tcl_codegen_value_try_wide_int", I32_I32, I32),
             Self::ValueTryDouble => tcl_import("tcl_codegen_value_try_double", I32_I32, I32),
             Self::ExprEval => tcl_import("tcl_codegen_expr_eval", I32_I32, I32),
+            Self::ExprBoolEval => tcl_import("tcl_codegen_expr_bool", I32_I32_I32, I32),
             Self::MathOp => tcl_import("tcl_codegen_mathop", I32_I32_I32_I32_I32, I32),
             Self::MathFunc => tcl_import("tcl_codegen_mathfunc", I32_I32_I32_I32_I32, I32),
             Self::ProcDefineNative => tcl_import(
@@ -455,6 +516,7 @@ impl CodegenAbiImportId {
             Self::NativeProcDispatches => {
                 tcl_import("tcl_codegen_native_proc_dispatches", NONE, I32)
             }
+            Self::HostRefusalPending => tcl_import("tcl_codegen_host_refusal_pending", NONE, I32),
         }
     }
 }
@@ -483,6 +545,11 @@ pub const NATIVE_PROC_STATUS_RAN: i32 = 0;
 /// writes a cell, dispatches a command, or sets a result — never part-way
 /// through a body.
 pub const NATIVE_PROC_STATUS_DECLINED: i32 = 1;
+
+/// A reached operation retained a host-only refusal. Completion output is
+/// untouched; the caller unwinds without guest capture or source fallback.
+/// Effects that precede the refusal must never execute again.
+pub const NATIVE_PROC_STATUS_HOST_REFUSED: i32 = 2;
 
 /// wasm32 linear-memory pointer width.
 pub const WASM32_POINTER_BYTES: i32 = 4;
@@ -562,6 +629,7 @@ const LAYOUT: Layout<'static> = Layout {
     words: &[
         NATIVE_PROC_STATUS_RAN,
         NATIVE_PROC_STATUS_DECLINED,
+        NATIVE_PROC_STATUS_HOST_REFUSED,
         WASM32_POINTER_BYTES,
         WASM32_COMPLETION_CODE_OFFSET,
         WASM32_COMPLETION_RESULT_OFFSET,
@@ -638,8 +706,9 @@ const fn fingerprint(imports: &[CodegenAbiImport], layout: &Layout) -> u32 {
 mod tests {
     use super::{
         CODEGEN_ABI_VERSION, CodegenAbiImport, CodegenAbiImportId, CodegenAbiValueType,
-        DESCRIPTORS, I32, I64, LAYOUT, Layout, NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_RAN,
-        WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+        DESCRIPTORS, I32, I64, LAYOUT, Layout, NATIVE_PROC_STATUS_DECLINED,
+        NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_ALIGN,
+        WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
         WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_FUNCTION_TABLE_IMPORT,
         WASM32_GUARD_DOMAINS_SIZE, WASM32_GUARD_IDENTITY_ALIGN,
         WASM32_GUARD_IDENTITY_NAMESPACE_OFFSET, WASM32_GUARD_IDENTITY_SIZE,
@@ -808,6 +877,31 @@ mod tests {
     }
 
     #[test]
+    fn original_boolean_imports_separate_operand_purpose_from_expression_production() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        use CodegenAbiValueType::I32;
+        for (id, name) in [
+            (
+                CodegenAbiImportId::ValueGetBoolForPurpose,
+                "tcl_value_get_bool_for_purpose",
+            ),
+            (
+                CodegenAbiImportId::ValueGetExpressionBool,
+                "tcl_value_get_expression_bool",
+            ),
+        ] {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl");
+            assert_eq!(descriptor.name, name);
+            assert_eq!(descriptor.parameters, &[I32, I32, I32]);
+            assert_eq!(descriptor.results, &[I32]);
+            assert!(CodegenAbiImportId::ALL.contains(&id));
+            assert!(id.requires_host_refusal_check());
+        }
+    }
+
+    #[test]
     fn indexed_slot_imports_address_a_cell_and_keep_the_legacy_local_spellings() {
         use CodegenAbiValueType::{I32, I64};
 
@@ -893,14 +987,14 @@ mod tests {
         let enter = CodegenAbiImportId::ActivationEnter.descriptor();
         assert_eq!(enter.module, "tcl");
         assert_eq!(enter.name, "tcl_codegen_activation_enter");
-        assert!(enter.parameters.is_empty());
+        assert_eq!(enter.parameters, []);
         assert_eq!(enter.results, I32);
 
         let leave = CodegenAbiImportId::ActivationLeave.descriptor();
         assert_eq!(leave.module, "tcl");
         assert_eq!(leave.name, "tcl_codegen_activation_leave");
         assert_eq!(leave.parameters, I32);
-        assert!(leave.results.is_empty());
+        assert_eq!(leave.results, []);
     }
 
     #[test]
@@ -925,6 +1019,7 @@ mod tests {
                 2,
             ),
             (CodegenAbiImportId::ExprEval, "tcl_codegen_expr_eval", 2),
+            (CodegenAbiImportId::ExprBoolEval, "tcl_codegen_expr_bool", 3),
             (CodegenAbiImportId::MathOp, "tcl_codegen_mathop", 5),
             (CodegenAbiImportId::MathFunc, "tcl_codegen_mathfunc", 5),
         ];
@@ -964,7 +1059,7 @@ mod tests {
         assert_eq!(log.module, "tcl");
         assert_eq!(log.name, "tcl_codegen_log_command");
         assert_eq!(log.parameters, &[I32; 3][..]);
-        assert!(log.results.is_empty());
+        assert_eq!(log.results, []);
 
         // The pending-return-state writer takes the same (level, code) pair
         // the `return` command records, and answers nothing: it is a state
@@ -973,13 +1068,37 @@ mod tests {
         assert_eq!(state.module, "tcl");
         assert_eq!(state.name, "tcl_codegen_return_state");
         assert_eq!(state.parameters, &[I32; 2][..]);
-        assert!(state.results.is_empty());
+        assert_eq!(state.results, []);
 
         let dispatches = CodegenAbiImportId::NativeProcDispatches.descriptor();
         assert_eq!(dispatches.module, "tcl");
         assert_eq!(dispatches.name, "tcl_codegen_native_proc_dispatches");
-        assert!(dispatches.parameters.is_empty());
+        assert_eq!(dispatches.parameters, []);
         assert_eq!(dispatches.results, &[I32][..]);
+    }
+
+    #[test]
+    fn host_refusal_query_is_distinct_from_guest_completion_and_cleanup() {
+        let query = CodegenAbiImportId::HostRefusalPending.descriptor();
+        assert_eq!(query.module, "tcl");
+        assert_eq!(query.name, "tcl_codegen_host_refusal_pending");
+        assert_eq!(query.parameters, [] as [CodegenAbiValueType; 0]);
+        assert_eq!(query.results, I32);
+        for call in [
+            CodegenAbiImportId::InvokeArgv,
+            CodegenAbiImportId::ValueGetWideInt,
+            CodegenAbiImportId::VarGet,
+            CodegenAbiImportId::GuardCheck,
+        ] {
+            assert!(call.requires_host_refusal_check());
+        }
+        for call in [
+            CodegenAbiImportId::HostRefusalPending,
+            CodegenAbiImportId::ObjectRelease,
+            CodegenAbiImportId::CallFrameFree,
+        ] {
+            assert!(!call.requires_host_refusal_check());
+        }
     }
 
     #[test]
@@ -999,6 +1118,9 @@ mod tests {
         // decline, matching every other ABI status in this file.
         assert_eq!(NATIVE_PROC_STATUS_RAN, 0);
         assert_eq!(NATIVE_PROC_STATUS_DECLINED, 1);
+        assert_eq!(NATIVE_PROC_STATUS_HOST_REFUSED, 2);
+        assert_ne!(NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_DECLINED);
+        assert_ne!(NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN);
         assert_ne!(NATIVE_PROC_STATUS_RAN, NATIVE_PROC_STATUS_DECLINED);
         // wasm-ld's name for the table `--export-table` publishes.
         assert_eq!(WASM32_FUNCTION_TABLE_IMPORT, "__indirect_function_table");

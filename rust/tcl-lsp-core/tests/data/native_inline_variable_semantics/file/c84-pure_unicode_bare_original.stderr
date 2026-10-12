@@ -1,0 +1,4 @@
+can't read "caf": no such variable
+    while executing
+"puts $café"
+    (file "/workspace/.proofs/captured-inline-variable-semantics-v2/c84-pure_unicode_bare_original.tcl" line 2)

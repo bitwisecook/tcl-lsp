@@ -22,7 +22,8 @@
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -31,6 +32,13 @@ use super::{
     token_end_offset,
 };
 use crate::code_actions::ActionKind;
+
+mod source_subject;
+pub use source_subject::{
+    OriginalExactCaseSource, OriginalExactSwitchSource, OriginalScalarVariableSubject,
+    ScalarVariableSourceSyntax, original_exact_case_source_at_analysis,
+    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
+};
 
 /// A generated data-group artefact (separate from the iRule edits).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -167,7 +175,7 @@ const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
 /// Parse a simple equality test `(var, value, negated)`.  Used by the
 /// datagroup transform; mirrors the shape of
 /// `if_to_switch::parse_eq_test` minus the operator capture.
-fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
+fn parse_eq(cond: &str, config: LexerConfig) -> Option<(ScalarVariableSourceSyntax, String, bool)> {
     let mut cond = cond.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
         cond = cond[1..cond.len() - 1].trim();
@@ -185,7 +193,7 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     for op in EQ_OPS {
         let needle = format!(" {op} ");
         if let Some(pos) = cond.find(&needle)
-            && let Some(var) = parse_var_word(cond[..pos].trim())
+            && let Some(var) = scalar_variable_source_syntax(cond[..pos].trim(), config)
         {
             // registry-axis-ok: irreducible — expr operator text, not a
             // command name; until never
@@ -201,7 +209,8 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     for op in EQ_OPS {
         let needle = format!(" {op} ");
         if let Some(pos) = cond.rfind(&needle)
-            && let Some(var) = parse_var_word(cond[pos + needle.len()..].trim())
+            && let Some(var) =
+                scalar_variable_source_syntax(cond[pos + needle.len()..].trim(), config)
         {
             // registry-axis-ok: irreducible — expr operator text, not a
             // command name; until never
@@ -212,24 +221,11 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     None
 }
 
-/// Parse `$var` / `${var}` / `"$var"` to its bare name.
-fn parse_var_word(word: &str) -> Option<String> {
-    let mut w = word.trim();
-    if w.len() >= 2 && w.starts_with('"') && w.ends_with('"') {
-        w = &w[1..w.len() - 1];
-    }
-    let w = w.strip_prefix('$')?;
-    let w = w.strip_prefix('{').unwrap_or(w);
-    let w = w.strip_suffix('}').unwrap_or(w);
-    if !w.is_empty() && w.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(w.to_owned())
-    } else {
-        None
-    }
-}
-
 /// Detect `$var eq "a" || $var eq "b" || …` chains.
-fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
+fn try_or_chain(
+    condition: &str,
+    config: LexerConfig,
+) -> Option<(ScalarVariableSourceSyntax, Vec<String>)> {
     let mut cond = condition.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
         cond = cond[1..cond.len() - 1].trim();
@@ -238,16 +234,16 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     if parts.len() < 2 {
         return None;
     }
-    let mut target_var: Option<String> = None;
+    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
     let mut values = Vec::new();
     for part in parts {
-        let (var, value, negated) = parse_eq(part.trim())?;
+        let (var, value, negated) = parse_eq(part.trim(), config)?;
         if negated {
             return None;
         }
         match &target_var {
             None => target_var = Some(var),
-            Some(v) if *v != var => return None,
+            Some(v) if v.name() != var.name() => return None,
             _ => {}
         }
         values.push(value);
@@ -257,25 +253,6 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
         return None;
     }
     Some((target_var, values))
-}
-
-/// Extract a variable name from `$var` / `${var}` subject.
-fn extract_var_name(subject: &str) -> Option<String> {
-    let s = subject.trim();
-    if let Some(inner) = s.strip_prefix("${").and_then(|x| x.strip_suffix('}')) {
-        return Some(inner.to_owned());
-    }
-    if let Some(name) = s.strip_prefix('$')
-        && !name.is_empty()
-        && name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_alphabetic() || c == '_')
-        && name.chars().all(|c| c.is_alphanumeric() || c == '_')
-    {
-        return Some(name.to_owned());
-    }
-    None
 }
 
 // set/return body parsing
@@ -288,9 +265,10 @@ enum SetOrReturn {
 
 /// Parse a single-command arm body via the tokeniser.
 ///
-/// `config` is the document's [`LexerConfig`].
+/// `config` is the document's [`LexerConfig`]; this extracted arm selects
+/// its nested projection without changing the retained parent input.
 fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset_and_config(text, 0, config);
+    let commands = segment_commands_with_offset_and_config(text, 0, config.nested());
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -299,16 +277,14 @@ fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
         let tok = cmd.argv[index];
         text[tok.span.start() as usize..token_end_offset(text, tok) as usize].to_owned()
     };
-    // registry-axis-ok: irreducible — `set` and `return` are recognised as
-    // Tcl's own primitive syntax for this one-command-body shape, not as a
-    // pack-authorable command; no registry query narrower than "is the word
-    // literally `set`/`return`" answers this, and neither is ever a pack's
-    // to redeclare; until never
+    // registry-axis-ok: representation — this renderer accepts the literal
+    // proposal template syntax. The actual-document route independently
+    // validates each original arm's selected Set/Return operation before
+    // calling it; these spellings establish no command identity or effects.
     if cmd.texts[0] == "set" && cmd.texts.len() == 3 {
         return Some(SetOrReturn::Set(cmd.texts[1].clone(), raw(2)));
     }
-    // registry-axis-ok: irreducible — same primitive-syntax reason; until
-    // never
+    // registry-axis-ok: representation — same proposal-template boundary.
     if cmd.texts[0] == "return" && cmd.texts.len() == 2 {
         return Some(SetOrReturn::Return(raw(1)));
     }
@@ -379,6 +355,22 @@ fn extract_single_value(
     }
 }
 
+// The output words are explicitly authored proposals, not original source
+// inputs. Availability is selected by this Registry; it does not prove their
+// current command-table implementation or permit Native insertion/movement.
+fn emitted_forms_available(registry: &CommandRegistry) -> bool {
+    [
+        ["match", "ITEM", "equals", "GROUP"].as_slice(),
+        ["lookup", "ITEM", "GROUP"].as_slice(),
+    ]
+    .iter()
+    .all(|arguments| {
+        registry
+            .resolve_invocation("class", arguments, registry.own_surface_query())
+            .is_some_and(|selected| selected.subcommand.is_resolved())
+    })
+}
+
 // if-chain extraction
 
 /// Extract an if/elseif chain comparing one variable to literals.
@@ -391,8 +383,31 @@ pub fn extract_to_datagroup_from_if(
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> Option<Refactoring> {
+    if !emitted_forms_available(registry) {
+        return None;
+    }
     let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
-    let chain = parse_if_chain(&cmd.texts, registry)?;
+    let chain = parse_if_chain(&cmd.texts, registry, config)?;
+    render_if_extraction(
+        source,
+        &cmd,
+        chain,
+        dg_name,
+        line_index,
+        config,
+        || Some(()),
+    )
+}
+
+fn render_if_extraction(
+    source: &str,
+    cmd: &SegmentedCommand,
+    chain: IfChain,
+    dg_name: &str,
+    line_index: &LineIndex,
+    config: LexerConfig,
+    mapping_selected: impl FnOnce() -> Option<()>,
+) -> Option<Refactoring> {
     if chain.values.len() < 2 {
         return None;
     }
@@ -403,9 +418,9 @@ pub fn extract_to_datagroup_from_if(
         .map(|v| strip_quotes(v).to_owned())
         .collect();
     let value_type = infer_value_type(&stripped_values);
-    let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var));
+    let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var.name()));
 
-    let indent = command_indent(source, &cmd, line_index).to_owned();
+    let indent = command_indent(source, cmd, line_index).to_owned();
     let bodies_identical = {
         let set: std::collections::BTreeSet<&str> = chain.bodies.iter().map(|b| b.trim()).collect();
         set.len() <= 1
@@ -416,12 +431,13 @@ pub fn extract_to_datagroup_from_if(
             &stripped_values,
             value_type,
             &dg_name,
-            &chain.target_var,
+            chain.target_var.reference(),
             &chain.bodies[0],
             chain.else_body.as_deref(),
             &indent,
         )
     } else {
+        mapping_selected()?;
         let pairs: Vec<(String, String)> = chain
             .values
             .iter()
@@ -436,19 +452,23 @@ pub fn extract_to_datagroup_from_if(
             records,
         };
         let replacement = if use_return {
-            format!("return [class lookup ${} {dg_name}]", chain.target_var)
+            format!(
+                "return [class lookup {} {dg_name}]",
+                chain.target_var.reference()
+            )
         } else {
             format!(
-                "set {set_var} [class lookup ${} {dg_name}]",
-                chain.target_var
+                "set {set_var} [class lookup {} {dg_name}]",
+                chain.target_var.reference()
             )
         };
         (dg, replacement)
     };
 
+    complete_single_command_source(&replacement, config)?;
     Some(build_result(
         source,
-        &cmd,
+        cmd,
         &dg_name,
         value_type,
         replacement,
@@ -456,9 +476,20 @@ pub fn extract_to_datagroup_from_if(
     ))
 }
 
+/// Proposed syntax is checked independently of scalar grammar and permissions.
+fn complete_single_command_source(source: &str, config: LexerConfig) -> Option<()> {
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(())
+}
+
 /// A parsed if/elseif equality chain.
 struct IfChain {
-    target_var: String,
+    target_var: ScalarVariableSourceSyntax,
     values: Vec<String>,
     bodies: Vec<String>,
     else_body: Option<String>,
@@ -468,10 +499,23 @@ struct IfChain {
 /// `elseif` ladder) through `if`'s own clause grammar — the condition and
 /// body of each clause, and the default (`else`, or its optional-keyword
 /// bare final body) — rather than comparing keyword spellings by hand.
-fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChain> {
+fn parse_if_chain(
+    texts: &[String],
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<IfChain> {
     let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
     let resolved = registry.resolve_call("if", &args, None)?;
     let plan = resolved.clause_plan(&args, None)?;
+    if_chain_from_plan(texts, &plan, config)
+}
+
+fn if_chain_from_plan(
+    texts: &[String],
+    plan: &tcl_registry::clause_grammar::ClausePlan,
+    config: LexerConfig,
+) -> Option<IfChain> {
+    let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
     if plan.defect.is_some() {
         return None;
     }
@@ -485,7 +529,7 @@ fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChai
         && !head.is_default
         && let Some(cond_idx) = head.operand(ArgRole::Expr)
         && let Some(body_idx) = head.operand(ArgRole::Body)
-        && let Some((target_var, values)) = try_or_chain(args[cond_idx])
+        && let Some((target_var, values)) = try_or_chain(args[cond_idx], config)
     {
         return Some(IfChain {
             target_var,
@@ -495,7 +539,7 @@ fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChai
         });
     }
 
-    let mut target_var: Option<String> = None;
+    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
     let mut values: Vec<String> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
     let mut else_body: Option<String> = None;
@@ -506,13 +550,13 @@ fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChai
             continue;
         }
         let condition = args[clause.operand(ArgRole::Expr)?];
-        let (var, value, negated) = parse_eq(condition)?;
+        let (var, value, negated) = parse_eq(condition, config)?;
         if negated {
             return None;
         }
         match &target_var {
             None => target_var = Some(var),
-            Some(v) if *v != var => return None,
+            Some(v) if v.name() != var.name() => return None,
             _ => {}
         }
         values.push(value);
@@ -531,7 +575,7 @@ fn membership_extraction(
     stripped_values: &[String],
     value_type: &str,
     dg_name: &str,
-    target_var: &str,
+    subject_reference: &str,
     body: &str,
     else_body: Option<&str>,
     indent: &str,
@@ -549,19 +593,21 @@ fn membership_extraction(
     let replacement = if let Some(eb) = else_body {
         let else_text = reindent_body(eb, &format!("{indent}    "));
         format!(
-            "if {{ [class match ${target_var} equals {dg_name}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}"
+            "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}"
         )
     } else {
-        format!("if {{ [class match ${target_var} equals {dg_name}] }} {{\n{body_text}\n{indent}}}")
+        format!(
+            "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{body_text}\n{indent}}}"
+        )
     };
     (dg, replacement)
 }
 
-/// Pair stripped keys with stripped values into data-group records.
+/// Pair completed keys with stripped body values into data-group records.
 fn zip_records(keys: &[String], values: &[String]) -> Vec<(String, String)> {
     keys.iter()
         .zip(values.iter())
-        .map(|(k, v)| (strip_quotes(k).to_owned(), strip_quotes(v).to_owned()))
+        .map(|(k, v)| (k.clone(), strip_quotes(v).to_owned()))
         .collect()
 }
 
@@ -622,24 +668,57 @@ pub fn extract_to_datagroup_from_switch(
     line_index: &LineIndex,
     config: LexerConfig,
 ) -> Option<Refactoring> {
+    if !emitted_forms_available(registry) {
+        return None;
+    }
     let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
-    let (subject, pairs) = super::parse_exact_switch(&cmd.texts)?;
-    let subject_var = extract_var_name(&subject)?;
+    let original = source_subject::standalone_exact_switch_source(source, &cmd, registry, config)?;
+    let case_list = registry.get("switch").and_then(|spec| spec.case_list)?;
+    render_switch_extraction(
+        source,
+        &cmd,
+        dg_name,
+        line_index,
+        config,
+        SwitchExtraction {
+            original,
+            default_word: case_list
+                .keyword_patterns
+                .first()
+                .map(|word| (*word).to_owned()),
+            fallthrough_word: case_list.fallthrough_body.map(str::to_owned),
+        },
+        || Some(()),
+    )
+}
+
+struct SwitchExtraction {
+    original: OriginalExactSwitchSource,
+    default_word: Option<String>,
+    fallthrough_word: Option<String>,
+}
+
+fn render_switch_extraction(
+    source: &str,
+    cmd: &SegmentedCommand,
+    dg_name: &str,
+    line_index: &LineIndex,
+    config: LexerConfig,
+    selected: SwitchExtraction,
+    mapping_selected: impl FnOnce() -> Option<()>,
+) -> Option<Refactoring> {
+    let subject = selected.original.subject();
+    let pairs = selected.original.pairs();
     if pairs.len() < 3 {
         return None;
     }
-    // `switch`'s own case-list descriptor: the keyword pattern (`default`)
-    // and the fallthrough marker (`-`), read rather than hardcoded so a
-    // pack's differently-shaped case list (Expect's `timeout` / `eof`) is
-    // never silently read as `switch`'s.
-    let case_list = registry.get("switch").and_then(|spec| spec.case_list)?;
-    let default_word = case_list.keyword_patterns.first().copied();
-    let fallthrough_word = case_list.fallthrough_body;
+    let default_word = selected.default_word.as_deref();
+    let fallthrough_word = selected.fallthrough_word.as_deref();
 
     // Separate default from regular arms.
     let mut default_body: Option<String> = None;
     let mut regular_pairs: Vec<(String, String)> = Vec::new();
-    for (pattern, body) in &pairs {
+    for (pattern, body) in pairs {
         if Some(pattern.as_str()) == default_word {
             default_body = Some(body.clone());
         } else if fallthrough_word.is_some_and(|marker| body.trim() == marker) {
@@ -652,13 +731,10 @@ pub fn extract_to_datagroup_from_switch(
         return None;
     }
 
-    let keys: Vec<String> = regular_pairs
-        .iter()
-        .map(|(p, _)| strip_quotes(p).to_owned())
-        .collect();
+    let keys: Vec<String> = regular_pairs.iter().map(|(p, _)| p.clone()).collect();
     let value_type = infer_value_type(&keys);
-    let dg_name = resolve_dg_name(dg_name, &format!("{subject_var}_map"));
-    let indent = command_indent(source, &cmd, line_index).to_owned();
+    let dg_name = resolve_dg_name(dg_name, &format!("{}_map", subject.name()));
+    let indent = command_indent(source, cmd, line_index).to_owned();
 
     let all_same = {
         let set: std::collections::BTreeSet<&str> =
@@ -671,16 +747,17 @@ pub fn extract_to_datagroup_from_switch(
             &keys,
             value_type,
             &dg_name,
-            &subject_var,
+            subject.reference(),
             &regular_pairs[0].1,
             default_body.as_deref(),
             &indent,
         )
     } else {
+        mapping_selected()?;
         switch_mapping_extraction(
             &regular_pairs,
             &keys,
-            &subject_var,
+            subject.reference(),
             &dg_name,
             default_body.as_deref(),
             &indent,
@@ -688,9 +765,10 @@ pub fn extract_to_datagroup_from_switch(
         )?
     };
 
+    complete_single_command_source(&replacement, config)?;
     Some(build_result(
         source,
-        &cmd,
+        cmd,
         &dg_name,
         value_type,
         replacement,
@@ -702,7 +780,7 @@ pub fn extract_to_datagroup_from_switch(
 fn switch_mapping_extraction(
     regular_pairs: &[(String, String)],
     keys: &[String],
-    subject_var: &str,
+    subject_reference: &str,
     dg_name: &str,
     default_body: Option<&str>,
     indent: &str,
@@ -726,17 +804,17 @@ fn switch_mapping_extraction(
         let default_val = extract_single_value(default, use_return, &target_var, config)?;
         if use_return {
             format!(
-                "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    return [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
+                "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{indent}    return [class lookup {subject_reference} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
             )
         } else {
             format!(
-                "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    set {target_var} [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    set {target_var} {default_val}\n{indent}}}"
+                "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{indent}    set {target_var} [class lookup {subject_reference} {dg_name}]\n{indent}}} else {{\n{indent}    set {target_var} {default_val}\n{indent}}}"
             )
         }
     } else if use_return {
-        format!("return [class lookup ${subject_var} {dg_name}]")
+        format!("return [class lookup {subject_reference} {dg_name}]")
     } else {
-        format!("set {target_var} [class lookup ${subject_var} {dg_name}]")
+        format!("set {target_var} [class lookup {subject_reference} {dg_name}]")
     };
     Some((dg, replacement))
 }
@@ -757,8 +835,250 @@ pub fn extract_to_datagroup(
     )
 }
 
+/// Compatibility proposal from a complete current Logical document. The
+/// selected source descriptor supplies layout only; Native insertion, movement
+/// and execution permissions remain outside this authoring API.
+#[must_use]
+pub fn extract_to_datagroup_with_analysis(
+    source: &str,
+    cursor: u32,
+    dg_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<Refactoring> {
+    if !analysis.allows_retained_logical_declaration_advice() {
+        return None;
+    }
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let cmd = super::find_original_command_at(source, cursor, analysis)?;
+    let words = walk.source_words(source, &cmd)?;
+    // These proposal parsers retain written clause/arm spelling. An alias may
+    // rename the head; captured operands cannot borrow those written positions.
+    if !written_operands_match(&words)
+        || !selected_output_forms_available(analysis, current.registry(), cmd.span.start())
+    {
+        return None;
+    }
+    let hook =
+        words.with_source_schema(&current.context(), |schema| schema.semantics.lowering_hook)??;
+    let mapping = || original_mapping_arms(&walk, source, &cmd);
+    match hook {
+        tcl_registry::hooks::LoweringHookId::If => {
+            let plan =
+                words.with_source_schema(&current.context(), |schema| schema.clause_plan())??;
+            let chain = if_chain_from_plan(&cmd.texts, &plan, current.config())?;
+            render_if_extraction(
+                source,
+                &cmd,
+                chain,
+                dg_name,
+                line_index,
+                current.config(),
+                mapping,
+            )
+        }
+        tcl_registry::hooks::LoweringHookId::Switch => {
+            let original =
+                original_exact_switch_source_at_analysis(source, analysis, cmd.span.start())?;
+            let (default_word, fallthrough_word) =
+                words.with_source_schema(&current.context(), |schema| {
+                    let cases = schema.semantics.options.case_list?;
+                    Some((
+                        cases
+                            .keyword_patterns
+                            .first()
+                            .map(|word| (*word).to_owned()),
+                        cases.fallthrough_body.map(str::to_owned),
+                    ))
+                })??;
+            render_switch_extraction(
+                source,
+                &cmd,
+                dg_name,
+                line_index,
+                current.config(),
+                SwitchExtraction {
+                    original,
+                    default_word,
+                    fallthrough_word,
+                },
+                mapping,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn written_operands_match(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+) -> bool {
+    words.origins().iter().enumerate().skip(1).all(|(index, origin)| {
+        matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == index)
+    })
+}
+
+/// Newly authored output words have no original invocation to project. This
+/// positive Logical query retains the current descriptor at the proposal
+/// horizon, independently of output execution or insertion permissions.
+fn selected_proposed_spec(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    at: u32,
+    name: &str,
+) -> Option<&'static tcl_registry::CommandSpec> {
+    if !analysis.allows_retained_logical_declaration_advice() {
+        return None;
+    }
+    let context = analysis.resolved_input.as_ref()?.availability_context();
+    let expected = context.resolve_spec(registry, name)?;
+    let retained = match analysis.retained_command_realm()?.binding_at(name, at) {
+        tcl_compiler::realm::RealmBindingFact::Unchanged => true,
+        tcl_compiler::realm::RealmBindingFact::Command(target) => context
+            .resolve_spec(registry, target)
+            .is_some_and(|selected| std::ptr::eq(selected, expected)),
+        tcl_compiler::realm::RealmBindingFact::Rebound => false,
+    };
+    retained.then_some(expected)
+}
+
+fn selected_output_forms_available(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    at: u32,
+) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    if selected_proposed_spec(analysis, registry, at, "class").is_none()
+        || !selected_proposed_spec(analysis, registry, at, "if").is_some_and(|selected| {
+            selected.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::If)
+        })
+    {
+        return false;
+    }
+    [
+        ["match", "ITEM", "equals", "GROUP"].as_slice(),
+        ["lookup", "ITEM", "GROUP"].as_slice(),
+    ]
+    .iter()
+    .all(|arguments| {
+        tcl_registry::model::resolve_invocation_in_context(
+            registry,
+            Some(input.availability_context()),
+            "class",
+            arguments,
+        )
+        .is_some_and(|selected| selected.subcommand.is_resolved())
+    })
+}
+
+/// Mapping syntax may name a primitive only after every genuine original arm
+/// selects that operation at its own horizon. Matching text is insufficient.
+fn original_mapping_arms(
+    walk: &super::FrameWalk<'_>,
+    source: &str,
+    command: &SegmentedCommand,
+) -> Option<()> {
+    let regions = walk.same_frame_regions(source, command);
+    if regions.is_empty() || !walk.complete() {
+        return None;
+    }
+    for (start, end) in regions {
+        let commands = walk.segment_nested(source.get(start..end)?, u32::try_from(start).ok()?);
+        let [command] = commands.as_slice() else {
+            return None;
+        };
+        let words = walk.source_words(source, command)?;
+        if !written_operands_match(&words) {
+            return None;
+        }
+        let hook = words.with_source_schema(&walk.source_context(), |schema| {
+            schema.semantics.lowering_hook
+        })??;
+        match (hook, words.arguments().len()) {
+            (tcl_registry::hooks::LoweringHookId::Set, 2)
+            | (tcl_registry::hooks::LoweringHookId::Return, 1) => {}
+            _ => return None,
+        }
+    }
+    Some(())
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn selected_if_scalar_source_keeps_reference_spelling_in_proposals() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        for subject in [
+            "${a b}",
+            "\"${café}\"",
+            "${literal$name}",
+            "${a(k)tail}",
+            r"${a\b}",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            let action = if_dg(&source, "subjects").expect("selected scalar membership syntax");
+            let proposed = action.apply(&source);
+            assert!(
+                proposed.contains(&format!("class match {subject} equals subjects")),
+                "{proposed}"
+            );
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{return one}} elseif {{{subject} eq \"b\"}} {{return two}}"
+            );
+            let proposed = if_dg(&source, "subjects")
+                .expect("selected scalar mapping syntax")
+                .apply(&source);
+            assert_eq!(
+                proposed,
+                format!("return [class lookup {subject} subjects]")
+            );
+        }
+        for subject in [
+            "$a(k)",
+            "${a(k)}",
+            "$café",
+            "\"$x[set y]\"",
+            "{$x}",
+            "$x.tail",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            assert!(if_dg(&source, "subjects").is_none(), "{subject:?}");
+        }
+    }
+
+    #[test]
+    fn selected_if_scalar_conditions_keep_eq_and_or_shape_under_actual_config() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        let first = LexerConfig::for_dialect("tcl8.6");
+        let nested = LexerConfig::for_dialect("tcl9.1");
+        let jim = LexerConfig::for_dialect("jim");
+        assert!(parse_eq("${a{b}c} eq one", first).is_none());
+        assert_eq!(
+            parse_eq("${a{b}c} eq one", nested).unwrap().0.name(),
+            "a{b}c"
+        );
+        assert!(parse_eq("$café eq one", first).is_none());
+        assert_eq!(parse_eq("one eq $café", jim).unwrap().0.name(), "café");
+        let (subject, values) = try_or_chain("${a b} eq one || \"${a b}\" eq two", first).unwrap();
+        assert_eq!(subject.name(), "a b");
+        assert_eq!(subject.reference(), "${a b}");
+        assert_eq!(values, ["one", "two"]);
+        assert!(try_or_chain("$x eq one || $y eq two", first).is_none());
+        assert!(try_or_chain("$x eq one || !($x eq two)", first).is_none());
+        for subject in ["$a(k)", "${a(k)}", "${missing", "\"$x[set y]\""] {
+            assert!(parse_eq(&format!("{subject} eq one"), first).is_none());
+        }
+    }
+
     use super::*;
     use tcl_dialect::model::{Family, SurfaceLayer};
 
@@ -787,8 +1107,190 @@ mod tests {
         extract_to_datagroup_from_switch(source, 0, name, &r, &li, config())
     }
 
+    fn authored_output_registry() -> std::sync::Arc<CommandRegistry> {
+        // An independently authored source surface, not an F5 execution model.
+        const OUTPUTS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "match",
+                arity: tcl_registry::Arity::exact(3),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "lookup",
+                arity: tcl_registry::Arity::exact(2),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "class",
+            surface: Some(tcl_dialect::model::SpecSurface::TCL90_PLUS),
+            subcommands: OUTPUTS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        std::sync::Arc::new(registry)
+    }
+
+    #[test]
+    fn supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let registry = authored_output_registry();
+        let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry.clone());
+        let index = LineIndex::new(source);
+        let action = extract_to_datagroup_with_analysis(source, 0, "answers", &analysis, &index)
+            .expect("current authored output metadata and genuine original arm operations");
+        assert_eq!(action.apply(source), "set answer [class lookup $x answers]");
+        assert_eq!(dg(&action).records.len(), 2);
+        let older = super::super::test_logical_analysis(source, "tcl8.4", registry.clone());
+        assert!(extract_to_datagroup_with_analysis(source, 0, "answers", &older, &index).is_none());
+        for prefix in ["proc set args {}; ", "proc class args {}; "] {
+            let replaced = format!("{prefix}{source}");
+            let analysis =
+                super::super::test_logical_analysis(&replaced, "tcl9.0", registry.clone());
+            let cursor = u32::try_from(prefix.len()).unwrap();
+            assert!(
+                extract_to_datagroup_with_analysis(
+                    &replaced,
+                    cursor,
+                    "answers",
+                    &analysis,
+                    &LineIndex::new(&replaced)
+                )
+                .is_none(),
+                "{prefix}"
+            );
+        }
+    }
+
+    #[test]
+    fn supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let tail = "choose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+        let source = format!("interp alias {{}} choose {{}} if\n{tail}");
+        let registry = authored_output_registry();
+        let analysis = super::super::test_logical_analysis(&source, "tcl9.0", registry.clone());
+        let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
+        let index = LineIndex::new(&source);
+        assert!(
+            extract_to_datagroup_with_analysis(&source, cursor, "answers", &analysis, &index)
+                .is_some()
+        );
+        let captured = "interp alias {} choose {} if {$x eq one}\nchoose {puts SAME} elseif {$x eq two} {puts SAME}";
+        let captured_analysis = super::super::test_logical_analysis(captured, "tcl9.0", registry);
+        assert!(
+            extract_to_datagroup_with_analysis(
+                captured,
+                u32::try_from(captured.rfind("choose").unwrap()).unwrap(),
+                "answers",
+                &captured_analysis,
+                &LineIndex::new(captured)
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !analysis.body_lexer_config.unwrap().strict_quoting;
+        let mut foreign = analysis.clone();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::resolve_environment("tcl9.0").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for unavailable in [missing, stale, foreign] {
+            assert!(
+                extract_to_datagroup_with_analysis(
+                    &source,
+                    cursor,
+                    "answers",
+                    &unavailable,
+                    &index
+                )
+                .is_none()
+            );
+        }
+        assert!(
+            extract_to_datagroup_with_analysis("# stale", cursor, "answers", &analysis, &index)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn supplied_datagroup_alias_does_not_restore_a_removed_output_handler() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "rename if saved_if\ninterp alias {} choose {} saved_if\nchoose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+        let registry = authored_output_registry();
+        let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry);
+        let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let command = super::super::find_original_command_at(source, cursor, &analysis).unwrap();
+        assert_eq!(
+            walk.source_words(source, &command)
+                .unwrap()
+                .with_source_schema(&walk.source_context(), |schema| schema
+                    .semantics
+                    .lowering_hook),
+            Some(Some(tcl_registry::hooks::LoweringHookId::If))
+        );
+        assert!(
+            extract_to_datagroup_with_analysis(
+                source,
+                cursor,
+                "answers",
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
+        );
+        for dialect in ["tcl9.0", "f5-irules"] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            assert!(!analysis.allows_retained_logical_declaration_advice());
+            assert!(
+                extract_to_datagroup_with_analysis(
+                    source,
+                    cursor,
+                    "answers",
+                    &analysis,
+                    &LineIndex::new(source)
+                )
+                .is_none()
+            );
+        }
+    }
+
     fn dg(r: &Refactoring) -> &DataGroupDefinition {
         r.data_group.as_ref().expect("data group")
+    }
+
+    #[test]
+    fn original_datagroup_proposals_require_the_selected_output_surface() {
+        let source = "if {$host eq \"a.com\"} {pool web_pool} elseif {$host eq \"b.com\"} {pool web_pool} elseif {$host eq \"c.com\"} {pool web_pool}";
+        let index = LineIndex::new(source);
+        for (dialect, available) in [("tcl8.6", false), ("f5-irules", true)] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let registry = analysis.resolved_registry().unwrap();
+            assert_eq!(emitted_forms_available(registry), available, "{dialect}");
+            assert_eq!(
+                extract_to_datagroup(
+                    source,
+                    0,
+                    "",
+                    registry,
+                    &index,
+                    analysis.body_lexer_config.unwrap()
+                )
+                .is_some(),
+                available,
+                "{dialect}"
+            );
+        }
     }
 
     #[test]
@@ -995,5 +1497,45 @@ mod tests {
         // the predicates still tolerate it.
         assert_eq!(infer_value_type(&[" 80 ".to_owned()]), "integer");
         assert_eq!(infer_value_type(&[" 10.0.0.0/8 ".to_owned()]), "ip");
+    }
+}
+
+#[cfg(test)]
+mod original_arm_parser_tests {
+    use super::*;
+    #[test]
+    fn original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents() {
+        // naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        // Proposal shape only; selected source handlers and edits remain separate.
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
+        let Some(SetOrReturn::Set(name, raw)) =
+            parse_set_or_return("set answer {\u{feff}ONE}", config)
+        else {
+            panic!("nested set shape");
+        };
+        assert_eq!(name, "answer");
+        assert_eq!(raw, "{\u{feff}ONE}");
+        let Some(SetOrReturn::Return(raw)) = parse_set_or_return("return \"\u{feff}TWO\"", config)
+        else {
+            panic!("nested return shape");
+        };
+        assert_eq!(raw, "\"\u{feff}TWO\"");
+        for body in ["\u{feff}set answer ONE", "\u{feff}return TWO"] {
+            assert!(parse_set_or_return(body, config).is_none());
+            assert!(
+                extract_set_or_return_values(
+                    &[
+                        ("a".into(), body.into()),
+                        ("b".into(), "return OTHER".into())
+                    ],
+                    config
+                )
+                .is_none()
+            );
+        }
     }
 }

@@ -1,0 +1,31 @@
+warning: function `exported_at_import` is never used
+    --> rust/tcl-lsp-core/src/definition.rs:3638:15
+     |
+3638 | pub(crate) fn exported_at_import(
+     |               ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `exported_original_at_import` is never used
+    --> rust/tcl-lsp-core/src/definition.rs:3651:4
+     |
+3651 | fn exported_original_at_import(analysis: &AnalysisResult, ctx: CallResolution<'_>,
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 9 tests
+test snippets::tests::emits_all_tcl_core_templates_with_no_prefix ... ok
+test snippets::tests::filters_by_prefix ... ok
+test snippets::tests::foreach_offers_scope_var_choices ... ok
+test snippets::tests::http_request_templates_decline_when_event_present ... ok
+test snippets::tests::irules_event_templates_require_top_level ... ok
+test snippets::tests::irules_templates_hidden_outside_irules_dialect ... ok
+test snippets::tests::irules_templates_offered_in_irules_dialect ... ok
+test snippets::tests::proc_snippet_uses_indent_and_tabstops ... ok
+test snippets::tests::rule_init_declines_when_event_already_declared ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 2550 filtered out; finished in 0.00s
+

@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-child-alias-publication199/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.01132182899164036,
+  "reported_version_row": "version 9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "d679427bf3e3a4da804be1915547b472eafd3b4df79f0198f8ed465087f5152a",
+  "stdout_sha256": "e86a395585e11852bf0b6eb190352cd8a76b8ee9363e4272976e6c6c30ef9144",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684"
+  },
+  "rows": [
+    "version 9.1.0",
+    "child_alias ::A::a 0 ::A::a 0 VALUE",
+    "child_alias A::relative 0 A::relative 0 VALUE",
+    "child_alias plain 0 plain 0 VALUE",
+    "child_alias ::::extra 0 ::::extra 0 VALUE"
+  ],
+  "input_channel": "ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim",
+  "question": "How do rooted, relative-qualified, unqualified and extra-root alias names publish and resolve for parent-to-child aliases under each provider's actual supported child-interpreter API?"
+}

@@ -1,0 +1,74 @@
+{
+  "request_id": "naming.namespace.original-command-holder-routing",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim-current"
+  ],
+  "problem": "Constructed byte namespace paths do not identify physical namespace tokens after deletion/recreation. Distinguish original current-token routing from actual rooted lookup/publication; retain procedure/alias API entry purpose.",
+  "execution_requirements": [
+    "Use the six exact pinned providers with original source passed from an external C API counted source evaluator on a fresh interpreter per control, if available. Preserve exact source bytes/hash. For synchronous controls independently evaluate the exact recorder prelude first, then original script in the same interpreter; do not combine those two evaluations.",
+    "Capture public completion code/result from the original evaluation, then any explicitly separate completion query with its own code/result. Record exact envelope used. A catch/eval/puts wrapper is a different compilation channel and must be identified separately.",
+    "For C8.4 unavailable command trace/TclOO and Jim incompatible C interp/trace APIs preserve actual error result, not a substitute provider API or inferred parity.",
+    "Record all completed exit codes and stdout/stderr, immutable source bytes, selected runtime versions, compiler/source pins. Keep genuine provider abort/error receipts if any. The existing legacy replacement test comment reports C8.6.16 crash; new pinned C8.6.18 must be independently observed.",
+    "No private namespace token, lifetime, actual command-table inspection or successful Rust execution is inferred from public source rows."
+  ],
+  "cases": [
+    {
+      "id": "deferred-original",
+      "source_file": "/workspace/.proofs/native-namespace-holder-routing202-request/deferred-original.tcl",
+      "source_sha256": "8bf005e91e9d83825144a73c3348d6453286a8a6f70eb9156f2734daadd45fe3",
+      "question": "After deletion inside the active current namespace, do relative r and rooted ::N::s select different physical namespace holders despite their identical display path?",
+      "source_owner": "runtime/rust/src/cmd_namespace.rs::a_retained_token_takes_relative_definitions_only",
+      "source_encoding": "ASCII LF",
+      "original_source_excludes_capture_wrapper": true
+    },
+    {
+      "id": "recreated-object-private-dispatcher",
+      "source_file": "/workspace/.proofs/native-namespace-holder-routing202-request/recreated-object-private-dispatcher.tcl",
+      "source_sha256": "56fb20c06968d1adf6098530c5676426b6f5350afc28b4e8d0df3579ee62320f",
+      "question": "Can teardown of the retained old namespace remove the fresh same-spelling object private dispatcher?",
+      "source_owner": "runtime/rust/src/cmd_namespace.rs::retained_object_teardown_cannot_delete_replacement_private_dispatcher",
+      "source_encoding": "ASCII LF",
+      "original_source_excludes_capture_wrapper": true
+    },
+    {
+      "id": "synchronous-create",
+      "source_file": "/workspace/.proofs/native-namespace-holder-routing202-request/synchronous-create.tcl",
+      "source_sha256": "db468993ba3aee91e48f560a731a663818201651d59625e867b4915335422fd5",
+      "question": "Does a fully qualified procedure created in a synchronous delete callback join the original dying holder and its next teardown pass?",
+      "source_owner": "runtime/rust/src/cmd_namespace.rs::namespace_teardown_visits_a_callback_created_command_in_the_next_pass",
+      "source_encoding": "ASCII LF",
+      "original_source_excludes_capture_wrapper": true,
+      "independent_completion_query_file": "/workspace/.proofs/native-namespace-holder-routing202-request/synchronous-create.query.tcl",
+      "independent_completion_query_sha256": "b9417b8211c25ce73115793654371d06b08ad07bb05f608d260dd8f4fd5bcd95",
+      "independent_prelude_file": "/workspace/.proofs/native-namespace-holder-routing202-request/synchronous-create.prelude.tcl",
+      "independent_prelude_sha256": "60280ba27e9b6d4ba16e7ef49ff8dbf262b2013e9134783a6fcb83c49e1a7944"
+    },
+    {
+      "id": "synchronous-replace",
+      "source_file": "/workspace/.proofs/native-namespace-holder-routing202-request/synchronous-replace.tcl",
+      "source_sha256": "82caa83c68a3a77d6a1b99a9b856f8d00e7b5979f92194803d087eb90354e04d",
+      "question": "Does a fully qualified procedure replacement in a synchronous delete callback join the original dying holder as a new command token, preserving the next teardown pass?",
+      "source_owner": "runtime/rust/src/cmd_namespace.rs::namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass",
+      "source_encoding": "ASCII LF",
+      "original_source_excludes_capture_wrapper": true,
+      "independent_completion_query_file": "/workspace/.proofs/native-namespace-holder-routing202-request/synchronous-replace.query.tcl",
+      "independent_completion_query_sha256": "b9417b8211c25ce73115793654371d06b08ad07bb05f608d260dd8f4fd5bcd95",
+      "independent_prelude_file": "/workspace/.proofs/native-namespace-holder-routing202-request/synchronous-replace.prelude.tcl",
+      "independent_prelude_sha256": "60280ba27e9b6d4ba16e7ef49ff8dbf262b2013e9134783a6fcb83c49e1a7944"
+    },
+    {
+      "id": "deferred-alias-relative-rooted",
+      "source_file": "/workspace/.proofs/native-namespace-holder-routing202-request/deferred-alias-relative-rooted.tcl",
+      "source_sha256": "2d4c849c1a1c5755997a5194d6c4b0b77f40a77821cfc25192531ace7f656b0b",
+      "question": "Which physical holders do relative qualified vs explicitly rooted C interp alias publication select in a retained deleted current namespace? Current Jim receives this exact incompatible C interp API; do not substitute standalone alias.",
+      "source_owner": "new finite public alias holder control",
+      "source_encoding": "ASCII LF",
+      "original_source_excludes_capture_wrapper": true
+    }
+  ]
+}

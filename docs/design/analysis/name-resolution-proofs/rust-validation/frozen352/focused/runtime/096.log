@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication ... 
+thread 'cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication' (1357580) panicked at src/cmd_oo/original_namespace_copy_tests.rs:116:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.97s
+

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "source_path": "/workspace/.proofs/current-native-vwait-forms137/probe.c",
+  "source_sha256": "ac4d4e8e34b71daaf93e4c35d9f92d380d53a0eeafa170a495fabb5bfe98de8b",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "question": "Which original argv forms select a variable name, an option, or Jim optional script for vwait, independently of support in the Rust basic event owner?",
+  "input_channel": "Exact fixed ASCII Tcl_EvalEx or Jim_Eval source scripts in fresh initialized interpreters; no counted/raw-zero operand claim",
+  "observations": "One actual info patchlevel row then fifteen separately initialized source cases; native completion code and counted result bytes rendered as ASCII hex. Version labels must come from actual native patchlevel.",
+  "requirements": [
+    "Retain actual compiler/header/library/executable/source/stdout/stderr digests.",
+    "Retain completed rows if any case hits external timeout; external timeout is a capture limitation, never a guest answer.",
+    "No signals are raised and no host notifier or channel implementation is exercised beyond native missing-channel validation.",
+    "Source choices use after 0 for valid waits; each case has a separate interpreter so pending callbacks cannot cross cases."
+  ],
+  "capture_adaptation": {
+    "original_source_sha256": "547d16b04a52b4cd35a56cd22ba713866fcd52760db743847fa778cf52388dae",
+    "change": "Optional argv case name selects one unchanged script, allowing external timeout isolation. Every process reports its actual provider patchlevel."
+  }
+}

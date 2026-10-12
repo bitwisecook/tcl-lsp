@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::tests::original_procedure_artifact_executes_indexed_slots_and_reuses_original_cache ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 9.72s
+

@@ -1,0 +1,11 @@
+custom_length|0|2 after|1
+stock_series|0|3 before|1
+ordinary_list|0|2 before|1
+custom_index|0|element index|2
+custom_slice|0|sliced slice|3
+custom_iteration|0|{element element} index|4
+index_return_status|0|1 INDEX_STATUS index|5
+slice_return_status|0|1 SLICE_STATUS slice|6
+generic_slice_return_status|0|1 SLICE_STATUS slice|7
+iteration_return_status|0|1 INDEX_STATUS index|8
+replaced_creator|0|2 after|9

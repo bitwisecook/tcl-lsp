@@ -1,0 +1,25 @@
+TclCompileStringTrimRCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+
+    if (parsePtr->numWords != 2 && parsePtr->numWords != 3) {
+	return TCL_ERROR;
+    }
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    CompileWord(envPtr, tokenPtr,			interp, 1);
+    if (parsePtr->numWords == 3) {
+	tokenPtr = TokenAfter(tokenPtr);
+	CompileWord(envPtr, tokenPtr,			interp, 2);
+    } else {
+	PushLiteral(envPtr, tclDefaultTrimSet, strlen(tclDefaultTrimSet));
+    }
+    OP(			STR_TRIM_RIGHT);
+    return TCL_OK;
+}

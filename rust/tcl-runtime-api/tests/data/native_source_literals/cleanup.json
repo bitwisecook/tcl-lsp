@@ -1,0 +1,18 @@
+{
+  "source_sha256": "4d615761e0fe67ffe108236074819f536f18d00d9de9cb47893fa0de2dfad8fa",
+  "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+  "runs": [
+    {
+      "script": "x",
+      "exit": 0,
+      "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=4\tcount=1\tself0=1\tlit0_type=bytecode\nafter-interp-delete\ttype=bytecode\trefs=1\n",
+      "stderr": ""
+    },
+    {
+      "script": "",
+      "exit": 0,
+      "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=4\tcount=1\tself0=1\tlit0_type=bytecode\nafter-interp-delete\ttype=bytecode\trefs=1\n",
+      "stderr": ""
+    }
+  ]
+}

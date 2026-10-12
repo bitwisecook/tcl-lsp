@@ -1,0 +1,7 @@
+		destroy = 1;
+		tvarPtr->flags |= TCL_TRACE_DESTROYED;
+	    }
+	    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),
+		    Tcl_DStringLength(&cmd), 0);
+	    if (code != TCL_OK) {		/* copy error msg to result */
+		Tcl_Obj *errMsgObj = Tcl_GetObjResult(interp);

@@ -1,0 +1,128 @@
+# naming.source.original-script-region-purpose
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+Reference-only script syntax is useful to navigation but does not describe a possible evaluation. An unqualified shared body inventory can accidentally lend those regions to executable or mutation consumers.
+
+## Question
+
+How does one shared original script geometry inventory retain reference-only syntax while exposing only potential-evaluation regions to executable and mutation consumers?
+
+## Conclusion
+
+OriginalSourceScriptPurpose selects Syntax or PotentialEvaluation over the same complete original Registry words, source/configuration/context and body/case geometry. Syntax retains reference-only body text. PotentialEvaluation uses the already selected script timing at each effective original ordinal and excludes ReferenceOnly; it remains conditional and proves no reached body, runtime frame, effects closure or Normal. Mutation coverage uses the same purpose projection. The default source_script_bodies method retains its Syntax contract; Core executable-region traversal explicitly asks for PotentialEvaluation. Hosted event source paths select PotentialEvaluation through the same shared body-purpose owner; their ReferenceOnly regions remain independently retained syntax without event reachability or appliance activation. Readonly body-name ownership preserves the genuine counted source ByteLiteral contents through checked UTF-8 for the body and interpreter selector. The original installer horizon, complete source/input/config and independently selected Current interpreter remain required; a named or unknown child cannot be substituted. The marked file candidate definition joins original selected body roles to their timing purpose. An authentic Potential loader body can retain its original source operand as a candidate; ReferenceOnly syntax cannot. An additional marked custom-descriptor source control keeps nested readonly syntax visible in both ReferenceOnly and PotentialEvaluation bodies. Only the latter contributes a possible dispatch segment under the genuine full selected input.
+
+## Scope
+
+One shared geometry owner and selected Registry timing owner. Genuine reference-only and potential Body descriptors are distinguished without a new parser or reporting-head lookup. Unsupported source geometry/context stays unavailable. Source syntax and potential evaluation do not authorise runtime execution or edits. This existing-control source refinement changes no assertion identity or status. Logical Body versus ReferenceOnly purposes and missing/foreign source refusals remain independent. It establishes no Native body/frame entry, evaluated value, completed store, cell identity, Normal or assertion outcome. A candidate is conditional source provenance only. No actual package load/file existence, closed path, entered child/frame, Native dispatch, completion or assertion outcome follows from this definition. Readonly nested recognition remains separate from source dispatch eligibility and from actual execution. No Native entered body, argv/frame, handler, Normal, store/read exclusion, edit permission or passing assertion follows from the Body role alone.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+
+This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
+
+## Exact evidence
+
+No evidence artifact is attached.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-registry/src/selected_script_timing.rs](../../../../rust/tcl-registry/src/selected_script_timing.rs), `SelectedScriptMetadata::timing_at`: Select timing from the same actual role/options/prefix layout at the effective original ordinal.
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `ResolvedInvocation::authored_source_script_timing_at`: Expose already-selected source timing without recapturing a nominal command or replacing the full context.
+- [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs), `OriginalSourceScriptPurpose`: Keep syntax and potential-evaluation purposes explicit, independent of runtime body entry.
+- [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs), `source_script_bodies_for`: Project the same retained original body/case geometry according to the requested purpose.
+- [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs), `source_script_bodies_for_mutation_coverage`: Exclude reference-only slots from the potential mutation inventory through the shared purpose.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `OriginalRegistryWords::source_script_bodies_for`: Retain sealed vector/source/context correspondence in the common adapter.
+- [rust/tcl-lsp-core/src/executable_regions.rs](../../../../rust/tcl-lsp-core/src/executable_regions.rs), `ExecutableWalker::original_source_regions`: Require PotentialEvaluation in the actual-analysis executable traversal.
+- [rust/tcl-lsp-core/src/original_invocation.rs](../../../../rust/tcl-lsp-core/src/original_invocation.rs), `OriginalRegistryWords::source_script_bodies_for`: Delegate source body projection and its explicit Syntax/PotentialEvaluation purpose through the retained Compiler descriptor.
+- [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `original_interp_visibility_body`: Choose PotentialEvaluation for actual conditional child-script source visibility; reference-only source text cannot supply a child body.
+- [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs), `barrier_body_locally_sets`: Require original potential-evaluation body applicability for lexical store suppression; a reference-only Body role alone is insufficient.
+- [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `OriginalSourceMaterializedFootprint::body_name_ownership`: Project checked UTF-8 from the actual retained counted source body/interpreter selector under the existing original installer snapshot and complete Current-scope input/config guard.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::new`: Capture genuine original source/analysis input for selected package body and operand candidate scans.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::collect`: Require Potential loader evaluation purpose before recording the original source operand as a file candidate; ReferenceOnly roles do not donate it.
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `collect_substitution_heads`: Keep readonly source-head recognition under the actual original descriptor and complete input independently of evaluation-purpose dispatch eligibility.
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `collect_substitution_segments`: Require original PotentialEvaluation source purpose for possible nested dispatch segments; ReferenceOnly text retains syntax without that dispatch grant.
+- [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs), `registry_invocation::source_scoped_body::script_purpose_tests::original_script_inventory_separates_reference_syntax_from_potential_evaluation` (linked): An actual custom ContextRegistry reference-only Body remains in Syntax but not PotentialEvaluation or mutation coverage. The ordinary Body keeps its original region and selected SameInvocation timing. No body executes.
+- [rust/tcl-lsp-core/src/executable_regions.rs](../../../../rust/tcl-lsp-core/src/executable_regions.rs), `executable_regions::tests::retained_analysis_regions_respect_reference_only_script_purpose` (linked): A custom retained C8.6 source context retains ReferenceOnly body Syntax geometry but no executable region; the ordinary Body retains potential-evaluation traversal without executing it.
+- [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs), `analyser::diagnostics::dataflow::source_body_purpose_tests::original_reference_only_body_cannot_supply_local_store_suppression` (linked): Actual Logical selected Body versus ReferenceOnly roles retain distinct conditional suppression purposes. Original script geometry does not establish executed store or entered child.
+- [rust/tcl-irules/src/source_context.rs](../../../../rust/tcl-irules/src/source_context.rs), `source_context::tests::original_irules_source_paths_keep_reference_only_bodies_as_syntax` (linked): Custom genuine hosted Body source remains visible as Syntax under ReferenceOnly, while the event-rooted conditional path requires PotentialEvaluation. Complete source/context remains the same and neither branch proves Native event or body execution.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation` (linked): Authentic custom package body roles yield a SourceOperand file candidate only for Potential loader evaluation; ReferenceOnly body syntax retains its independent non-evaluation purpose.
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_nested_source_tests::nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch` (linked): A genuine custom selected Body role retains readonly nested format syntax under ReferenceOnly and PotentialEvaluation purposes, while only PotentialEvaluation contributes a possible dispatch segment.
+- [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_body_caller_inventory_requires_each_original_child_sidecar` (linked): Finite source-defined control: original body caller inventory requires each original child sidecar. Whole authored body syntax is separate from dispatch and Native frame entry. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `command_binding::source_transition_advice::body_effects::original_empty_coverage_tests::original_reference_only_coverage_is_complete_empty_and_keeps_following_source_lookup` (linked): Finite source-defined control: original reference only coverage is complete empty and keeps following source lookup. Checked empty ReferenceOnly coverage leaves following selected lookup unchanged; dynamic/recooked unavailable coverage remains incomplete. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `command_binding::source_transition_advice::body_effects::original_empty_coverage_tests::original_unavailable_evaluated_body_coverage_cannot_claim_complete_empty` (linked): Finite source-defined control: original unavailable evaluated body coverage cannot claim complete empty. Checked empty ReferenceOnly coverage leaves following selected lookup unchanged; dynamic/recooked unavailable coverage remains incomplete. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 2 | 2 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 2 | 2 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

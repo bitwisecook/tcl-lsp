@@ -1,0 +1,23 @@
+
+running 5 tests
+test executable::tests::source_calls_do_not_invent_global_marker_equivalence ... ok
+test source_context::tests::original_irules_called_body_uses_complete_source_geometry_and_not_proc_reports ... ok
+test source_context::tests::original_irules_source_context_keeps_event_receipts_and_handler_barriers ... FAILED
+test source_object::tests::original_attachment_operands_keep_snat_pool_purpose_and_original_cardinality ... ok
+test walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses ... ok
+
+failures:
+
+---- source_context::tests::original_irules_source_context_keeps_event_receipts_and_handler_barriers stdout ----
+
+thread 'source_context::tests::original_irules_source_context_keeps_event_receipts_and_handler_barriers' (776544) panicked at rust/tcl-irules/src/source_context.rs:672:13:
+assertion failed: !inventory.commands().iter().any(|command|
+            command.words().command() == "pool")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    source_context::tests::original_irules_source_context_keeps_event_receipts_and_handler_barriers
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 63 filtered out; finished in 3.16s
+

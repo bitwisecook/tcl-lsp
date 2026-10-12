@@ -1,0 +1,1 @@
+namespace eval ::N {interp create kid}; namespace delete ::N; list [interp slaves] [info commands ::N::kid]

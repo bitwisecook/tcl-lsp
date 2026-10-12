@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/consumer-native-variable-read149/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.005390762991737574,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "ea7d2eff456aeaab5a31784731649f59ac049f73a08434db375aa8b58c2dd56f",
+  "runner_sha256": "dbe21a5970d52155c2b6c94fcbfe478b10ba7789e273e22815f538a73c86b403",
+  "stdout_sha256": "c56afd467378baba61cf7a96b8fa7e48d7af8533f6bf51907d79c4a9629f3acb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "PATCHLEVEL 8.4.20",
+    "RESULT literal_array_read 1 {can't read \"a\": variable is array}",
+    "RESULT dynamic_array_read 1 {can't read \"a\": variable is array}",
+    "RESULT procedure_array_read 1 {can't read \"a\": variable is array}",
+    "RESULT literal_scalar_element 1 {can't read \"b(k)\": variable isn't array}",
+    "RESULT dynamic_scalar_element 1 {can't read \"b(k)\": variable isn't array}",
+    "RESULT procedure_scalar_element 1 {can't read \"b(k)\": variable isn't array}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; six scalar/element variable read cases",
+  "boundary": "Six labelled variable read cases across literal, dynamic and procedure source entries. Full native result and error outcomes are retained independently by provider. No physical object/header/cache or compiler admission proof is inferred from CLI results."
+}

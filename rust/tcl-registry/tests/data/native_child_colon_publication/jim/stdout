@@ -1,0 +1,14 @@
+version 0.84-9-g5bac7c9
+observation create status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation literal-colon-procedure status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation literal-colon-call status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation root-source-after-colon-procedure status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation root-procedure-inventory status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation colon-holder-procedure status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation colon-holder-procedure-inventory status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation colon-holder-call status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation uncolon-holder-procedure-inventory status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation uncolon-holder-call status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation literal-lambda-colon-holder status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation literal-lambda-default-root status 1 result {wrong # args: should be "interp"} errorCode NONE
+observation delete status 1 result {wrong # args: should be "interp"} errorCode NONE

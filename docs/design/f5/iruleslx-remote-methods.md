@@ -3,8 +3,9 @@
 An iRulesLX plugin has two halves in two languages. The iRule opens a handle
 onto a running Node.js extension and calls a method on it by name; the
 extension registers that name on an `ILXServer`. Nothing in either file names
-the other, so this model is what lets go-to-definition, hover and
-find-references cross the boundary (issue #1707).
+the other. The model retains readonly source cards and separate workspace
+associations; cross-language navigation requires an independently resolved
+handle, which source syntax does not currently issue.
 
 ```tcl
 when HTTP_REQUEST {
@@ -30,7 +31,7 @@ model is keyed by method name alone: two extensions may both register
 | Fact | Owner |
 |---|---|
 | Which word is the handle / the method, and whether the call awaits a reply | `tcl_registry::remote_method`, hung off `CommandSpec::remote_method` |
-| Which iRule words are ILX sites, and what handle they resolve to | `tcl_irules::ilx` |
+| Which original iRule words supply readonly ILX method/constructor candidates | `tcl_irules::ilx`, through the shared guarded source context |
 | Which JavaScript registrations an extension source declares | `tcl_irules::ilx` |
 | Which extension source an `ILX::init PLUGIN EXTENSION` refers to | `tcl_lsp_core::ilx_navigation` |
 | Wire-level definition / hover / references | `tcl_lsp_server` (three thin tiers) |
@@ -43,7 +44,7 @@ is inert. A plain Tcl file with its own `proc ILX::call` is untouched.
 
 ## Evidence
 
-All behaviour below is taken from F5's documentation, fetched 2026-08-30:
+The command and workspace schemas come from F5's documentation. These sources do not establish an executed call or current handle:
 
 - <https://clouddocs.f5.com/api/irules/ILX__init.html> — "ILX::init [plugin
   name] [extension name]", "Creates a handle for future use by ILX::call and
@@ -182,46 +183,45 @@ module:
 - a `removeMethod` on a receiver this file does not bind to an `ILXServer` is
   not this API and changes nothing.
 
-## Tcl-side resolution and its abstentions
+## Tcl source cards and independent handle identity
 
-| Written | Result |
-|---|---|
-| `set h [ILX::init p e]` … `ILX::call $h m` | resolved |
-| `ILX::call [ILX::init p e] m` | resolved |
-| `ILX::call $h -timeout 500 -- m` | resolved; options come from the spec's own table |
-| `ILX::init $p e`, `ILX::init p $e` | handle unknown → the call abstains |
-| `set h [ILX::init p e]; set h $other` | binding widens → the call abstains |
-| `ILX::init e` (one word) | undocumented form → abstains |
-| a handle bound outside a `proc` body or a `when` handler | that body opens a new frame → abstains |
-| `ILX::call $h $method`, `ILX::call $h m$suffix` | no literal method → not a site at all |
-| the extension registers the name twice | reported as an ambiguity; no target |
-| no JavaScript in the workspace | abstains |
+The Tcl side consumes complete original source vectors, actual structural
+ContextRegistry and selected Registry arity/option grammar. It retains genuine
+written method extents and full source/configuration/Registry currency. Stored
+body syntax supplies source cards without proving event entry or a call.
 
-A call whose method word is literal but whose handle is unknown is still a
-*site*: hover can honestly say "method `m`, extension unknown", while
-navigation offers nothing.
+| Written source | Current result |
+| --- | --- |
+| `ILX::call $h m` | Literal method card; evaluated handle/cell unavailable |
+| `ILX::call [ILX::init p e] m` | Method card plus separate possible constructor labels; resolved handle remains unavailable |
+| `ILX::call $h -timeout 500 -- m` | Method ordinal selected by the actual shared option grammar |
+| Nearby `set h [ILX::init p e]`, reassignments or branch bodies | No handle identity inferred from source values or frame syntax |
+| Computed method/control words, unknown expansion or missing written geometry | No method card |
+| Stock Tcl or stale complete source/context/Registry | No hosted ILX source selection |
 
-### Bindings follow frames
+Inline source constructor labels remain `source_target`, separate from `target`.
+The actual successful constructor result, current handle cell/read/observers
+and reached handler remain independent obligations. No current source issuer
+fills `target`, so cross-language definition and cross-document call references
+remain unavailable. Hover can describe the literal method and possible source
+constructor without claiming a resolved extension or remote dispatch.
 
-A handle binding reaches a nested body only when that body runs in the
-*caller's* frame — which the registry already records as
-`CommandSpec::body_kind`, so this walk asks rather than naming commands. An
-`if` / `foreach` / `catch` body and a `switch` arm inherit; a `proc` body, a
-`when` event handler, an `oo::define` script and an `uplevel` body do not, and
-start empty. `set h [ILX::init p e]; proc f {} { ILX::call $h m }` therefore
-resolves nothing: `$h` is undefined where `f` runs. The body is still walked,
-so an `ILX::init` of its own resolves normally.
-
-**No diagnostic is emitted from any of this.** An unresolved method is not an
-error: the extension's method table is only known when its JavaScript is in
-the workspace, and a plugin's sources are routinely absent from the repository
-holding its iRules.
+Equal method labels on different unresolved handles do not identify one symbol.
+A positioned source-reference query retains only its own independently current
+method extent. Public query data is reselected against complete current source
+before navigation or reference projection; a changed label or forged target
+cannot replace the source owner. See the
+[ILX source contract](../analysis/name-resolution-proofs/original-ilx-method-source-candidates.md).
 
 ## Find-references
 
-From either end, the set is the registration(s) plus every literal
-`ILX::call` / `ILX::notify` of the same method **on the same extension**, in
-the open document, in the immediate children of the associated workspace's
+JavaScript registrations retain their independently scanned source identities.
+Cross-language queries require the same independently resolved extension before
+joining a registration to Tcl calls. Current Tcl source cards have no such
+handle receipt and cannot join by method spelling alone. Workspace discovery
+bounds remain the open document, immediate `rules/` children and explicitly
+configured caller directories.
+
 `rules/` directory (the documented layout puts every rule there), and in every
 directory declared for the plugin under `[iruleslx.rules]`.
 

@@ -1,0 +1,6 @@
+In file included from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h:23,
+                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h:36,
+                 from /workspace/.proofs/native-explicit-error-code-header-setter614b/probe.c:5:
+/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h:72:9: error: unknown type name 'DIR'
+   72 | typedef DIR                     TclDIR;
+      |         ^~~

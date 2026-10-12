@@ -1,0 +1,99 @@
+		callPtr->refCount++;
+		goto returnContext;
+	    }
+	    Tcl_SetHashValue(hPtr, NULL);
+	    TclOODeleteChain(callPtr);
+	}
+
+	doFilters = 1;
+    }
+
+    callPtr = (CallChain *)ckalloc(sizeof(CallChain));
+    InitCallChain(callPtr, oPtr, flags);
+
+    cb.callChainPtr = callPtr;
+    cb.filterLength = 0;
+    cb.oPtr = oPtr;
+
+    /*
+     * If we're working with a forced use of unknown, do that now.
+     */
+
+    if (flags & FORCE_UNKNOWN) {
+	AddSimpleChainToCallContext(oPtr, oPtr->fPtr->unknownMethodNameObj,
+		&cb, NULL, BUILDING_MIXINS, NULL);
+	AddSimpleChainToCallContext(oPtr, oPtr->fPtr->unknownMethodNameObj,
+		&cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = -1;
+	if (callPtr->numChain == 0) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+	goto returnContext;
+    }
+
+    /*
+     * Add all defined filters (if any, and if we're going to be processing
+     * them; they're not processed for constructors, destructors or when we're
+     * in the middle of processing a filter).
+     */
+
+    if (doFilters) {
+	Tcl_Obj *filterObj;
+	Class *mixinPtr;
+
+	doFilters = 1;
+	Tcl_InitObjHashTable(&doneFilters);
+	FOREACH(mixinPtr, oPtr->mixins) {
+	    AddClassFiltersToCallContext(oPtr, mixinPtr, &cb, &doneFilters,
+		    TRAVERSED_MIXIN|BUILDING_MIXINS|OBJECT_MIXIN);
+	    AddClassFiltersToCallContext(oPtr, mixinPtr, &cb, &doneFilters,
+		    OBJECT_MIXIN);
+	}
+	FOREACH(filterObj, oPtr->filters) {
+	    AddSimpleChainToCallContext(oPtr, filterObj, &cb, &doneFilters,
+		    BUILDING_MIXINS, NULL);
+	    AddSimpleChainToCallContext(oPtr, filterObj, &cb, &doneFilters, 0,
+		    NULL);
+	}
+	AddClassFiltersToCallContext(oPtr, oPtr->selfCls, &cb, &doneFilters,
+		BUILDING_MIXINS);
+	AddClassFiltersToCallContext(oPtr, oPtr->selfCls, &cb, &doneFilters,
+		0);
+	Tcl_DeleteHashTable(&doneFilters);
+    }
+    count = cb.filterLength = callPtr->numChain;
+
+    /*
+     * Add the actual method implementations. We have to do this twice to
+     * handle class mixins right.
+     */
+
+    AddSimpleChainToCallContext(oPtr, methodNameObj, &cb, NULL,
+	    flags|BUILDING_MIXINS, NULL);
+    AddSimpleChainToCallContext(oPtr, methodNameObj, &cb, NULL, flags, NULL);
+
+    /*
+     * Check to see if the method has no implementation. If so, we probably
+     * need to add in a call to the unknown method. Otherwise, set up the
+     * cacheing of the method implementation (if relevant).
+     */
+
+    if (count == callPtr->numChain) {
+	/*
+	 * Method does not actually exist. If we're dealing with constructors
+	 * or destructors, this isn't a problem.
+	 */
+
+	if (flags & SPECIAL) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+	AddSimpleChainToCallContext(oPtr, oPtr->fPtr->unknownMethodNameObj,
+		&cb, NULL, BUILDING_MIXINS, NULL);
+	AddSimpleChainToCallContext(oPtr, oPtr->fPtr->unknownMethodNameObj,
+		&cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = -1;
+	if (count == callPtr->numChain) {

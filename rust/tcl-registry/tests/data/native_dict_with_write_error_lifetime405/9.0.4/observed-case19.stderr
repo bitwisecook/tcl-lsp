@@ -1,0 +1,5 @@
+WITH_BEFORE_SET|refcount=0|allocated=1
+WITH_SET_ERROR|same_cell=1|defined_scalar=1|final_free=0
+WITH_FINAL_FREE|count=1
+WITH_BODY_RETURN|entered=1|before_refcount=0|allocated=1|failed=1|same_cell=1|defined_scalar=1|final_free=1
+alloc: invalid block: 0x555fd45d9220: 30 d4

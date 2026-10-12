@@ -1,0 +1,60 @@
+{
+  "purpose": "Actual private TclListObjRange header/backing/span/capacity transition. Genuine original owner1; sharing1 adds real second header role, sharing2 owns actual duplicate header. Real public result publication adds result role. No child observer pins; this does not claim CPP opcode reference counts.",
+  "probe_sha256": "25da341b2f213aa31a35d5999018265d0f3beecb5a20ccd81ea8947e8b732bfa",
+  "rows": [
+    {
+      "version": "9.0.4",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/2286-byte-c9-list-span-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-c9-list-span-native/probe-9.0.4"
+      ],
+      "compile_status": 0,
+      "run_status": 0,
+      "original_budget": 60,
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "binary_sha256": "17d28fe5d575fbd266dbcbc5c02773b3401fdc71fd35c558e3ff86484cf96b87",
+      "stdout_sha256": "7ee6709535f5e14c81870e3afbb854ea03524ea69dcae9f1bb91e6db37be0121",
+      "cases": 144,
+      "native_implementation_sha256": "15d49e9df1a0e799eb199ab5ceb58e77e0b3587d7200156ddf82344102069d95",
+      "native_header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053"
+    },
+    {
+      "version": "9.1.0",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/2286-byte-c9-list-span-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-c9-list-span-native/probe-9.1.0"
+      ],
+      "compile_status": 0,
+      "run_status": 0,
+      "original_budget": 60,
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "binary_sha256": "37920f13d6672f2d491bee665d1f420d02b07f581b3296ffa53e2bb533354b0f",
+      "stdout_sha256": "7ee6709535f5e14c81870e3afbb854ea03524ea69dcae9f1bb91e6db37be0121",
+      "cases": 144,
+      "native_implementation_sha256": "6711651457a8f8813f37c71e5e8958aca9d2e83a6fc7c7e281ae3f7ada10e81b",
+      "native_header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "ordinal": 160,
+  "selector": "cmd_oo::tests::ordinary_command_replacement_runs_displaced_oo_lifecycle",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::ordinary_command_replacement_runs_displaced_oo_lifecycle",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.310465693997685,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.30s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/160.log",
+  "log_sha256": "8fa26e4d50dbaebecc18082efe7e83a3faff416587db797e4cbfb9b7539bef4c"
+}

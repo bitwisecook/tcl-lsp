@@ -8,7 +8,6 @@ use tcl_compiler::dispatch_proof::DispatchEntryAssumption;
 use tcl_compiler::executable_ir::ExecutableFunctionId;
 use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
 use tcl_registry::model::ingress::static_context_for;
-use tcl_registry::model::semantic::SemanticContext;
 
 const DIALECT: &str = "tcl8.6";
 const SOURCE: &str = r"
@@ -244,19 +243,22 @@ fn assert_panics(f: impl FnOnce()) {
 
 #[test]
 fn production_driver_makes_every_deferred_body_kind_abstain() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let (unit, registry) = fixture();
     assert_production_entry_contract(&unit, "build_for_dialect");
 
     // Explorer's explicit deep path rebuilds every retained sidecar and must
     // preserve the same fresh-top-level versus deferred-body boundary.
-    let deep = unit
-        .with_deep_semantic_analysis(registry, Some(SemanticContext::for_environment("tcl8.6")));
-    assert_production_entry_contract(&deep, "with_deep_semantic_analysis");
-    assert_deep_body_families(&deep, "with_deep_semantic_analysis");
+    let deep = unit.with_retained_deep_semantic_analysis(registry);
+    assert_production_entry_contract(&deep, "with_retained_deep_semantic_analysis");
+    assert_deep_body_families(&deep, "with_retained_deep_semantic_analysis");
 }
 
 #[test]
 fn deep_contract_rejects_noop_and_unavailable_body_evidence() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let (unit, registry) = fixture();
 
     // Mutation: a no-op deep path leaves the interactive sidecars in place.
@@ -269,8 +271,7 @@ fn deep_contract_rejects_noop_and_unavailable_body_evidence() {
     // alone must not make this pass.
     let mut missing_ir = unit;
     missing_ir.ir_module.procedures.remove("::p");
-    let rebuilt = missing_ir
-        .with_deep_semantic_analysis(registry, Some(SemanticContext::for_environment("tcl8.6")));
+    let rebuilt = missing_ir.with_retained_deep_semantic_analysis(registry);
     assert!(matches!(
         rebuilt
             .procedures

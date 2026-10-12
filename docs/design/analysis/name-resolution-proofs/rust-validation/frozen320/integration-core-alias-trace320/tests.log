@@ -1,0 +1,44 @@
+
+running 2 tests
+test declaration::tests::global_declaration_in_proc_body ... ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 4 }) selected=true origins=[ResolvedHead, Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "bump", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 15, end: 21 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: ProcedureLocal, local: LocatedLiteral { value: "counter", argument_index: 0 }, target: Global { variable: LocatedLiteral { value: "counter", argument_index: 0 } }, writes_value: false, words: AliasWords { local: 0, target: 0 } }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=22 remote=22 namespace=true input=true
+ALIAS_SOURCE_RECEIPT local=22 remote=22 frame=true input=true operands=[(15, Span { start: 22, end: 29 }, Span { start: 22, end: 29 }, Global)]
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 30, end: 34 }) selected=true origins=[ResolvedHead, Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 43, end: 47 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [] })
+
+thread 'declaration::tests::global_declaration_in_proc_body' (1158996) panicked at rust/tcl-lsp-core/src/declaration.rs:675:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping ... ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 3 }) selected=true origins=[Written(0), Written(1), Written(2)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 11, end: 15 }) selected=true origins=[Written(0), Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 22, end: 28 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: ProcedureLocal, local: LocatedLiteral { value: "foo", argument_index: 0 }, target: Global { variable: LocatedLiteral { value: "foo", argument_index: 0 } }, writes_value: false, words: AliasWords { local: 0, target: 0 } }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=29 remote=29 namespace=true input=false
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 34, end: 38 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 51 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 0, end: 9 }) selected=true origins=[Written(0), Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "ns", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 19, end: 27 }) selected=true origins=[Written(0), Written(1), Written(2)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: "foo", argument_index: 0 }, target: CurrentNamespace { variable: LocatedLiteral { value: "foo", argument_index: 0 } }, writes_value: true, words: AliasWords { local: 0, target: 0 } }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=28 remote=28 namespace=false input=false
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 36, end: 40 }) selected=true origins=[Written(0), Written(1), Written(2), Written(3)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: CommandBinding(Define { name: LocatedLiteral { value: "p", argument_index: 0 }, kind: Procedure }), commit: OnOkOnly }] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 47, end: 53 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [StateTransitionFact { transition: VariableCellAlias(VariableCellAliasTransition { destination: ProcedureLocal, local: LocatedLiteral { value: "foo", argument_index: 0 }, target: Global { variable: LocatedLiteral { value: "::ns::foo", argument_index: 0 } }, writes_value: false, words: AliasWords { local: 0, target: 0 } }), commit: MayCommitBeforeAbruptCompletion }] })
+ALIAS_SOURCE_LINK local=54 remote=54 namespace=true input=false
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 65, end: 69 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [] })
+ALIAS_INGRESS_TRANSITIONS site=Some(Span { start: 76, end: 80 }) selected=true origins=[Written(0), Written(1)] transitions=Some(StateTransitions { facts: [] })
+
+thread 'declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping' (1159028) panicked at rust/tcl-lsp-core/src/declaration.rs:571:13:
+assertion `left == right` failed
+  left: 28
+ right: 54
+FAILED
+
+failures:
+
+failures:
+    declaration::tests::global_declaration_in_proc_body
+    declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 2936 filtered out; finished in 3.07s
+

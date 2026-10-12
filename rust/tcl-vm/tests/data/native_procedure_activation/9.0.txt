@@ -1,0 +1,7 @@
+define 0 {}
+p 1 {wrong # args: should be "p x"}
+{p OK} 1 {missing "}
+define 0 {}
+p 1 {wrong # args: should be "p x"}
+{p OK} 1 BODY
+valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE

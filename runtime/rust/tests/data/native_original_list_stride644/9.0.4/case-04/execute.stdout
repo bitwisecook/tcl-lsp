@@ -1,0 +1,17 @@
+provider	C-Tcl
+case	4	unsigned-int-boundary
+operation	lsearch
+input-stride	32313437343833363438
+input-roles	stride-original-counted-string=1	stride-explicit-argument-owner=1	additional-observer-native-holds=0	input-list-length=0
+before-stride	none	1	1	10
+before-container	none	1	1	0
+code	0
+reached-stride	int	1	1	10
+reached-container	list	1	1	0
+reached-result	int	0	1	131072
+result-alias	stride=0	container=0
+result-bytes	2d31
+materialised-result	int	1	1	2
+after-result-getter-stride	int	1	1	10
+stride-bytes	32313437343833363438
+materialised-stride	int	1	1	10

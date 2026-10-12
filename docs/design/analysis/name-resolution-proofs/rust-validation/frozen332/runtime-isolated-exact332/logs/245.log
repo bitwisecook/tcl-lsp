@@ -1,0 +1,15 @@
+
+running 1 test
+test return_options::native_string_access_tests::original_return_option_key_capacity_is_host_refusal_outside_guest_catch ... 
+thread 'return_options::native_string_access_tests::original_return_option_key_capacity_is_host_refusal_outside_guest_catch' (1218336) panicked at src/return_options/native_string_access_tests.rs:90:5:
+assertion failed: interp.var_get(b"::reached").is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    return_options::native_string_access_tests::original_return_option_key_capacity_is_host_refusal_outside_guest_catch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.21s
+

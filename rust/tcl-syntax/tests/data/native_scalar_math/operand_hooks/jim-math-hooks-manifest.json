@@ -1,0 +1,9 @@
+{
+  "engine": "Jim0.84",
+  "exit": 0,
+  "source_sha256": "62015c23986f1b04726599a367a4988817f821a87936da6228c1878cc0d57d73",
+  "binary_sha256": "cc9792eb67caf1aa4b62ebaac363136519e843893bb0b48570893dee4b60e5b7",
+  "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+  "output_sha256": "f90f2e106c90f9db8ae2fe642fc71c2c67b64293b5c805c3ce1d362757607ea2",
+  "observations": 16
+}

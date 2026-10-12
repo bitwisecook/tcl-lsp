@@ -1,0 +1,42 @@
+{
+  "question": "naming.compiler.original-info-commands-literal-resolution",
+  "request_sha256": "c6b1bc485097aeddb738b7c77761c20c90fa0d0837685664ccb2516bece911f4",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "availability": "original_harness_executed",
+      "compile_receipt_sha256": "5be9eff4c601bab129d278030644b5db2d8bd96470f609a11ee188f5bb09acf2",
+      "case_count": 31
+    },
+    {
+      "provider": "8.5.19",
+      "availability": "original_harness_executed",
+      "compile_receipt_sha256": "f3458ad976e4202f94be6000877d9b15059a4eb5eb503b6253b89d00fa57049f",
+      "case_count": 31
+    },
+    {
+      "provider": "8.6.18",
+      "availability": "original_harness_executed",
+      "compile_receipt_sha256": "8c231f6fc890b0dee7a5de820dd2341a2b52700991ebb611c2fdcb3a0040f943",
+      "case_count": 31
+    },
+    {
+      "provider": "9.0.4",
+      "availability": "original_harness_executed",
+      "compile_receipt_sha256": "fbb03e575990e92823aa8b6aca518b73a9929cd07dc5f3f822f1ebdecfdc54ec",
+      "case_count": 31
+    },
+    {
+      "provider": "9.1.0",
+      "availability": "original_harness_executed",
+      "compile_receipt_sha256": "01873bcc17b3cc66592111d126d366c0a6bc5516a120ae0d3893ec3c3b46e106",
+      "case_count": 31
+    },
+    {
+      "provider": "jim",
+      "availability": "original_harness_executed",
+      "compile_receipt_sha256": "11805ad3468eb17cd717acbb5855d8b69b7f56b1628ebbc0f70130b13eeaac83",
+      "case_count": 31
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+D	0	before	
+D	0	result	NULL,1,0,1,0,,storage=canonical	same_first=0	backing_first=0	children=
+D	0	after	
+D	0	value	
+D	1	before	NULL,1,0,1,0,,storage=canonical
+D	1	result	NULL,1,0,1,0,,storage=canonical	same_first=0	backing_first=0	children=-1
+D	1	after	NULL,1,0,1,0,,storage=canonical
+D	1	value	
+D	2	before	NULL,1,0,1,0,,storage=canonical
+D	2	result	NULL,1,0,1,0,,storage=canonical	same_first=0	backing_first=0	children=-1
+D	2	after	NULL,1,0,1,0,,storage=canonical
+D	2	value	
+D	3	before	list,0,1,1,-1,,storage=absent
+D	3	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=1	children=1
+D	3	after	list,0,1,1,-1,,storage=absent
+D	3	value	612062
+D	4	before	NULL,1,0,1,0,,storage=canonical
+D	4	result	NULL,1,0,1,0,,storage=canonical	same_first=0	backing_first=0	children=-1
+D	4	after	NULL,1,0,1,0,,storage=canonical
+D	4	value	
+D	5	before	list,0,1,1,-1,,storage=absent;list,0,1,1,-1,,storage=absent
+D	5	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=0	children=2,2
+D	5	after	list,0,1,1,-1,,storage=absent;list,0,1,1,-1,,storage=absent
+D	5	value	612062
+D	6	before	list,0,1,1,-1,,storage=absent;list,0,1,1,-1,,storage=absent
+D	6	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=0	children=2,2
+D	6	after	list,0,1,1,-1,,storage=absent;list,0,1,1,-1,,storage=absent
+D	6	value	61202362
+D	7	before	list,0,1,1,-1,,storage=absent;list,0,1,1,-1,,storage=absent
+D	7	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=0	children=2,2
+D	7	after	list,0,1,1,-1,,storage=absent;list,0,1,1,-1,,storage=absent
+D	7	value	7b23617d2062
+D	8	before	list,1,0,1,8,206120207b627d20,storage=allocated
+D	8	result	string,1,0,1,6,6120207b627d,storage=allocated,chars=-1	same_first=0	backing_first=0	children=-1
+D	8	after	list,1,0,1,8,206120207b627d20,storage=allocated
+D	8	value	6120207b627d
+D	9	before	list,1,1,1,3,612062,storage=allocated
+D	9	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=1	children=1
+D	9	after	list,1,1,1,3,612062,storage=allocated
+D	9	value	612062
+D	10	before	NULL,1,0,1,0,,storage=canonical;list,0,1,1,-1,,storage=absent
+D	10	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=0	children=-1,1
+D	10	after	NULL,1,0,1,0,,storage=canonical;list,0,1,1,-1,,storage=absent
+D	10	value	61
+D	11	before	NULL,1,0,1,2,2020,storage=allocated;list,0,1,1,-1,,storage=absent
+D	11	result	string,1,0,1,1,61,storage=allocated,chars=-1	same_first=0	backing_first=0	children=-1,1
+D	11	after	NULL,1,0,1,2,2020,storage=allocated;list,1,1,1,1,61,storage=allocated
+D	11	value	61
+D	12	before	list,0,1,1,-1,,storage=absent;NULL,1,0,1,0,,storage=canonical
+D	12	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=1	children=1,-1
+D	12	after	list,0,1,1,-1,,storage=absent;NULL,1,0,1,0,,storage=canonical
+D	12	value	61
+D	13	before	NULL,1,0,1,0,,storage=canonical;list,0,1,1,-1,,storage=absent
+D	13	result	list,0,1,1,-1,,storage=absent	same_first=0	backing_first=0	children=-1,1
+D	13	after	NULL,1,0,1,0,,storage=canonical;list,0,1,1,-1,,storage=absent
+D	13	value	7b23627d
+D	14	before	NULL,1,0,1,3,206120,storage=allocated;NULL,1,0,1,3,206220,storage=allocated
+D	14	result	string,1,0,1,3,612062,storage=allocated,chars=-1	same_first=0	backing_first=0	children=-1,-1
+D	14	after	NULL,1,0,1,3,206120,storage=allocated;NULL,1,0,1,3,206220,storage=allocated
+D	14	value	612062
+D	15	before	NULL,1,0,1,0,,storage=canonical;NULL,1,0,1,0,,storage=canonical
+D	15	result	NULL,1,0,1,0,,storage=canonical	same_first=0	backing_first=0	children=-1,-1
+D	15	after	NULL,1,0,1,0,,storage=canonical;NULL,1,0,1,0,,storage=canonical
+D	15	value	
+D	16	before	NULL,1,0,1,1,20,storage=allocated;NULL,1,0,1,1,09,storage=allocated
+D	16	result	string,1,0,1,0,,storage=allocated,chars=-1	same_first=0	backing_first=0	children=-1,-1
+D	16	after	NULL,1,0,1,1,20,storage=allocated;NULL,1,0,1,1,09,storage=allocated
+D	16	value	
+D	17	before	NULL,1,0,1,3,615c20,storage=allocated;NULL,1,0,1,1,62,storage=allocated
+D	17	result	string,1,0,1,5,615c202062,storage=allocated,chars=-1	same_first=0	backing_first=0	children=-1,-1
+D	17	after	NULL,1,0,1,3,615c20,storage=allocated;NULL,1,0,1,1,62,storage=allocated
+D	17	value	615c202062
+D	18	before	NULL,1,0,1,4,615c5c20,storage=allocated;NULL,1,0,1,1,62,storage=allocated
+D	18	result	string,1,0,1,6,615c5c202062,storage=allocated,chars=-1	same_first=0	backing_first=0	children=-1,-1
+D	18	after	NULL,1,0,1,4,615c5c20,storage=allocated;NULL,1,0,1,1,62,storage=allocated
+D	18	value	615c5c202062
+D	19	before	list,0,1,1,-1,,storage=absent;list,1,0,1,4,20236220,storage=allocated
+D	19	result	string,1,0,1,4,61202362,storage=allocated,chars=-1	same_first=0	backing_first=0	children=1,-1
+D	19	after	list,1,1,1,1,61,storage=allocated;list,1,0,1,4,20236220,storage=allocated
+D	19	value	61202362
+C	0	result	0	NULL,1,0,1,0,,storage=canonical	global=0
+C	0	literal	0	cmdName,1,0,1,6,636f6e636174,storage=allocated	global=0	same_result=0
+C	1	result	0	NULL,1,0,1,0,,storage=canonical	global=0
+C	1	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	1	literal	1	NULL,1,0,2,0,,storage=canonical	global=1	same_result=0
+C	2	result	0	NULL,1,0,1,0,,storage=canonical	global=0
+C	2	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	2	literal	1	NULL,1,0,2,0,,storage=canonical	global=1	same_result=0
+C	3	result	0	string,1,0,1,0,,storage=allocated,chars=-1	global=0
+C	3	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	3	literal	1	NULL,1,0,2,1,20,storage=allocated	global=1	same_result=0
+C	3	literal	2	NULL,1,0,2,1,09,storage=allocated	global=1	same_result=0
+C	4	result	0	string,1,0,1,1,41,storage=allocated,chars=-1	global=0
+C	4	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	4	literal	1	NULL,1,0,2,1,41,storage=allocated	global=1	same_result=0
+C	5	result	0	string,1,0,1,5,4120422043,storage=allocated,chars=-1	global=0
+C	5	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	5	literal	1	NULL,1,0,2,3,412042,storage=allocated	global=1	same_result=0
+C	5	literal	2	NULL,1,0,2,1,43,storage=allocated	global=1	same_result=0
+C	6	result	0	string,1,0,1,5,415c202042,storage=allocated,chars=-1	global=0
+C	6	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	6	literal	1	NULL,1,0,2,3,415c20,storage=allocated	global=1	same_result=0
+C	6	literal	2	NULL,1,0,2,1,42,storage=allocated	global=1	same_result=0
+C	7	result	0	string,1,0,1,6,415c5c202042,storage=allocated,chars=-1	global=0
+C	7	literal	0	cmdName,1,0,2,6,636f6e636174,storage=allocated	global=1	same_result=0
+C	7	literal	1	NULL,1,0,2,4,415c5c20,storage=allocated	global=1	same_result=0
+C	7	literal	2	NULL,1,0,2,1,42,storage=allocated	global=1	same_result=0

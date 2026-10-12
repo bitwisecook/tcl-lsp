@@ -1,0 +1,12 @@
+BEFORE
+2212913 bash -c cd /tmp/r2286m-dev && nohup python3 backend.py --bind 192.168.9.80 --port 18100 > backend.log 2>&1 & echo $! > backend.pid; nohup python3 -m http.server 18102 --bind 192.168.9.80 --directory /tmp/r2286m-dev > http.log 2>&1 & echo $! > http.pid; sleep 1; cat backend.pid http.pid; ss -ltn | grep -E ":(18100|18102)\\b"
+2212914 python3 -m http.server 18102 --bind 192.168.9.80 --directory /tmp/r2286m-dev
+2212915 python3 backend.py --bind 192.168.9.80 --port 18100
+2229542 bash -c test ! -e /tmp/r2286m-dev/r2286m-appliance-evidence.tgz && nohup python3 /tmp/r2286m-dev/evidence-receiver.py --bind 192.168.9.80 --port 18103 --out-dir /tmp/r2286m-dev --name r2286m-appliance-evidence.tgz > /tmp/r2286m-dev/receiver.log 2>&1 < /dev/null & echo $! > /tmp/r2286m-dev/receiver.pid
+2229543 python3 /tmp/r2286m-dev/evidence-receiver.py --bind 192.168.9.80 --port 18103 --out-dir /tmp/r2286m-dev --name r2286m-appliance-evidence.tgz
+LISTENERS_BEFORE
+LISTEN 0      5       192.168.9.80:18100      0.0.0.0:*    users:(("python3",pid=2212915,fd=3))
+LISTEN 0      5       192.168.9.80:18103      0.0.0.0:*    users:(("python3",pid=2229543,fd=3))
+LISTEN 0      5       192.168.9.80:18102      0.0.0.0:*    users:(("python3",pid=2212914,fd=3))
+AFTER
+LISTENERS_AFTER

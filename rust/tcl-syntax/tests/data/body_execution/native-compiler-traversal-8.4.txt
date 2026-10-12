@@ -1,0 +1,41 @@
+if-zero 0 1 OK
+if-zero-float 0 1 OK
+if-zero-hex 0 1 OK
+if-off 0 1 OK
+if-expression-zero 1 0 {wrong # args: should be "set varName ?newValue?"}
+if-variable-zero 1 0 {wrong # args: should be "set varName ?newValue?"}
+if-dead-else 0 1 OK
+if-dead-elseif 0 1 OK
+while-zero 0 1 OK
+while-expression-zero 1 0 {wrong # args: should be "set varName ?newValue?"}
+for-zero 1 0 {wrong # args: should be "set varName ?newValue?"}
+foreach-empty 1 0 {wrong # args: should be "set varName ?newValue?"}
+protected-catch 0 1 {wrong # args: should be "set varName ?newValue?"}
+return-before-error 1 0 {wrong # args: should be "set varName ?newValue?"}
+expr-premature 1 0 {syntax error in expression "+": premature end of expression}
+expr-multiple-arguments 1 1 {syntax error in expression "+ +": premature end of expression}
+expr-substituted 1 1 {syntax error in expression "+": premature end of expression}
+if-premature 1 0 {syntax error in expression "+": premature end of expression}
+while-premature 1 0 {syntax error in expression "+": premature end of expression}
+for-premature 1 0 {syntax error in expression "+": premature end of expression}
+if-error-order 1 0 {syntax error in expression "+": premature end of expression}
+while-error-order 1 0 {wrong # args: should be "set varName ?newValue?"}
+for-error-order 1 0 {wrong # args: should be "set varName ?newValue?"}
+catch-expression-error 0 1 {syntax error in expression "+": premature end of expression}
+command 1 0 {wrong # args: should be "set varName ?newValue?"}
+short-and 1 0 {wrong # args: should be "set varName ?newValue?"}
+short-or 1 0 {wrong # args: should be "set varName ?newValue?"}
+conditional 1 0 {wrong # args: should be "set varName ?newValue?"}
+array-index 1 0 {wrong # args: should be "incr varName ?increment?"}
+for-initial 1 0 {wrong # args: should be "incr varName ?increment?"}
+math-unknown-syntax 1 0 {syntax error in expression "future_function(1+)": unexpected close parenthesis}
+math-unknown-trailing 1 0 {unknown math function "future_function"}
+math-unknown-first 1 0 {unknown math function "future_function"}
+math-required-extra 1 0 {wrong # args: should be "set varName ?newValue?"}
+math-required-missing 1 0 {wrong # args: should be "set varName ?newValue?"}
+math-nested-unknown 1 0 {unknown math function "unknown"}
+math-extra-not-visited 1 0 {too many arguments for math function}
+math-second-required 1 0 {wrong # args: should be "set varName ?newValue?"}
+error-message-before-argv 0 1 CUSTOM
+error-info-before-argv 0 1 CUSTOM
+renamed-set-error 1 {wrong # args: should be "set varName ?newValue?"}

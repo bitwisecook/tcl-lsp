@@ -37,7 +37,7 @@
 //! `break`/`continue` target depth is just the recursion depth of enclosing
 //! loops.
 
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, SourceImage, Span};
 
 use crate::codegen::emit::Emit;
 use crate::ir::{IfClause, Script, Statement};
@@ -70,8 +70,37 @@ enum Flow {
 
 /// Walk `script` (using `source` for eval-fallback command text), driving `emit`
 /// with the recovered structured control flow.
-pub fn walk<E: Emit>(emit: &mut E, script: &Script, source: &str) {
-    walk_script(emit, script, source, 0, 0);
+pub fn walk<E: Emit>(
+    emit: &mut E,
+    script: &Script,
+    source: &str,
+    original: &SourceImage,
+    config: LexerConfig,
+) {
+    walk_script(
+        emit,
+        script,
+        WalkSource {
+            text: source,
+            original,
+            config,
+        },
+        0,
+        0,
+    );
+}
+
+#[derive(Clone, Copy)]
+struct WalkSource<'a> {
+    text: &'a str,
+    original: &'a SourceImage,
+    config: LexerConfig,
+}
+
+impl<'a> WalkSource<'a> {
+    fn command_text(self, span: Span) -> &'a str {
+        command_text(self.text, span, self.original, self.config)
+    }
 }
 
 /// Emit each statement of `script` in order, stopping after one diverges (its
@@ -79,7 +108,28 @@ pub fn walk<E: Emit>(emit: &mut E, script: &Script, source: &str) {
 /// enclosing loops whose break/continue scope is open — `break`/`continue` are
 /// realised structurally only when inside one (`> 0`). `depth` is this script's
 /// total structural nesting level — see [`MAX_STRUCTURED_DEPTH`].
-fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: &str, loop_depth: u32, depth: u32) {
+fn walk_script<E: Emit>(
+    emit: &mut E,
+    script: &Script,
+    source: WalkSource<'_>,
+    loop_depth: u32,
+    depth: u32,
+) {
+    use crate::native_compilation_admission::{
+        NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    match script_admission_plan(script, NativeCompilationAdmissionScope::Script) {
+        NativeCompilationAdmissionPlan::HostScript(chunk) => {
+            emit.emit_command_image(&chunk.text);
+            return;
+        }
+        NativeCompilationAdmissionPlan::RefuseMissingSource => {
+            emit.refuse_native_compilation_admission();
+            return;
+        }
+        NativeCompilationAdmissionPlan::NoRetainedObligation => {}
+        NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
+    }
     for stmt in &script.statements {
         if walk_stmt(emit, stmt, source, loop_depth, depth) == Flow::Diverged {
             break;
@@ -90,7 +140,7 @@ fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: &str, loop_depth:
 fn walk_stmt<E: Emit>(
     emit: &mut E,
     stmt: &Statement,
-    source: &str,
+    source: WalkSource<'_>,
     loop_depth: u32,
     depth: u32,
 ) -> Flow {
@@ -104,7 +154,7 @@ fn walk_stmt<E: Emit>(
             Statement::If { .. } | Statement::While { .. } | Statement::For { .. }
         )
     {
-        emit.emit_command(command_text(source, stmt.span()));
+        emit.emit_command(source.command_text(stmt.span()));
         return Flow::Normal;
     }
     // `break` / `continue` inside a loop are completion codes the walk realises
@@ -124,7 +174,7 @@ fn walk_stmt<E: Emit>(
             return Flow::Diverged;
         }
     }
-    if emit.emit_typed_statement(stmt, source) {
+    if emit.emit_typed_statement(stmt, source.text) {
         return if matches!(stmt, Statement::Return { .. }) {
             Flow::Diverged
         } else {
@@ -153,7 +203,7 @@ fn walk_stmt<E: Emit>(
             body,
             ..
         } => {
-            let cond = clause_text(source, *condition_span, *condition_base);
+            let cond = clause_text(source.text, *condition_span, *condition_base);
             emit_loop(emit, opt(cond), body, None, source, loop_depth, depth);
             Flow::Normal
         }
@@ -169,7 +219,7 @@ fn walk_stmt<E: Emit>(
         } => {
             // The init clause runs once, in the enclosing scope.
             walk_script(emit, init, source, loop_depth, depth);
-            let cond = clause_text(source, *condition_span, *condition_base);
+            let cond = clause_text(source.text, *condition_span, *condition_base);
             // `Statement::For` carries `condition_base`
             // but no `next_base`, so the step clause takes the lowerer's own
             // de-braced word text (`raw_args[2]` — `for init cond next body`)
@@ -179,7 +229,7 @@ fn walk_stmt<E: Emit>(
             // fall back to the span-derived content.
             let step = match raw_args.get(2) {
                 Some(text) => text.trim(),
-                None => clause_text(source, *next_span, None),
+                None => clause_text(source.text, *next_span, None),
             };
             emit_loop(emit, opt(cond), body, opt(step), source, loop_depth, depth);
             Flow::Normal
@@ -191,7 +241,7 @@ fn walk_stmt<E: Emit>(
             // -code`) already unwinds the function via `emit_command`'s dispatch.
             // The explicit `emit_return` makes the exit unconditional (a `return`
             // statement always leaves) and terminates this straight-line script.
-            emit.emit_command(command_text(source, *span));
+            emit.emit_command(source.command_text(*span));
             emit.emit_return();
             Flow::Diverged
         }
@@ -200,14 +250,14 @@ fn walk_stmt<E: Emit>(
         // `continue` are ordinary commands too (the runtime raises "invoked …
         // outside of a loop").
         Statement::Call { span, .. } => {
-            emit.emit_command(command_text(source, *span));
+            emit.emit_command(source.command_text(*span));
             Flow::Normal
         }
 
         // Everything else — assignments, `foreach`/`switch`/`catch`/`try`,
         // barriers, inlined blocks — is one whole-construct eval-fallback.
         other => {
-            emit.emit_command(command_text(source, other.span()));
+            emit.emit_command(source.command_text(other.span()));
             Flow::Normal
         }
     }
@@ -227,7 +277,7 @@ fn emit_if<E: Emit>(
     emit: &mut E,
     clauses: &[IfClause],
     else_body: Option<&Script>,
-    source: &str,
+    source: WalkSource<'_>,
     loop_depth: u32,
     depth: u32,
     full_span: Span,
@@ -237,7 +287,7 @@ fn emit_if<E: Emit>(
     };
 
     emit.begin_if(clause_text(
-        source,
+        source.text,
         first.condition_span,
         first.condition_base,
     ));
@@ -255,7 +305,7 @@ fn emit_if<E: Emit>(
             // (cheap, and — same assumption every other eval-fallback in
             // this module already makes — side-effect-free) reaches
             // exactly the same outcome as evaluating just the remainder.
-            emit.emit_command(command_text(source, full_span));
+            emit.emit_command(source.command_text(full_span));
         } else {
             // Remaining `elseif` clauses become a nested `if` in the `else` arm.
             emit_if(
@@ -286,7 +336,7 @@ fn emit_loop<E: Emit>(
     cond: Option<&str>,
     body: &Script,
     step: Option<&str>,
-    source: &str,
+    source: WalkSource<'_>,
     loop_depth: u32,
     depth: u32,
 ) {
@@ -347,17 +397,21 @@ fn slice(source: &str, span: Span) -> &str {
 /// thing known here is that the closer, if one is missing, sits exactly at
 /// `span.end()`.
 ///
-/// Rather than re-deriving where the final word began — a hand-rolled scan
-/// whose copies drift — the question is put to
-/// [`tcl_lexer::script_is_complete`], the crate's `Tcl_CommandComplete` port
-/// (`info complete`, verified against C Tcl 9.0.3): a truncated command is
-/// *exactly* a script that needs more input, and restoring its closer is
-/// exactly what makes it complete. So the widened byte is taken only when it
-/// turns an incomplete script into a complete one — which also means a span
+/// The configured original-source owner answers both completeness queries.
+/// The full retained configuration and source channel must correspond to the
+/// caller's text; unavailable or mismatched input cannot widen a span.
+/// The widened byte is taken only when it turns an incomplete script into a
+/// complete one. This geometry check grants no native compilation admission.
+/// A span
 /// left short for any *other* reason (a mis-lowered dynamic body, a rebased
 /// synthetic span) is never silently extended, and a command that is already
 /// whole is returned byte-identical.
-pub(crate) fn command_text(source: &str, span: Span) -> &str {
+pub(crate) fn command_text<'a>(
+    source: &'a str,
+    span: Span,
+    original: &SourceImage,
+    config: LexerConfig,
+) -> &'a str {
     let text = slice(source, span);
     let end = span.end() as usize;
     // `"` is the one closer `widen_word_end`'s type gate leaves out; a braced
@@ -368,7 +422,14 @@ pub(crate) fn command_text(source: &str, span: Span) -> &str {
     let Some(widened) = source.get(span.start() as usize..end + 1) else {
         return text;
     };
-    if tcl_lexer::script_is_complete(text) || !tcl_lexer::script_is_complete(widened) {
+    if original.bytes() != source.as_bytes() {
+        return text;
+    }
+    let complete = |candidate: &str| {
+        let image = SourceImage::from_bytes(candidate.as_bytes(), original.channel());
+        tcl_lexer::script_image_is_complete(&image, config.nested())
+    };
+    if complete(text) != Ok(false) || complete(widened) != Ok(true) {
         return text;
     }
     widened
@@ -478,7 +539,7 @@ fn opt(text: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::lower_to_ir;
+    use crate::lowering::{Lowerer, lower_to_ir_with};
     use tcl_registry::CommandRegistry;
 
     /// A backend-free [`Emit`] that records each call as a string, so the
@@ -488,8 +549,15 @@ mod tests {
     struct Recorder(Vec<String>);
 
     impl Emit for Recorder {
-        fn emit_command(&mut self, t: &str) {
-            self.0.push(format!("cmd({t})"));
+        fn refuse_native_compilation_admission(&mut self) {
+            self.0.push("native-admission-refused".to_owned());
+        }
+
+        fn emit_command_image(&mut self, source: &tcl_lexer::SourceImage) {
+            match source.try_text() {
+                Ok(text) => self.0.push(format!("cmd({text})")),
+                Err(_) => self.0.push(format!("command-bytes({:?})", source.bytes())),
+            }
         }
         fn begin_if(&mut self, c: &str) {
             self.0.push(format!("if({c})"));
@@ -634,7 +702,12 @@ mod tests {
         for &(source, start, end, expected) in cases {
             let span = Span::new(start, end);
             assert_eq!(
-                command_text(source, span),
+                command_text(
+                    source,
+                    span,
+                    &SourceImage::document(source),
+                    LexerConfig::default(),
+                ),
                 expected,
                 "command_text({source:?}, {start}..{end})"
             );
@@ -674,9 +747,44 @@ mod tests {
 
     /// Lower `src` and record the structured-walk event sequence.
     fn events(src: &str) -> Vec<String> {
-        let module = lower_to_ir(src, &CommandRegistry::build_default());
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0")
+            .expect("selected native structured-walk fixture");
+        let registry =
+            std::sync::Arc::new(CommandRegistry::build_default().project_for_profile(profile));
+        let mut prepared = crate::analyser::Analyser::new();
+        let prepared_input = prepared.prepare_analysis_input(profile.name).unwrap();
+        let context = std::sync::Arc::new(
+            prepared_input
+                .context_registry()
+                .with_command_store(registry.clone()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            prepared_input.analyser_profile(),
+            prepared_input.unit_profile(),
+            context,
+            prepared_input.lexer_config(),
+        );
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        // Native entry and complete conditional metadata retain their own owners.
+        let mut lowerer = Lowerer::with_config(&registry, input.lexer_config())
+            .with_dialect(Some(profile))
+            .with_resolved_analysis_input(input);
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            native_entry: Some(entry.as_entry()),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        });
+        let module = lower_to_ir_with(lowerer, src);
+        let module = entry.retain(module);
         let mut rec = Recorder::default();
-        walk(&mut rec, &module.top_level, src);
+        walk(
+            &mut rec,
+            &module.top_level,
+            src,
+            &module.source,
+            module.lexer_config,
+        );
         rec.0
     }
 
@@ -864,5 +972,49 @@ mod tests {
         // `for {} {} {} {body}` — empty condition ⇒ `test(-)` (unconditional).
         let ev = events("for {} {} {} {puts hi}\n");
         assert!(ev.contains(&"test(-)".to_string()), "{ev:?}");
+    }
+}
+
+#[cfg(test)]
+mod original_configured_span_tests {
+    use super::*;
+    #[test]
+    fn original_command_quote_widening_requires_current_image_config_and_channel() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original geometry only, separate from executable admission.
+        let source = "puts \"x\"";
+        let span = Span::new(0, 7);
+        let document = SourceImage::document(source);
+        let native = SourceImage::native(source.as_bytes());
+        let config = LexerConfig::default();
+        assert_eq!(command_text(source, span, &document, config), source);
+        assert_eq!(command_text(source, span, &native, config), source);
+        assert_eq!(
+            command_text(source, span, &SourceImage::document("foreign"), config),
+            "puts \"x"
+        );
+        let jim = crate::environment_ingress::resolve_environment("jim");
+        let unavailable = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+            ..LexerConfig::for_file_grammar(jim.grammar())
+        };
+        assert_eq!(
+            command_text(source, span, &document, unavailable),
+            "puts \"x"
+        );
+        let source = "puts \"${a{}\"";
+        let end = u32::try_from(source.len() - 1).unwrap();
+        let span = Span::new(0, end);
+        let original = SourceImage::document(source);
+        let first_close = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..config
+        };
+        assert_eq!(command_text(source, span, &original, first_close), source);
+        assert_eq!(
+            command_text(source, span, &original, config),
+            &source[..source.len() - 1]
+        );
     }
 }

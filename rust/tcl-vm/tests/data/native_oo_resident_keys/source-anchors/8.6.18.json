@@ -1,0 +1,7 @@
+{
+  "source_path": "tmp/tcl8.6.18/generic/tclBasic.c",
+  "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+  "snippet": "Tcl_Eval(\n    Tcl_Interp *interp,\t\t/* Token for command interpreter (returned by\n\t\t\t\t * previous call to Tcl_CreateInterp). */\n    const char *script)\t\t/* Pointer to TCL command to execute. */\n{\n    int code = Tcl_EvalEx(interp, script, -1, 0);\n\n    /*\n     * For backwards compatibility with old C code that predates the object\n     * system in Tcl 8.0, we have to mirror the object result back into the\n     * string result (some callers may expect it there).\n     */\n\n    (void)Tcl_GetStringResult(interp);\n    return code;\n}",
+  "snippet_sha256": "3ea3db03130a6e6cda21be9789421f318eef1cb3c1e7cede5d9ec1fb796de5f8",
+  "function": "Tcl_Eval"
+}

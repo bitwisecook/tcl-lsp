@@ -1,0 +1,15 @@
+{
+  "provider": "tcl9.1",
+  "version": "9.1.0",
+  "revision": "Pinned Tcl 9.1.0 release source, retained full-file SHA-256",
+  "original_path": "generic/tclOODefineCmds.c",
+  "function": "TclOODefineMethodObjCmd",
+  "lines": [
+    2271,
+    2352
+  ],
+  "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+  "snippet": "TclOODefineMethodObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    /*\n     * Table of export modes for methods and their corresponding enum.\n     */\n\n    static const char *const exportModes[] = {\n\t\"-export\",\n\t\"-private\",\n\t\"-unexport\",\n\tNULL\n    };\n    enum ExportMode {\n\tMODE_EXPORT,\n\tMODE_PRIVATE,\n\tMODE_UNEXPORT\n    } exportMode;\n\n    bool isInstanceMethod = (clientData != NULL);\n    Object *oPtr;\n    int flags = 0;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?option? args body\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceMethod && !oPtr->classPtr) {\n\treturn ReportAbuse(interp);\n    }\n    if (objc == 5) {\n\tif (Tcl_GetIndexFromObj(interp, objv[2], exportModes, \"export flag\",\n\t\t0, &exportMode) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n\tswitch (exportMode) {\n\tcase MODE_EXPORT:\n\t    flags = PUBLIC_METHOD;\n\t    break;\n\tcase MODE_PRIVATE:\n\t    flags = TRUE_PRIVATE_METHOD;\n\t    break;\n\tcase MODE_UNEXPORT:\n\t    flags = 0;\n\t    break;\n\tdefault:\n\t    TCL_UNREACHABLE();\n\t}\n    } else {\n\tif (IsPrivateDefine(interp)) {\n\t    flags = TRUE_PRIVATE_METHOD;\n\t} else {\n\t    flags = Tcl_StringMatch(TclGetString(objv[1]), PUBLIC_PATTERN)\n\t\t    ? PUBLIC_METHOD : 0;\n\t}\n    }\n\n    /*\n     * Create the method by using the right back-end API.\n     */\n\n    if (isInstanceMethod) {\n\tif (TclOONewProcInstanceMethod(interp, oPtr, flags, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    } else {\n\tif (TclOONewProcMethod(interp, oPtr->classPtr, flags, objv[1],\n\t\tobjv[objc - 2], objv[objc - 1], NULL) == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n    return TCL_OK;\n}\n",
+  "snippet_sha256": "a10f879e9ab4d7269c1f889ab63cb99cf586d0d07f8f5423c4b69c4d36c0e57b",
+  "evidence": "tcl9.1-method-source"
+}

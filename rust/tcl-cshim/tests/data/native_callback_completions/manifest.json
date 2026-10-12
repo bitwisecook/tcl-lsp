@@ -1,0 +1,700 @@
+[
+  {
+    "release": "8.4.20",
+    "source_sha256": "355986fdc409d1b0a057f3cfcc1275293d2c6be657258893771403b93f824adc",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "output_sha256": "7abace2d20bb2897e4ad0d14189dec9cf2dc5f18e17ab1402a7536b9bad0aecd",
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe-8.4.20"
+    ],
+    "observations": [
+      {
+        "code": 0,
+        "seeded": 0,
+        "result": "7600ff"
+      },
+      {
+        "code": 1,
+        "seeded": 0,
+        "result": "7600ff"
+      },
+      {
+        "code": 2,
+        "seeded": 0,
+        "result": "7600ff"
+      },
+      {
+        "code": 3,
+        "seeded": 0,
+        "result": "7600ff"
+      },
+      {
+        "code": 4,
+        "seeded": 0,
+        "result": "7600ff"
+      },
+      {
+        "code": 7,
+        "seeded": 0,
+        "result": "7600ff"
+      },
+      {
+        "code": 0,
+        "seeded": 1,
+        "result": "7600ff"
+      },
+      {
+        "code": 1,
+        "seeded": 1,
+        "result": "7600ff"
+      },
+      {
+        "code": 2,
+        "seeded": 1,
+        "result": "7600ff"
+      },
+      {
+        "code": 3,
+        "seeded": 1,
+        "result": "7600ff"
+      },
+      {
+        "code": 4,
+        "seeded": 1,
+        "result": "7600ff"
+      },
+      {
+        "code": 7,
+        "seeded": 1,
+        "result": "7600ff"
+      }
+    ]
+  },
+  {
+    "release": "8.5.19",
+    "source_sha256": "355986fdc409d1b0a057f3cfcc1275293d2c6be657258893771403b93f824adc",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "output_sha256": "776d7dbdbe38b5a51781c800e4acac9f19f51e15001b3b81698afe44d7660acd",
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe-8.5.19"
+    ],
+    "observations": [
+      {
+        "code": 0,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "4e4f4e45",
+        "errorinfo": "7600ff",
+        "errorline": "30",
+        "errorstack": null
+      },
+      {
+        "code": 2,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 0,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": "7600ff",
+        "errorline": "30",
+        "errorstack": null
+      },
+      {
+        "code": 2,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      }
+    ]
+  },
+  {
+    "release": "8.6.18",
+    "source_sha256": "355986fdc409d1b0a057f3cfcc1275293d2c6be657258893771403b93f824adc",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "output_sha256": "2ce5f35ef93a472f34c2ec58d683a8a97a55d305a6d4c13a96a051446db3c1bd",
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe-8.6.18"
+    ],
+    "observations": [
+      {
+        "code": 0,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "4e4f4e45",
+        "errorinfo": "7600ff",
+        "errorline": "31",
+        "errorstack": ""
+      },
+      {
+        "code": 2,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 0,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": "7600ff",
+        "errorline": "31",
+        "errorstack": ""
+      },
+      {
+        "code": 2,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      }
+    ]
+  },
+  {
+    "release": "9.0.4",
+    "source_sha256": "355986fdc409d1b0a057f3cfcc1275293d2c6be657258893771403b93f824adc",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "output_sha256": "2ce5f35ef93a472f34c2ec58d683a8a97a55d305a6d4c13a96a051446db3c1bd",
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe-9.0.4"
+    ],
+    "observations": [
+      {
+        "code": 0,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "4e4f4e45",
+        "errorinfo": "7600ff",
+        "errorline": "31",
+        "errorstack": ""
+      },
+      {
+        "code": 2,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 0,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": "7600ff",
+        "errorline": "31",
+        "errorstack": ""
+      },
+      {
+        "code": 2,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      }
+    ]
+  },
+  {
+    "release": "9.1.0",
+    "source_sha256": "355986fdc409d1b0a057f3cfcc1275293d2c6be657258893771403b93f824adc",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "output_sha256": "2ce5f35ef93a472f34c2ec58d683a8a97a55d305a6d4c13a96a051446db3c1bd",
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/callback-completions/probe-9.1.0"
+    ],
+    "observations": [
+      {
+        "code": 0,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "4e4f4e45",
+        "errorinfo": "7600ff",
+        "errorline": "31",
+        "errorstack": ""
+      },
+      {
+        "code": 2,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 0,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": null,
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 0,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 1,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "31",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": "7600ff",
+        "errorline": "31",
+        "errorstack": ""
+      },
+      {
+        "code": 2,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "30",
+        "option_level": "31",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 3,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "33",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 4,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "34",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      },
+      {
+        "code": 7,
+        "seeded": 1,
+        "result": "7600ff",
+        "option_code": "37",
+        "option_level": "30",
+        "errorcode": "435553544f4d2045",
+        "errorinfo": null,
+        "errorline": null,
+        "errorstack": null
+      }
+    ]
+  }
+]

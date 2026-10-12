@@ -1,0 +1,27 @@
+     * Check to see if the method has no implementation. If so, we probably
+     * need to add in a call to the unknown method. Otherwise, set up the
+     * cacheing of the method implementation (if relevant).
+     */
+
+    if (count == callPtr->numChain) {
+	/*
+	 * Method does not actually exist. If we're dealing with constructors
+	 * or destructors, this isn't a problem.
+	 */
+
+	if (flags & SPECIAL) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+	AddSimpleChainToCallContext(oPtr, NULL,
+		oPtr->fPtr->unknownMethodNameObj, &cb, NULL, BUILDING_MIXINS,
+		NULL);
+	AddSimpleChainToCallContext(oPtr, NULL,
+		oPtr->fPtr->unknownMethodNameObj, &cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = 0;
+	if (count == callPtr->numChain) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+    } else if (doFilters && !donePrivate) {

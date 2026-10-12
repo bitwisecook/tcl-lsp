@@ -1,0 +1,36 @@
+{
+  "provider": "8.6.18",
+  "channel": "dependencies",
+  "status": "closed",
+  "command": [
+    "/usr/bin/ldd",
+    "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.6.18/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-explicit-error-code-header-setter614c",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "CPATH",
+      "C_INCLUDE_PATH",
+      "CPLUS_INCLUDE_PATH",
+      "OBJC_INCLUDE_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
+  "source_sha256": "a23e636ebc18fc05ba7f7bb94e05d0856a453b4b278128bf8ce2cc09fff893b3",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.006861120986286551,
+  "stdout_sha256": "3faf04ec0cb3d1e73c3fd2dd754a80a2d190464ec9ff8ee1bf9eda5b6c39792f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verification_scope": "Actual process/streams only. Header, link, runtime, own-executable and final input verification are separate records."
+}

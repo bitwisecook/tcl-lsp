@@ -1,0 +1,554 @@
+{
+  "scope": "Actual undefined-unset traces, quiet unknown namespaces, and sequential compiler operand evaluation across all six native engines; completion/result/trace event observations only",
+  "cases_sha256": "06511e3318edcc7701b05edd08896ec118638b8ec1cd0cba9c14035a59a83c8d",
+  "rows": [
+    {
+      "engine": "8.4",
+      "case": "undefined-trace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.4-undefined-trace.tcl"
+      ],
+      "source_sha256": "fb35ffb2d2edfa2b50988f6184d126ca672d95798dd66c42c24a5653233ef0c5",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e736574202267686f7374223a206e6f2073756368207661726961626c657d207b7b67686f7374207b7d20757d7d207b7d",
+      "seconds": 0.00365565501851961,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "undefined-trace-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.4-undefined-trace-quiet.tcl"
+      ],
+      "source_sha256": "607140f87e65d1c1426143a2a67ae97b558be1bfc965ba1a24c8c2f36472375d",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d207b7b67686f7374207b7d20757d7d207b7d",
+      "seconds": 0.0025111789582297206,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "quiet-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.4-quiet-namespace.tcl"
+      ],
+      "source_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.002746025042142719,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "quiet-array-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.4-quiet-array-namespace.tcl"
+      ],
+      "source_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.004401173035148531,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "sequential-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.4-sequential-quiet.tcl"
+      ],
+      "source_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t7b7b4f4e4520317d207b54574f20317d7d20302030",
+      "seconds": 0.003064933989662677,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "element-order",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.4-element-order.tcl"
+      ],
+      "source_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e73657420226128464952535429223a206e6f2073756368207661726961626c657d205345434f4e44",
+      "seconds": 0.0025511779822409153,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "undefined-trace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.5-undefined-trace.tcl"
+      ],
+      "source_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e736574202267686f7374223a206e6f2073756368207661726961626c657d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.0026851549628190696,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "undefined-trace-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.5-undefined-trace-quiet.tcl"
+      ],
+      "source_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.0031415779958479106,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "quiet-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.5-quiet-namespace.tcl"
+      ],
+      "source_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.002438291034195572,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "quiet-array-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.5-quiet-array-namespace.tcl"
+      ],
+      "source_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.0035375700099393725,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "sequential-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.5-sequential-quiet.tcl"
+      ],
+      "source_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t7b7b4f4e4520317d207b54574f20317d7d20302030",
+      "seconds": 0.0030081799486652017,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "element-order",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.5-element-order.tcl"
+      ],
+      "source_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e73657420226128464952535429223a206e6f2073756368207661726961626c657d205345434f4e44",
+      "seconds": 0.004509141959715635,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "undefined-trace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.6-undefined-trace.tcl"
+      ],
+      "source_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e736574202267686f7374223a206e6f2073756368207661726961626c657d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.004110754991415888,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "undefined-trace-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.6-undefined-trace-quiet.tcl"
+      ],
+      "source_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.004779726034030318,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "quiet-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.6-quiet-namespace.tcl"
+      ],
+      "source_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.0030668170074932277,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "quiet-array-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.6-quiet-array-namespace.tcl"
+      ],
+      "source_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.002772717969492078,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "sequential-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.6-sequential-quiet.tcl"
+      ],
+      "source_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t7b7b4f4e4520317d207b54574f20307d7d20302030",
+      "seconds": 0.0034352249931544065,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "element-order",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/8.6-element-order.tcl"
+      ],
+      "source_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e73657420226128464952535429223a206e6f2073756368207661726961626c657d204649525354",
+      "seconds": 0.0032272239914163947,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "undefined-trace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.0-undefined-trace.tcl"
+      ],
+      "source_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e736574202267686f7374223a206e6f2073756368207661726961626c657d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.010221209959127009,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "undefined-trace-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.0-undefined-trace-quiet.tcl"
+      ],
+      "source_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.008106989960651845,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "quiet-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.0-quiet-namespace.tcl"
+      ],
+      "source_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.006883503985591233,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "quiet-array-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.0-quiet-array-namespace.tcl"
+      ],
+      "source_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.008224363962654024,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "sequential-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.0-sequential-quiet.tcl"
+      ],
+      "source_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t7b7b4f4e4520317d207b54574f20307d7d20302030",
+      "seconds": 0.007234319986309856,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "element-order",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.0-element-order.tcl"
+      ],
+      "source_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e73657420226128464952535429223a206e6f2073756368207661726961626c657d204649525354",
+      "seconds": 0.0073220450431108475,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "undefined-trace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.1-undefined-trace.tcl"
+      ],
+      "source_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e736574202267686f7374223a206e6f2073756368207661726961626c657d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.006721629993990064,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "undefined-trace-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.1-undefined-trace-quiet.tcl"
+      ],
+      "source_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d207b7b67686f7374207b7d20756e7365747d7d207b7d",
+      "seconds": 0.008799050003290176,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "quiet-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.1-quiet-namespace.tcl"
+      ],
+      "source_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.006896086968481541,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "quiet-array-namespace",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.1-quiet-array-namespace.tcl"
+      ],
+      "source_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204f524947494e414c",
+      "seconds": 0.008680200029630214,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "sequential-quiet",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.1-sequential-quiet.tcl"
+      ],
+      "source_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t7b7b4f4e4520317d207b54574f20307d7d20302030",
+      "seconds": 0.00666774099227041,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "element-order",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/9.1-element-order.tcl"
+      ],
+      "source_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e73657420226128464952535429223a206e6f2073756368207661726961626c657d204649525354",
+      "seconds": 0.009641201002523303,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "undefined-trace",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/jim-undefined-trace.tcl"
+      ],
+      "source_sha256": "e064e7e23ec85e525aa87706e0fbc4c1803fc52298291ce99ac1d37d709a1b81",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t696e76616c696420636f6d6d616e64206e616d652022747261636522",
+      "seconds": 0.004217782057821751,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "undefined-trace-quiet",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/jim-undefined-trace-quiet.tcl"
+      ],
+      "source_sha256": "4eec86d6043979305bf0544acfd6682c5b267cebe12f8ab36b3a27cc2eb62002",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t696e76616c696420636f6d6d616e64206e616d652022747261636522",
+      "seconds": 0.0037353819934651256,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "quiet-namespace",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/jim-quiet-namespace.tcl"
+      ],
+      "source_sha256": "28b10988b81d5ce6971be9b095007636a9b4ae476e8a9df41da4da08ec0e9109",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204e4f4e45",
+      "seconds": 0.00425149203510955,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "quiet-array-namespace",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/jim-quiet-array-namespace.tcl"
+      ],
+      "source_sha256": "9b43f3fe6d039e166325166748ebe9f7efb4409fa0caf97689752cb574ddef50",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t30207b7d204e4f4e45",
+      "seconds": 0.0036808110307902098,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "sequential-quiet",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/jim-sequential-quiet.tcl"
+      ],
+      "source_sha256": "3ee191cdb946ca5c193336de77175222cd7f57f8a49b39b2b9b39f009f97111f",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t7b7b4f4e4520317d207b54574f20317d7d20302030",
+      "seconds": 0.0037725360016338527,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "element-order",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-runtime-native-unset-traces/jim-element-order.tcl"
+      ],
+      "source_sha256": "e1f4de82f885c251e64b8dad2ad57512a26f4956920c48d60f6ab01c4453097d",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t31207b63616e277420756e73657420226128464952535429223a207661726961626c652069736e27742061727261797d205345434f4e44",
+      "seconds": 0.003395982028450817,
+      "budget": 60
+    }
+  ],
+  "fixture_sha256": {
+    "8.6.tsv": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+    "jim.tsv": "340e9d0d2a2edfdaeea96be995211fa1d9388ca6ef0c68e7f26bee46ba6cb7f5",
+    "9.1.tsv": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4",
+    "8.4.tsv": "311412c58a5f69924a19ed2dba06b94478acce0889f3b19980b02852701c79b9",
+    "8.5.tsv": "8e753ac494d3fe678f7dffa7e2adae01d2ffc8da695d8a91b65a2b3012b28ce4",
+    "9.0.tsv": "f0de24c5e4ad44aee55b521fe21cceb58d0028f86f0f7b598cba36b4086c06b4"
+  }
+}

@@ -1,0 +1,421 @@
+[
+  {
+    "path": "rust/tcl-lexer/tests/data/native_quoted_word_geometry/manifest.json",
+    "sha256": "c1fe3fded0d04889023225990d55c3866b4b93ded9ea55ea2f9515a40ef27646",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.quoted-complete-word-extents",
+      "naming.quoted-tmm-operator-value"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Does Tcl_ParseCommand retain the final complete word extent for quoted escape tails, command-fragment tails and empty quotes in the five original sources? Exact recovered source/provider/native observation question: What value does the original TMM-style quoted operator expression produce on the six retained interpreters?"
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_nested_expression_syntax/manifest.json",
+    "sha256": "c3ae22451edf13521ffec00e8637db10a1ac374fd93f101576f293def191ad2d",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.nested-expression-syntax-failure-order"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which delimiter failure is reported before an absent command bracket in each original malformed nested expression, and can the inner set run?"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_compiled_try/manifest.json",
+    "sha256": "8e40366c41a58765d7bd979a1c92d02d4a0895317a60e248c17c40b197c15706",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.foreach-lmap-original-compiler-topology",
+      "naming.try-original-compiler-topology"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What result, local-name layout, instruction stream, exception ranges and literals does the original procedure compiler retain for the foreach/lmap cases 0 through 18? Exact recovered source/provider/native observation question: How do the original try sources 19 through 39 select handler locals, bytecode ranges and completion results?"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_compiled_try/cases.json",
+    "sha256": "9f6aaca2170440fade3ee22a0bf8769c70fa4a217494fc7d93e3cfb9de0f979b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.foreach-lmap-original-compiler-topology"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What result, local-name layout, instruction stream, exception ranges and literals does the original procedure compiler retain for the foreach/lmap cases 0 through 18?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_each_try_compilation/manifest.json",
+    "sha256": "8e40366c41a58765d7bd979a1c92d02d4a0895317a60e248c17c40b197c15706",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.foreach-lmap-original-compiler-topology",
+      "naming.try-original-compiler-topology"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What result, local-name layout, instruction stream, exception ranges and literals does the original procedure compiler retain for the foreach/lmap cases 0 through 18? Exact recovered source/provider/native observation question: How do the original try sources 19 through 39 select handler locals, bytecode ranges and completion results?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_each_try_compilation/cases.json",
+    "sha256": "9f6aaca2170440fade3ee22a0bf8769c70fa4a217494fc7d93e3cfb9de0f979b",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.foreach-lmap-original-compiler-topology"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What result, local-name layout, instruction stream, exception ranges and literals does the original procedure compiler retain for the foreach/lmap cases 0 through 18?"
+  },
+  {
+    "path": "runtime/rust/tests/data/native_return_instructions/manifest.json",
+    "sha256": "5ae70175d2666f506f06924b959bfa56f305979aa5cfe99e20a56150c98cecb9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.return-instruction-original-result-owners"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which original result, return-options and error-line objects survive the immediate, syntax, capture and reset instruction windows?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_concat/manifest.json",
+    "sha256": "f7f135a6f67bc7481decf1639e342fe6ae825e2e7b5b5a67129c6212efc308c5",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.concat-original-list-storage"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do original direct and procedure concat calls preserve or replace list headers, backing storage, children and result bytes for the retained inputs?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_concat/malformed-manifest.json",
+    "sha256": "43170f14fbe327af7859a4d026eb29a26fede8a6b6521bed6eade537db3b015f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.concat-malformed-list-result"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Does concat preserve a malformed list fragment as text, and what happens when llength subsequently parses that result?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_concat/arithseries-manifest.json",
+    "sha256": "cff15663f82e7ed5835df4ebdb56671c71393f37ece4a9453596963228b283fd",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.concat-arithseries-primary"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Where supported, does concat preserve or materialise an original arithmetic-series primary in the retained constructor/call windows?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_jim_switch/manifest.json",
+    "sha256": "f622231ba87fc90e0c714ad88b2c906f98ce956577899486901b9bdbc8a87d38",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.switch-original-options-and-callback-observation"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What original completion, result, argument and pattern windows are retained for the32 switch option, NUL, opaque pattern and command callback controls?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json",
+    "sha256": "df559cb3ee9f02165f24e4a325faf32b4b0a4d60f0e25db265a158f557ac767e",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.jim-switch-body-refetch"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Can a Jim switch callback refetch a body after the original retained body changes representation or callback completion?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json",
+    "sha256": "1696d1501d6fcca41cd2efcef40a81cdba73743377ce5c3e6891cbf232e703fb",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.mathop-procedure-source-controls"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What completion and result bytes do the fourteen original qualified mathop procedure, arity, expansion and operand-error sources produce?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json",
+    "sha256": "8c8ef1a69276438889277e1f591075d7fabc6cbd89f30a7c9a998f44f32079a4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.mathop-procedure-source-controls"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What completion and result bytes do the fourteen original qualified mathop procedure, arity, expansion and operand-error sources produce?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json",
+    "sha256": "9d475437e90be3ea265c75fce373057650c1dd69d1239421b17bc3874faff8cd",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.mathop-binding-and-written-head-controls"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do rename, alias, import, namespace path, execution trace and replacement affect the ten original mathop command calls?"
+  },
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_mathop_identity/cases.json",
+    "sha256": "bface5f7391bfa048581de4eaa014a0572a44ef2fe186406d5e1ac8482d3e370",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.mathop-binding-and-written-head-controls"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do rename, alias, import, namespace path, execution trace and replacement affect the ten original mathop command calls?"
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_switch_compiler_sources/manifest.json",
+    "sha256": "6f3ed264f48e67b2b37cdb5b711dac3cea43b6257c41246a6aa845e01c6ef3e7",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.switch-original-compiler-source-visits"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which exact arm bodies and local names does the native switch compiler visit in the six original procedure sources?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/authored_tcl84_math_functions/manifest.json",
+    "sha256": "4e2dd14ec64e5b5570e223f28f7f92010455a567b734c419a8c3e2c5cc677a7c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcl84-authored-math-function-surface"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What fixed function, arity, numeric-width and operand-effect results do the sixteen original Tcl8.4 math expressions produce?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/authored_tcl84_math_functions/child-syntax-manifest.json",
+    "sha256": "e433b830aba1e2f3f28e18e4e2a389d15968f72d30c9e71b2b92391dec0ddf48",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcl84-function-child-syntax-order"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How does Tcl8.4 reject the original nested child syntax around fixed math function validation?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/authored_tcl84_math_functions/format-random-manifest.json",
+    "sha256": "4f6da3a13a4ac5d0bc1ebbdfa5c93c83ad162c445fc59dd4987cc0b81884aa61",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcl84-random-and-precision-controls"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do seeded random calls and lazy precision stringification behave in the exact Tcl8.4 source?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_concat_expansion/manifest.json",
+    "sha256": "fdb9fb79f504324d0bf635573868a54990a420572d286f058a8c78a2c9071459",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.concat-expanded-native-source-shape"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do native parser and compiler routes treat the original concat expansion-shaped sources and their result owners?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_conditional_expression_results/normalisation-manifest.json",
+    "sha256": "a4f68dc180d4bb579465bbda92bdd19490a979a900638f1a820440e0e56de6e9",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.expression-result-normalisation-effects"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Can rewriting the original repeated operand expression preserve its values yet change a custom operand effect count?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_conditional_expression_results/math-binding-manifest.json",
+    "sha256": "6f2cceea795a61d33612e7d73fd632d8a7641ea689722df45c168371bf803cb0",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.expression-abs-handler-replacement"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Does replacing ::tcl::mathfunc::abs affect the original expr abs(-3) call?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_return_single_result/manifest.json",
+    "sha256": "acde11a63fdfc6c6c97c31d383c44ef7b3f7f0a7ec3252bf687eba682ed29000",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.return-sole-result-option-spellings"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Is one return argument an ordinary result even when its value resembles an option?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_return_single_result/option_pair_manifest.json",
+    "sha256": "ea1fd9152c46d8b1eab74feebb23202286a564690389d7167dc29b13cd7e7698",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.return-option-pairs-release-shape"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do the original return -code and -level pairs differ from a sole dynamic option-looking result?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_string_compilation/manifest.json",
+    "sha256": "56a0d3efebbf7bfe714f220a1260b44bae0ec98f8e29acbffe87d5a18756c8f0",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.string-native-compiler-result-windows"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which native instruction/result-header windows do the sixty original string cases retain under the corrected observer?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_string_compilation/cases.json",
+    "sha256": "41a3bdd510da707d7a6558e9089229917259ebe1b0477b586fbffc6ef4917769",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.string-native-compiler-result-windows"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which native instruction/result-header windows do the sixty original string cases retain under the corrected observer?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_string_compilation/original-registration-controls.json",
+    "sha256": "088a733197d3ea9b848b9d0f001eeffa413cbb48ec119ec491f4ab7fbd3ee1c2",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.string-compiler-binding-replacement-controls"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do the exact original string comparison registration/replacement sources affect results and available compiler selection?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_string_trim_compilation/manifest.json",
+    "sha256": "baeb0ced3aecf83036dc89d8398b5f6314aba34b937cb2f010301b76fd5c587c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.string-trim-original-result-identity"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: When can the original interpreted or compiled trim route return its subject unchanged, and what header/string state exists before a getter?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_string_trim_compilation/jim-manifest.json",
+    "sha256": "93426112d250dce33dafdd23c2ff37d868448ddc810101d5ee10feaa45f43f9c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.string-trim-original-result-identity"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: When can the original interpreted or compiled trim route return its subject unchanged, and what header/string state exists before a getter?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_string_trim_compilation/attempt1-manifest.json",
+    "sha256": "b26266c08bba4c77a2d0139a23b195dbdd743e8ad317394c86845900dde04602",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.string-trim-original-result-identity"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: When can the original interpreted or compiled trim route return its subject unchanged, and what header/string state exists before a getter?"
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_numeric_operand_conversions/manifest.json",
+    "sha256": "2057852136e02deb126c77b218fcbbb033b63b2fb15a6e0aa16b04ea7e85bf0c",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.reached-original-numeric-operand-cache"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which cache does the retained original operand acquire when reaching numeric comparison, lrange or lindex under each original input class?"
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/native_numeric_operand_conversions/original-class-manifest.json",
+    "sha256": "d02d00f359923e7b92c237e60e8b04f1fd0d60679f05d7104e589860008c1ea2",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.numeric-comparison-original-cache-class"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Does relational comparison convert every retained original cache class containing the spelling2 to Int?"
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_body_bytecode/manifest.json",
+    "sha256": "7e06b8ae306225c0126edb8a7b81760777e4d6137c50444b8a14dd5bd45d40b0",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.script-native-bytecode-primary"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What primary/cache/refcount remains on the original script object immediately before and after Tcl_EvalObjEx for the five body sources?"
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_child_completion/manifest.json",
+    "sha256": "e4585b663a78d41e844851d3099bdc4370a2fb1884b4fb44faebe3304a76d968",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.entered-child-source-completion"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do the eight exact child-producing source scripts settle command substitution, catch, subst, expr, conditional and loop completion?"
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_fixed_math_table/manifest.json",
+    "sha256": "bdb34b08da496047ff71084691e88232091e6c412d04a40203550b89134e2491",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.fixed-math-function-resolution-order"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Are fixed math function names/arity selected before substituted arguments, and how do command or fixed-table replacement controls affect later calls?"
+  },
+  {
+    "path": "rust/tcl-vm/tests/data/native_try/manifest.json",
+    "sha256": "6ba5f2297cacbe6b195f54fe9e78c8b26c2930142e3f3060ca67122c1eca69bb",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.try-source-completion-and-options"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What completion/result does each of the fifteen original try sources expose after native root evaluation and the explicit inner catcher?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/manifest.json",
+    "sha256": "22a7027e5c35e359aaf0268f711a4443cf77e0fd20d220f382547c31a466f3ac",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.control-original-branch-preparation",
+      "naming.compound-expression-original-preparation",
+      "naming.compiled-expression-constant-storage"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do the75 original conditional/loop/catch sources select completion, locals and available disassembly before branch bodies run? Exact recovered source/provider/native observation question: Which operand effects, result and preparation outcomes occur for the40 original compound expression sources? Exact recovered source/provider/native observation question: What original literal/result storage survives the40 constant expression compiler sources?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/catch4-native-manifest.json",
+    "sha256": "71dc99f494d920ca2e3d403ee284b946b99259b53bb448fd5fd530437ccb73c4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.catch-same-result-and-options-slot"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: What happens when catch stores its result and return options in the same variable in the original four release controls?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/catch-publication6-manifest.json",
+    "sha256": "e71cc07dbc2cb852fe67fae56f2187d8d7e94f05a2318735a51f959ff77cf9af",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.catch-errorinfo-publication-order"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which errorInfo, result and options write callbacks run in the original catch error-publication source?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/folded-boolean8-native-manifest.json",
+    "sha256": "bd27c3fb407008e785fb2a8722cfdf00fa037489f6d335d721a388e6bbc21319",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.folded-boolean-original-literal-lineage"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Does a folded original boolean result share the first registered literal at the eight retained identity windows?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/logical84-native-manifest.json",
+    "sha256": "07d4a38dde742506f944f27490969c1d3354f08cb3f554530a7f20d4b0c901a3",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcl84-logical-expression-original-storage"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which result/literal/storage windows are retained for the original Tcl8.4 logical expression controls?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/return-context-manifest.json",
+    "sha256": "51c69b8dd20baac24b8e137a9081ba4f35618b4f4626ee74e6e0301dba79ee82",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.return-error-original-inner-context"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which original message/literal/innerContext identity survives the fifteen ReturnImmediate and compiled Error bodies?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/syntax-context-manifest.json",
+    "sha256": "fa92205efe9bf1c4522adf0586e6989126b4825918255a108541f6759cd271cb",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.expression-syntax-original-context-owner"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Which original syntax-message and innerContext objects are retained at the40 source-error storage windows?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/syntax-lifecycle-manifest.json",
+    "sha256": "4059831bd0387f7fc619b19613fad7615bac01a69dcd781d19c322c0a699e0f4",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.tcl91-syntax-message-lifecycle"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: How do the six Tcl9.1 reset/options/errorInfo windows retain or release the original syntax message?"
+  },
+  {
+    "path": "rust/tcl-registry/tests/data/native_control_expression/syntax-owners-manifest.json",
+    "sha256": "46ffce76db65e7264b3da69a1648a55ce1b0dadaf676cb730d99af4e5905b5d1",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.syntax-private-errorinfo-and-options-owners"
+    ],
+    "reason": "Exact recovered source/provider/native observation question: Do private errorInfo and -errorinfo return-options retain the same registered syntax message at the original modern C windows?"
+  }
+]

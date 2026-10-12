@@ -1,0 +1,176 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/rename-child-procedure-geometry175.source-trees.tar.gz",
+  "archive_sha256": "3e97c6260423897db9df86867129867194587d30495b6ec7e74482dac68cf1ac",
+  "archive_bytes": 392169,
+  "uncompressed_bytes": 1711766,
+  "source_manifest_sha256": "31b0288ef981e20c8829e2cb62fc323b6ff5e63a3f6472fab121ae183535493a",
+  "source_patch_sha256": "d85155f14f48bf7e8455512f8aee289e7c632324ad0d9d068e578e570d40a49e",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 14,
+  "members": {
+    "rename-child-procedure-geometry175/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.645478,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.645478,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.645478,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.645478,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6479874,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/base/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578364.405706,
+      "size": 792495,
+      "sha256": "7791ac985ff7e751cadd47c900e368f34561fd18d4f6ba3c616990046075e57a"
+    },
+    "rename-child-procedure-geometry175/base/rust/tcl-compiler/src/analyser/interp_visibility.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578043.4996789,
+      "size": 62462,
+      "sha256": "7a4155cd06492b6a28886a10e1c5e5e246df03252589eb6a1e876cc4831ee130"
+    },
+    "rename-child-procedure-geometry175/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6476038,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6476038,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6476038,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6476038,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/candidate/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6481242,
+      "size": 0,
+      "sha256": null
+    },
+    "rename-child-procedure-geometry175/candidate/rust/tcl-compiler/src/analyser/handlers.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.8174767,
+      "size": 792695,
+      "sha256": "a7c24fb13aefa0a264088a4532be27ea615a2ff241532146398c5d8efb456140"
+    },
+    "rename-child-procedure-geometry175/candidate/rust/tcl-compiler/src/analyser/interp_visibility.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791578393.6814778,
+      "size": 64114,
+      "sha256": "79b0faf7d4020cfc0a90e05bb68a598670c83e15f476901606e725342beb84ab"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "a7c24fb13aefa0a264088a4532be27ea615a2ff241532146398c5d8efb456140",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "hash_key": "base_sha256",
+      "sha256": "7791ac985ff7e751cadd47c900e368f34561fd18d4f6ba3c616990046075e57a",
+      "trees": [
+        "base"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/interp_visibility.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "79b0faf7d4020cfc0a90e05bb68a598670c83e15f476901606e725342beb84ab",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/interp_visibility.rs",
+      "hash_key": "base_sha256",
+      "sha256": "7a4155cd06492b6a28886a10e1c5e5e246df03252589eb6a1e876cc4831ee130",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

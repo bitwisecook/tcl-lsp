@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::native_method_rename_tests::original_self_method_report_keeps_current_entered_name_and_unnamed_roles_distinct ... 
+thread 'cmd_oo::native_method_rename_tests::original_self_method_report_keeps_current_entered_name_and_unnamed_roles_distinct' (1215856) panicked at src/cmd_oo/native_method_rename_tests.rs:508:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_method_rename_tests::original_self_method_report_keeps_current_entered_name_and_unnamed_roles_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.16s
+

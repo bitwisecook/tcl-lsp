@@ -1,0 +1,155 @@
+[
+  {
+    "release": "8.4.20",
+    "source": "probe.c",
+    "output": "native-8.4.txt",
+    "observations": 4,
+    "source_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "output_sha256": "4095502b327899fb1925874c2916c0d6de3c219cb6aeed15cd275e7e31b58f8b"
+  },
+  {
+    "release": "8.5.19",
+    "source": "probe.c",
+    "output": "native-8.5.txt",
+    "observations": 6,
+    "source_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "output_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c"
+  },
+  {
+    "release": "8.6.18",
+    "source": "probe.c",
+    "output": "native-8.6.txt",
+    "observations": 6,
+    "source_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "output_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c"
+  },
+  {
+    "release": "9.0.4",
+    "source": "probe.c",
+    "output": "native-9.0.txt",
+    "observations": 6,
+    "source_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "output_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c"
+  },
+  {
+    "release": "9.1.0",
+    "source": "probe.c",
+    "output": "native-9.1.txt",
+    "observations": 6,
+    "source_sha256": "336e3d8a3945ec5f7605b2186467b4848ea6eb927951e59dd95f6cb34a0ba781",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "output_sha256": "edeb4ff740055a8449fd806ffb5a1c6a51566f931363be2d5a05a6a062f5053c"
+  },
+  {
+    "release": "8.4.20",
+    "source": "free-probe.c",
+    "output": "free-native-8.4.txt",
+    "observations": 4,
+    "source_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "output_sha256": "974de803f20fcf1d95f2ae9d1fb2ab9b578dff7730f6a9bec3f0a18f5b19153d"
+  },
+  {
+    "release": "8.5.19",
+    "source": "free-probe.c",
+    "output": "free-native-8.5.txt",
+    "observations": 6,
+    "source_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "output_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c"
+  },
+  {
+    "release": "8.6.18",
+    "source": "free-probe.c",
+    "output": "free-native-8.6.txt",
+    "observations": 6,
+    "source_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "output_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c"
+  },
+  {
+    "release": "9.0.4",
+    "source": "free-probe.c",
+    "output": "free-native-9.0.txt",
+    "observations": 6,
+    "source_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "output_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c"
+  },
+  {
+    "release": "9.1.0",
+    "source": "free-probe.c",
+    "output": "free-native-9.1.txt",
+    "observations": 6,
+    "source_sha256": "cb38ed8c1162cd452c0ae778be3bc9a03ac6159f5ee460a32234f1e90817508f",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "output_sha256": "af83437a2a724568c04216bb319ab558fe3863043f0edd3f0fdea38d65069a0c"
+  },
+  {
+    "release": "8.4.20",
+    "source": "empty-foreach-probe.c",
+    "output": "empty-foreach-8.4.txt",
+    "observations": 2,
+    "source_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "output_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa"
+  },
+  {
+    "release": "8.5.19",
+    "source": "empty-foreach-probe.c",
+    "output": "empty-foreach-8.5.txt",
+    "observations": 2,
+    "source_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "output_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa"
+  },
+  {
+    "release": "8.6.18",
+    "source": "empty-foreach-probe.c",
+    "output": "empty-foreach-8.6.txt",
+    "observations": 2,
+    "source_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "output_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa"
+  },
+  {
+    "release": "9.0.4",
+    "source": "empty-foreach-probe.c",
+    "output": "empty-foreach-9.0.txt",
+    "observations": 2,
+    "source_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "output_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa"
+  },
+  {
+    "release": "9.1.0",
+    "source": "empty-foreach-probe.c",
+    "output": "empty-foreach-9.1.txt",
+    "observations": 2,
+    "source_sha256": "8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "output_sha256": "e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa"
+  },
+  {
+    "release": "Jim0.84",
+    "source": "jim-probe.c",
+    "output": "jim-native.txt",
+    "observations": 12,
+    "source_sha256": "e522e32b22ed79df9b1f89b413269d285f8dfce15787ba1d76f30894e63783f8",
+    "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "output_sha256": "5ad65a6ed8721e022be0b714af346bc6e2edb849ddce55b4ba1c8b14562065f1"
+  },
+  {
+    "release": "Jim0.84",
+    "source": "jim-empty-foreach-probe.c",
+    "output": "jim-empty-foreach-native.txt",
+    "observations": 4,
+    "source_sha256": "52c7b83ea0c29348f286645ee96b28ee8de50944871e2be0575f2ea414e26694",
+    "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "output_sha256": "082c636323a0700a9c3aed8830be9fc7403645bccf6cc8aa57f36024a9c24002"
+  }
+]

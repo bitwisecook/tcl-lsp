@@ -1,0 +1,60 @@
+{
+  "proof_id": "naming.source.original-counted-filename-filesystem-extent",
+  "request_manifest_sha256": "2cb438e9a3d5a818514bc446bd935fc8ba5f632762b33a5366cc4ca334316f85",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "process_exit": 0,
+      "observations_count": 4,
+      "all_after_pins_match": true,
+      "receipt_sha256": "90df3bfa661cbf6a74e407058e14e9fb3eeeec8d653b2cbc9db9c8ebaa10ddfe"
+    },
+    {
+      "provider": "8.5.19",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "process_exit": 0,
+      "observations_count": 4,
+      "all_after_pins_match": true,
+      "receipt_sha256": "a0a2638c1633d71a157ee4842cda6670e9426908ec39073d2f4b0ca6635a35be"
+    },
+    {
+      "provider": "8.6.18",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "process_exit": 0,
+      "observations_count": 4,
+      "all_after_pins_match": true,
+      "receipt_sha256": "fe728cd58a9163e9705fca31ed67cccd0b5652ffee14b37e3c0832ee59d33e38"
+    },
+    {
+      "provider": "9.0.4",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "process_exit": 0,
+      "observations_count": 4,
+      "all_after_pins_match": true,
+      "receipt_sha256": "4109633ae8f434d50b01a8c925f74a203ceafa8c26429dfd3f5e108b27148308"
+    },
+    {
+      "provider": "9.1.0",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "process_exit": 0,
+      "observations_count": 4,
+      "all_after_pins_match": true,
+      "receipt_sha256": "80ec60552a5d6885ef5c81277d93deb56479f1acc50bce5bb4e8959282306308"
+    },
+    {
+      "provider": "Jim",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "process_exit": 0,
+      "observations_count": 4,
+      "all_after_pins_match": true,
+      "receipt_sha256": "0f2dfdfe6e22f73929dda8ab8aeddfaaaeb31515924240e48fd8159fb5078238"
+    }
+  ]
+}

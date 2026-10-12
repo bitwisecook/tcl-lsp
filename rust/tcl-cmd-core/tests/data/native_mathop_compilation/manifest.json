@@ -1,0 +1,844 @@
+{
+  "captures": [
+    {
+      "engine": "tcl8.4",
+      "case": 0,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 1,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 2,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 3,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 4,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 5,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 6,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 7,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 8,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 9,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 10,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 11,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 12,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.4",
+      "case": 13,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 0,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 2d34203120392032342031203720372035313220313220332032203120312031203120352034203120312031203120312031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 1,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+      "exit": 0,
+      "stdout": "0 302031202d31203020302031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 2,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+      "exit": 0,
+      "stdout": "0 3520352035203520352035202d3520302e3235\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 3,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+      "exit": 0,
+      "stdout": "0 7b31203120317d207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 4,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+      "exit": 0,
+      "stdout": "0 31207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 5,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 6,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 7,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 8,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520226f6464206e616d6520626f6f6c65616e22\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 9,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 362031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 10,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+      "exit": 0,
+      "stdout": "1 696e76616c696420636f6d6d616e64206e616d6520223a3a74636c3a3a6d6174686f703a3a6c7422\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 11,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+      "exit": 0,
+      "stdout": "0 7b63616e277420757365206e6f6e2d6e756d6572696320737472696e67206173206f706572616e64206f6620222b227d207b41204220437d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 12,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+      "exit": 0,
+      "stdout": "0 312e3020312e302031302e30\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.5",
+      "case": 13,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a6d6174686f703a3a696e2076616c7565206c69737422\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 0,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 2d34203120392032342031203720372035313220313220332032203120312031203120352034203120312031203120312031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 1,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+      "exit": 0,
+      "stdout": "0 302031202d31203020302031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 2,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+      "exit": 0,
+      "stdout": "0 3520352035203520352035202d3520302e3235\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 3,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+      "exit": 0,
+      "stdout": "0 7b31203120317d207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 4,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+      "exit": 0,
+      "stdout": "0 31207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 5,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 6,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 7,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 8,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520226f6464206e616d6520626f6f6c65616e22\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 9,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 362031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 10,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+      "exit": 0,
+      "stdout": "1 696e76616c696420636f6d6d616e64206e616d6520223a3a74636c3a3a6d6174686f703a3a6c7422\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 11,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+      "exit": 0,
+      "stdout": "0 7b63616e277420757365206e6f6e2d6e756d6572696320737472696e67206173206f706572616e64206f6620222b227d207b41204220437d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 12,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+      "exit": 0,
+      "stdout": "0 312e3020312e302031302e30\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl8.6",
+      "case": 13,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a6d6174686f703a3a696e2076616c7565206c69737422\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 0,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 2d34203120392032342031203720372035313220313220332032203120312031203120352034203120312031203120312031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 1,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+      "exit": 0,
+      "stdout": "0 302031202d31203020302031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 2,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+      "exit": 0,
+      "stdout": "0 3520352035203520352035202d3520302e3235\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 3,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+      "exit": 0,
+      "stdout": "0 7b31203120317d207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 4,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+      "exit": 0,
+      "stdout": "0 31207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 5,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 6,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 7,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 8,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520227b6f6464206e616d657d20626f6f6c65616e22\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 9,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 362031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 10,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+      "exit": 0,
+      "stdout": "0 31203120312031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 11,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+      "exit": 0,
+      "stdout": "0 7b63616e6e6f7420757365206e6f6e2d6e756d6572696320737472696e6720224222206173206c656674206f706572616e64206f6620222b227d207b41204220437d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 12,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+      "exit": 0,
+      "stdout": "0 312e3020312e302031302e30\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.0",
+      "case": 13,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a6d6174686f703a3a696e2076616c7565206c69737422\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 0,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 2d34203120392032342031203720372035313220313220332032203120312031203120352034203120312031203120312031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 1,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+      "exit": 0,
+      "stdout": "0 302031202d31203020302031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 2,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+      "exit": 0,
+      "stdout": "0 3520352035203520352035202d3520302e3235\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 3,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+      "exit": 0,
+      "stdout": "0 7b31203120317d207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 4,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+      "exit": 0,
+      "stdout": "0 31207b7d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 5,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 6,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 7,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+      "exit": 0,
+      "stdout": "0 36\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 8,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520227b6f6464206e616d657d20626f6f6c65616e22\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 9,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 362031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 10,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+      "exit": 0,
+      "stdout": "0 31203120312031\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 11,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+      "exit": 0,
+      "stdout": "0 7b63616e6e6f7420757365206e6f6e2d6e756d6572696320737472696e6720224222206173206c656674206f706572616e64206f6620222b227d207b41204220437d\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 12,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+      "exit": 0,
+      "stdout": "0 312e3020312e302031302e30\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "tcl9.1",
+      "case": 13,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a6d6174686f703a3a696e2076616c7565206c69737422\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "jim",
+      "case": 0,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::~ 3] [::tcl::mathop::! 0] [::tcl::mathop::+ 2 3 4] [::tcl::mathop::* 2 3 4] [::tcl::mathop::& 7 3 1] [::tcl::mathop::| 1 2 4] [::tcl::mathop::^ 1 2 4] [::tcl::mathop::** 2 3 2] [::tcl::mathop::<< 3 2] [::tcl::mathop::>> 12 2] [::tcl::mathop::% 8 3] [::tcl::mathop::!= 2 3] [::tcl::mathop::ne A B] [::tcl::mathop::in B {A B}] [::tcl::mathop::ni C {A B}] [::tcl::mathop::- 10 3 2] [::tcl::mathop::/ 24 3 2] [::tcl::mathop::< 1 2 3] [::tcl::mathop::<= 1 1 2] [::tcl::mathop::> 3 2 1] [::tcl::mathop::>= 3 3 2] [::tcl::mathop::== 2 2 2] [::tcl::mathop::eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 1,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+] [::tcl::mathop::*] [::tcl::mathop::&] [::tcl::mathop::|] [::tcl::mathop::^] [::tcl::mathop::**]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 2,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 3,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 4,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; list [::tcl::mathop::< [tick]] $seen}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 5,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::+ {*}{1 2 3}}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 6,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {values} {::tcl::mathop::+ {*}$values}; p {1 2 3}}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 7,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ {odd name}; proc p {} {{odd name} 1 2 3}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 8,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::! {odd name}; proc p {} {{odd name}}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 9,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {namespace import ::tcl::mathop::*; proc p {} {list [+ 1 2 3] [eq A A A]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 10,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::lt A B C] [::tcl::mathop::le A A B] [::tcl::mathop::gt C B A] [::tcl::mathop::ge C C B]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 11,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {v} {lappend ::seen $v; return $v}; proc p {} {::tcl::mathop::+ [tick A] [tick B] [tick C]}; catch {p} result; list $result $seen}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 12,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "case": 13,
+      "source": "if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {::tcl::mathop::in VALUE}; catch {p} result; set result}",
+      "exit": 0,
+      "stdout": "0 554e415641494c41424c45\n",
+      "stderr": "",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    }
+  ]
+}

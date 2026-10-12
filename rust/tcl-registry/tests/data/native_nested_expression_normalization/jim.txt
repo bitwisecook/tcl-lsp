@@ -1,0 +1,10 @@
+ROW original 2 0 3 {}
+ROW rewritten 2 0 3 {}
+ROW original abc 1 {expected floating-point number but got "abc"} {errorCode NONE}
+ROW rewritten abc 1 {expected floating-point number but got "abc"} {errorCode NONE}
+ROW original 1.0 0 2.0 {}
+ROW rewritten 1.0 0 2.0 {}
+ROW original Inf 0 Inf {}
+ROW rewritten Inf 0 Inf {}
+ROW original NaN 0 NaN {}
+ROW rewritten NaN 0 NaN {}

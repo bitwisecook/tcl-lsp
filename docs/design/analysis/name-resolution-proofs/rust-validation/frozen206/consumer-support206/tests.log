@@ -1,0 +1,15 @@
+
+running 10 tests
+test native_integer_formatter::tests::formatter_admission_requires_a_complete_verified_build_pair ... ok
+test native_integer_formatter::tests::loaded_c84_updater_matches_812_original_archive_and_image_windows ... ok
+test tests::environment_source_tree_override_requires_the_pinned_patchlevel ... ok
+test tests::explicit_source_tree_requires_the_pinned_patchlevel ... ok
+test tests::patchlevel_is_read_from_the_c_header ... ok
+test tests::reference_release_facts_cover_every_dialect_axis ... ok
+test tests::source_tree_validation_canonicalizes_a_relative_root ... ok
+test tests::source_tree_validation_checks_release_and_layout ... ok
+test tests::strict_requested_oracles_do_not_skip_invalid_overrides ... ok
+test tests::upstream_definition_is_bounded_by_its_adjacent_marker ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+

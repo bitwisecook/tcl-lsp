@@ -1,0 +1,857 @@
+[
+  {
+    "version": "8.4.20",
+    "source_sha256": "82a59529ab061c1ae09226fbeb6ba25896e3452df8f20e64575128384c6587e2",
+    "probe_sha256": "3a937804542861da9882bc62253838f2ded0cfb8bc2fcba98d9ffffd297edf0e",
+    "library_sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "tcl_header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "/workspace/.proofs/recovered-native-source-ingress/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-source-ingress/8.4.20/probe"
+    ],
+    "compile_exit": 0,
+    "executable_sha256": "69e9d03056e784c49ae31de2b98de11aeb69dbe59af3b5288d78a6ec60495422",
+    "exit": 0,
+    "seconds": 0.0034988319998774386,
+    "stdout_sha256": "287335627533cab5962b6e1e7b4df12c1edb533d10cf5ee78e8fa3fa85aa3ee8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      {
+        "path": "startup",
+        "op": "patchlevel",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "382e342e3230"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 5,
+        "bytes": "c3b09f9880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "character-channel",
+        "op": "encoding",
+        "code": 0,
+        "bytes": "7574662d38"
+      },
+      {
+        "path": "character-channel",
+        "op": "translation",
+        "code": 0,
+        "bytes": "6175746f"
+      },
+      {
+        "path": "character-channel",
+        "op": "read-count",
+        "count": 124
+      },
+      {
+        "path": "character-channel",
+        "op": "source",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 139,
+        "bytes": "73657420706c61696e202241c080c3b0c29fc298c2800a420a43220a73657420627261636564207b41c080c3b0c29fc298c2800a420a437d0a736574206573636170656420225cc3b0c29fc298c280220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225cc0807461696c220a"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 15,
+        "bytes": "41c080c3b0c29fc298c2800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 15,
+        "bytes": "41c080c3b0c29fc298c2800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 8,
+        "bytes": "c3b0c29fc298c280"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      }
+    ]
+  },
+  {
+    "version": "8.5.19",
+    "source_sha256": "82a59529ab061c1ae09226fbeb6ba25896e3452df8f20e64575128384c6587e2",
+    "probe_sha256": "3a937804542861da9882bc62253838f2ded0cfb8bc2fcba98d9ffffd297edf0e",
+    "library_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "tcl_header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "/workspace/.proofs/recovered-native-source-ingress/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-source-ingress/8.5.19/probe"
+    ],
+    "compile_exit": 0,
+    "executable_sha256": "c17be348159f1de8e195e7995b29218491a3d89a72ceb9c5618a625b5b99650f",
+    "exit": 0,
+    "seconds": 0.00338700299971606,
+    "stdout_sha256": "53688c5e7a112e0a3fa103e376c88a3882f9fdbbff94d9045b5f1c8c4d43e62a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      {
+        "path": "startup",
+        "op": "patchlevel",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "382e352e3139"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 5,
+        "bytes": "c3b09f9880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "character-channel",
+        "op": "encoding",
+        "code": 0,
+        "bytes": "7574662d38"
+      },
+      {
+        "path": "character-channel",
+        "op": "translation",
+        "code": 0,
+        "bytes": "6175746f"
+      },
+      {
+        "path": "character-channel",
+        "op": "read-count",
+        "count": 124
+      },
+      {
+        "path": "character-channel",
+        "op": "source",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 139,
+        "bytes": "73657420706c61696e202241c080c3b0c29fc298c2800a420a43220a73657420627261636564207b41c080c3b0c29fc298c2800a420a437d0a736574206573636170656420225cc3b0c29fc298c280220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225cc0807461696c220a"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 15,
+        "bytes": "41c080c3b0c29fc298c2800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 15,
+        "bytes": "41c080c3b0c29fc298c2800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 8,
+        "bytes": "c3b0c29fc298c280"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      }
+    ]
+  },
+  {
+    "version": "8.6.18",
+    "source_sha256": "82a59529ab061c1ae09226fbeb6ba25896e3452df8f20e64575128384c6587e2",
+    "probe_sha256": "3a937804542861da9882bc62253838f2ded0cfb8bc2fcba98d9ffffd297edf0e",
+    "library_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+    "tcl_header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "/workspace/.proofs/recovered-native-source-ingress/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-source-ingress/8.6.18/probe"
+    ],
+    "compile_exit": 0,
+    "executable_sha256": "ea5ad270b267318c9eb65e51cc4924b223cf51652dae4c771d94108f0da45e85",
+    "exit": 0,
+    "seconds": 0.004559589000109554,
+    "stdout_sha256": "52219fe181ff146de94b7c338e0e34d9a9c92ffb8ae847923987bde9988f09c2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      {
+        "path": "startup",
+        "op": "patchlevel",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "382e362e3138"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 3,
+        "bytes": "efbfbd"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "character-channel",
+        "op": "encoding",
+        "code": 0,
+        "bytes": "7574662d38"
+      },
+      {
+        "path": "character-channel",
+        "op": "translation",
+        "code": 0,
+        "bytes": "6175746f"
+      },
+      {
+        "path": "character-channel",
+        "op": "read-count",
+        "count": 118
+      },
+      {
+        "path": "character-channel",
+        "op": "source",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 133,
+        "bytes": "73657420706c61696e202241c080eda0bdedb8800a420a43220a73657420627261636564207b41c080eda0bdedb8800a420a437d0a736574206573636170656420225ceda0bdedb880220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225cc0807461696c220a"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 13,
+        "bytes": "41c080eda0bdedb8800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 13,
+        "bytes": "41c080eda0bdedb8800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 3,
+        "bytes": "efbfbd"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      }
+    ]
+  },
+  {
+    "version": "9.0.4",
+    "source_sha256": "82a59529ab061c1ae09226fbeb6ba25896e3452df8f20e64575128384c6587e2",
+    "probe_sha256": "3a937804542861da9882bc62253838f2ded0cfb8bc2fcba98d9ffffd297edf0e",
+    "library_sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "tcl_header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "/workspace/.proofs/recovered-native-source-ingress/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-source-ingress/9.0.4/probe"
+    ],
+    "compile_exit": 0,
+    "executable_sha256": "712ede2048361779faa8af411338ac2defaa5829da8b3d200d84051dfeef680d",
+    "exit": 0,
+    "seconds": 0.005332254999757424,
+    "stdout_sha256": "2eabbb1f12882abc141c0ba1109beb5d05821fd4485498ff862b6afb9e084e50",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      {
+        "path": "startup",
+        "op": "patchlevel",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 5,
+        "bytes": "392e302e34"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 4,
+        "bytes": "f09f9880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "character-channel",
+        "op": "encoding",
+        "code": 0,
+        "bytes": "7574662d38"
+      },
+      {
+        "path": "character-channel",
+        "op": "translation",
+        "code": 0,
+        "bytes": "6175746f"
+      },
+      {
+        "path": "character-channel",
+        "op": "read-count",
+        "count": 115
+      },
+      {
+        "path": "character-channel",
+        "op": "source",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 127,
+        "bytes": "73657420706c61696e202241c080f09f98800a420a43220a73657420627261636564207b41c080f09f98800a420a437d0a736574206573636170656420225cf09f9880220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225cc0807461696c220a"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "41c080f09f98800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "41c080f09f98800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 4,
+        "bytes": "f09f9880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      }
+    ]
+  },
+  {
+    "version": "9.1.0",
+    "source_sha256": "82a59529ab061c1ae09226fbeb6ba25896e3452df8f20e64575128384c6587e2",
+    "probe_sha256": "3a937804542861da9882bc62253838f2ded0cfb8bc2fcba98d9ffffd297edf0e",
+    "library_sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "tcl_header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "compile_command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "/workspace/.proofs/recovered-native-source-ingress/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/captured-native-source-ingress/9.1.0/probe"
+    ],
+    "compile_exit": 0,
+    "executable_sha256": "77b167aabf7d9f6ec1fb67fbfc6cb535afbdabb5275137861afa87667ebee365",
+    "exit": 0,
+    "seconds": 0.005297040000186826,
+    "stdout_sha256": "f5d8e2cc9829710c68d328cd9e11718408dac832baa592f6a80b2f0b70966561",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": [
+      {
+        "path": "startup",
+        "op": "patchlevel",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 5,
+        "bytes": "392e312e30"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "4100f09f98800d0a420d43"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 4,
+        "bytes": "f09f9880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "counted-native-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "5c007461696c"
+      },
+      {
+        "path": "character-channel",
+        "op": "encoding",
+        "code": 0,
+        "bytes": "7574662d38"
+      },
+      {
+        "path": "character-channel",
+        "op": "translation",
+        "code": 0,
+        "bytes": "6175746f"
+      },
+      {
+        "path": "character-channel",
+        "op": "read-count",
+        "count": 115
+      },
+      {
+        "path": "character-channel",
+        "op": "source",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 127,
+        "bytes": "73657420706c61696e202241c080f09f98800a420a43220a73657420627261636564207b41c080f09f98800a420a437d0a736574206573636170656420225cf09f9880220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225cc0807461696c220a"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "eval-result",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "plain",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "41c080f09f98800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "braced",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 11,
+        "bytes": "41c080f09f98800a420a43"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "escaped",
+        "code": 0,
+        "type_before_get_string": "none",
+        "resident_before_get_string": true,
+        "length": 4,
+        "bytes": "f09f9880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "numeric",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 9,
+        "bytes": "41c080eda0bdedb880"
+      },
+      {
+        "path": "character-channel-source",
+        "op": "slashzero",
+        "code": 0,
+        "type_before_get_string": "string",
+        "resident_before_get_string": true,
+        "length": 6,
+        "bytes": "c0807461696c"
+      }
+    ]
+  }
+]

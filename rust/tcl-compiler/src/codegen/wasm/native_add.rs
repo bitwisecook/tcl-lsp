@@ -75,10 +75,9 @@ pub(super) fn select(
         return Err(declines.into_vec());
     }
 
-    let common = CommonAotProofPlan::build(
+    let common = CommonAotProofPlan::build_with_retained_metadata(
         unit,
         registry,
-        unit.top_level.semantic_facts.context(),
         config,
         options.common_aot_environment(),
     );
@@ -399,6 +398,14 @@ impl Composition<'_> {
                 note(NativeDeclineReason::ProofComplexityGuarded);
                 return None;
             }
+            NativeIntegerProof::SourceMetadataUnavailable => {
+                note(NativeDeclineReason::ProofSourceMetadataUnavailable);
+                return None;
+            }
+            NativeIntegerProof::MathBindingPrerequisiteRequired => {
+                note(NativeDeclineReason::ProofMathBindingPrerequisiteRequired);
+                return None;
+            }
         };
         let native = match decisions.as_slice() {
             [NativeAddDecision::Proven(native)] => native,
@@ -420,9 +427,9 @@ impl Composition<'_> {
             note(NativeDeclineReason::CallerSetDiffers);
             accepted = false;
         }
-        let slots_are_integers = [native.left.value, native.right.value]
+        let slots_are_integers = [&native.left.identity, &native.right.identity]
             .into_iter()
-            .all(|value| selected_integer_slot(common, callee, value));
+            .all(|operand| selected_native_operand_argument(common, direct, operand));
         if native.site.result != NativeAddResult::FunctionReturn
             || native.execution != NativeAddExecution::OverflowImpossible
             || !native.composition.requires_frame_plan
@@ -797,4 +804,43 @@ mod tests {
             ]
         );
     }
+}
+
+pub(super) fn selected_native_operand_argument(
+    common: &CommonAotProofPlan,
+    direct: &crate::common_aot_plan::DirectProcEvidence,
+    operand: &crate::native_integer_proof::NativeOperandIdentity,
+) -> bool {
+    use crate::native_integer_proof::NativeOperandIdentity;
+    match operand {
+        NativeOperandIdentity::Ssa(value) => {
+            selected_materialisable_int(common, &direct.callee.qualified_name, *value)
+        }
+        NativeOperandIdentity::IncomingSlot(read) => common
+            .declared_argument_for_incoming_read(&direct.callee, read)
+            .is_some_and(|(identity, evidence)| {
+                evidence.shape() == &TypeShape::Int
+                    && direct.original_formals.as_deref()
+                        == Some(evidence.declaration().arguments())
+                    && usize::try_from(identity.ordinal)
+                        .ok()
+                        .and_then(|ordinal| direct.original_formals.as_ref()?.names().get(ordinal))
+                        .is_some_and(|original| original.as_bytes() == read.slot.as_bytes())
+            }),
+    }
+}
+
+fn selected_materialisable_int(
+    common: &CommonAotProofPlan,
+    function: &str,
+    value: crate::ssa::ValueKey,
+) -> bool {
+    common.materialisable_slots().any(|(identity, decision)| {
+        identity.function == function
+            && (identity.symbol, identity.version) == value
+            && matches!(
+                decision,
+                MaterialisableSlotDecision::Selected(evidence) if evidence.shape == TypeShape::Int
+            )
+    })
 }

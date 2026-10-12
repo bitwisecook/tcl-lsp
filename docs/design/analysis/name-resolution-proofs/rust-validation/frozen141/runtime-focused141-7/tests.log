@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_script::tests::sourced_jim_body_tokens_keep_original_lines_and_unlocated_objects_stay_unlocated ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 0.64s
+

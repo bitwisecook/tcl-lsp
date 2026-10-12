@@ -1,0 +1,69 @@
+TclFindCompiledLocal(
+    register const char *name,	/* Points to first character of the name of a
+				 * scalar or array variable. If NULL, a
+				 * temporary var should be created. */
+    int nameBytes,		/* Number of bytes in the name. */
+    int create,			/* If non-zero, allocate a local frame entry
+				 * for the variable if it is new. */
+    register Proc *procPtr)	/* Points to structure describing procedure
+				 * containing the variable reference. */
+{
+    register CompiledLocal *localPtr;
+    int localVar = -1;
+    register int i;
+
+    /*
+     * If not creating a temporary, does a local variable of the specified
+     * name already exist?
+     */
+
+    if (name != NULL) {
+	int localCt = procPtr->numCompiledLocals;
+
+	localPtr = procPtr->firstLocalPtr;
+	for (i = 0;  i < localCt;  i++) {
+	    if (!TclIsVarTemporary(localPtr)) {
+		char *localName = localPtr->name;
+
+		if ((nameBytes == localPtr->nameLength) &&
+			(strncmp(name,localName,(unsigned)nameBytes) == 0)) {
+		    return i;
+		}
+	    }
+	    localPtr = localPtr->nextPtr;
+	}
+    }
+
+    /*
+     * Create a new variable if appropriate.
+     */
+
+    if (create || (name == NULL)) {
+	localVar = procPtr->numCompiledLocals;
+	localPtr = (CompiledLocal *) ckalloc((unsigned)
+		(sizeof(CompiledLocal) - sizeof(localPtr->name)
+		+ nameBytes + 1));
+	if (procPtr->firstLocalPtr == NULL) {
+	    procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;
+	} else {
+	    procPtr->lastLocalPtr->nextPtr = localPtr;
+	    procPtr->lastLocalPtr = localPtr;
+	}
+	localPtr->nextPtr = NULL;
+	localPtr->nameLength = nameBytes;
+	localPtr->frameIndex = localVar;
+	localPtr->flags = 0;
+	if (name == NULL) {
+	    localPtr->flags |= VAR_TEMPORARY;
+	}
+	localPtr->defValuePtr = NULL;
+	localPtr->resolveInfo = NULL;
+
+	if (name != NULL) {
+	    memcpy(localPtr->name, name, (size_t) nameBytes);
+	}
+	localPtr->name[nameBytes] = '\0';
+	procPtr->numCompiledLocals++;
+    }
+    return localVar;
+}

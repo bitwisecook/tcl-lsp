@@ -1,0 +1,70 @@
+TclCompileDictCreateCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *keyToken, *valueToken;
+    Tcl_Obj *keyObj, *valueObj, *dictObj;
+    Tcl_Size i, numWords = parsePtr->numWords;
+    /* TODO: Consider support for compiling expanded args. */
+
+    if ((numWords & 1) == 0 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * See if we can build the value at compile time...
+     */
+
+    keyToken = TokenAfter(parsePtr->tokenPtr);
+    TclNewObj(dictObj);
+    for (i=1 ; i<numWords ; i+=2) {
+	TclNewObj(keyObj);
+	if (!TclWordKnownAtCompileTime(keyToken, keyObj)) {
+	    Tcl_BounceRefCount(keyObj);
+	    Tcl_BounceRefCount(dictObj);
+	    goto nonConstant;
+	}
+	valueToken = TokenAfter(keyToken);
+	TclNewObj(valueObj);
+	if (!TclWordKnownAtCompileTime(valueToken, valueObj)) {
+	    Tcl_BounceRefCount(keyObj);
+	    Tcl_BounceRefCount(valueObj);
+	    Tcl_BounceRefCount(dictObj);
+	    goto nonConstant;
+	}
+	keyToken = TokenAfter(valueToken);
+	Tcl_DictObjPut(NULL, dictObj, keyObj, valueObj);
+	Tcl_BounceRefCount(keyObj);
+    }
+
+    /*
+     * We did! Excellent. The "verifyDict" is to do type forcing.
+     */
+
+    PUSH_OBJ(			dictObj);
+    OP(				DUP);
+    OP(				DICT_VERIFY);
+    return TCL_OK;
+
+    /*
+     * Otherwise, we've got to issue runtime code to do the building, which we
+     * do by [dict set]ting into an unnamed local variable. This requires that
+     * we are in a context with an LVT.
+     */
+
+  nonConstant:
+    PUSH(			"");
+    keyToken = TokenAfter(parsePtr->tokenPtr);
+    for (i=1 ; i<numWords ; i+=2) {
+	valueToken = TokenAfter(keyToken);
+	PUSH_TOKEN(		keyToken, i);
+	PUSH_TOKEN(		valueToken, i + 1);
+	OP(			DICT_PUT);
+	keyToken = TokenAfter(valueToken);
+    }
+    return TCL_OK;
+}

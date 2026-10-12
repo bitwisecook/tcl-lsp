@@ -59,6 +59,8 @@ pub enum FieldKind {
     IndexList,
     /// `Option<&'static [u8]>` — tri-state index list (unset vs empty).
     OptIndexList,
+    /// Optional argv positions with their selected variable naming purpose.
+    VariableReceivers,
     /// One variant of a named catalogue; `optional` wraps it in `Option`.
     Enum {
         /// Catalogue id — a key of [`catalogues`].
@@ -167,6 +169,7 @@ impl FieldKind {
             Self::TextList => "textList",
             Self::IndexList => "indexList",
             Self::OptIndexList => "optIndexList",
+            Self::VariableReceivers => "variableReceivers",
             Self::Enum { .. } => "enum",
             Self::FlagSet { .. } => "flagSet",
             Self::EnumList { .. } => "enumList",
@@ -513,6 +516,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list; wins over `arg_roles`.",
     ),
     f(
+        "arg_role_count_resolver",
+        "Cardinality argument-role resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_count_resolver)",
+        },
+        "Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.",
+    ),
+    f(
+        "arg_role_layout_resolver",
+        "Structured argument-layout resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_layout_resolver)",
+        },
+        "Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.",
+    ),
+    f(
         "arg_role_resolver_roles",
         "Resolver role capabilities",
         ARGS,
@@ -577,6 +598,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_prefix_resolver)",
         },
         "Callback locating command-prefix positions that depend on the argument list.",
+    ),
+    f(
+        "script_lookup_scope",
+        "Executable lookup frame",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "scriptLookupScope",
+            optional: true,
+        },
+        "Invoking, global or triggering frame at executable entry; independent of timing, operand ownership and command table proof.",
     ),
     f(
         "script_timing_resolver",
@@ -677,6 +708,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         SUBS,
         FieldKind::Bool,
         "Accept a subcommand word that is not declared, without a W001 warning.",
+    ),
+    f(
+        "option_prefix_words",
+        "Positional prefix words",
+        OPTS,
+        FieldKind::Count,
+        "Fixed positional words before the selected invocation's option run.",
     ),
     f(
         "prefix_matching",
@@ -919,6 +957,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Mutable Tcl domains that must remain stable before specialisation.",
     ),
     f(
+        "native_result",
+        "Native result contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeResultContract::...)",
+        },
+        "Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.",
+    ),
+    f(
         "result_stability",
         "Result stability",
         EFFECTS,
@@ -938,6 +985,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
          option relation reported nothing. Prefer an `option_requires` / \
          `option_forbids` / `option_requires_one_of` row: those are checked \
          natively with no VM entry.",
+    ),
+    f(
+        "source_index_bounds",
+        "Source index bounds",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceIndexBounds",
+            optional: true,
+        },
+        "Conditional original index/container relationship; no native handler or current result.",
     ),
     f(
         "literal_argument_validator",
@@ -1142,6 +1199,49 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Whether body arguments run in the caller's frame or a separate context.",
     ),
     f(
+        "variable_receivers",
+        "Variable receiver purposes",
+        BEHAVIOUR,
+        FieldKind::VariableReceivers,
+        "Argv variable-name receiver positions and their combined or trace-subject naming purpose. Unset inherits; declared empty withdraws. This metadata grants no successful access, trace installation, compiler preparation or whole-array root-only interpretation.",
+    ),
+    f(
+        "successful_handler",
+        "Native normal handler effects",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands)",
+        },
+        "Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.",
+    ),
+    f(
+        "native_compilation",
+        "Native compiler grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeCompilationSpec { .. })",
+        },
+        "Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.",
+    ),
+    f(
+        "procedure_definition",
+        "Native procedure grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeProcedureDefinitionSpec::Core)",
+        },
+        "Native definition argv, result and static-storage protocol; requires live native implementation proof.",
+    ),
+    f(
+        "body_execution",
+        "Body execution contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(BodyExecutionSpec::CapturedLifecycle(...))",
+        },
+        "Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.",
+    ),
+    f(
         "body_interpreter",
         "Body interpreter",
         BEHAVIOUR,
@@ -1267,6 +1367,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Predicate over the call's own flags deciding whether the sink applies.",
     ),
     f(
+        "channel_configuration",
+        "Channel configuration",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "channelConfiguration",
+            optional: true,
+        },
+        "Conditional original encoding/translation option relationship; no channel state or runtime acceptance.",
+    ),
+    f(
         "credential_options",
         "Credential options",
         TAINT,
@@ -1380,6 +1490,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         DEPRECATION,
         FieldKind::OptText,
         "Replacement command name surfaced by the deprecation code action.",
+    ),
+    f(
+        "source_deprecation_advice",
+        "Source deprecation advice",
+        DEPRECATION,
+        FieldKind::Enum {
+            catalogue: "sourceDeprecationAdvice",
+            optional: true,
+        },
+        "Registry-owned source shape advice; original words support a review proposal, without a runtime equivalence claim.",
     ),
     f(
         "deprecated_replacement_drop_in",
@@ -1614,6 +1734,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list.",
     ),
     f(
+        "arg_role_count_resolver",
+        "Cardinality argument-role resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_count_resolver)",
+        },
+        "Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.",
+    ),
+    f(
+        "arg_role_layout_resolver",
+        "Structured argument-layout resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_layout_resolver)",
+        },
+        "Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.",
+    ),
+    f(
         "arg_role_resolver_roles",
         "Resolver role capabilities",
         ARGS,
@@ -1660,6 +1798,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_prefix_resolver)",
         },
         "Callback locating command-prefix positions after the subcommand word.",
+    ),
+    f(
+        "script_lookup_scope",
+        "Executable lookup frame",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "scriptLookupScope",
+            optional: true,
+        },
+        "Invoking, global or triggering frame at executable entry; independent of timing, operand ownership and command table proof.",
     ),
     f(
         "script_timing_resolver",
@@ -1889,6 +2037,20 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
          when longer than uniqueness alone requires. Unset = uniqueness only.",
     ),
     f(
+        "option_prefix_words",
+        "Positional prefix words",
+        OPTS,
+        FieldKind::Count,
+        "Fixed positional words before the selected invocation's option run.",
+    ),
+    f(
+        "reserved_trailing_words",
+        "Reserved trailing words",
+        OPTS,
+        FieldKind::Count,
+        "Trailing positional words excluded from this subcommand's option scan.",
+    ),
+    f(
         "prefix_matching",
         "Prefix matching",
         OPTS,
@@ -2032,6 +2194,40 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Whether body arguments run in the caller's frame or a separate context.",
     ),
     f(
+        "variable_receivers",
+        "Variable receiver purposes",
+        BEHAVIOUR,
+        FieldKind::VariableReceivers,
+        "Argv variable-name receiver positions and their combined or trace-subject naming purpose. Unset inherits; declared empty withdraws. This metadata grants no successful access, trace installation, compiler preparation or whole-array root-only interpretation.",
+    ),
+    f(
+        "successful_handler",
+        "Native normal handler effects",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands)",
+        },
+        "Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.",
+    ),
+    f(
+        "native_compilation",
+        "Native compiler grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeCompilationSpec { .. })",
+        },
+        "Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.",
+    ),
+    f(
+        "body_execution",
+        "Body execution contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(BodyExecutionSpec::CapturedLifecycle(...))",
+        },
+        "Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.",
+    ),
+    f(
         "body_interpreter",
         "Body interpreter",
         BEHAVIOUR,
@@ -2107,6 +2303,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Diagnostic code for a subcommand-shaped XSS or header-injection sink.",
     ),
     f(
+        "channel_configuration",
+        "Channel configuration",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "channelConfiguration",
+            optional: true,
+        },
+        "Conditional original encoding/translation option relationship; no channel state or runtime acceptance.",
+    ),
+    f(
         "credential_arg",
         "Credential argument",
         TAINT,
@@ -2177,6 +2383,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Subcommand-specific live-dispatch stability requirements.",
     ),
     f(
+        "native_result",
+        "Native result contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeResultContract::...)",
+        },
+        "Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.",
+    ),
+    f(
         "result_stability",
         "Result stability",
         EFFECTS,
@@ -2196,6 +2411,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
          option relation reported nothing. Prefer an `option_requires` / \
          `option_forbids` / `option_requires_one_of` row: those are checked \
          natively with no VM entry.",
+    ),
+    f(
+        "source_index_bounds",
+        "Source index bounds",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceIndexBounds",
+            optional: true,
+        },
+        "Conditional original index/container relationship; no native handler or current result.",
     ),
     f(
         "literal_argument_validator",
@@ -2219,6 +2444,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         BEHAVIOUR,
         FieldKind::Bool,
         "Returns a filesystem path.",
+    ),
+    f(
+        "source_path_operation",
+        "Source path operation",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourcePathOperation",
+            optional: true,
+        },
+        "Conditional source path algebra; no runtime handler, current filename or filesystem fact.",
     ),
     f(
         "is_unescape",
@@ -2406,17 +2641,25 @@ fn custom_catalogues() -> [(&'static str, Value); 7] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 25] = [
+    let standard: [(&str, &[catalogue::Variant]); 29] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
         ("scriptTiming", catalogue::SCRIPT_TIMINGS),
+        ("scriptLookupScope", catalogue::SCRIPT_LOOKUP_SCOPES),
         ("variableScope", catalogue::VARIABLE_SCOPES),
         ("argPresentation", catalogue::ARG_PRESENTATIONS),
         ("storageType", catalogue::STORAGE_TYPES),
         ("byteArrayEffect", catalogue::BYTE_ARRAY_EFFECTS),
+        (
+            "sourceDeprecationAdvice",
+            catalogue::SOURCE_DEPRECATION_ADVICE,
+        ),
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
+        ("sourcePathOperation", catalogue::SOURCE_PATH_OPERATIONS),
+        ("sourceIndexBounds", catalogue::SOURCE_INDEX_BOUNDS),
+        ("channelConfiguration", catalogue::CHANNEL_CONFIGURATIONS),
         (
             "taintTransformCondition",
             catalogue::TAINT_TRANSFORM_CONDITIONS,

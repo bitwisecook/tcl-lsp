@@ -1,0 +1,392 @@
+
+running 7 tests
+test analyser::interp_visibility::tests::original_child_lambda_visibility_uses_its_own_literal_namespace ... CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(57) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(73) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(88) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(99) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(119) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(130) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(57) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(73) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(88) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(99) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(119) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(130) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(57) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(73) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(88) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(99) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(119) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(130) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(57) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(73) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(88) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(99) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(119) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(130) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(56) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(65) native=true argv=2 snapshot=true
+CREATED_SOURCE_RECEIVER site=Some(76) kind=Proc namespace=false
+CREATED_SOURCE_VISIBILITY site=Some(76) native=true argv=2 snapshot=true
+CREATED_SOURCE_RECEIVER site=Some(76) kind=Proc namespace=false
+ok
+test analyser::interp_visibility::tests::original_child_receiver_visibility_keeps_unknown_namespace_and_body_owner_explicit ... CREATED_SOURCE_VISIBILITY site=Some(38) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=23 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_RECEIVER site=Some(71) kind=Method namespace=false
+CREATED_SOURCE_RECEIVER_BODY site=Some(71) retained=false
+CREATED_SOURCE_VISIBILITY site=Some(71) native=true argv=2 snapshot=true
+CREATED_SOURCE_RECEIVER site=Some(71) kind=Method namespace=false
+CREATED_SOURCE_RECEIVER_BODY site=Some(71) retained=false
+
+thread 'analyser::interp_visibility::tests::original_child_receiver_visibility_keeps_unknown_namespace_and_body_owner_explicit' (630237) panicked at rust/tcl-compiler/src/analyser/interp_visibility.rs:1820:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::interp_visibility::tests::original_child_visibility_is_scoped_conditional_and_retains_possible_source_edges ... CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(51) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(67) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(51) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(67) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(51) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(67) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(51) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(67) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(51) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(67) native=true argv=2 snapshot=true
+ok
+test analyser::interp_visibility::tests::original_child_visibility_preserves_literal_colon_and_independent_allocations ... CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=160 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(160) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=160 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_HEAD site=192 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(192) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=192 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_VISIBILITY site=Some(54) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(71) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(91) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(107) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(124) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(133) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(146) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(207) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(223) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=160 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(160) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=160 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_HEAD site=192 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(192) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=192 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_VISIBILITY site=Some(54) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(71) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(91) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(107) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(124) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(133) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(146) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(207) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(223) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=160 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(160) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=160 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_HEAD site=192 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(192) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=192 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_VISIBILITY site=Some(54) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(71) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(91) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(107) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(124) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(133) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(146) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(207) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(223) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=160 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(160) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=160 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_HEAD site=192 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(192) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=192 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_VISIBILITY site=Some(54) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(71) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(91) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(107) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(124) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(133) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(146) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(207) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(223) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=160 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(160) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=160 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_HEAD site=192 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(192) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=192 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_VISIBILITY site=Some(54) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(71) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(91) native=true argv=4 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(107) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(124) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(133) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(146) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(207) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(223) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=4 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=78 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(78) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=78 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_HEAD site=111 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=1
+CREATED_SOURCE_DESCRIPTOR site=Some(111) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=111 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=1
+CREATED_SOURCE_VISIBILITY site=Some(53) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(70) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(126) native=true argv=1 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(134) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(151) native=true argv=3 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(169) native=true argv=2 snapshot=true
+ok
+test analyser::interp_visibility::tests::original_child_visibility_rejects_foreign_source_configuration_and_generation ... CREATED_SOURCE_VISIBILITY site=Some(37) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=22 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(22) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=22 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+ok
+test analyser::interp_visibility::tests::original_created_handle_visibility_uses_the_same_child_source_snapshot ... CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[115] present=true created=true uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(31) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(38) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=23 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[115] present=true created=true uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(31) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(38) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=23 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[115] present=true created=true uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(31) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(38) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=23 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[115] present=true created=true uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(31) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(38) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=23 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[115] present=true created=true uncertain=0
+CREATED_SOURCE_VISIBILITY site=Some(31) native=true argv=2 snapshot=true
+CREATED_SOURCE_VISIBILITY site=Some(38) native=true argv=2 snapshot=true
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=interp receipt=true facts=0
+CREATED_SOURCE_TRANSITION site=23 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[115] present=true created=false uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=interp applied=true command_widen=false resolution_widen=false created=0 uncertain=0
+CREATED_SOURCE_HEAD site=56 bytes=[109, 111, 118, 101, 100] present=false created=false uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(39) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=39 descriptor=rename applied=true command_widen=false resolution_widen=false created=0 uncertain=0
+CREATED_SOURCE_HEAD site=56 bytes=[109, 111, 118, 101, 100] present=true created=false uncertain=0
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[109, 121, 115, 116, 101, 114, 121] present=false created=false uncertain=0
+CREATED_SOURCE_HEAD site=32 bytes=[115] present=false created=false uncertain=1
+CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[112, 114, 111, 99] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=proc receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=proc applied=true command_widen=false resolution_widen=false created=0 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[115] present=true created=false uncertain=0
+ok
+test analyser::interp_visibility::tests::original_moved_handle_visibility_uses_the_original_child_path ... CREATED_SOURCE_HEAD site=0 bytes=[105, 110, 116, 101, 114, 112] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(0) descriptor=interp receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=0 descriptor=interp applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=23 bytes=[114, 101, 110, 97, 109, 101] present=true created=false uncertain=0
+CREATED_SOURCE_DESCRIPTOR site=Some(23) descriptor=rename receipt=true facts=1
+CREATED_SOURCE_TRANSITION site=23 descriptor=rename applied=true command_widen=false resolution_widen=false created=1 uncertain=0
+CREATED_SOURCE_HEAD site=39 bytes=[109, 111, 118, 101, 100] present=true created=true uncertain=0
+
+thread 'analyser::interp_visibility::tests::original_moved_handle_visibility_uses_the_original_child_path' (630259) panicked at rust/tcl-compiler/src/analyser/interp_visibility.rs:1917:17:
+assertion `left == right` failed: tcl8.4: interp create -safe s; rename s moved; moved eval {source a.tcl}
+  left: 0
+ right: 1
+FAILED
+
+failures:
+
+failures:
+    analyser::interp_visibility::tests::original_child_receiver_visibility_keeps_unknown_namespace_and_body_owner_explicit
+    analyser::interp_visibility::tests::original_moved_handle_visibility_uses_the_original_child_path
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 8219 filtered out; finished in 20.49s
+

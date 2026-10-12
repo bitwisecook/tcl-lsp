@@ -1,0 +1,35 @@
+{
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "driver": "same independently pinned full Tcl_Init CAPI observer as native202; fresh interpreter per source",
+  "source_channel": "ASCII Tcl_EvalEx original source, explicit byte length",
+  "questions": [
+    {
+      "question": "self",
+      "source": "self.tcl",
+      "sha256": "74f84ada9192f8c2153aa7f1522b8335e43fefa63350ddcc6a6be7a2979dd660"
+    },
+    {
+      "question": "definitionnamespace",
+      "source": "definitionnamespace.tcl",
+      "sha256": "bf58b0814d08d4a290a6f429871ddffa4711a0f4a711f556c33ea2cfe1831031"
+    },
+    {
+      "question": "superclass",
+      "source": "superclass.tcl",
+      "sha256": "8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff"
+    },
+    {
+      "question": "const-links",
+      "source": "const-links.tcl",
+      "sha256": "ddba5d74d88e7ebf1dd4dcc239e5198d2fed1bd9f10b4c4fc5fd3ba6a5f82ebf"
+    }
+  ],
+  "scope": "Exact returned guest list bytes and catch code; no object/header equality claim; unsupported commands stay NOT_APPLICABLE"
+}

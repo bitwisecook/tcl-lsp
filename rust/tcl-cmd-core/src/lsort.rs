@@ -22,21 +22,20 @@
 //! Implements the behaviour of C's `Tcl_LsortObjCmd` (`tclCmdIL.c`): the option set
 //! (`-ascii`/`-dictionary`/`-integer`/`-real`/`-nocase`, `-increasing`/
 //! `-decreasing`, `-unique`, `-indices`, `-index` *path*, `-stride`, `-command`),
-//! the up-front numeric-key validation, mode-aware `-unique`, and the stride /
+//! the selected original numeric-key stages, mode-aware `-unique`, and the stride /
 //! `-indices` result shapes. The non-command comparison is the shared
 //! [`crate::sort`] core.
 //!
-//! `-command` evaluates a user Tcl proc per comparison (Family-B), so — like
-//! `lseq`'s expression edge — it is split out: [`prepare`] does everything that
-//! needs `ValueOps` (option parse, key extraction, and, for the non-command
-//! modes, the whole sort+build), returning either the finished list or a
-//! [`CommandJob`]; [`sort_command`] then runs the stable merge sort over the
-//! adapter's comparator **without** `ValueOps` (so the interp the comparator
-//! evaluates against isn't double-borrowed); [`build_command`] builds the result
-//! with `ValueOps` afterwards. Three sequential calls, no borrow conflict.
+//! [`run_original`] retains one entered operation across preparation, the
+//! actual original command callback, result construction and cleanup. C84
+//! drills lazily; C85+ prepares each member before its bucket merge. Jim creates
+//! actual groups and uses the local native sorting capability. Neutral callers
+//! retain [`prepare`], [`sort_command`] and [`build_command`] as sequential calls.
 //!
-//! Semantics follow tclsh 9.0.
+//! Primitive and reached schedules select the actual C release or Jim producer.
 
+use crate::index::NativeIndexOps;
+use crate::native_option_index::{OptionCommand, PreparedPath};
 use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
 
@@ -60,7 +59,7 @@ const OPT_NOCASE: usize = 8;
 const OPT_REAL: usize = 9;
 const OPT_STRIDE: usize = 10;
 const OPT_UNIQUE: usize = 11;
-const OPT_NAMES: [&str; 12] = [
+static OPT_NAMES: [&str; 12] = [
     "-ascii",
     "-command",
     "-decreasing",
@@ -74,16 +73,34 @@ const OPT_NAMES: [&str; 12] = [
     "-stride",
     "-unique",
 ];
-const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
+static OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
 
-/// An `lsort` failure (message-only — `lsort` sets no `errorCode`).
+/// An `lsort` failure retaining selected native guest error metadata.
 pub struct LsortError {
     pub message: Vec<u8>,
+    /// Complete selected guest error metadata, when supplied by a shared owner.
+    pub command_error: Option<crate::CmdError>,
+    /// Operational Unicode refusal; adapters must bypass guest completion.
+    pub native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
 }
 
 impl LsortError {
+    fn from_command(error: crate::CmdError) -> Self {
+        let native_access_refusal = error.native_access_refusal();
+        let message = error.message_bytes().to_vec();
+        Self {
+            message,
+            command_error: Some(error),
+            native_access_refusal,
+        }
+    }
+
     fn msg(m: impl Into<Vec<u8>>) -> Self {
-        Self { message: m.into() }
+        Self {
+            message: m.into(),
+            command_error: None,
+            native_access_refusal: None,
+        }
     }
 }
 
@@ -94,26 +111,21 @@ fn not_integer(s: &[u8]) -> LsortError {
     LsortError::msg(m)
 }
 
-fn not_real(s: &[u8]) -> LsortError {
-    let mut m = b"expected floating-point number but got \"".to_vec();
-    m.extend_from_slice(s);
-    m.push(b'"');
-    LsortError::msg(m)
-}
-
 /// The outcome of [`prepare`].
-pub enum Lsort<V> {
+pub enum Lsort<V, K> {
     /// A non-`-command` sort: the finished result list.
     Done(V),
+    /// Jim's actual zero/one-element input result, with its explicit borrowed role.
+    Original(index::IndexResult<V>),
     /// A `-command` sort: hand to [`sort_command`] then [`build_command`].
-    Command(CommandJob<V>),
+    Command(CommandJob<V, K>),
 }
 
 /// A prepared `-command` sort: the decorated items (group base + the key element
 /// passed to the comparator) plus everything [`build_command`] needs.
-pub struct CommandJob<V> {
+pub struct CommandJob<V, K> {
     /// `(group base, key element)` per logical element, in input order.
-    pub items: Vec<(usize, V)>,
+    pub items: Vec<(usize, index::IndexedKey<K>)>,
     /// The flat source list elements.
     elems: Vec<V>,
     /// `-increasing` (vs `-decreasing`).
@@ -123,6 +135,18 @@ pub struct CommandJob<V> {
     indices_out: bool,
     /// The `-command` prefix value (the adapter's comparator evaluates it).
     pub cmd_prefix: V,
+    /// Exact C84 SortElement member references; key metadata clones add no holds.
+    _temporary_members: Vec<K>,
+    original: Option<Box<OriginalCommand<V, K>>>,
+}
+
+struct OriginalCommand<V, K> {
+    path: PreparedPath,
+    jim_path: Option<Vec<V>>,
+    offset: usize,
+    command: K,
+    source: Option<K>,
+    grouped: bool,
 }
 
 /// Parse + key-extract (and, for the non-command modes, fully sort+build).
@@ -134,165 +158,842 @@ pub struct CommandJob<V> {
 // before the `as usize` casts, so the truncation/sign-loss allows are safe here.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::Value>, LsortError> {
-    if args.is_empty() {
-        return Err(LsortError::msg(
-            "wrong # args: should be \"lsort ?-option value ...? list\"",
-        ));
-    }
-    let mut mode = SortMode::Ascii;
-    let mut command = false;
-    let (mut nocase, mut increasing, mut unique, mut indices_out) = (false, true, false, false);
-    let mut group = 1usize;
-    let mut index_path: Vec<Vec<u8>> = Vec::new();
-    let mut cmd_prefix: Option<O::Value> = None;
-
-    let last = args.len() - 1; // the list
-    let mut i = 0;
-    while i < last {
-        let opt = ops.as_bytes(&args[i]);
-        match OPTIONS.index_of(&opt).map_err(LsortError::msg)? {
-            OPT_ASCII => mode = SortMode::Ascii,
-            OPT_DICTIONARY => mode = SortMode::Dictionary,
-            OPT_INTEGER => mode = SortMode::Integer,
-            OPT_REAL => mode = SortMode::Real,
-            OPT_NOCASE => nocase = true,
-            OPT_INCREASING => increasing = true,
-            OPT_DECREASING => increasing = false,
-            OPT_INDICES => indices_out = true,
-            OPT_INDEX => {
-                if i + 1 >= last {
-                    return Err(needs_value(b"-index", b"list index"));
-                }
-                index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
-                i += 1;
-            }
-            OPT_STRIDE => {
-                if i + 1 >= last {
-                    return Err(needs_value(b"-stride", b"stride length"));
-                }
-                let sb = ops.as_bytes(&args[i + 1]);
-                match sort::parse_wide(&sb) {
-                    Some(w) if w >= 2 => group = w as usize,
-                    Some(_) => return Err(LsortError::msg("stride length must be at least 2")),
-                    None => return Err(not_integer(&sb)),
-                }
-                i += 1;
-            }
-            OPT_COMMAND => {
-                if i + 1 >= last {
-                    return Err(needs_value(b"-command", b"comparison command"));
-                }
-                command = true;
-                cmd_prefix = Some(args[i + 1].clone());
-                i += 1;
-            }
-            OPT_UNIQUE => unique = true,
-            _ => unreachable!("the option table is closed"),
-        }
-        i += 1;
-    }
-
-    let elems = ops
-        .list_elements(&args[last])
-        .map_err(|e| LsortError::msg(e.message()))?;
-    let len = elems.len();
-    if len == 0 {
-        return Ok(Lsort::Done(ops.new_list(Vec::new())));
-    }
-
-    // -stride groups the flat list; the leading -index value (default 0) picks
-    // the key element within each group, the rest of the path applies within it.
-    let mut group_offset = 0usize;
-    let mut key_path: &[Vec<u8>] = &index_path;
-    if group > 1 {
-        if len % group != 0 {
-            return Err(LsortError::msg(
-                "list size must be a multiple of the stride length",
-            ));
-        }
-        if !index_path.is_empty() {
-            match index::resolve_opt(&String::from_utf8_lossy(&index_path[0]), group) {
-                Some(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
-                _ => {
-                    return Err(LsortError::msg(
-                        "when used with \"-stride\", the leading \"-index\" value must be within the group",
-                    ));
-                }
-            }
-            key_path = &index_path[1..];
-        }
-    }
-    let logical = len / group;
-
-    if command {
-        // Extract the key *values* (the comparator receives them); the merge sort
-        // happens in `sort_command` over the adapter's callback.
-        let mut items: Vec<(usize, O::Value)> = Vec::with_capacity(logical);
-        for l in 0..logical {
-            let base = l * group;
-            let key = index::drill(ops, &elems[base + group_offset], key_path)
-                .map_err(LsortError::msg)?;
-            items.push((base, key));
-        }
-        return Ok(Lsort::Command(CommandJob {
-            items,
-            elems,
-            increasing,
-            unique,
-            group,
-            indices_out,
-            cmd_prefix: cmd_prefix.expect("set with -command"),
-        }));
-    }
-
-    // Non-command: extract the key *bytes*, validate, sort, unique, build.
-    let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
-    for l in 0..logical {
-        let base = l * group;
-        let key =
-            index::drill(ops, &elems[base + group_offset], key_path).map_err(LsortError::msg)?;
-        items.push((base, ops.as_bytes(&key).to_vec()));
-    }
-    // Validate numeric keys up front (Tcl errors on the first non-number).
-    if mode == SortMode::Integer
-        && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_wide(k).is_none())
-    {
-        return Err(not_integer(k));
-    } else if mode == SortMode::Real
-        && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_real(k).is_none())
-    {
-        return Err(not_real(k));
-    }
-    items.sort_by(|a, b| {
-        let ord = sort::key_compare(mode, nocase, &a.1, &b.1);
-        if increasing { ord } else { ord.reverse() }
-    });
-    if unique {
-        // Keep the *last* of each equal run (C's `MergeLists` keeps the right
-        // element), so two inputs that compare equal but render differently
-        // yield the later one — `lsort -nocase -unique {A a}` → `a`,
-        // `lsort -integer -unique {01 1}` → `1`. `Vec::dedup_by` keeps the
-        // first, which is the wrong end.
-        let mut deduped: Vec<(usize, Vec<u8>)> = Vec::with_capacity(items.len());
-        for it in items.drain(..) {
-            if let Some(prev) = deduped.last()
-                && sort::key_compare(mode, nocase, &prev.1, &it.1).is_eq()
-            {
-                deduped.pop();
-            }
-            deduped.push(it);
-        }
-        items = deduped;
-    }
-    let bases: Vec<usize> = items.iter().map(|(b, _)| *b).collect();
-    Ok(Lsort::Done(build_result(
+pub fn prepare<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Result<Lsort<O::Value, O::IndexKeyOwner>, LsortError> {
+    index::run_index_output(
         ops,
-        &bases,
-        &elems,
-        group,
-        indices_out,
-    )))
+        |ops| {
+            if args.is_empty() {
+                return Err(LsortError::msg(
+                    "wrong # args: should be \"lsort ?-option value ...? list\"",
+                ));
+            }
+            let mut mode = SortMode::Ascii;
+            let mut command = false;
+            let (mut nocase, mut increasing, mut unique, mut indices_out) =
+                (false, true, false, false);
+            let mut group = 1usize;
+            let mut index_path = PreparedPath::default();
+            let mut last_index_argument = None;
+            let mut jim_path: Option<Vec<O::Value>> = None;
+            let mut cmd_prefix: Option<O::Value> = None;
+
+            let selected = ops.index_c_version().is_some() || ops.index_jim_sort_selected();
+            let last = args.len() - 1; // the list
+            let mut i = 0;
+            while i < last {
+                let option = if ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4) {
+                    const MAPPING: [usize; 9] = [
+                        OPT_ASCII,
+                        OPT_COMMAND,
+                        OPT_DECREASING,
+                        OPT_DICTIONARY,
+                        OPT_INCREASING,
+                        OPT_INDEX,
+                        OPT_INTEGER,
+                        OPT_REAL,
+                        OPT_UNIQUE,
+                    ];
+                    static NAMES: [&str; 9] = [
+                        "-ascii",
+                        "-command",
+                        "-decreasing",
+                        "-dictionary",
+                        "-increasing",
+                        "-index",
+                        "-integer",
+                        "-real",
+                        "-unique",
+                    ];
+                    static SELECTED: OptionTable<'static> =
+                        OptionTable::abbreviating("option", &NAMES);
+                    MAPPING[SELECTED
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?]
+                } else if ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_5) {
+                    const MAPPING: [usize; 11] = [
+                        OPT_ASCII,
+                        OPT_COMMAND,
+                        OPT_DECREASING,
+                        OPT_DICTIONARY,
+                        OPT_INCREASING,
+                        OPT_INDEX,
+                        OPT_INDICES,
+                        OPT_INTEGER,
+                        OPT_NOCASE,
+                        OPT_REAL,
+                        OPT_UNIQUE,
+                    ];
+                    static NAMES: [&str; 11] = [
+                        "-ascii",
+                        "-command",
+                        "-decreasing",
+                        "-dictionary",
+                        "-increasing",
+                        "-index",
+                        "-indices",
+                        "-integer",
+                        "-nocase",
+                        "-real",
+                        "-unique",
+                    ];
+                    static SELECTED: OptionTable<'static> =
+                        OptionTable::abbreviating("option", &NAMES);
+                    MAPPING[SELECTED
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?]
+                } else if ops
+                    .index_syntax()
+                    .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+                {
+                    const MAPPING: [usize; 11] = [
+                        OPT_ASCII,
+                        OPT_NOCASE,
+                        OPT_INCREASING,
+                        OPT_DECREASING,
+                        OPT_COMMAND,
+                        OPT_INTEGER,
+                        OPT_REAL,
+                        OPT_INDEX,
+                        OPT_UNIQUE,
+                        OPT_STRIDE,
+                        OPT_DICTIONARY,
+                    ];
+                    static NAMES: [&str; 11] = [
+                        "-ascii",
+                        "-nocase",
+                        "-increasing",
+                        "-decreasing",
+                        "-command",
+                        "-integer",
+                        "-real",
+                        "-index",
+                        "-unique",
+                        "-stride",
+                        "-dictionary",
+                    ];
+                    static SELECTED: OptionTable<'static> =
+                        OptionTable::abbreviating("option", &NAMES);
+                    MAPPING[SELECTED
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?]
+                } else {
+                    OPTIONS
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?
+                };
+                match option {
+                    OPT_ASCII => {
+                        mode = SortMode::Ascii;
+                        if selected { command = false; }
+                        if ops.index_jim_sort_selected() { nocase = false; }
+                    },
+                    OPT_DICTIONARY => { mode = SortMode::Dictionary; if selected { command = false; } },
+                    OPT_INTEGER => { mode = SortMode::Integer; if selected { command = false; } },
+                    OPT_REAL => { mode = SortMode::Real; if selected { command = false; } },
+                    OPT_NOCASE => {
+                        nocase = true;
+                        if ops.index_jim_sort_selected() { mode = SortMode::Ascii; command = false; }
+                    },
+                    OPT_INCREASING => increasing = true,
+                    OPT_DECREASING => increasing = false,
+                    OPT_INDICES => indices_out = true,
+                    OPT_INDEX => {
+                        if i + 1 >= last {
+                            return Err(needs_value(b"-index", b"list index"));
+                        }
+                        if ops
+                            .index_syntax()
+                            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+                        {
+                            jim_path = ops
+                                .original_jim_index_path(&args[i + 1])
+                                .map_err(LsortError::from_command)?;
+                            if jim_path.as_ref().is_some_and(Vec::is_empty) {
+                                return Err(needs_value(b"-index", b"list index"));
+                            }
+                        }
+                        if jim_path.is_none() {
+                            index_path = match ops
+                                .original_c_option_path(&args[i + 1], OptionCommand::Sort, true)
+                                .map_err(LsortError::from_command)?
+                            {
+                                Some(path) => PreparedPath::original(path),
+                                None => {
+                                    PreparedPath::neutral(split_index(&ops.as_bytes(&args[i + 1]))?)
+                                }
+                            };
+                        }
+                        last_index_argument = Some(i + 1);
+                        i += 1;
+                    }
+                    OPT_STRIDE => {
+                        if i + 1 >= last {
+                            return Err(needs_value(b"-stride", b"stride length"));
+                        }
+                        if let Some(integer) =
+                            index::original_list_stride(ops, &args[i + 1], OptionCommand::Sort)
+                                .map_err(LsortError::from_command)?
+                        {
+                            group = usize::try_from(integer).map_err(|_| {
+                                LsortError::from_command(
+                                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                        "original sort stride extent",
+                                    )
+                                    .into(),
+                                )
+                            })?;
+                            i += 2;
+                            continue;
+                        }
+                        // Explicit neutral lexical route has no original scalar/cache authority.
+                        let sb = ops.as_bytes(&args[i + 1]);
+                        match sort::parse_wide(&sb) {
+                            Some(w) if w >= 2 => group = w as usize,
+                            Some(_) => {
+                                return Err(LsortError::msg("stride length must be at least 2"));
+                            }
+                            None => return Err(not_integer(&sb)),
+                        }
+                        i += 1;
+                    }
+                    OPT_COMMAND => {
+                        if i + 1 >= last {
+                            return Err(needs_value(b"-command", b"comparison command"));
+                        }
+                        command = true;
+                        cmd_prefix = Some(if selected {
+                            let original = ops.index_borrowed_key(&args[i + 1]).map_err(LsortError::from_command)?;
+                            ops.index_key_argument(&original).map_err(LsortError::from_command)?
+                        } else { args[i + 1].clone() });
+                        i += 1;
+                    }
+                    OPT_UNIQUE => unique = true,
+                    _ => unreachable!("the option table is closed"),
+                }
+                i += 1;
+            }
+
+            // C86/C9 prescreen every option, then quietly prepare only the last
+            // original path before input conversion. The same worker owns both.
+            if ops
+                .index_c_version()
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+                && let Some(slot) = last_index_argument
+            {
+                let path = ops
+                    .original_c_option_path(&args[slot], OptionCommand::Sort, false)
+                    .map_err(LsortError::from_command)?
+                    .ok_or_else(|| {
+                        LsortError::from_command(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original C sort option path issuer",
+                            )
+                            .into(),
+                        )
+                    })?;
+                index_path = PreparedPath::original(path);
+            }
+            let jim = ops.index_jim_sort_selected();
+            let mut source = if command && ops.index_c_version()
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5) {
+                Some(ops.index_sort_copy(&args[last]).map_err(LsortError::from_command)?)
+            } else { None };
+            let command_owner = if command && ops.index_c_version().is_some() {
+                let prefix = cmd_prefix.as_ref().expect("set with -command");
+                let command = ops.index_sort_duplicate(prefix, false)
+                    .map_err(LsortError::from_command)?;
+                for _ in 0..2 {
+                    let empty = ops.new_str("");
+                    let dummy = ops.index_created_key(empty).map_err(LsortError::from_command)?;
+                    let value = ops.index_key_argument(&dummy).map_err(LsortError::from_command)?;
+                    ops.index_sort_append(&command, &[value]).map_err(LsortError::from_command)?;
+                }
+                Some(command)
+            } else { None };
+            let elems = ops.index_list_elements(source.as_ref()
+                .map_or(&args[last], O::index_key_value))
+                .map_err(LsortError::from_command)?;
+            let len = elems.len();
+            if jim && len <= 1 {
+                let borrowed = ops
+                    .index_borrowed_key(&args[last])
+                    .map_err(LsortError::from_command)?;
+                return ops
+                    .index_key_result(&borrowed, false, false)
+                    .map(Lsort::Original)
+                    .map_err(LsortError::from_command);
+            }
+            if len == 0 {
+                return Ok(Lsort::Done(ops.new_list(Vec::new())));
+            }
+
+            // -stride groups the flat list; the leading -index value (default 0) picks
+            // the key element within each group, the rest of the path applies within it.
+            let mut group_offset = 0usize;
+            let mut key_path = index_path.path();
+            if group > 1 && !jim {
+                if len % group != 0 {
+                    return Err(grouping_error(ops, GroupingFailure::Size));
+                }
+                if !key_path.is_empty() {
+                    match key_path.decode(ops, 0, group - 1) {
+                        Ok(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
+                        Err(error) if error.native_execution_refusal().is_some() => {
+                            return Err(LsortError::from_command(error));
+                        }
+                        _ => {
+                            return Err(grouping_error(ops, GroupingFailure::LeadingIndex));
+                        }
+                    }
+                    key_path = key_path.tail();
+                }
+            }
+            let mut sort_elems = None;
+            if jim && group > 1 {
+                if len % group != 0 {
+                    return Err(LsortError::msg("list size must be a multiple of the stride length"));
+                }
+                let parent = ops.index_sort_list(Vec::new(), true).map_err(LsortError::from_command)?;
+                for members in elems.chunks_exact(group) {
+                    let members = members.iter().map(|member| {
+                        let borrowed = ops.index_borrowed_key(member)?;
+                        ops.index_key_argument(&borrowed)
+                    }).collect::<Result<Vec<_>, crate::CmdError>>()
+                        .map_err(LsortError::from_command)?;
+                    let group = ops.index_sort_list(members, false).map_err(LsortError::from_command)?;
+                    let value = ops.index_key_argument(&group).map_err(LsortError::from_command)?;
+                    ops.index_sort_append(&parent, &[value]).map_err(LsortError::from_command)?;
+                }
+                sort_elems = Some(ops.index_list_elements(O::index_key_value(&parent))
+                    .map_err(LsortError::from_command)?);
+                source = Some(parent);
+            } else if jim {
+                source = Some(ops.index_sort_duplicate(&args[last], true)
+                    .map_err(LsortError::from_command)?);
+            }
+            let logical = len / group;
+
+            let temporary_members = if ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4)
+            {
+                elems
+                    .iter()
+                    .map(|member| ops.index_c84_sort_member_hold(member))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(LsortError::from_command)?
+            } else {
+                Vec::new()
+            };
+            if command && selected {
+                let command = match command_owner {
+                    Some(command) => command,
+                    None => ops.index_borrowed_key(cmd_prefix.as_ref().expect("set with -command"))
+                        .map_err(LsortError::from_command)?,
+                };
+                return Ok(Lsort::Command(CommandJob {
+                    items: Vec::new(), elems, increasing, unique, group, indices_out,
+                    cmd_prefix: cmd_prefix.expect("set with -command"),
+                    _temporary_members: temporary_members,
+                    original: Some(Box::new(OriginalCommand {
+                        path: index_path, jim_path, offset: group_offset,
+                        command, source, grouped: jim && group > 1,
+                    })),
+                }));
+            }
+            if command {
+                // Extract the key *values* (the comparator receives them); the merge sort
+                // happens in `sort_command` over the adapter's callback.
+                let mut items: Vec<(usize, index::IndexedKey<O::IndexKeyOwner>)> =
+                    Vec::with_capacity(logical);
+                for l in 0..logical {
+                    let base = l * group;
+                    let key = match &jim_path {
+                        Some(path) => {
+                            index::drill_original_jim(ops, &elems[base + group_offset], path)
+                        }
+                        None => key_path.drill(ops, &elems[base + group_offset]),
+                    }
+                    .map_err(LsortError::from_command)?;
+                    items.push((base, key));
+                }
+                return Ok(Lsort::Command(CommandJob {
+                    items,
+                    elems,
+                    increasing,
+                    unique,
+                    group,
+                    indices_out,
+                    cmd_prefix: cmd_prefix.expect("set with -command"),
+                    _temporary_members: temporary_members,
+                    original: None,
+                }));
+            }
+
+            // C84 and Jim convert keys only inside the selected comparator.
+            // Jim also resolves -index there; the local C qsort supplies actual
+            // reached callback order, independently of Rust's sorting algorithms.
+            let lazy = jim || ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4);
+            let bases = if lazy {
+                let mut order: Vec<usize> = (0..logical).collect();
+                let mut compare = |ops: &mut O, left: usize, right: usize| {
+                    let left = sort_key(
+                        ops,
+                        sort_elems.as_ref().map_or(&elems[left * group + group_offset], |groups| &groups[left]),
+                        key_path,
+                        jim_path.as_deref(),
+                    )?;
+                    let right = sort_key(
+                        ops,
+                        sort_elems.as_ref().map_or(&elems[right * group + group_offset], |groups| &groups[right]),
+                        key_path,
+                        jim_path.as_deref(),
+                    )?;
+                    let reached = compare_original_keys(
+                        ops,
+                        index::key_value::<O>(&left),
+                        index::key_value::<O>(&right),
+                        mode,
+                        nocase,
+                        jim,
+                    );
+                    if let Err(first) = &reached {
+                        ops.retain_index_failure(first);
+                    }
+                    reached.map(|order| if increasing { order } else { order.reverse() })
+                };
+                if jim {
+                    ops.index_native_sort(&mut order, &mut compare).map_err(
+                        |error| match error {
+                            index::NativeSortError::Operation(error)
+                            | index::NativeSortError::Comparison(error) => {
+                                LsortError::from_command(error)
+                            }
+                        },
+                    )?;
+                    if unique {
+                        let mut kept = Vec::with_capacity(order.len());
+                        for position in order {
+                            if let Some(&prior) = kept.last() {
+                                if compare(ops, prior, position)
+                                    .map_err(LsortError::from_command)?
+                                    .is_eq()
+                                {
+                                    kept.pop();
+                                }
+                            }
+                            kept.push(position);
+                        }
+                        order = kept;
+                    }
+                } else {
+                    // Native C84 MergeSort merges binary buckets and marks equal
+                    // left nodes during that same comparator pass, without a later
+                    // uniqueness getter pass. Metadata copies grant no native refs.
+                    order = c84_merge_order(order.len(), unique, |left, right| {
+                        compare(ops, left, right)
+                    })
+                    .map_err(LsortError::from_command)?;
+                }
+                order
+                    .into_iter()
+                    .map(|position| position * group)
+                    .collect::<Vec<_>>()
+            } else {
+                // Each C85+ key is prepared immediately before inserting that
+                // node into the binary buckets, including reached comparisons.
+                let mut prepared = Vec::with_capacity(logical);
+                let order = bucket_order(logical, unique, false, |step| match step {
+                    MergeStep::Prepare(position) => {
+                        let base = position * group;
+                        let key = sort_key(ops, &elems[base + group_offset], key_path, jim_path.as_deref())?;
+                        prepared.push(prepare_key(ops, index::key_value::<O>(&key), mode)?);
+                        Ok(core::cmp::Ordering::Equal)
+                    }
+                    MergeStep::Compare(left, right) => {
+                        let order = prepared_compare(&prepared[left], &prepared[right], mode, nocase);
+                        Ok(if increasing { order } else { order.reverse() })
+                    }
+                }).map_err(LsortError::from_command)?;
+                order.into_iter().map(|position| position * group).collect::<Vec<_>>()
+            };
+            if jim {
+                let source = source.expect("selected Jim sort input");
+                return finish_jim(ops, source, &bases, group)
+                    .map(Lsort::Original).map_err(LsortError::from_command);
+            }
+            Ok(Lsort::Done(build_result(
+                ops,
+                &bases,
+                &elems,
+                group,
+                indices_out,
+            )))
+        },
+        |ops, output| match output {
+            Lsort::Done(created) => ops.discard_owned_index_result(created),
+            Lsort::Original(result) => match result {
+                index::IndexResult::Borrowed(value) => drop(value),
+                index::IndexResult::Created(value)
+                | index::IndexResult::Detached(value)
+                | index::IndexResult::ReturnedOwnedTransport(value) => {
+                    ops.discard_owned_index_result(value)
+                }
+            },
+            // Key guards retain constructor cleanup independently of borrowed
+            // members; merge copies add no native object references.
+            Lsort::Command(job) => drop(job),
+        },
+        LsortError::from_command,
+    )
+}
+
+enum PreparedKey {
+    Bytes(Vec<u8>),
+    Number(crate::native_list_numeric::NumericKey),
+}
+fn prepare_key<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+    mode: SortMode,
+) -> Result<PreparedKey, crate::CmdError> {
+    let kind = match mode {
+        SortMode::Integer => Some(index::ListNumericKind::Integer),
+        SortMode::Real => Some(index::ListNumericKind::Real),
+        _ => None,
+    };
+    if let Some(kind) = kind {
+        return crate::native_list_numeric::number(ops, original, OptionCommand::Sort, kind)
+            .map(PreparedKey::Number);
+    }
+    index::checked_operand_bytes(ops, original).map(|bytes| PreparedKey::Bytes(bytes.to_vec()))
+}
+fn prepared_compare(
+    left: &PreparedKey,
+    right: &PreparedKey,
+    mode: SortMode,
+    nocase: bool,
+) -> core::cmp::Ordering {
+    match (left, right) {
+        (PreparedKey::Bytes(left), PreparedKey::Bytes(right)) => {
+            sort::key_compare(mode, nocase, left, right)
+        }
+        (PreparedKey::Number(left), PreparedKey::Number(right)) => {
+            crate::native_list_numeric::sort_order(*left, *right, false)
+                .expect("C/neutral comparator uses no signed subtraction")
+        }
+        _ => unreachable!("one selected sort mode"),
+    }
+}
+fn sort_key<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    path: crate::native_option_index::Path<'_>,
+    jim_path: Option<&[O::Value]>,
+) -> Result<index::IndexedKey<O::IndexKeyOwner>, crate::CmdError> {
+    let reached = match jim_path {
+        Some(path) => index::drill_original_jim(ops, value, path),
+        None => path.drill(ops, value),
+    };
+    if let Err(first) = &reached {
+        ops.retain_index_failure(first);
+    }
+    reached
+}
+fn compare_original_keys<O: NativeIndexOps>(
+    ops: &mut O,
+    left: &O::Value,
+    right: &O::Value,
+    mode: SortMode,
+    nocase: bool,
+    jim: bool,
+) -> Result<core::cmp::Ordering, crate::CmdError> {
+    let left = prepare_key(ops, left, mode)?;
+    let right = prepare_key(ops, right, mode)?;
+    match (left, right) {
+        (PreparedKey::Number(left), PreparedKey::Number(right)) => {
+            crate::native_list_numeric::sort_order(left, right, jim)
+        }
+        (left, right) => Ok(prepared_compare(&left, &right, mode, nocase)),
+    }
+}
+
+enum MergeStep {
+    Prepare(usize),
+    Compare(usize, usize),
+}
+
+// The pinned C sources use binary buckets. C84 marks equal left nodes; C85+
+// removes them during the same merge. This software schedule is source joined.
+fn c84_merge_order<E>(
+    length: usize,
+    unique: bool,
+    mut compare: impl FnMut(usize, usize) -> Result<core::cmp::Ordering, E>,
+) -> Result<Vec<usize>, E> {
+    bucket_order(length, unique, true, |step| match step {
+        MergeStep::Prepare(_) => Ok(core::cmp::Ordering::Equal),
+        MergeStep::Compare(left, right) => compare(left, right),
+    })
+}
+
+fn bucket_order<E>(
+    length: usize,
+    unique: bool,
+    mark: bool,
+    mut step: impl FnMut(MergeStep) -> Result<core::cmp::Ordering, E>,
+) -> Result<Vec<usize>, E> {
+    fn merge<E>(
+        left: Vec<usize>, right: Vec<usize>, duplicate: &mut [bool],
+        unique: bool, mark: bool,
+        step: &mut impl FnMut(MergeStep) -> Result<core::cmp::Ordering, E>,
+    ) -> Result<Vec<usize>, E> {
+        let mut out = Vec::with_capacity(left.len() + right.len());
+        let (mut l, mut r) = (0, 0);
+        while l < left.len() && r < right.len() {
+            let order = step(MergeStep::Compare(left[l], right[r]))?;
+            if order.is_eq() && unique && !mark {
+                l += 1;
+                out.push(right[r]);
+                r += 1;
+            } else if order.is_gt() {
+                out.push(right[r]);
+                r += 1;
+            } else {
+                if order.is_eq() && mark { duplicate[left[l]] = true; }
+                out.push(left[l]);
+                l += 1;
+            }
+        }
+        out.extend_from_slice(&left[l..]);
+        out.extend_from_slice(&right[r..]);
+        Ok(out)
+    }
+    let mut buckets: [Option<Vec<usize>>; 30] = core::array::from_fn(|_| None);
+    let mut duplicate = vec![false; length];
+    for position in 0..length {
+        step(MergeStep::Prepare(position))?;
+        let mut node = vec![position];
+        let mut level = 0;
+        while level < 30 {
+            let Some(left) = buckets[level].take() else { break; };
+            node = merge(left, node, &mut duplicate, unique, mark, &mut step)?;
+            level += 1;
+        }
+        buckets[level.min(29)] = Some(node);
+    }
+    let mut ordered = Vec::new();
+    for bucket in buckets {
+        if let Some(left) = bucket {
+            ordered = merge(left, ordered, &mut duplicate, unique, mark, &mut step)?;
+        }
+    }
+    if unique && mark { ordered.retain(|&position| !duplicate[position]); }
+    Ok(ordered)
+}
+
+fn finish_jim<O: NativeIndexOps>(
+    ops: &mut O, source: O::IndexKeyOwner, bases: &[usize], group: usize,
+) -> Result<index::IndexResult<O::Value>, crate::CmdError> {
+    let members = ops.index_list_elements(O::index_key_value(&source))?;
+    let ordered = bases.iter().map(|&base| {
+        let key = ops.index_borrowed_key(&members[base / group])?;
+        ops.index_key_argument(&key)
+    }).collect::<Result<Vec<_>, crate::CmdError>>()?;
+    ops.index_sort_replace(&source, 0, usize::MAX, &ordered)?;
+    // The pinned flatten loop keeps the original group count. A reduced parent
+    // supplies no supported next member; native651 Jim case12 output is absent.
+    if group > 1 && ordered.len() != members.len() {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original Jim reduced-group flatten producer",
+        ).into());
+    }
+    let result = if group > 1 {
+        let result = ops.index_sort_list(Vec::new(), false)?;
+        for group in ordered {
+            let members = ops.index_list_elements(&group)?;
+            ops.index_sort_append(&result, &members)?;
+        }
+        result
+    } else { source.clone() };
+    let held = ops.index_hold_key_result(&result)?;
+    drop(result);
+    drop(source);
+    ops.index_finish_held_key_result(held)
+}
+
+/// Execute the selected original operation through parsing, comparison, result
+/// construction and mandatory retirement. The comparator receives the actual
+/// command object and the same captured operation; no prefix bytes are recreated.
+///
+/// # Errors
+/// Preserves the adapter's full guest completion or the original Host refusal.
+pub fn run_original<O: NativeIndexOps, E>(
+    ops: &mut O,
+    args: &[O::Value],
+    mut compare: impl FnMut(&mut O, &O::IndexOperation, &O::Value) -> Result<core::cmp::Ordering, E>,
+    mut failure: impl FnMut(&mut O, crate::CmdError) -> E,
+) -> Result<O::Value, E> {
+    let original = ops.enter_index_operation().map_err(|error| failure(ops, error))?;
+    let reached = match prepare(ops, args) {
+        Ok(Lsort::Done(value)) => Ok(index::IndexResult::Created(value)),
+        Ok(Lsort::Original(result)) => Ok(result),
+        Ok(Lsort::Command(job)) => run_original_command(ops, &original, job, &mut compare, &mut failure),
+        Err(error) => Err(failure(ops, error.command_error.unwrap_or_else(|| {
+            crate::CmdError::with_error_code_bytes(error.message, b"NONE".to_vec())
+        }))),
+    };
+    if let Err(first) = ops.check_index_operation(&original) {
+        if let Ok(result) = reached {
+            match result {
+                index::IndexResult::Borrowed(value) => drop(value),
+                index::IndexResult::Created(value) | index::IndexResult::Detached(value)
+                | index::IndexResult::ReturnedOwnedTransport(value) => {
+                    ops.discard_owned_index_result(value);
+                }
+            }
+        }
+        let _ = ops.check_index_operation(&original);
+        return Err(failure(ops, first));
+    }
+    reached.map(|result| {
+        let (index::IndexResult::Borrowed(value) | index::IndexResult::Created(value)
+            | index::IndexResult::Detached(value) | index::IndexResult::ReturnedOwnedTransport(value)) = result;
+        value
+    })
+}
+
+fn run_original_command<O: NativeIndexOps, E>(
+    ops: &mut O,
+    original: &O::IndexOperation,
+    mut job: CommandJob<O::Value, O::IndexKeyOwner>,
+    compare: &mut impl FnMut(&mut O, &O::IndexOperation, &O::Value) -> Result<core::cmp::Ordering, E>,
+    failure: &mut impl FnMut(&mut O, crate::CmdError) -> E,
+) -> Result<index::IndexResult<O::Value>, E> {
+    let selected = *job.original.take().ok_or_else(|| failure(ops,
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("original sort command producer").into()))?;
+    let jim = ops.index_jim_sort_selected();
+    let groups = if selected.grouped {
+        Some(ops.index_list_elements(O::index_key_value(selected.source.as_ref().expect("group parent")))
+            .map_err(|error| failure(ops, error))?)
+    } else { None };
+    let logical = job.elems.len() / job.group;
+    let mut input = CommandComparison { original, job: &job, selected: &selected,
+        groups: groups.as_deref(), keys: Vec::with_capacity(logical) };
+    let order = original_command_order(ops, &mut input, compare, failure)?;
+    drop(input);
+    ops.check_index_operation(original).map_err(|error| failure(ops, error))?;
+    let bases: Vec<_> = order.into_iter().map(|position| position * job.group).collect();
+    let result = if jim {
+        finish_jim(ops, selected.source.expect("Jim sort input"), &bases, job.group)
+            .map_err(|error| failure(ops, error))?
+    } else {
+        index::IndexResult::Created(build_result(ops, &bases, &job.elems, job.group, job.indices_out))
+    };
+    drop(job);
+    Ok(result)
+}
+
+struct CommandComparison<'a, O: NativeIndexOps> {
+    original: &'a O::IndexOperation,
+    job: &'a CommandJob<O::Value, O::IndexKeyOwner>,
+    selected: &'a OriginalCommand<O::Value, O::IndexKeyOwner>,
+    groups: Option<&'a [O::Value]>,
+    keys: Vec<index::IndexedKey<O::IndexKeyOwner>>,
+}
+
+fn original_command_order<O: NativeIndexOps, E>(
+    ops: &mut O, input: &mut CommandComparison<'_, O>,
+    compare: &mut impl FnMut(&mut O, &O::IndexOperation, &O::Value) -> Result<core::cmp::Ordering, E>,
+    failure: &mut impl FnMut(&mut O, crate::CmdError) -> E,
+) -> Result<Vec<usize>, E> {
+    let jim = ops.index_jim_sort_selected();
+    let c84 = ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4);
+    let logical = input.job.elems.len() / input.job.group;
+    if jim {
+        let mut order: Vec<_> = (0..logical).collect();
+        ops.index_native_sort(&mut order, &mut |ops, left, right| {
+            compare_command(ops, input, (left, right), compare, failure)
+        }).map_err(|error| match error {
+            index::NativeSortError::Operation(error) => failure(ops, error),
+            index::NativeSortError::Comparison(error) => error,
+        })?;
+        if input.job.unique {
+            let mut kept = Vec::with_capacity(order.len());
+            for position in order {
+                if let Some(&prior) = kept.last() {
+                    if compare_command(ops, input, (prior, position), compare, failure)?.is_eq() { kept.pop(); }
+                }
+                kept.push(position);
+            }
+            order = kept;
+        }
+        Ok(order)
+    } else if c84 {
+        c84_merge_order(logical, input.job.unique, |left, right| {
+            compare_command(ops, input, (left, right), compare, failure)
+        })
+    } else {
+        bucket_order(logical, input.job.unique, false, |step| match step {
+            MergeStep::Prepare(position) => {
+                ops.check_index_operation(input.original).map_err(|error| failure(ops, error))?;
+                let path = input.selected.path.path();
+                let path = if input.job.group > 1 && !path.is_empty() { path.tail() } else { path };
+                let key = sort_key(ops, &input.job.elems[position * input.job.group + input.selected.offset], path, None)
+                    .map_err(|error| failure(ops, error))?;
+                input.keys.push(key);
+                Ok(core::cmp::Ordering::Equal)
+            }
+            MergeStep::Compare(left, right) => {
+                compare_command(ops, input, (left, right), compare, failure)
+            }
+        })
+    }
+}
+
+fn compare_command<O: NativeIndexOps, E>(
+    ops: &mut O, input: &CommandComparison<'_, O>, (left, right): (usize, usize),
+    compare: &mut impl FnMut(&mut O, &O::IndexOperation, &O::Value) -> Result<core::cmp::Ordering, E>,
+    failure: &mut impl FnMut(&mut O, crate::CmdError) -> E,
+) -> Result<core::cmp::Ordering, E> {
+    ops.check_index_operation(input.original).map_err(|error| failure(ops, error))?;
+    let jim = ops.index_jim_sort_selected();
+    let lazy = jim || ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4);
+    let path = input.selected.path.path();
+    let path = if input.job.group > 1 && !jim && !path.is_empty() { path.tail() } else { path };
+    let key = |ops: &mut O, position: usize| {
+        let value = input.groups.map_or(
+            &input.job.elems[position * input.job.group + input.selected.offset],
+            |groups| &groups[position],
+        );
+        sort_key(ops, value, path, input.selected.jim_path.as_deref())
+    };
+    let (left, right) = if lazy {
+        (key(ops, left).map_err(|error| failure(ops, error))?,
+         key(ops, right).map_err(|error| failure(ops, error))?)
+    } else { (input.keys[left].clone(), input.keys[right].clone()) };
+    let members = [index::key_argument(ops, &left).map_err(|error| failure(ops, error))?,
+        index::key_argument(ops, &right).map_err(|error| failure(ops, error))?];
+    let temporary = if jim {
+        let command = ops.index_sort_duplicate(O::index_key_value(&input.selected.command), false)
+            .map_err(|error| failure(ops, error))?;
+        ops.index_sort_append(&command, &members).map_err(|error| failure(ops, error))?;
+        Some(command)
+    } else { None };
+    let command = if let Some(command) = &temporary { command } else {
+        let length = ops.index_list_length(O::index_key_value(&input.selected.command))
+            .map_err(|error| failure(ops, error))?;
+        ops.index_sort_replace(&input.selected.command, length - 2, 2, &members)
+            .map_err(|error| failure(ops, error))?;
+        &input.selected.command
+    };
+    ops.check_index_operation(input.original).map_err(|error| failure(ops, error))?;
+    let reached = compare(ops, input.original, O::index_key_value(command));
+    drop(temporary);
+    drop(left);
+    drop(right);
+    ops.check_index_operation(input.original).map_err(|error| failure(ops, error))?;
+    reached.map(|order| if input.job.increasing { order } else { order.reverse() })
 }
 
 /// Run the `-command` stable merge sort over `cmp` (which returns the comparison
@@ -303,16 +1004,16 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
 /// # Errors
 /// Propagates the comparator's error `E` (e.g. a non-integer result, or the
 /// script itself failing).
-pub fn sort_command<V: Clone, E>(
-    job: &mut CommandJob<V>,
-    mut cmp: impl FnMut(&V, &V) -> Result<i32, E>,
+pub fn sort_command<V, K: Clone, E>(
+    job: &mut CommandJob<V, K>,
+    mut cmp: impl FnMut(&index::IndexedKey<K>, &index::IndexedKey<K>) -> Result<i32, E>,
 ) -> Result<(), E> {
     let increasing = job.increasing;
     merge_sort(&mut job.items, increasing, &mut cmp)?;
     if job.unique {
         // `-unique` equivalence is the comparator's (not bytewise); the *last* of
         // an equal run is kept (C's `MergeLists` keeps the right element).
-        let mut deduped: Vec<(usize, V)> = Vec::with_capacity(job.items.len());
+        let mut deduped: Vec<(usize, index::IndexedKey<K>)> = Vec::with_capacity(job.items.len());
         for it in job.items.drain(..) {
             if let Some(prev) = deduped.last()
                 && cmp(&prev.1, &it.1)? == 0
@@ -371,7 +1072,10 @@ fn merge_sort<V: Clone, E>(
 
 /// Build the result list after a `-command` sort.
 #[must_use]
-pub fn build_command<O: ValueOps>(ops: &mut O, job: &CommandJob<O::Value>) -> O::Value {
+pub fn build_command<O: NativeIndexOps>(
+    ops: &mut O,
+    job: &CommandJob<O::Value, O::IndexKeyOwner>,
+) -> O::Value {
     let bases: Vec<usize> = job.items.iter().map(|(b, _)| *b).collect();
     build_result(ops, &bases, &job.elems, job.group, job.indices_out)
 }
@@ -420,4 +1124,29 @@ fn needs_value(opt: &[u8], what: &[u8]) -> LsortError {
     m.extend_from_slice(b"\" option must be followed by ");
     m.extend_from_slice(what);
     LsortError::msg(m)
+}
+
+#[derive(Clone, Copy)]
+enum GroupingFailure {
+    Size,
+    LeadingIndex,
+}
+impl GroupingFailure {
+    fn diagnostic(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Size => ("list size must be a multiple of the stride length", "BADSTRIDE"),
+            Self::LeadingIndex => (
+                "when used with \"-stride\", the leading \"-index\" value must be within the group",
+                "BADINDEX",
+            ),
+        }
+    }
+}
+fn grouping_error<O: NativeIndexOps>(ops: &O, failure: GroupingFailure) -> LsortError {
+    let (message, code) = failure.diagnostic();
+    if ops.index_c_version().is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6) {
+        LsortError::from_command(crate::CmdError::with_error_code(
+            message, format!("TCL OPERATION LSORT {code}"),
+        ))
+    } else { LsortError::msg(message) }
 }

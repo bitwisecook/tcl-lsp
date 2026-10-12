@@ -1,0 +1,8 @@
+
+running 3 tests
+test hover::original_pattern_hover_tests::original_format_hover_keeps_selected_availability_and_generation ... ok
+test hover::original_pattern_hover_tests::original_pattern_hover_keeps_actual_schema_operands_and_current_source ... ok
+test hover::original_pattern_hover_tests::original_pattern_hover_preserves_full_lexer_configuration ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2625 filtered out; finished in 3.33s
+

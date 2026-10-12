@@ -56,7 +56,6 @@ use tcl_lexer::LineIndex;
 // libraries became `.tclspec` loadables they exist nowhere else, so an
 // explorer on the plain registry reports every `synth_design` unknown while
 // the diagnostic on the same line resolves it.
-use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 use crate::ExplorerResult;
 use crate::formatters::range_dict;
@@ -66,8 +65,10 @@ use crate::formatters::range_dict;
 /// per-entry `sourceRange` from the IR.
 #[must_use]
 pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = crate::serialise::retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry();
     // Codegen lowers the plain (analysis-only-transform-free) CFG so the emitted
     // bytecode is byte-identical to the unannotated source: the analysis CFG
     // (`unit.cfg_module`) carries `faithful_exceptions` transforms (tailcall /
@@ -300,8 +301,15 @@ fn function_explorer(
         "kind": kind,
         "instrCount": instrs.len(),
         "byteCount": instrs.iter().map(|i| u32::from(i.op.size())).sum::<u32>(),
-        "literals": asm.literals.entries(),
-        "locals": asm.lvt.entries(),
+        "literals": asm.literals.entries().iter().map(|literal| {
+            literal.unicode().map_or_else(
+                |_| json!({"bytes": literal.bytes()}),
+                |text| json!(text),
+            )
+        }).collect::<Vec<_>>(),
+        "locals": asm.lvt.entries().iter().map(|name| {
+            name.try_utf8().map_or_else(|_| json!({"bytes": name.as_bytes()}), |text| json!(text))
+        }).collect::<Vec<_>>(),
         "instructions": rows,
         "text": format_function_asm(asm),
         "sourceRange": source_range,

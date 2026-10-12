@@ -1,0 +1,97 @@
+			    Tcl_HashTable *const examinedClassesPtr);
+static inline void	AddDefinitionNamespaceToChain(Class *const definerCls,
+			    Tcl_Obj *const namespaceName,
+			    DefineChain *const definePtr, int flags);
+static inline void	AddMethodToCallChain(Method *const mPtr,
+			    ChainBuilder *const cbPtr,
+			    Tcl_HashTable *const doneFilters,
+			    Class *const filterDecl, int flags);
+static inline bool	AddInstancePrivateToCallContext(Object *const oPtr,
+			    Tcl_Obj *const methodNameObj,
+			    ChainBuilder *const cbPtr, int flags);
+static inline void	AddStandardMethodName(int flags, Tcl_Obj *namePtr,
+			    Method *mPtr, Tcl_HashTable *namesPtr);
+static inline void	AddPrivateMethodNames(Tcl_HashTable *methodsTablePtr,
+			    Tcl_HashTable *namesPtr);
+static inline bool	AddSimpleChainToCallContext(Object *const oPtr,
+			    Class *const contextCls,
+			    Tcl_Obj *const methodNameObj,
+			    ChainBuilder *const cbPtr,
+			    Tcl_HashTable *const doneFilters, int flags,
+			    Class *const filterDecl);
+static bool		AddPrivatesFromClassChainToCallContext(Class *classPtr,
+			    Class *const contextCls,
+			    Tcl_Obj *const methodNameObj,
+			    ChainBuilder *const cbPtr,
+			    Tcl_HashTable *const doneFilters, int flags,
+			    Class *const filterDecl);
+static bool		AddSimpleClassChainToCallContext(Class *classPtr,
+			    Tcl_Obj *const methodNameObj,
+			    ChainBuilder *const cbPtr,
+			    Tcl_HashTable *const doneFilters, int flags,
+			    Class *const filterDecl);
+static void		AddSimpleClassDefineNamespaces(Class *classPtr,
+			    DefineChain *const definePtr, int flags);
+static inline void	AddSimpleDefineNamespaces(Object *const oPtr,
+			    DefineChain *const definePtr, int flags);
+static int		CmpNames(const void *ptr1, const void *ptr2);
+static void		DupMethodNameRep(Tcl_Obj *srcPtr, Tcl_Obj *dstPtr);
+static Tcl_NRPostProc	FinalizeMethodRefs;
+static void		FreeMethodNameRep(Tcl_Obj *objPtr);
+static inline bool	IsStillValid(CallChain *callPtr, Object *oPtr,
+			    int flags, int reuseMask);
+static Tcl_NRPostProc	ResetFilterFlags;
+static Tcl_NRPostProc	SetFilterFlags;
+static Tcl_Size	SortMethodNames(Tcl_HashTable *namesPtr, int flags,
+			    Tcl_Obj ***stringsPtr);
+static inline void	StashCallChain(Tcl_Obj *objPtr, CallChain *callPtr);
+
+/*
+ * Object type used to manage type caches attached to method names.
+ */
+static const Tcl_ObjType methodNameType = {
+    "TclOO method name",
+    FreeMethodNameRep,
+    DupMethodNameRep,
+    NULL,			// UpdateString
+    NULL,			// SetFromAny
+    TCL_OBJTYPE_V0
+};
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODeleteContext --
+ *
+ *	Destroys a method call-chain context, which should not be in use.
+ *
+ * ----------------------------------------------------------------------
+ */
+void
+TclOODeleteContext(
+    CallContext *contextPtr)
+{
+    Object *oPtr = contextPtr->oPtr;
+
+    TclOODeleteChain(contextPtr->callPtr);
+    if (oPtr != NULL) {
+	TclStackFree(oPtr->fPtr->interp, contextPtr);
+
+	/*
+	 * Corresponding AddRef() in TclOO.c/TclOOObjectCmdCore
+	 */
+
+	TclOODecrRefCount(oPtr);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODeleteChainCache --
+ *
+ *	Destroy the cache of method call-chains.
+ *
+ * ----------------------------------------------------------------------
+ */
+void

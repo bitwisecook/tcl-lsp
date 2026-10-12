@@ -1,0 +1,6 @@
+
+running 1 test
+test builtins::tests::a_cached_expression_is_revalidated_when_the_release_changes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 3.61s
+

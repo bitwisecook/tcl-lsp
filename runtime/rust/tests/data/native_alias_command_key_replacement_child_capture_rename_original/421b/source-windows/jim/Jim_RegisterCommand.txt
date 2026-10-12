@@ -1,0 +1,165 @@
+4163:      */
+4164:     Jim_ReplaceHashEntry(&interp->commands, nameObjPtr, cmd);
+4165: }
+4166: 
+4167: /* commands */
+4168: Jim_Cmd *Jim_RegisterCommand(Jim_Interp *interp, Jim_Obj *cmdNameObj,
+4169:     Jim_CmdProc *cmdProc,
+4170:     Jim_DelCmdProc *delProc,
+4171:     const char *usage,
+4172:     const char *help,
+4173:     short minargs,
+4174:     short maxargs,
+4175:     int flags,
+4176:     void *privData)
+4177: {
+4178:     JimPanic(((flags & JIM_CMD_ISPROC), "Jim_RegisterCommand called with JIM_CMD_ISPROC flag"));
+4179:     Jim_Cmd *cmdPtr = Jim_Alloc(sizeof(*cmdPtr));
+4180: 
+4181:     /* Store the new details for this command */
+4182:     memset(cmdPtr, 0, sizeof(*cmdPtr));
+4183:     cmdPtr->inUse = 1;
+4184:     cmdPtr->flags = flags;
+4185:     cmdPtr->u.native.delProc = delProc;
+4186:     cmdPtr->u.native.cmdProc = cmdProc;
+4187:     cmdPtr->u.native.usage = usage;
+4188:     cmdPtr->u.native.help = help;
+4189:     cmdPtr->u.native.minargs = minargs;
+4190:     cmdPtr->u.native.maxargs = maxargs;
+4191:     cmdPtr->u.native.privData = privData;
+4192: 
+4193:     Jim_IncrRefCount(cmdNameObj);
+4194:     JimCreateCommand(interp, cmdNameObj, cmdPtr);
+4195:     Jim_DecrRefCount(interp, cmdNameObj);
+4196: 
+4197:     return cmdPtr;
+4198: }
+4199: 
+4200: /* This remains for backward compatiblity to create a command
+4201:  * with no arg limitations or usage/help.
+4202:  * Prefer one of the Jim_Register* variants instead.
+4203:  */
+4204: int Jim_CreateCommand(Jim_Interp *interp, const char *cmdNameStr,
+4205:     Jim_CmdProc *cmdProc, void *privData, Jim_DelCmdProc *delProc)
+4206: {
+4207:     Jim_RegisterCmd(interp, cmdNameStr, NULL, 0, -1, cmdProc, delProc, privData, 0);
+4208:     return JIM_OK;
+4209: }
+4210: 
+4211: /* Create the named static variables declared for a proc body. */
+4212: static int JimCreateProcedureStatics(Jim_Interp *interp, Jim_Cmd *cmdPtr, Jim_Obj *staticsListObjPtr)
+4213: {
+4214:     int len, i;
+4215: 
+4216:     len = Jim_ListLength(interp, staticsListObjPtr);
+4217:     if (len == 0) {
+4218:         return JIM_OK;
+4219:     }
+4220: 
+4221:     cmdPtr->u.proc.staticVars = Jim_Alloc(sizeof(Jim_HashTable));
+4222:     Jim_InitHashTable(cmdPtr->u.proc.staticVars, &JimVariablesHashTableType, interp);
+4223:     for (i = 0; i < len; i++) {
+4224:         Jim_Obj *initObjPtr = NULL;
+4225:         Jim_Obj *nameObjPtr;
+4226:         Jim_VarVal *vv = NULL;
+4227:         Jim_Obj *objPtr = Jim_ListGetIndex(interp, staticsListObjPtr, i);
+4228:         int subLen = Jim_ListLength(interp, objPtr);
+4229:         int byref = 0;
+4230: 
+4231:         /* Check if it's composed of two elements. */
+4232:         if (subLen != 1 && subLen != 2) {
+4233:             Jim_SetResultFormatted(interp, "too many fields in static specifier \"%#s\"",
+4234:                 objPtr);
+4235:             return JIM_ERR;
+4236:         }
+4237: 
+4238:         nameObjPtr = Jim_ListGetIndex(interp, objPtr, 0);
+4239: 
+4240:         /* How to intialise or link? */
+4241:         if (subLen == 1) {
+4242:             int len;
+4243:             const char *pt = Jim_GetString(nameObjPtr, &len);
+4244:             if (*pt == '&') {
+4245:                 /* Create as a reference */
+4246:                 nameObjPtr = Jim_NewStringObj(interp, pt + 1, len - 1);
+4247:                 byref = 1;
+4248:             }
+4249:         }
+4250:         Jim_IncrRefCount(nameObjPtr);
+4251: 
+4252:         if (subLen == 1) {
+4253:             switch (SetVariableFromAny(interp, nameObjPtr)) {
+4254:                 case JIM_DICT_SUGAR:
+4255:                     /* XXX: This message seem unnecessarily verbose, but it matches Tcl */
+4256:                     if (byref) {
+4257:                         Jim_SetResultFormatted(interp, "Can't link to array element \"%#s\"", nameObjPtr);
+4258:                     }
+4259:                     else {
+4260:                         Jim_SetResultFormatted(interp, "Can't initialise array element \"%#s\"", nameObjPtr);
+4261:                     }
+4262:                     Jim_DecrRefCount(interp, nameObjPtr);
+4263:                     return JIM_ERR;
+4264: 
+4265:                 case JIM_OK:
+4266:                     if (byref) {
+4267:                         vv = nameObjPtr->internalRep.varValue.vv;
+4268:                     }
+4269:                     else {
+4270:                         initObjPtr = Jim_GetVariable(interp, nameObjPtr, JIM_NONE);
+4271:                         if (!initObjPtr) {
+4272:                             Jim_SetResultFormatted(interp, "Could not resolve upvar \"%#s\"'s value", nameObjPtr);
+4273:                             Jim_DecrRefCount(interp, nameObjPtr);
+4274:                             return JIM_ERR;
+4275:                         }
+4276:                     }
+4277:                     break;
+4278: 
+4279:                 case JIM_ERR:
+4280:                     /* Doesn't exist */
+4281:                     Jim_SetResultFormatted(interp,
+4282:                         "variable for initialization of static \"%#s\" not found in the local context",
+4283:                         nameObjPtr);
+4284:                     Jim_DecrRefCount(interp, nameObjPtr);
+4285:                     return JIM_ERR;
+4286:             }
+4287:         }
+4288:         else {
+4289:             initObjPtr = Jim_ListGetIndex(interp, objPtr, 1);
+4290:         }
+4291: 
+4292:         if (vv == NULL) {
+4293:             vv = Jim_Alloc(sizeof(*vv));
+4294:             vv->objPtr = initObjPtr;
+4295:             Jim_IncrRefCount(vv->objPtr);
+4296:             vv->linkFramePtr = NULL;
+4297:             vv->refCount = 0;
+4298:         }
+4299: 
+4300:         if (JimSetNewVariable(cmdPtr->u.proc.staticVars, nameObjPtr, vv) != JIM_OK) {
+4301:             Jim_SetResultFormatted(interp,
+4302:                 "static variable name \"%#s\" duplicated in statics list", nameObjPtr);
+4303:             JimIncrVarRef(vv);
+4304:             JimDecrVarRef(interp, vv);
+4305:             Jim_DecrRefCount(interp, nameObjPtr);
+4306:             return JIM_ERR;
+4307:         }
+4308: 
+4309:         Jim_DecrRefCount(interp, nameObjPtr);
+4310:     }
+4311:     return JIM_OK;
+4312: }
+4313: 
+4314: /* memrchr() is not standard */
+4315: #ifdef jim_ext_namespace
+4316: static const char *Jim_memrchr(const char *p, int c, int len)
+4317: {
+4318:     int i;
+4319:     for (i = len; i > 0; i--) {
+4320:         if (p[i] == c) {
+4321:             return p + i;
+4322:         }
+4323:     }
+4324:     return NULL;
+4325: }
+4326: #endif
+4327: 

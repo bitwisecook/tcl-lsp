@@ -1,0 +1,15 @@
+{
+  "question": "naming.diagnostics.original-matcher-output-retention",
+  "problem": "Does a selected regexp or scan literal no-match leave absent output variables absent and retain previously existing values, including captured/moved builtin calls, while a source-defined replacement or custom same-tail command follows its own output behaviour?",
+  "channel": "Fixed ASCII LF source-file CLI; public catch code/result, info-exists and output values only. No native object representation, argv/header pointer, entered callback frame or internal table inference.",
+  "source_sha256": "9bc275e5e4b587352b931685e82d909d54eabf58e2c6654007869d60a35fa2c7",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested; hosted selected matcher availability/output semantics requires independent evidence"
+}

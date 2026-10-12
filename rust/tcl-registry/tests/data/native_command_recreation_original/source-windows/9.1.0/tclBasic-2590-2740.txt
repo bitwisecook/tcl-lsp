@@ -1,0 +1,151 @@
+	 * The interpreter is being deleted. Don't create any new commands;
+	 * it's not safe to muck with the interpreter anymore.
+	 */
+
+	return (Tcl_Command) NULL;
+    }
+
+    /*
+     * If the command name we seek to create already exists, we need to
+     * delete that first.  That can be tricky in the presence of traces.
+     * Loop until we no longer find an existing command in the way, or
+     * until we've deleted one command and that didn't finish the job.
+     */
+
+    while (1) {
+	/*
+	 * Determine where the command should reside. If its name contains
+	 * namespace qualifiers, we put it in the specified namespace;
+	 * otherwise, we always put it in the global namespace.
+	 */
+
+	if (strstr(cmdName, "::") != NULL) {
+	    Namespace *dummy1, *dummy2;
+
+	    TclGetNamespaceForQualName(interp, cmdName, NULL,
+		    TCL_CREATE_NS_IF_UNKNOWN, &nsPtr, &dummy1, &dummy2, &tail);
+	    if ((nsPtr == NULL) || (tail == NULL)) {
+		return (Tcl_Command) NULL;
+	    }
+	} else {
+	    nsPtr = iPtr->globalNsPtr;
+	    tail = cmdName;
+	}
+
+	hPtr = Tcl_CreateHashEntry(&nsPtr->cmdTable, tail, &isNew);
+
+	if (isNew || deleted) {
+	    /*
+	     * isNew - No conflict with existing command.
+	     * deleted - We've already deleted a conflicting command
+	     */
+	    break;
+	}
+
+	/*
+	 * An existing command conflicts. Try to delete it...
+	 */
+
+	cmdPtr = (Command *)Tcl_GetHashValue(hPtr);
+
+	/*
+	 * Be careful to preserve any existing import links so we can restore
+	 * them down below. That way, you can redefine a command and its
+	 * import status will remain intact.
+	 */
+
+	cmdPtr->refCount++;
+	if (cmdPtr->importRefPtr) {
+	    cmdPtr->flags |= CMD_REDEF_IN_PROGRESS;
+	}
+
+	Tcl_DeleteCommandFromToken(interp, (Tcl_Command) cmdPtr);
+
+	if (cmdPtr->flags & CMD_REDEF_IN_PROGRESS) {
+	    oldRefPtr = cmdPtr->importRefPtr;
+	    cmdPtr->importRefPtr = NULL;
+	}
+	TclCleanupCommandMacro(cmdPtr);
+	deleted = true;
+    }
+
+    if (!isNew) {
+	/*
+	 * If the deletion callback recreated the command, just throw away the
+	 * new command (if we try to delete it again, we could get stuck in an
+	 * infinite loop).
+	 */
+
+	Tcl_Free(Tcl_GetHashValue(hPtr));
+    }
+
+    if (!deleted) {
+	/*
+	 * Command resolvers (per-interp, per-namespace) might have resolved
+	 * to a command for the given namespace scope with this command not
+	 * being registered with the namespace's command table. During BC
+	 * compilation, the so-resolved command turns into a CmdName literal.
+	 * Without invalidating a possible CmdName literal here explicitly,
+	 * such literals keep being reused while pointing to overhauled
+	 * commands.
+	 */
+
+	TclInvalidateCmdLiteral(interp, tail, nsPtr);
+
+	/*
+	 * The list of command exported from the namespace might have changed.
+	 * However, we do not need to recompute this just yet; next time we
+	 * need the info will be soon enough.
+	 */
+
+	TclInvalidateNsCmdLookup(nsPtr);
+	TclInvalidateNsPath(nsPtr);
+    }
+    cmdPtr = (Command *)Tcl_Alloc(sizeof(Command));
+    Tcl_SetHashValue(hPtr, cmdPtr);
+    cmdPtr->hPtr = hPtr;
+    cmdPtr->nsPtr = nsPtr;
+    cmdPtr->refCount = 1;
+    cmdPtr->cmdEpoch = 0;
+    cmdPtr->compileProc = NULL;
+    cmdPtr->objProc2 = InvokeStringCommand;
+    cmdPtr->objClientData2 = cmdPtr;
+    cmdPtr->proc = proc;
+    cmdPtr->clientData = clientData;
+    cmdPtr->deleteProc = deleteProc;
+    cmdPtr->deleteData = clientData;
+    cmdPtr->flags = 0;
+    cmdPtr->importRefPtr = NULL;
+    cmdPtr->tracePtr = NULL;
+    cmdPtr->nreProc2 = NULL;
+
+    /*
+     * Plug in any existing import references found above. Be sure to update
+     * all of these references to point to the new command.
+     */
+
+    if (oldRefPtr != NULL) {
+	cmdPtr->importRefPtr = oldRefPtr;
+	while (oldRefPtr != NULL) {
+	    Command *refCmdPtr = oldRefPtr->importedCmdPtr;
+	    dataPtr = (ImportedCmdData *)refCmdPtr->objClientData2;
+	    dataPtr->realCmdPtr = cmdPtr;
+	    oldRefPtr = oldRefPtr->nextPtr;
+	}
+    }
+
+    /*
+     * We just created a command, so in its namespace and all of its parent
+     * namespaces, it may shadow global commands with the same name. If any
+     * shadowed commands are found, invalidate all cached command references
+     * in the affected namespaces.
+     */
+
+    TclResetShadowedCmdRefs(interp, cmdPtr);
+    return (Tcl_Command) cmdPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_CreateObjCommand --

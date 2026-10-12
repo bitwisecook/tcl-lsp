@@ -1,0 +1,156 @@
+1643:  *	None.
+1644:  *
+1645:  *----------------------------------------------------------------------
+1646:  */
+1647: 
+1648: static int
+1649: AliasDescribe(
+1650:     Tcl_Interp *interp,		/* Interpreter for result & errors. */
+1651:     Tcl_Interp *slaveInterp,	/* Interpreter containing alias. */
+1652:     Tcl_Obj *namePtr)		/* Name of alias to describe. */
+1653: {
+1654:     Slave *slavePtr;
+1655:     Tcl_HashEntry *hPtr;
+1656:     Alias *aliasPtr;
+1657:     Tcl_Obj *prefixPtr;
+1658: 
+1659:     /*
+1660:      * If the alias has been renamed in the slave, the master can still use
+1661:      * the original name (with which it was created) to find the alias to
+1662:      * describe it.
+1663:      */
+1664: 
+1665:     slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+1666:     hPtr = Tcl_FindHashEntry(&slavePtr->aliasTable, Tcl_GetString(namePtr));
+1667:     if (hPtr == NULL) {
+1668: 	return TCL_OK;
+1669:     }
+1670:     aliasPtr = Tcl_GetHashValue(hPtr);
+1671:     prefixPtr = Tcl_NewListObj(aliasPtr->objc, &aliasPtr->objPtr);
+1672:     Tcl_SetObjResult(interp, prefixPtr);
+1673:     return TCL_OK;
+1674: }
+1675: 
+1676: 
+1677: /*
+1678:  *----------------------------------------------------------------------
+1679:  *
+1680:  * AliasList --
+1681:  *
+1682:  *	Computes a list of aliases defined in a slave interpreter.
+1683:  *
+1684:  * Results:
+1685:  *	A standard Tcl result.
+1686:  *
+1687:  * Side effects:
+1688:  *	None.
+1689:  *
+1690:  *----------------------------------------------------------------------
+1691:  */
+1692: 
+1693: static int
+1694: AliasList(
+1695:     Tcl_Interp *interp,		/* Interp for data return. */
+1696:     Tcl_Interp *slaveInterp)	/* Interp whose aliases to compute. */
+1697: {
+1698:     Tcl_HashEntry *entryPtr;
+1699:     Tcl_HashSearch hashSearch;
+1700:     Tcl_Obj *resultPtr = Tcl_NewObj();
+1701:     Alias *aliasPtr;
+1702:     Slave *slavePtr;
+1703: 
+1704:     slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+1705: 
+1706:     entryPtr = Tcl_FirstHashEntry(&slavePtr->aliasTable, &hashSearch);
+1707:     for ( ; entryPtr != NULL; entryPtr = Tcl_NextHashEntry(&hashSearch)) {
+1708: 	aliasPtr = Tcl_GetHashValue(entryPtr);
+1709: 	Tcl_ListObjAppendElement(NULL, resultPtr, aliasPtr->token);
+1710:     }
+1711:     Tcl_SetObjResult(interp, resultPtr);
+1712:     return TCL_OK;
+1713: }
+1714: 
+1715: 
+1716: /*
+1717:  *----------------------------------------------------------------------
+1718:  *
+1719:  * AliasObjCmd --
+1720:  *
+1721:  *	This is the function that services invocations of aliases in a slave
+1722:  *	interpreter. One such command exists for each alias. When invoked,
+1723:  *	this function redirects the invocation to the target command in the
+1724:  *	master interpreter as designated by the Alias record associated with
+1725:  *	this command.
+1726:  *
+1727:  * Results:
+1728:  *	A standard Tcl result.
+1729:  *
+1730:  * Side effects:
+1731:  *	Causes forwarding of the invocation; all possible side effects may
+1732:  *	occur as a result of invoking the command to which the invocation is
+1733:  *	forwarded.
+1734:  *
+1735:  *----------------------------------------------------------------------
+1736:  */
+1737: 
+1738: static int
+1739: AliasObjCmd(
+1740:     ClientData clientData,	/* Alias record. */
+1741:     Tcl_Interp *interp,		/* Current interpreter. */
+1742:     int objc,			/* Number of arguments. */
+1743:     Tcl_Obj *const objv[])	/* Argument vector. */
+1744: {
+1745: #define ALIAS_CMDV_PREALLOC 10
+1746:     Alias *aliasPtr = clientData;
+1747:     Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+1748:     int result, prefc, cmdc, i;
+1749:     Tcl_Obj **prefv, **cmdv;
+1750:     Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+1751:     Interp *tPtr = (Interp *) targetInterp;
+1752:     int isRootEnsemble = (tPtr->ensembleRewrite.sourceObjs == NULL);
+1753: 
+1754:     /*
+1755:      * Append the arguments to the command prefix and invoke the command in
+1756:      * the target interp's global namespace.
+1757:      */
+1758: 
+1759:     prefc = aliasPtr->objc;
+1760:     prefv = &aliasPtr->objPtr;
+1761:     cmdc = prefc + objc - 1;
+1762:     if (cmdc <= ALIAS_CMDV_PREALLOC) {
+1763: 	cmdv = cmdArr;
+1764:     } else {
+1765: 	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc*(int)sizeof(Tcl_Obj*));
+1766:     }
+1767: 
+1768:     memcpy(cmdv, prefv, (size_t) (prefc * sizeof(Tcl_Obj *)));
+1769:     memcpy(cmdv+prefc, objv+1, (size_t) ((objc-1) * sizeof(Tcl_Obj *)));
+1770: 
+1771:     Tcl_ResetResult(targetInterp);
+1772: 
+1773:     for (i=0; i<cmdc; i++) {
+1774: 	Tcl_IncrRefCount(cmdv[i]);
+1775:     }
+1776: 
+1777:     /*
+1778:      * Use the ensemble rewriting machinery to ensure correct error messages:
+1779:      * only the source command should show, not the full target prefix.
+1780:      */
+1781: 
+1782:     if (isRootEnsemble) {
+1783: 	tPtr->ensembleRewrite.sourceObjs = objv;
+1784: 	tPtr->ensembleRewrite.numRemovedObjs = 1;
+1785: 	tPtr->ensembleRewrite.numInsertedObjs = prefc;
+1786:     } else {
+1787: 	tPtr->ensembleRewrite.numInsertedObjs += prefc - 1;
+1788:     }
+1789: 
+1790:     /*
+1791:      * Protect the target interpreter if it isn't the same as the source
+1792:      * interpreter so that we can continue to work with it after the target
+1793:      * command completes.
+1794:      */
+1795: 
+1796:     if (targetInterp != interp) {
+1797: 	Tcl_Preserve(targetInterp);
+1798:     }

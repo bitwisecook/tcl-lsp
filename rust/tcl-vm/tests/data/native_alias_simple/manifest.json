@@ -1,0 +1,30 @@
+{
+  "source_sha256": "2c9da4659bc2e41dfba6d921e38f5257d9d79b883d64133cebba48308e2aa51d",
+  "results": [
+    {
+      "release": "8.4.20",
+      "exit": 0,
+      "stdout_sha256": "5401dc32778ae8571e0214543ff14f749a1b52765311003e310f0adc98d64201"
+    },
+    {
+      "release": "8.5.19",
+      "exit": 0,
+      "stdout_sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431"
+    },
+    {
+      "release": "8.6.18",
+      "exit": 0,
+      "stdout_sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431"
+    },
+    {
+      "release": "9.0.4",
+      "exit": 0,
+      "stdout_sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431"
+    },
+    {
+      "release": "9.1.0",
+      "exit": 0,
+      "stdout_sha256": "bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431"
+    }
+  ]
+}

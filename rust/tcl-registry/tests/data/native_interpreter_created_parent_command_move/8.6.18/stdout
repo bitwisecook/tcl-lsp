@@ -1,0 +1,30 @@
+version 8.6.18
+observation create status 0 result s errorCode {}
+observation original-parent-command status 0 result s errorCode {}
+observation move status 0 result {} errorCode {}
+observation old-parent-command status 0 result {} errorCode {}
+observation moved-parent-command status 0 result moved errorCode {}
+observation old-parent-call status 1 result {invalid command name "s"} errorCode {TCL LOOKUP COMMAND s}
+observation moved-parent-value status 0 result moved errorCode {}
+observation original-child-path-value status 0 result moved errorCode {}
+observation original-child-path-exists status 0 result 1 errorCode {}
+observation moved-child-path-exists status 0 result 0 errorCode {}
+observation move-again status 0 result {} errorCode {}
+observation first-moved-parent-command status 0 result {} errorCode {}
+observation second-moved-parent-value status 0 result moved errorCode {}
+observation original-child-path-after-second-move status 0 result moved errorCode {}
+observation delete-original-child-path status 0 result {} errorCode {}
+observation second-moved-parent-after-child-delete status 0 result {} errorCode {}
+observation second-moved-call-after-child-delete status 1 result {invalid command name "moved_again"} errorCode {TCL LOOKUP COMMAND moved_again}
+observation create-delete-by-parent status 0 result d errorCode {}
+observation move-delete-by-parent status 0 result {} errorCode {}
+observation delete-moved-parent status 0 result {} errorCode {}
+observation child-after-parent-delete status 0 result 0 errorCode {}
+observation child-call-after-parent-delete status 1 result {could not find interpreter "d"} errorCode {TCL LOOKUP INTERP d}
+observation create-qualified-parent status 0 result q errorCode {}
+observation create-parent-namespace status 0 result {} errorCode {}
+observation move-qualified-parent status 0 result {} errorCode {}
+observation qualified-parent-value status 0 result qualified errorCode {}
+observation original-qualified-child-path-value status 0 result qualified errorCode {}
+observation delete-qualified-child-path status 0 result {} errorCode {}
+observation qualified-parent-after-child-delete status 0 result {} errorCode {}

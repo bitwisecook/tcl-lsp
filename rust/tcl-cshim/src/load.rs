@@ -34,13 +34,10 @@
 //! [`crate::Interp::load_static`] is. The command exists on an engine only
 //! because the host registered it: no script, pack or hook body can say so.
 //!
-//! **What it does not do.** It loads into the interpreter that holds the
-//! command and into no child; a library loads once per interpreter, and a
-//! second `load` of it is the no-op Tcl makes of it; and it does not record the
-//! packages the entry point provides in the engine's package database, because
-//! the registration door an engine opens to a host command registers commands
-//! and nothing else. The shim's own state holds them
-//! ([`crate::Interp::provided_packages`]).
+//! A library loads once into the interpreter holding this command; another
+//! load of its prefix is a no-op. Provided packages and loaded-library records
+//! reach the engine through its explicit doors when those doors are available.
+//! The shim also retains its own provided-package records.
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -125,9 +122,10 @@ impl StaticExtensions {
         match error {
             // What Tcl does with a failed entry point: the interpreter's result
             // and error code are the `load`'s own.
-            LoadError::InitFailed { message, .. } => EngineError::Script {
+            LoadError::InitFailed { message, .. } => EngineError::ScriptBytes {
                 message,
-                code: self.state.error_code_text(),
+                code: self.state.error_code_bytes(),
+                options: None,
             },
             LoadError::Crashed(payload) => EngineError::Crashed(payload),
             LoadError::Engine(error) => error,
@@ -151,8 +149,12 @@ impl HostCommand for StaticExtensions {
     ) -> Result<HostOutcome, EngineError> {
         let words: Vec<String> = arguments
             .iter()
-            .map(|argument| Obj::from_value(argument).text())
-            .collect();
+            .map(|argument| {
+                Obj::from_value(argument)?
+                    .text()
+                    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+            })
+            .collect::<Result<_, _>>()?;
         let request = Request::parse(&words)?;
         let prefix = request.prefix()?;
         let Some(&(name, init)) = self.table.iter().find(|(known, _)| *known == prefix) else {
@@ -418,6 +420,31 @@ mod tests {
     }
 
     impl CommandRegistrar for Door {
+        fn command_publication_service(
+            &mut self,
+        ) -> Result<Rc<dyn tcl_engine_api::CommandPublicationService>, EngineError> {
+            Ok(Rc::new(crate::tests::RecordingPublicationService))
+        }
+
+        fn define_prepared_command(
+            &mut self,
+            publication: tcl_engine_api::PreparedCommandPublication,
+            command: Rc<dyn HostCommand>,
+        ) -> Result<(), EngineError> {
+            let name = std::str::from_utf8(&publication.key.simple)
+                .map_err(|_| EngineError::ExecutionRefusal("test door requires Unicode".into()))?;
+            self.define_command(name, command)
+        }
+
+        fn remove_prepared_command(
+            &mut self,
+            publication: tcl_engine_api::PreparedCommandPublication,
+        ) -> Result<bool, EngineError> {
+            let name = std::str::from_utf8(&publication.key.simple)
+                .map_err(|_| EngineError::ExecutionRefusal("test door requires Unicode".into()))?;
+            self.remove_command(name)
+        }
+
         fn define_command(
             &mut self,
             name: &str,
@@ -585,12 +612,12 @@ mod tests {
         door.refuses_package = Some("demo");
         let error = load(&extensions, &mut door, &["", "Demo"]).expect_err("fails");
         assert_eq!(
-            error,
-            EngineError::Script {
-                message: "conflicting versions provided for package \"demo\"".to_owned(),
-                code: Some("TCL PACKAGE VERSIONCONFLICT".to_owned()),
-            },
-            "the engine's error is the load's own"
+            error.script_message_bytes(),
+            Some(b"conflicting versions provided for package \"demo\"".as_slice())
+        );
+        assert_eq!(
+            error.script_code_bytes(),
+            Some(b"TCL PACKAGE VERSIONCONFLICT".as_slice())
         );
         assert!(door.libraries.is_empty());
         door.refuses_package = None;

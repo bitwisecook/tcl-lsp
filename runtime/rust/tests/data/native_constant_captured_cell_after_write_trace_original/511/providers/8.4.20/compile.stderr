@@ -1,0 +1,4 @@
+/workspace/.proofs/native-constant-captured-cell-order511/probe.c: In function 'lazy_command':
+/workspace/.proofs/native-constant-captured-cell-order511/probe.c:129:23: warning: assignment discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  129 |     original->typePtr = &lazy_type;
+      |                       ^

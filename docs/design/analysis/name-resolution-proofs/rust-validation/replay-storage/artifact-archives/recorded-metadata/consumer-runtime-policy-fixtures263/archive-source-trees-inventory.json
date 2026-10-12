@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/consumer-runtime-policy-fixtures263.source-trees.tar.gz",
+  "archive_sha256": "af04d5d3465ee5a58e8abf43c8c86de060ee435fa679472dce9feaf9fcfcd3ba",
+  "archive_bytes": 352526,
+  "uncompressed_bytes": 1496042,
+  "source_manifest_sha256": "07a0b7a33ac683b09ba8b5d698f71ae0d80810889889e24d0b322329313fa900",
+  "source_patch_sha256": "921d15e2fca5e50a63bafdd28d8e3b9adc0f7903150a47289db2146093dd85d8",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 10,
+  "members": {
+    "consumer-runtime-policy-fixtures263/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.9466343,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.9466343,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.9466343,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.9466343,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.951082,
+      "size": 747098,
+      "sha256": "9e7a4301e6476f22cfe085d33388137acb3b7722f2f7f5403839c107df20c85e"
+    },
+    "consumer-runtime-policy-fixtures263/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.951082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.951082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.951082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607480.951082,
+      "size": 0,
+      "sha256": null
+    },
+    "consumer-runtime-policy-fixtures263/candidate/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791607481.48263,
+      "size": 748944,
+      "sha256": "a9efc06464ff22801d3557d6ae30b1dd35276359237c568a9ccc19e7cfe67772"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "a9efc06464ff22801d3557d6ae30b1dd35276359237c568a9ccc19e7cfe67772",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "base_sha256",
+      "sha256": "9e7a4301e6476f22cfe085d33388137acb3b7722f2f7f5403839c107df20c85e",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

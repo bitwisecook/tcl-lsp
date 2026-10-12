@@ -30,15 +30,18 @@
 //! the same order `runner.tcl` does, then exposes a thin Rust API over the
 //! `::orch::` command surface.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
+use tcl_registry::f5::{BigIpExecutionContext, evidence::BigIpBuild, naming::BigIpNameEvent};
+use tcl_runtime_api::authored_tmm::AuthoredObservedFrameStorageContext;
+use tcl_runtime_api::{Completion, NativeExecutionError};
 use tcl_syntax::list::{join_list, list_element};
-use tcl_vm::{Code, Vm};
+use tcl_vm::{Code, NativeCommand, Value, Vm};
 
 /// The framework files the orchestrator depends on, in source order — mirrors
 /// the `source` block at the top of `runner.tcl`. `_mock_stubs.tcl` is sourced
@@ -54,16 +57,70 @@ const FRAMEWORK_FILES: &[&str] = &[
     "orchestrator.tcl",
 ];
 
-/// A session error: a failed bootstrap, compile, or orchestrator command. Holds
-/// the Tcl-level message so callers can surface it verbatim.
+/// Purpose-specific original-source findings for an explicit appliance profile.
+/// Dynamic runtime evaluation never consumes this loader-policy receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleLoaderRefusal {
+    /// Original byte classification; unsupported is distinct from measured rejection.
+    OriginalBytes {
+        /// Explicit measured appliance/build selection.
+        profile: tcl_registry::irules_policy::MeasuredIrulesLoaderProfile,
+        /// Build-scoped original byte finding.
+        finding: tcl_registry::irules_policy::MeasuredIrulesSourceRefusal,
+    },
+    /// Existing shared analyser rule-loader diagnostic on the original source.
+    OriginalPolicy {
+        /// Explicit measured appliance/build selection.
+        profile: tcl_registry::irules_policy::MeasuredIrulesLoaderProfile,
+        /// Shared diagnostic classification, not a guessed guest error code.
+        code: tcl_compiler::analyser::types::DiagCode,
+        /// Original source-policy explanation.
+        message: String,
+    },
+}
+
+/// A session failure, keeping guest text, host refusal and Unicode projection
+/// separate. Use [`LiveSession::eval_completion`] for byte-valued guest results
+/// and their original completion options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionError {
     /// The orchestrator library directory or a required file is missing.
     MissingLib(String),
     /// A Tcl evaluation returned an error completion (the message is the result).
     Eval(String),
-    /// A compile failure in the VM's compile service.
-    Compile(String),
+    /// Original load-phase refusal, distinct from guest runtime completion.
+    LoaderPolicy(RuleLoaderRefusal),
+    /// A host execution refusal, outside guest Tcl completion.
+    Execution(NativeExecutionError),
+    /// The textual session API cannot represent the original result bytes.
+    Projection(tcl_syntax::raw_string::UnicodeAccessError),
+}
+
+fn session_projection_error(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, error: tcl_vm::TclError) -> SessionError {
+    let error = match error {
+        tcl_vm::TclError::Host(failure) => vm.retain_original_operand_failure(original, failure),
+        tcl_vm::TclError::Guest(_) => unreachable!("raw String/context projection supplies only operational refusals"),
+    };
+    match error {
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error)))) => SessionError::Projection(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        _ => unreachable!("the actual first-cause owner returns an execution carrier"),
+    }
+}
+
+fn session_capture_error(error: tcl_vm::TclError) -> SessionError {
+    match error {
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        _ => unreachable!("original observation capture supplies only an execution refusal"),
+    }
+}
+
+fn session_settlement_error(error: tcl_vm::TclError) -> SessionError {
+    match error {
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error)))) => SessionError::Projection(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        _ => unreachable!("original observation settlement supplies only an execution refusal"),
+    }
 }
 
 impl std::fmt::Display for SessionError {
@@ -71,7 +128,9 @@ impl std::fmt::Display for SessionError {
         match self {
             Self::MissingLib(p) => write!(f, "iRule-test library not found: {p}"),
             Self::Eval(m) => write!(f, "orchestrator error: {m}"),
-            Self::Compile(m) => write!(f, "compile error: {m}"),
+            Self::LoaderPolicy(reason) => write!(f, "original rule load refused: {reason:?}"),
+            Self::Execution(error) => write!(f, "execution refused: {error}"),
+            Self::Projection(error) => error.fmt(f),
         }
     }
 }
@@ -80,10 +139,10 @@ impl std::error::Error for SessionError {}
 
 /// The `CompileService` the VM uses to compile the orchestrator Tcl and any
 /// runtime `eval` / command substitution: the real Rust compiler pipeline,
-/// built from the iRules profile so everything the harness compiles — the
-/// framework and the iRule under test alike — parses under
-/// the TMM's genuine Tcl 8.4.6 grammar: no TIP-157 `{*}` expansion, the 8.x
-/// first-close `${…}` rule, and the iRules-only `}{` ghost word separator.
+/// built from the iRules profile. Ordinary event source uses the TMM's Tcl
+/// 8.4.6 grammar: no TIP-157 `{*}` expansion, the 8.x first-close `${…}` rule,
+/// and the iRules-only `}{` separator. Explicit framework host activations
+/// supply their native engine's source profile to the same compiler service.
 type Svc = BytecodeCompileService;
 
 /// A shared, in-memory sink for the VM's `puts` output.
@@ -100,10 +159,90 @@ impl Write for Capture {
     }
 }
 
+#[derive(Default)]
+struct MeasuredEventNames {
+    build: Cell<Option<BigIpBuild>>,
+    next_domain: Cell<u64>,
+}
+
+struct EventSourceHook {
+    selection: Rc<MeasuredEventNames>,
+    tmm: u64,
+    domain: u64,
+}
+
+impl NativeCommand for EventSourceHook {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let [event, source] = args else {
+            return vm
+                .refuse_host_command("event source hook requires original event and body".into());
+        };
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let event = vm.original_operand_unicode(original, event)?;
+            vm.check_original_operand_projection(original)?;
+            let Some(build) = self.selection.build.get().filter(|_| event == "HTTP_REQUEST") else {
+                return vm.try_eval_original_source_value(source)
+                    .map_err(tcl_vm::TclError::from_execution_failure);
+            };
+            let event = BigIpNameEvent::HttpRequest;
+            let context = BigIpExecutionContext::TmmIRule;
+            let Some(policy) = tcl_registry::f5::naming::observed_name_policy(build, context, event) else {
+                return Ok(vm.refuse_host_command("measured event naming issuer is unavailable".into()));
+            };
+            let storage = AuthoredObservedFrameStorageContext { policy, tmm: self.tmm, domain: self.domain };
+            vm.with_original_observed_event_inputs(original, build, context, event, storage,
+                |vm| vm.try_eval_original_source_value(source))
+
+        });
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+}
+
+fn original_completion(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<Value> {
+    match error.into_completion() {
+        Ok(guest) => guest,
+        Err(failure) => vm.refuse_tcl_host_failure(failure),
+    }
+}
+
+struct EnrollEventHook(Rc<MeasuredEventNames>);
+impl NativeCommand for EnrollEventHook {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let [child, tmm] = args else {
+            return vm.refuse_host_command(
+                "event worker enrolment requires actual child and worker".into(),
+            );
+        };
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let child = vm.original_operand_unicode(original, child)?;
+            let text = vm.original_operand_unicode(original, tmm)?;
+            let Ok(tmm) = text.parse::<u64>() else {
+                return Ok(vm.refuse_host_command("event worker identity is unavailable".into()));
+            };
+            vm.check_original_operand_projection(original)?;
+            let domain = self.0.next_domain.get();
+            let Some(next) = domain.checked_add(1) else {
+                return Ok(vm.refuse_host_command("event domain identity is exhausted".into()));
+            };
+            self.0.next_domain.set(next);
+            let command = Rc::new(EventSourceHook { selection: Rc::clone(&self.0), tmm, domain });
+            let reached = vm.try_register_child_native_command(&child, "::tmm::_observed_event_source", command);
+            vm.check_original_operand_projection(original)?;
+            if !reached? {
+                return Ok(vm.refuse_host_command("actual event worker is unavailable".into()));
+            }
+            Ok(Completion::new(Code::Ok, Value::empty(), Value::empty()))
+        });
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+}
+
 /// A live orchestrator session running on a bytecode VM.
 pub struct LiveSession {
     vm: Vm,
     output: Rc<RefCell<Vec<u8>>>,
+    measured_loader: Option<tcl_registry::irules_policy::MeasuredIrulesLoaderProfile>,
+    measured_names: Rc<MeasuredEventNames>,
 }
 
 impl LiveSession {
@@ -113,41 +252,118 @@ impl LiveSession {
     ///
     /// # Errors
     /// [`SessionError::MissingLib`] if `lib_dir` or a required file is absent,
-    /// or [`SessionError::Eval`] / [`SessionError::Compile`] if the framework
+    /// or [`SessionError::Eval`] / [`SessionError::Execution`] if the framework
     /// fails to load.
     pub fn new(lib_dir: &Path) -> Result<Self, SessionError> {
         if !lib_dir.join("orchestrator.tcl").is_file() {
             return Err(SessionError::MissingLib(lib_dir.display().to_string()));
         }
         let output = Rc::new(RefCell::new(Vec::new()));
-        let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
-        // The iRules profile is resolved once and drives both halves: the
-        // compiler parses under the TMM's 8.4.6 grammar (`Svc::for_profile`),
-        // and the VM runs the release that profile pins. The VM's
-        // availability gate is the plain tcl8.4 profile rather than the
-        // bare-IRULES vendor mask: the orchestrator is host Tcl, not
-        // sandboxed iRule code — it needs `source`/`file`/`exec` (which the
-        // TMM sandbox bans) while still losing the 8.5+ surface
-        // (`dict`/`lassign`/…), which compat84.tcl then polyfills; the TMM
-        // sandbox itself is emulated in Tcl by tmm_shim.tcl.
+        let host_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let mut vm = Vm::with_native_core(
+            Box::new(Capture(Rc::clone(&output))),
+            Rc::new(tcl_vm::host_native::NativeHost::new()),
+            host_profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("explicit C9 core bootstrap");
+        // Source grammar remains the measured F5 dialect. The surrounding
+        // host needs modern control machinery for persistent flow frames;
+        // tmm_shim restricts the commands visible during event execution.
         let profile = DialectProfile::irules();
         vm.set_dialect_profile(profile);
-        assert!(
-            vm.set_command_surface_profile(
-                tcl_registry::model::ingress::resolve_environment(
-                    profile.vm_runtime_version.dialect_name()
-                )
-                .analyser_profile()
-            )
-        );
+        assert!(vm.set_command_surface_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+        ));
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
-        let mut session = Self { vm, output };
+        // This simulator explicitly supplies a C9 host engine. Its F5 source
+        // grammar and logical event policies remain separate from that physical
+        // engine; broad command visibility alone never selects it.
+        assert!(vm.set_native_engine_profile(host_profile));
+        assert!(vm.set_logical_eval_object_provider(
+            tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_source_word_provider(
+            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_expression_parse_provider(
+            tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_quote_provider(
+            tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
+        ));
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert!(vm.set_logical_compiled_variable_provider(
+            tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_math_function_provider(Some(
+            tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,
+        )));
+        assert!(vm.set_logical_package_provider(Some(
+            tcl_registry::native_package::AuthoredPackageProvider::Tcl84Core,
+        )));
+        assert!(vm.install_irules_rule_callable_simulation());
+        assert!(vm.install_irules_counted_string_simulation());
+        vm.install_irules_timer_simulation();
+        vm.install_irules_static_simulation();
+        for (alias, native) in [
+            ("::tmm::_host_catch", "catch"),
+            ("::tmm::_host_return", "return"),
+        ] {
+            assert!(vm.register_framework_builtin(alias, native, host_profile));
+        }
+        let measured_names = Rc::new(MeasuredEventNames {
+            build: Cell::new(None),
+            next_domain: Cell::new(1),
+        });
+        vm.register_native_command(
+            "::tmm::_observed_event_source",
+            Rc::new(EventSourceHook {
+                selection: Rc::clone(&measured_names),
+                tmm: 0,
+                domain: 0,
+            }),
+        );
+        vm.register_native_command(
+            "::tmm::_observed_event_enroll",
+            Rc::new(EnrollEventHook(Rc::clone(&measured_names))),
+        );
+        let mut session = Self {
+            vm,
+            output,
+            measured_loader: None,
+            measured_names,
+        };
         session.bootstrap(lib_dir)?;
+        session.eval_host_initialization("::tmm::_static_enroll")?;
+        session.eval_host_initialization("::orch::init")?;
         // The pure functions run their shared cores, registered before
         // `register_all` looks for each command's mock.
         crate::pure_functions::register(&mut session.vm);
         session.eval("::orch::init")?;
         Ok(session)
+    }
+
+    /// Select an independently measured event naming issuer. Only the exact
+    /// supported build/TMM/HTTP_REQUEST context enters counted frame storage.
+    /// An unsupported selection clears the previous issuer and returns false.
+    pub fn set_measured_event_name_build(&mut self, build: Option<BigIpBuild>) -> bool {
+        let selected = build.filter(|build| {
+            tcl_registry::f5::naming::observed_name_policy(
+                *build,
+                BigIpExecutionContext::TmmIRule,
+                BigIpNameEvent::HttpRequest,
+            )
+            .is_some()
+        });
+        self.measured_names.build.set(selected);
+        build.is_none() || selected.is_some()
     }
 
     /// Stand a session up against the framework Tcl embedded in the binary
@@ -189,29 +405,73 @@ impl LiveSession {
     /// framework's `[file dirname [info script]]` lookups resolve correctly).
     fn source_file(&mut self, path: &Path) -> Result<(), SessionError> {
         let script = format!("source {}", list_element(&path.display().to_string()));
-        self.eval(&script).map(|_| ())
+        self.eval_host_initialization(&script)
     }
 
-    /// Evaluate a Tcl `script` and return its string result.
+    fn eval_host_initialization(&mut self, script: &str) -> Result<(), SessionError> {
+        let completion = self.vm.try_eval_native_host_source(script).map_err(SessionError::Execution)?;
+        // The existing evaluation producer owns execution. This receipt begins
+        // at its returned result projection and claims no earlier script stage.
+        let original = self.vm.capture_original_operand_projection().map_err(session_capture_error)?;
+        let reached = (|| {
+            let reached = if completion.code == Code::Error {
+                match self.vm.original_operand_unicode(&original, &completion.result) {
+                    Ok(text) => Err(SessionError::Eval(text)),
+                    Err(error) => Err(session_projection_error(&mut self.vm, &original, error)),
+                }
+            } else { Ok(()) };
+            drop(completion);
+            self.vm.check_original_operand_projection(&original)
+                .map_err(|error| session_projection_error(&mut self.vm, &original, error))?;
+            reached
+        })();
+        let settled = self.vm.finish_original_operand_projection(original).map_err(session_settlement_error);
+        settled?;
+        reached
+    }
+
+    /// Evaluate a Tcl script without projecting its result or options as text.
+    /// Guest errors and abrupt completions remain successful host results.
     ///
     /// # Errors
-    /// [`SessionError::Eval`] on an error completion, [`SessionError::Compile`]
-    /// if the script does not compile.
+    /// [`SessionError::Execution`] retains the VM's actual host refusal.
+    pub fn eval_completion(
+        &mut self,
+        script: &str,
+    ) -> Result<Completion<tcl_vm::Value>, SessionError> {
+        self.vm
+            .try_eval_source(script)
+            .map_err(SessionError::Execution)
+    }
+
+    /// Evaluate a Tcl `script` and return its checked Unicode result.
+    /// Consumers needing original bytes or options use [`Self::eval_completion`].
+    ///
+    /// # Errors
+    /// [`SessionError::Eval`] on an error completion or guest exit,
+    /// [`SessionError::Execution`] on a host refusal, and
+    /// [`SessionError::Projection`] on non-Unicode result bytes.
     pub fn eval(&mut self, script: &str) -> Result<String, SessionError> {
-        let result = self.vm.eval_source(script);
-        // A guest `exit` records a code on the VM rather than killing the host;
-        // surface it as a handleable error and clear it so the next eval is
-        // clean (the session, not the process, decides what to do).
+        let result = self.eval_completion(script);
+        // Keep the existing reached exit settlement before result projection.
         if let Some(code) = self.vm.take_exit() {
             return Err(SessionError::Eval(format!("script called exit {code}")));
         }
-        match result {
-            Ok(c) if c.code == Code::Error => {
-                Err(SessionError::Eval(c.result.to_str().to_string()))
-            }
-            Ok(c) => Ok(c.result.to_str().to_string()),
-            Err(e) => Err(SessionError::Compile(e.message)),
-        }
+        let completion = result?;
+        let original = self.vm.capture_original_operand_projection().map_err(session_capture_error)?;
+        let reached = (|| {
+            let text = self.vm.original_operand_unicode(&original, &completion.result)
+                .map_err(|error| session_projection_error(&mut self.vm, &original, error));
+            let code = completion.code;
+            drop(completion);
+            self.vm.check_original_operand_projection(&original)
+                .map_err(|error| session_projection_error(&mut self.vm, &original, error))?;
+            let text = text?;
+            if code == Code::Error { Err(SessionError::Eval(text)) } else { Ok(text) }
+        })();
+        let settled = self.vm.finish_original_operand_projection(original).map_err(session_settlement_error);
+        settled?;
+        reached
     }
 
     /// Load an iRule into the orchestrator (`::orch::load_irule`) as one Tcl
@@ -220,8 +480,73 @@ impl LiveSession {
     /// # Errors
     /// Propagates an orchestrator/compile error.
     pub fn load_irule(&mut self, source: &str) -> Result<(), SessionError> {
+        self.validate_original_rule_source(source)?;
         self.eval(&format!("::orch::load_irule {}", list_element(source)))
             .map(|_| ())
+    }
+
+    /// Load a rule whose optional identity was supplied by configuration or
+    /// the caller, preserving per-rule procedure ownership.
+    ///
+    /// # Errors
+    /// Propagates an orchestrator/compile error.
+    pub fn load_rule(&mut self, rule: &crate::session::RuleSource) -> Result<(), SessionError> {
+        self.validate_original_rule_source(&rule.source)?;
+        self.eval(&rule.load_command()).map(|_| ())
+    }
+
+    /// Select build-specific original loader checks independently of runtime
+    /// evaluation and of the simulator's physical host capabilities.
+    pub fn set_measured_loader_profile(
+        &mut self,
+        profile: Option<tcl_registry::irules_policy::MeasuredIrulesLoaderProfile>,
+    ) {
+        self.measured_loader = profile;
+    }
+
+    fn validate_original_rule_source(&self, source: &str) -> Result<(), SessionError> {
+        use tcl_compiler::analyser::types::DiagCode;
+        let Some(profile) = self.measured_loader else {
+            return Ok(());
+        };
+        if let Some(finding) = profile.original_source_refusal(source.as_bytes()) {
+            return Err(SessionError::LoaderPolicy(
+                RuleLoaderRefusal::OriginalBytes { profile, finding },
+            ));
+        }
+        let result = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        if let Some(diagnostic) = result.diagnostics.iter().find(|diagnostic| {
+            matches!(
+                diagnostic.code,
+                DiagCode::Irule2004 | DiagCode::Irule5005 | DiagCode::Irule5006
+            )
+        }) {
+            return Err(SessionError::LoaderPolicy(
+                RuleLoaderRefusal::OriginalPolicy {
+                    profile,
+                    code: diagnostic.code,
+                    message: diagnostic.message.clone(),
+                },
+            ));
+        }
+        Ok(())
+    }
+
+    /// Recreate one explicitly named rule. Its procedure/handler owners retire,
+    /// its new initializers run on each worker, and shared static cells remain.
+    ///
+    /// # Errors
+    /// Requires an explicit identity and propagates loader/execution failures.
+    pub fn replace_rule(&mut self, rule: &crate::session::RuleSource) -> Result<(), SessionError> {
+        self.validate_original_rule_source(&rule.source)?;
+        let identity = rule.identity.as_ref().ok_or_else(|| {
+            SessionError::Eval("rule replacement requires explicit ownership".into())
+        })?;
+        self.eval(&format!(
+            "::itest::unload_rule {}",
+            list_element(identity.as_path())
+        ))?;
+        self.load_rule(rule)
     }
 
     /// Run one HTTP request through the configured flow (`::orch::run_http_request`
@@ -242,6 +567,16 @@ impl LiveSession {
     /// Propagates an orchestrator error.
     pub fn fire_event(&mut self, event: &str) -> Result<String, SessionError> {
         self.eval(&format!("::orch::fire {event}"))
+    }
+
+    /// Advance the authored simulator clock and execute due callbacks in their
+    /// original worker/connection activations. Complete guest options and host
+    /// refusals remain separate in each report; this is not a hardware clock.
+    pub fn advance_time(
+        &mut self,
+        milliseconds: u64,
+    ) -> Vec<tcl_runtime_api::retained_activation::ScheduledCallbackReport<tcl_vm::Value>> {
+        self.vm.advance_irules_time(milliseconds)
     }
 
     /// Fire a sequence of events in order (`::orch::fire_sequence`), returning
@@ -318,6 +653,80 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    #[test]
+    fn measured_event_names_enter_the_actual_connection_frame_and_restore_policy() {
+        let mut session = LiveSession::new(&lib_dir()).expect("session");
+        let baseline = session.vm.execution_name_policy();
+        assert!(session.set_measured_event_name_build(Some(BigIpBuild::MEASURED_21_1_0_1)));
+        session.eval("::itest::_execute_event_body HTTP_REQUEST {set {__tcl_lsp_2286_r2286m_nul_A\0B} counted}").expect("counted event write");
+        assert_eq!(session.eval("::itest::_execute_event_body HTTP_REQUEST {set {__tcl_lsp_2286_r2286m_nul_A\0B}}").expect("same connection read"), "0 counted {}");
+        assert_eq!(session.vm.execution_name_policy(), baseline);
+        let failed = session
+            .eval("::itest::_execute_event_body HTTP_REQUEST {error EXPECTED}")
+            .expect("guest error completion");
+        assert!(failed.starts_with("1 EXPECTED"));
+        assert_eq!(session.vm.execution_name_policy(), baseline);
+        assert!(session.set_measured_event_name_build(None));
+        assert_eq!(session.vm.execution_name_policy(), baseline);
+    }
+
+    #[test]
+    fn completion_api_preserves_guest_bytes_before_text_projection() {
+        fn byte_error(_: &mut Vm, _: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
+            Completion::new(
+                Code::Error,
+                tcl_vm::Value::from_string_bytes(&b"guest \xff\0tail"[..]),
+                tcl_vm::Value::list(vec![
+                    tcl_vm::Value::string("-errorcode"),
+                    tcl_vm::Value::from_string_bytes(&b"RAW \xfe\0code"[..]),
+                ]),
+            )
+        }
+        let mut session = LiveSession {
+            vm: Vm::new(),
+            output: Rc::default(),
+            measured_loader: None,
+            measured_names: Rc::default(),
+        };
+        session.vm.set_compiler(Box::new(Svc::default()));
+        session.vm.register("byte_error", byte_error);
+        let completion = session.eval_completion("byte_error").unwrap();
+        assert_eq!(completion.code, Code::Error);
+        assert_eq!(
+            completion.result.string_bytes().as_ref(),
+            b"guest \xff\0tail"
+        );
+        let options = completion.options.as_list().unwrap();
+        let error_code = options
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .find(|pair| pair[0].string_bytes().as_ref() == b"-errorcode")
+            .expect("original error code");
+        assert_eq!(error_code[1].string_bytes().as_ref(), b"RAW \xfe\0code");
+        assert!(matches!(
+            session.eval("byte_error"),
+            Err(SessionError::Projection(_))
+        ));
+    }
+
+    #[test]
+    fn completion_api_keeps_missing_execution_provider_outside_guest_errors() {
+        let mut session = LiveSession {
+            vm: Vm::new(),
+            output: Rc::default(),
+            measured_loader: None,
+            measured_names: Rc::default(),
+        };
+        assert!(matches!(
+            session.eval_completion("set reached 1"),
+            Err(SessionError::Execution(
+                NativeExecutionError::CompileServiceRefusal(_)
+            ))
+        ));
+        assert!(session.vm.get_var("reached").is_none());
+    }
+
     /// The in-crate orchestrator Tcl directory (the source the binary also
     /// embeds via `embedded.rs`).
     fn lib_dir() -> PathBuf {
@@ -325,6 +734,45 @@ mod tests {
             .join("tcl")
             .canonicalize()
             .expect("orchestrator tcl dir")
+    }
+
+    #[test]
+    fn native_completion_capabilities_do_not_expand_the_user_grammar() {
+        let mut session = LiveSession::new(&lib_dir()).unwrap();
+        assert_eq!(
+            session
+                .eval("::tmm::_host_catch {set x 7} result options")
+                .unwrap(),
+            "0"
+        );
+        assert_eq!(
+            session
+                .eval("catch {catch {set x 8} result options} message; set message")
+                .unwrap(),
+            "wrong # args: should be \"catch command ?varName?\""
+        );
+        assert_eq!(
+            session
+                .eval("catch {return -options {-code 0 -level 0} ok} message; set message")
+                .unwrap(),
+            "bad option \"-options\": must be -code, -errorcode, or -errorinfo"
+        );
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        session.load_irule("when HTTP_REQUEST {catch {catch {set x 1} result options} message; set static::message $message}").unwrap();
+        for worker in 0..2 {
+            session
+                .eval(&format!("::orch::tmm_select {worker}"))
+                .unwrap();
+            session.fire_event("HTTP_REQUEST").unwrap();
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} message"))
+                    .unwrap(),
+                "wrong # args: should be \"catch command ?varName?\""
+            );
+        }
     }
 
     /// Return a session to a clean slate before the next scenario in the same
@@ -833,13 +1281,9 @@ mod tests {
         ))
         .expect("source scf_loader");
 
-        // Drive the object parser directly rather than through
-        // `::scf::load_string`. The whole-file path goes through
-        // `::scf::_extract_blocks`, whose character scanner does not
-        // terminate on `tcl-vm` (it finishes in ~30 ms under tclsh 8.4-9.1);
-        // that is a separate, pre-existing divergence in code this change
-        // does not touch, and no test may hang on it. `load_string`'s
-        // `switch` already routes an `ltm snatpool` block straight here.
+        // Exercise the whole-file scanner and its nested loops before the
+        // registry-selected object parser. Loop labels must follow lexical
+        // nesting even when the surrounding loop runs in a runtime body.
         assert_eq!(
             s.eval("::scf::_parse_header {ltm snatpool /Common/sp_out}")
                 .unwrap(),
@@ -847,9 +1291,9 @@ mod tests {
             "the header parser classifies the block as a snatpool object"
         );
         s.eval(
-            "::scf::_parse_snatpool /Common/sp_out {\nmembers { /Common/10.0.5.1 /Common/10.0.5.2 }\n}",
+            "::scf::load_string {ltm snatpool /Common/sp_out {\nmembers { /Common/10.0.5.1 /Common/10.0.5.2 }\n}}",
         )
-        .expect("parse snatpool");
+        .expect("load snatpool configuration");
 
         assert_eq!(
             s.eval("::scf::list_snatpools").unwrap(),
@@ -1122,48 +1566,874 @@ mod tests {
         }
     }
 
+    #[test]
+    fn event_frames_preserve_cells_aliases_and_traces() {
+        let mut session = LiveSession::new(&lib_dir()).expect("session");
+        scenario(&mut session);
+        session.eval("set ::watch_reads 0; proc ::watch_read {args} {incr ::watch_reads}; proc ::bump {name} {upvar 1 $name cell; incr cell}").unwrap();
+        session
+            .load_irule(
+                r"
+            when RULE_INIT {set root_only 7}
+            when HTTP_REQUEST {
+                set value 4
+                bump value
+                upvar 0 value alias
+                set values(k) a
+                trace variable value r ::watch_read
+                set ::seen_root $::root_only
+                set ::seen_level [info level]
+                uplevel 1 {set root_from_flow yes}
+            }
+            when HTTP_RESPONSE {
+                set ::seen_alias $alias
+                set ::seen_value $value
+                append values(k) b
+                set ::seen_array $values(k)
+            }
+        ",
+            )
+            .unwrap();
+        session.fire_event("RULE_INIT").unwrap();
+        session.fire_event("HTTP_REQUEST").unwrap();
+        assert_eq!(session.eval("set ::watch_reads").unwrap(), "0");
+        let response = session.fire_event("HTTP_RESPONSE").unwrap();
+        assert!(!response.contains("code 1"), "{response}");
+        assert_eq!(session.eval("list $::seen_root $::seen_alias $::seen_value $::seen_array $::watch_reads $::seen_level $::root_from_flow").unwrap(), "7 5 5 ab 2 1 yes");
+        session.eval("::state::reset_connection_state").unwrap();
+        let missing = session.fire_event("HTTP_RESPONSE").unwrap();
+        assert!(
+            missing.contains("code 1"),
+            "a new connection cannot inherit the old cells: {missing}"
+        );
+    }
+
+    #[test]
+    fn worker_interpreters_preserve_cells_traces_and_command_tables() {
+        let mut session = LiveSession::new(&lib_dir()).expect("session");
+        scenario(&mut session);
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        session
+            .load_irule(
+                r"
+            proc count_read {args} {incr ::static::reads}
+            proc bump {name} {upvar 1 $name cell; incr cell}
+            when RULE_INIT {
+                set static::value 10
+                set static::reads 0
+                trace variable static::value r count_read
+                set root_only 7
+            }
+            when HTTP_REQUEST {
+                set flow_value 4
+                call bump flow_value
+                upvar 0 ::static::value alias
+                set static::seen $alias
+                set static::root $::root_only
+                set dynamic {proc made_here {} {return yes}}
+                eval $dynamic
+            }
+            when HTTP_RESPONSE {
+                set static::flow $flow_value
+                set static::seen_again $alias
+                set static::proc_result [call made_here]
+            }
+        ",
+            )
+            .unwrap();
+        session
+            .eval("::orch::tmm_select 0; ::orch::tmm_select 1; ::orch::tmm_select 0")
+            .unwrap();
+        assert_eq!(
+            session
+                .eval("list [::orch::tmm_get_static 0 reads] [::orch::tmm_get_static 1 reads]")
+                .unwrap(),
+            "0 0",
+            "selecting a worker must not read or recreate user cells"
+        );
+        let request = session.fire_event("HTTP_REQUEST").unwrap();
+        assert!(!request.contains("code 1"), "{request}");
+        let response = session.fire_event("HTTP_RESPONSE").unwrap();
+        assert!(!response.contains("code 1"), "{response}");
+        assert_eq!(session.eval("list [::orch::tmm_get_static 0 reads] [::orch::tmm_get_static 1 reads] [::orch::tmm_get_static 0 flow] [::orch::tmm_get_static 0 root] [::orch::tmm_get_static 0 proc_result]").unwrap(), "2 0 5 7 yes");
+        assert_eq!(session.eval("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 1] {llength [info procs made_here]}").unwrap(), "0");
+        session.eval("::orch::tmm_select 1").unwrap();
+        let response = session.fire_event("HTTP_RESPONSE").unwrap();
+        assert!(
+            response.contains("code 1"),
+            "another connection has its own cells: {response}"
+        );
+    }
+
+    #[test]
+    fn authored_functions_keep_independent_worker_random_and_precision_contexts() {
+        let mut session = LiveSession::embedded().expect("framework");
+        assert_eq!(session.eval("expr {abs(077)}").unwrap(), "63");
+        assert_eq!(session.eval("expr {sqrt(2)}").unwrap(), "1.41421356237");
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        let worker0 = "::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 0]";
+        let worker1 = "::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 1]";
+        assert_eq!(
+            session
+                .eval(&format!("{worker0} {{expr {{srand(1)}}}}"))
+                .unwrap(),
+            "7.82636925943e-06"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker1} {{expr {{rand()}}}}"))
+                .unwrap(),
+            "7.82636925943e-06"
+        );
+        assert_eq!(
+            session
+                .eval(&format!(
+                    "{worker0} {{set tcl_precision 4;expr {{sqrt(2)}}}}"
+                ))
+                .unwrap(),
+            "1.414"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker1} {{expr {{sqrt(2)}}}}"))
+                .unwrap(),
+            "1.41421356237"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker0} {{expr {{rand()}}}}"))
+                .unwrap(),
+            "0.1315"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker1} {{expr {{rand()}}}}"))
+                .unwrap(),
+            "0.131537788143"
+        );
+    }
+
+    #[test]
+    fn rule_init_uses_each_workers_global_cells_once() {
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("set ::seed 999; ::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        for (worker, seed) in [(0, 11), (1, 29)] {
+            session
+                .eval(&format!(
+                    "::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::seed {seed}; set ::initialisations 0}}"
+                ))
+                .unwrap();
+        }
+        session
+            .load_irule(
+                r"
+            proc bump {name} {
+                global global_seed
+                upvar 1 $name cell
+                incr cell
+                incr global_seed
+                return [list $cell $global_seed]
+            }
+            when RULE_INIT {
+                set static::seed $::seed
+                set ::global_seed $::seed
+                set static::initialisations [incr ::initialisations]
+            }
+            when HTTP_REQUEST {
+                set static::seen [call bump ::static::seed]
+            }
+        ",
+            )
+            .unwrap();
+        for (worker, expected) in [(0, "12 12"), (1, "30 30"), (0, "30 13")] {
+            session
+                .eval(&format!("::orch::tmm_select {worker}"))
+                .unwrap();
+            let event = session.fire_event("HTTP_REQUEST").unwrap();
+            assert!(!event.contains("code 1"), "{event}");
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} seen"))
+                    .unwrap(),
+                expected
+            );
+        }
+        assert_eq!(
+            session
+                .eval("list [::orch::tmm_get_static 0 seed] [::orch::tmm_get_static 1 seed] [::orch::tmm_get_static 0 initialisations] [::orch::tmm_get_static 1 initialisations]")
+                .unwrap(),
+            "30 30 1 1",
+            "RULE_INIT publishes static seeds; globals and later event writes retain worker ownership"
+        );
+        assert_eq!(
+            session
+                .eval("list $::seed [info exists ::global_seed] [info exists ::initialisations]")
+                .unwrap(),
+            "999 0 0",
+            "worker global cells do not publish their mutations into the host interpreter"
+        );
+    }
+
+    #[test]
+    fn worker_static_broadcast_and_recreation_preserve_trace_owners() {
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        session
+            .load_irule(
+                r"
+            proc watch {args} {incr ::static::writes}
+            when RULE_INIT {
+                set root_only 7
+                set static::value 10
+                set static::writes 0
+                trace variable static::value w watch
+            }
+        ",
+            )
+            .unwrap();
+        session
+            .eval("::orch::tmm_select 0; ::orch::tmm_select 1")
+            .unwrap();
+        session.eval("::orch::configure_static value 20").unwrap();
+        assert_eq!(
+            session.eval("list [::orch::tmm_get_static 0 value] [::orch::tmm_get_static 1 value] [::orch::tmm_get_static 0 writes] [::orch::tmm_get_static 1 writes]").unwrap(),
+            "20 20 1 1",
+            "explicit configuration broadcasts stores into the existing worker cells"
+        );
+        session
+            .eval("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 0] {unset ::static::value; set ::static::value 30}")
+            .unwrap();
+        session.eval("::orch::configure_static value 21").unwrap();
+        assert_eq!(
+            session.eval("list [::orch::tmm_get_static 0 value] [::orch::tmm_get_static 1 value] [::orch::tmm_get_static 0 writes] [::orch::tmm_get_static 1 writes]").unwrap(),
+            "21 21 1 2",
+            "recreating one worker's cell retires only that cell's old trace"
+        );
+        for worker in 0..2 {
+            assert_eq!(
+                session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::root_only}}")).unwrap(),
+                "7",
+                "static configuration does not replace ordinary global cells"
+            );
+        }
+        assert_eq!(session.eval("info exists ::static::value").unwrap(), "0");
+    }
+
+    #[test]
+    fn worker_reset_reloads_independent_globals_and_initialisation() {
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("set ::host_marker HOST; ::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        let source = r"
+            proc bump {} {incr ::global_value; incr ::static::value}
+            when RULE_INIT {
+                set ::global_value $::seed
+                set static::value $::seed
+                set static::initialisations [incr ::initialisations]
+            }
+            when HTTP_REQUEST {call bump}
+        ";
+        for (epoch, seeds) in [(0, [11, 29]), (1, [41, 59])] {
+            if epoch != 0 {
+                session.eval("::orch::reset").unwrap();
+                assert_eq!(
+                    session
+                        .eval("llength [::itest::registered_events]")
+                        .unwrap(),
+                    "0"
+                );
+                for worker in 0..2 {
+                    assert_eq!(
+                        session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{list [info exists ::global_value] [info exists ::static::value] [llength [info procs bump]]}}")).unwrap(),
+                        "0 0 0",
+                        "reset retires the previous worker's cells and command table"
+                    );
+                }
+            }
+            for (worker, seed) in seeds.into_iter().enumerate() {
+                session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::seed {seed}; set ::initialisations 0}}")).unwrap();
+            }
+            session.load_irule(source).unwrap();
+            for worker in 0..2 {
+                session
+                    .eval(&format!("::orch::tmm_select {worker}"))
+                    .unwrap();
+            }
+            session.eval("::orch::tmm_select 0").unwrap();
+            let event = session.fire_event("HTTP_REQUEST").unwrap();
+            assert!(!event.contains("code 1"), "{event}");
+            for (worker, seed) in seeds.into_iter().enumerate() {
+                let expected = seed + i32::from(worker == 0);
+                assert_eq!(
+                    session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{list $::global_value $::static::value $::static::initialisations}}")).unwrap(),
+                    format!("{expected} {} 1", seeds[1] + i32::from(worker == 0)),
+                    "globals initialise once per worker; later RULE_INIT publishes its static seed"
+                );
+            }
+        }
+        assert_eq!(
+            session
+                .eval("list $::host_marker [info exists ::global_value]")
+                .unwrap(),
+            "HOST 0"
+        );
+    }
+
+    #[test]
+    fn event_errors_preserve_cells_and_restore_worker_rule_activation() {
+        use crate::session::{RuleIdentity, RuleSource};
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        session
+            .load_rule(&RuleSource::named(
+                RuleIdentity::new("/Common/failing").unwrap(),
+                r"
+            proc mutate {name} {
+                upvar 1 $name cell
+                incr cell
+                incr ::global_value
+                incr ::static::value
+                error event_failed
+            }
+            when RULE_INIT {set ::global_value 11; set static::value 11}
+            when HTTP_REQUEST {
+                set flow_value 4
+                upvar 0 flow_value alias
+                call mutate flow_value
+                set static::unreached 1
+            }
+            when HTTP_RESPONSE {set static::seen [list $flow_value $alias $::global_value]}
+        ",
+            ))
+            .unwrap();
+        session.eval("::orch::tmm_select 0").unwrap();
+        let failed = session.fire_event("HTTP_REQUEST").unwrap();
+        assert!(failed.contains("code 1 error event_failed"), "{failed}");
+        let response = session.fire_event("HTTP_RESPONSE").unwrap();
+        assert!(!response.contains("code 1"), "{response}");
+        assert_eq!(
+            session.eval("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 0] {list $::global_value $::static::value $::static::seen [info exists ::static::unreached] $::itest::_executing_rule $::itest::_current_rule}").unwrap(),
+            "12 12 {5 5 12} 0 0 {}",
+            "guest errors retain prior writes and connection aliases, then restore framework activation"
+        );
+        session.eval("::orch::tmm_select 1").unwrap();
+        assert_eq!(
+            session.eval("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 1] {list $::global_value $::static::value}").unwrap(),
+            "11 11"
+        );
+        let missing = session.fire_event("HTTP_RESPONSE").unwrap();
+        assert!(
+            missing.contains("code 1"),
+            "another worker cannot inherit the failed event's locals: {missing}"
+        );
+    }
+
+    #[test]
+    fn worker_array_recreation_retires_element_aliases_and_traces() {
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        session
+            .load_irule(
+                r"
+            proc watch {args} {incr ::static::writes}
+            when RULE_INIT {
+                set static::cells(k) OLD
+                set static::writes 0
+                trace variable static::cells(k) w watch
+            }
+            when HTTP_REQUEST {
+                upvar 0 ::static::cells(k) alias
+                set alias FIRST
+                unset ::static::cells
+                set ::static::cells(k) NEW
+                set static::stale_write [catch {set alias AFTER} message]
+                set static::fresh $::static::cells(k)
+            }
+        ",
+            )
+            .unwrap();
+        session.eval("::orch::tmm_select 0").unwrap();
+        let event = session.fire_event("HTTP_REQUEST").unwrap();
+        assert!(!event.contains("code 1"), "{event}");
+        assert_eq!(
+            session.eval("list [::orch::tmm_get_static 0 stale_write] [::orch::tmm_get_static 0 fresh] [::orch::tmm_get_static 0 writes]").unwrap(),
+            "1 NEW 1",
+            "an element alias cannot revive a retired array root or overwrite its replacement"
+        );
+        session.eval("::orch::tmm_select 1").unwrap();
+        assert_eq!(
+            session.eval("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 1] {list $::static::cells(k) $::static::writes}").unwrap(),
+            "OLD 0"
+        );
+    }
+
+    #[test]
+    fn scheduled_callbacks_keep_worker_root_and_connection_cells_distinct() {
+        use tcl_runtime_api::retained_activation::ScheduledCallbackOutcome;
+        let mut session = LiveSession::embedded().unwrap();
+        session
+            .eval("::orch::configure_tests -tmm_count 2; ::orch::reset")
+            .unwrap();
+        for (worker, seed) in [11, 29].into_iter().enumerate() {
+            session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::seed {seed}}}")).unwrap();
+        }
+        session
+            .load_irule(
+                r"
+            proc tick {} { upvar 1 flow alias; incr alias; incr ::static::count }
+            when RULE_INIT {
+                set static::count $::seed
+                after 2 {incr ::static::count}
+            }
+            when HTTP_REQUEST {
+                set flow 4
+                after 10 {tick}
+            }
+            when HTTP_RESPONSE { set static::observed $flow }
+        ",
+            )
+            .unwrap();
+        session.eval("::orch::tmm_select 0").unwrap();
+        session.fire_event("HTTP_REQUEST").unwrap();
+        session.eval("::orch::tmm_select 1").unwrap();
+        let reports = session.advance_time(2);
+        assert_eq!(reports.len(), 2);
+        assert!(reports.iter().all(|report| matches!(&report.outcome, ScheduledCallbackOutcome::Guest(completion) if completion.is_ok())));
+        assert_eq!(
+            session
+                .eval("list [::orch::tmm_get_static 0 count] [::orch::tmm_get_static 1 count]")
+                .unwrap(),
+            "30 30"
+        );
+        let reports = session.advance_time(8);
+        assert_eq!(reports.len(), 1);
+        assert!(
+            matches!(&reports[0].outcome, ScheduledCallbackOutcome::Guest(completion) if completion.is_ok())
+        );
+        assert_eq!(
+            session
+                .eval("list [::orch::tmm_get_static 0 count] [::orch::tmm_get_static 1 count]")
+                .unwrap(),
+            "31 30"
+        );
+        session.eval("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 0] {::itest::fire_event HTTP_RESPONSE}").unwrap();
+        assert_eq!(
+            session.eval("::orch::tmm_get_static 0 observed").unwrap(),
+            "5"
+        );
+    }
+
+    #[test]
+    fn scheduled_callback_retirement_and_error_reports_preserve_original_options() {
+        use tcl_runtime_api::retained_activation::{
+            RetainedActivationRefusal, ScheduledCallbackOutcome,
+        };
+        let mut session = LiveSession::embedded().unwrap();
+        session.load_irule(r"
+            when RULE_INIT { set static::count 0 }
+            when HTTP_REQUEST {
+                after 3 {incr ::static::count; return -code error -level 2 -errorcode {TIMER EXACT} boom}
+                after 6 {set ::static::stale MUST_NOT_RUN}
+            }
+        ").unwrap();
+        session.fire_event("RULE_INIT").unwrap();
+        session.fire_event("HTTP_REQUEST").unwrap();
+        let reports = session.advance_time(3);
+        assert_eq!(reports.len(), 1);
+        let ScheduledCallbackOutcome::Guest(completion) = &reports[0].outcome else {
+            panic!("{:?}", reports[0]);
+        };
+        assert_eq!(completion.code, tcl_runtime_api::Code::Return);
+        assert_eq!(completion.result.string_bytes().as_ref(), b"boom");
+        let options = completion.options.try_to_str().unwrap();
+        assert!(options.contains("TIMER EXACT"), "{options}");
+        assert!(options.contains("-level 2"), "{options}");
+        assert_eq!(
+            session
+                .eval("list $::static::count $::itest::_executing_rule $::itest::_current_rule")
+                .unwrap(),
+            "1 0 {}"
+        );
+        session.eval("::itest::reset_connection_frame").unwrap();
+        let reports = session.advance_time(3);
+        assert!(matches!(
+            reports[0].outcome,
+            ScheduledCallbackOutcome::Activation(RetainedActivationRefusal::RetiredFrame)
+        ));
+        assert_eq!(session.eval("info exists ::static::stale").unwrap(), "0");
+    }
+
     /// Verifies the harness's own dialect and availability-gate behaviour,
     /// sharing one session for the bootstrap cost like the suites above.
     ///
-    /// The harness VM now really is an 8.4 surface: the 8.5+ builtins
-    /// (`dict`, `lassign`, `lrepeat`, `lreverse`) are hidden by the
-    /// availability gate, so `compat84.tcl`'s Tcl-level polyfill *procs* are
-    /// what the framework (and these probes) actually run — a user-defined
-    /// proc must always win over a hidden builtin. And the compiler parses
-    /// under the TMM's 8.4.6 grammar while preserving the iRules-only
-    /// adjacent-brace word separator.
+    /// Host control machinery remains available to the framework; event
+    /// execution is restricted to the TMM surface. Source grammar and
+    /// expression semantics retain the measured F5 dialect.
+    #[test]
+    fn retained_event_frame_preserves_native_completion_options() {
+        let mut session = LiveSession::embedded().unwrap();
+        for (body, expected) in [
+            ("return yes", "code 0 result yes"),
+            ("return -code error bad", "code 1 error bad"),
+            ("break", "outside of a loop"),
+            ("continue", "outside of a loop"),
+        ] {
+            session.eval("::itest::clear_irule").unwrap();
+            session
+                .load_irule(&format!("when HTTP_REQUEST {{{body}}}"))
+                .unwrap();
+            let completion = session.fire_event("HTTP_REQUEST").unwrap();
+            assert!(completion.contains(expected), "{body}: {completion}");
+        }
+    }
+
+    #[test]
+    fn rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers() {
+        use crate::session::{RuleIdentity, RuleSource};
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 4")
+            .unwrap();
+        let a = RuleSource::named(
+            RuleIdentity::new("/Common/a").unwrap(),
+            "when RULE_INIT {set static::collision INIT_A}; when HTTP_REQUEST {set static::event A}",
+        );
+        let b = RuleSource::named(
+            RuleIdentity::new("/Common/b").unwrap(),
+            "when RULE_INIT {set static::collision INIT_B}; when HTTP_REQUEST {set static::event B}",
+        );
+        session.load_rule(&a).unwrap();
+        session.load_rule(&b).unwrap();
+        for worker in 0..4 {
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                "INIT_B"
+            );
+        }
+        session.eval("::orch::tmm_select 2; ::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 2] {unset ::static::collision; set ::static::collision EVENT}").unwrap();
+        for worker in 0..4 {
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                if worker == 2 { "EVENT" } else { "INIT_B" }
+            );
+        }
+        session.replace_rule(&a).unwrap();
+        for worker in 0..4 {
+            session
+                .eval(&format!("::orch::tmm_select {worker}"))
+                .unwrap();
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                "INIT_A"
+            );
+        }
+        session.replace_rule(&b).unwrap();
+        for worker in 0..4 {
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                "INIT_B"
+            );
+        }
+    }
+
+    #[test]
+    fn measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands() {
+        use tcl_registry::irules_policy::MeasuredIrulesLoaderProfile;
+        let mut session = LiveSession::embedded().expect("framework");
+        session.set_measured_loader_profile(Some(
+            MeasuredIrulesLoaderProfile::BigIp21_1_0_1Build0_0_26,
+        ));
+        for source in [
+            "when HTTP_REQUEST {namespace eval N {}}",
+            "when HTTP_REQUEST {interp slaves}",
+            "when HTTP_REQUEST {package provide Tcl}",
+            "when HTTP_REQUEST {rename missing moved}",
+            "proc same {} {return A}; when HTTP_REQUEST {same}",
+            "when HTTP_REQUEST {proc p {} {return x}}",
+            "when HTTP_REQUEST {set x é}",
+            "when HTTP_REQUEST {set x e\u{301}}",
+            "when HTTP_REQUEST {set x A\0B}",
+        ] {
+            assert!(session.load_irule(source).is_err(), "{source}");
+        }
+        session
+            .load_irule(
+                r"when HTTP_REQUEST {
+            set n [list namespace eval ::probe {set n 11}]
+            set p [list package provide Tcl]
+            set q [list namespace path]
+            set static::measured [list [eval $n] [eval $p] [catch {eval $q} message] $message]
+        }",
+            )
+            .unwrap();
+        assert!(
+            !session
+                .fire_event("HTTP_REQUEST")
+                .unwrap()
+                .contains("code 1")
+        );
+        let result = session.eval("set ::static::measured").unwrap();
+        assert!(result.starts_with("11 8.4 1 "), "{result}");
+        assert!(result.contains("bad option"), "{result}");
+        assert!(
+            session
+                .eval("::tmm::_orig_package provide Tcl")
+                .unwrap()
+                .starts_with("9.0")
+        );
+    }
+
+    #[test]
+    fn named_rules_keep_procedures_owned_and_route_call_without_extra_frames() {
+        use crate::session::{RuleIdentity, RuleSource};
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        for rule in [
+            RuleSource::library(
+                RuleIdentity::new("/Common/folder/helpers").unwrap(),
+                r"
+                proc shared {} {return common}
+                proc mutate {name} {upvar 1 $name cell; incr cell}
+                when HTTP_REQUEST {error library-event-must-not-run}
+            ",
+            ),
+            RuleSource::library(
+                RuleIdentity::new("/Other/helpers").unwrap(),
+                r"
+                proc shared {} {return other}
+                proc nested {} {return [call shared]}
+            ",
+            ),
+            RuleSource::named(
+                RuleIdentity::new("/Common/folder/first").unwrap(),
+                r"
+                proc shared {} {return first}
+                when RULE_INIT {set init_global 7; set static::calls 0}
+                when HTTP_REQUEST {
+                    set local 4
+                    call /Common/folder/helpers::mutate local
+                    set static::seen [list [call shared] [call /Common/folder/helpers::shared] [call /Other/helpers::nested] $local $::init_global]
+                    incr static::calls
+                }
+            ",
+            ),
+            RuleSource::named(
+                RuleIdentity::new("/Common/folder/second").unwrap(),
+                r"
+                proc shared {} {return second}
+                when HTTP_REQUEST {set static::second [call shared]}
+            ",
+            ),
+        ] {
+            session.load_rule(&rule).expect("explicitly owned source");
+        }
+        for worker in 0..2 {
+            session
+                .eval(&format!("::orch::tmm_select {worker}"))
+                .unwrap();
+            let event = session.fire_event("HTTP_REQUEST").unwrap();
+            assert!(!event.contains("code 1"), "{event}");
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} seen"))
+                    .unwrap(),
+                "first common other 5 7"
+            );
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} second"))
+                    .unwrap(),
+                "second"
+            );
+        }
+        assert_eq!(
+            session
+                .eval("list [::orch::tmm_get_static 0 calls] [::orch::tmm_get_static 1 calls]")
+                .unwrap(),
+            "1 1",
+            "selection does not rerun rule-creation initialisation"
+        );
+        let duplicate = RuleSource::named(RuleIdentity::new("/Common/folder/first").unwrap(), "");
+        assert!(
+            session
+                .load_rule(&duplicate)
+                .unwrap_err()
+                .to_string()
+                .contains("identity already loaded")
+        );
+    }
+
+    #[test]
+    fn measured_rule_lookup_uses_partition_root_and_keeps_activated_callables() {
+        use crate::session::{RuleIdentity, RuleSource};
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 4")
+            .unwrap();
+        let source = r"
+            proc identify {} {return partition}
+            proc inspect {name} {
+                upvar 1 $name cell
+                set cell changed
+                set command [list namespace current]
+                set lookup [list namespace which -command /Common/helpers::identify]
+                return [list [eval $command] [eval $lookup]]
+            }
+        ";
+        session
+            .load_rule(&RuleSource::library(
+                RuleIdentity::new("/Common/helpers").unwrap(),
+                source,
+            ))
+            .unwrap();
+        session
+            .load_rule(&RuleSource::library(
+                RuleIdentity::new("/Common/folder/helpers").unwrap(),
+                "proc identify {} {return folder}",
+            ))
+            .unwrap();
+        session.load_rule(&RuleSource::named(RuleIdentity::new("/Common/folder/caller").unwrap(), r"
+            proc identify {} {return caller}
+            when HTTP_REQUEST {
+                set local original
+                set context [call helpers::inspect local]
+                set static::owner_result [list [call identify] [call helpers::identify] [call /Common/folder/helpers::identify] $context $local]
+            }
+        ")).unwrap();
+        for deleted in [false, true] {
+            if deleted {
+                session
+                    .eval("::itest::unload_rule /Common/helpers")
+                    .unwrap();
+            }
+            for worker in 0..4 {
+                session
+                    .eval(&format!("::orch::tmm_select {worker}"))
+                    .unwrap();
+                let result = session.fire_event("HTTP_REQUEST").unwrap();
+                assert!(
+                    !result.contains("code 1"),
+                    "worker {worker}, deleted {deleted}: {result}"
+                );
+                assert_eq!(
+                    session
+                        .eval(&format!("::orch::tmm_get_static {worker} owner_result"))
+                        .unwrap(),
+                    "caller partition folder {:: {}} changed"
+                );
+            }
+        }
+        session
+            .load_rule(&RuleSource::library(
+                RuleIdentity::new("/Common/helpers").unwrap(),
+                source,
+            ))
+            .unwrap();
+        session.eval("::itest::clear_irule").unwrap();
+        assert_eq!(
+            session
+                .eval("::tmm::_orig_namespace exists ::tmm::_rule_callables")
+                .unwrap(),
+            "0"
+        );
+    }
+
+    #[test]
+    fn measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host() {
+        let mut session = LiveSession::embedded().expect("framework");
+        session.load_irule(r#"
+            when HTTP_REQUEST {
+                set literal "😀"
+                set dynamic [binary format H* f09f918df09f8fbd]
+                set nul [binary format H* 410042]
+                set static::lengths [list [string length $literal] [string len $literal] [string length $dynamic] [string length $nul]]
+            }
+        "#).unwrap();
+        let result = session.fire_event("HTTP_REQUEST").unwrap();
+        assert!(!result.contains("code 1"), "{result}");
+        assert_eq!(session.eval("set ::static::lengths").unwrap(), "4 4 8 3");
+        assert_eq!(session.eval("::tmm::_orig_string length 😀").unwrap(), "1");
+    }
+
     #[test]
     fn harness_runs_the_tmm_84_surface() {
         let mut s = LiveSession::new(&lib_dir()).expect("session");
 
-        // compat84_polyfills_function: with the natives hidden by the
-        // availability gate, `compat84.tcl` installed its polyfill *procs*,
-        // and the TMM shim then renamed them to `::tmm::_orig_*` for
-        // framework-internal use (the sandbox blockers own the plain names).
-        // Calling the preserved polyfills proves a user proc wins over a
-        // hidden builtin and answers correctly.
+        // Framework commands remain available through private host names.
         scenario(&mut s);
         assert_eq!(
             s.eval("::tmm::_orig_dict get [::tmm::_orig_dict create a 1 b 2] b")
                 .unwrap(),
             "2",
-            "compat84_polyfills_function: the dict polyfill must answer"
+            "the framework dict command must answer"
         );
         assert_eq!(
             s.eval("::tmm::_orig_lassign {a b c} x y").unwrap(),
             "c",
-            "compat84_polyfills_function: the lassign polyfill must answer"
+            "the framework lassign command must answer"
         );
+
+        s.load_irule("when RULE_INIT {dict create a 1}").unwrap();
+        let initialisation = s.fire_event("RULE_INIT").unwrap();
+        assert!(
+            initialisation.contains("invalid command name"),
+            "{initialisation}"
+        );
+        s.eval("::itest::clear_irule").unwrap();
 
         // sandbox_blocks_hidden_dict: at iRule scope the sandbox blocker owns
         // `dict`, so the 8.5+ spelling stays invalid exactly as on a TMM.
-        match s.eval("dict create a 1") {
-            Err(SessionError::Eval(m)) => assert_eq!(
-                m, "invalid command name \"dict\"",
-                "sandbox_blocks_hidden_dict: dict must not exist at iRule scope"
-            ),
-            other => panic!("sandbox_blocks_hidden_dict: dict must be invalid, got {other:?}"),
-        }
+        s.load_irule("when HTTP_REQUEST {dict create a 1}").unwrap();
+        let blocked = s.fire_event("HTTP_REQUEST").unwrap();
+        assert!(
+            blocked.contains("invalid command name"),
+            "dict must be blocked in the event: {blocked}"
+        );
+        assert_eq!(
+            s.eval("dict create a 1").unwrap(),
+            "a 1",
+            "host test code retains modern commands"
+        );
+
+        s.eval("::itest::clear_irule").unwrap();
+        s.load_irule("when HTTP_REQUEST {::tcl::dict::create a 1}")
+            .unwrap();
+        let blocked_member = s.fire_event("HTTP_REQUEST").unwrap();
+        assert!(
+            blocked_member.contains("invalid command name"),
+            "qualified members must obey the F5 surface: {blocked_member}"
+        );
+        s.eval("::itest::clear_irule").unwrap();
+        s.load_irule("when HTTP_REQUEST {namespace eval ::static {dict create a 1}}")
+            .unwrap();
+        let blocked_static_namespace = s.fire_event("HTTP_REQUEST").unwrap();
+        assert!(
+            blocked_static_namespace.contains("invalid command name"),
+            "static is user storage, not a private framework namespace: {blocked_static_namespace}"
+        );
 
         // tmm_grammar_has_no_expansion: `{*}` is not TIP-157 expansion under
         // iRules. Its adjacent close/open braces are the dialect's ghost word
@@ -1181,12 +2451,16 @@ mod tests {
         // fallback, so the message names `unknown` rather than `lmap`;
         // either way the engine builtin must not run).
         scenario(&mut s);
-        match s.eval("lmap v {1 2} {expr {$v * 2}}") {
-            Err(SessionError::Eval(m)) => assert!(
-                m.starts_with("invalid command name"),
-                "surface_hides_86_builtins: lmap must not exist at 8.4: {m}"
-            ),
-            other => panic!("surface_hides_86_builtins: lmap must be invalid, got {other:?}"),
-        }
+        s.load_irule("when HTTP_REQUEST {lmap v {1 2} {expr {$v * 2}}}")
+            .unwrap();
+        let blocked = s.fire_event("HTTP_REQUEST").unwrap();
+        assert!(
+            blocked.contains("invalid command name"),
+            "lmap must be blocked in the event: {blocked}"
+        );
     }
 }
+
+#[cfg(test)]
+#[path = "live/original_projection_tests.rs"]
+mod original_projection_tests;

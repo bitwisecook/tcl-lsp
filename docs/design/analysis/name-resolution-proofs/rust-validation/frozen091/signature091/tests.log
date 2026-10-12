@@ -1,0 +1,363 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 31 tests
+test signature_help::tests::active_param_advances_with_typed_args ... SIGNATURE_HEADER cursor=38 stage=region start=0 end=39 depth=0
+SIGNATURE_HEADER cursor=38 stage=command site=26 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=38 stage=selected site=26 available=false
+ok
+test signature_help::tests::alias_chain_returns_target_through_multiple_hops ... SIGNATURE_HEADER cursor=62 stage=region start=0 end=63 depth=0
+SIGNATURE_HEADER cursor=62 stage=command site=60 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=62 stage=selected site=60 available=false
+ok
+test signature_help::tests::alias_resolves_to_target_proc_signature ... SIGNATURE_HEADER cursor=58 stage=region start=0 end=59 depth=0
+SIGNATURE_HEADER cursor=58 stage=command site=52 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=58 stage=selected site=52 available=false
+ok
+test signature_help::tests::bare_global_call_cannot_select_an_unrelated_namespace_proc ... SIGNATURE_HEADER cursor=99 stage=region start=0 end=100 depth=0
+SIGNATURE_HEADER cursor=99 stage=command site=93 written=1 effective=false binding=true
+SIGNATURE_HEADER cursor=99 stage=selected site=93 available=false
+ok
+test signature_help::tests::bare_global_call_selects_the_genuine_namespace_path_proc ... SIGNATURE_HEADER cursor=116 stage=region start=0 end=117 depth=0
+SIGNATURE_HEADER cursor=116 stage=command site=110 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=116 stage=selected site=110 available=false
+ok
+test signature_help::tests::builtin_signature_active_param_advances ... SIGNATURE_HEADER cursor=15 stage=region start=0 end=16 depth=0
+SIGNATURE_HEADER cursor=15 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=15 stage=selected site=0 available=true
+ok
+test signature_help::tests::builtin_signature_documentation_surfaces_summary ... SIGNATURE_HEADER cursor=5 stage=region start=0 end=6 depth=0
+SIGNATURE_HEADER cursor=5 stage=command site=0 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=5 stage=selected site=0 available=true
+ok
+test signature_help::tests::builtin_signature_returns_none_without_registry ... SIGNATURE_HEADER cursor=5 stage=region start=0 end=6 depth=0
+SIGNATURE_HEADER cursor=5 stage=command site=0 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=5 stage=selected site=0 available=true
+ok
+test signature_help::tests::builtin_signature_surfaces_for_known_command ... SIGNATURE_HEADER cursor=5 stage=region start=0 end=6 depth=0
+SIGNATURE_HEADER cursor=5 stage=command site=0 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=5 stage=selected site=0 available=true
+ok
+test signature_help::tests::disabled_builtin_signatures_do_not_disable_other_commands_or_procs ... SIGNATURE_HEADER cursor=4 stage=region start=0 end=5 depth=0
+SIGNATURE_HEADER cursor=4 stage=command site=0 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=4 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=7 stage=region start=0 end=8 depth=0
+SIGNATURE_HEADER cursor=7 stage=command site=0 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=7 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=30 stage=region start=0 end=31 depth=0
+SIGNATURE_HEADER cursor=30 stage=command site=23 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=30 stage=selected site=23 available=false
+ok
+test signature_help::tests::empty_registry_declared_scripts_are_nested_cursor_regions ... SIGNATURE_HEADER cursor=11 stage=region start=11 end=11 depth=1
+SIGNATURE_HEADER cursor=11 stage=region start=11 end=11 depth=1
+SIGNATURE_HEADER cursor=23 stage=region start=23 end=23 depth=1
+ok
+test signature_help::tests::help_clamps_active_param_to_last_known ... SIGNATURE_HEADER cursor=32 stage=region start=0 end=33 depth=0
+SIGNATURE_HEADER cursor=32 stage=command site=16 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=32 stage=selected site=16 available=false
+ok
+test signature_help::tests::help_on_first_argument ... SIGNATURE_HEADER cursor=32 stage=region start=0 end=33 depth=0
+SIGNATURE_HEADER cursor=32 stage=command site=26 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=32 stage=selected site=26 available=false
+ok
+test signature_help::tests::help_returns_none_for_unknown_command ... SIGNATURE_HEADER cursor=12 stage=region start=0 end=13 depth=0
+SIGNATURE_HEADER cursor=12 stage=command site=0 written=2 effective=false binding=true
+SIGNATURE_HEADER cursor=12 stage=selected site=0 available=false
+ok
+test signature_help::tests::namespaced_proc_does_not_hijack_builtin_from_global ... SIGNATURE_HEADER cursor=54 stage=region start=0 end=55 depth=0
+SIGNATURE_HEADER cursor=54 stage=command site=49 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=54 stage=selected site=49 available=true
+ok
+test signature_help::tests::no_help_at_command_name ... SIGNATURE_HEADER cursor=29 stage=region start=0 end=30 depth=0
+ok
+test signature_help::tests::original_signature_argument_mapping_keeps_captured_prefixes_without_source_anchors ... SIGNATURE_HEADER cursor=52 stage=region start=0 end=52 depth=0
+SIGNATURE_HEADER cursor=52 stage=command site=40 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=52 stage=selected site=40 available=true
+SIGNATURE_HEADER cursor=80 stage=region start=0 end=80 depth=0
+SIGNATURE_HEADER cursor=80 stage=command site=68 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=80 stage=selected site=68 available=false
+SIGNATURE_HEADER cursor=52 stage=region start=0 end=52 depth=0
+SIGNATURE_HEADER cursor=52 stage=command site=40 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=52 stage=selected site=40 available=true
+SIGNATURE_HEADER cursor=80 stage=region start=0 end=80 depth=0
+SIGNATURE_HEADER cursor=80 stage=command site=68 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=80 stage=selected site=68 available=false
+SIGNATURE_HEADER cursor=52 stage=region start=0 end=52 depth=0
+SIGNATURE_HEADER cursor=52 stage=command site=40 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=52 stage=selected site=40 available=true
+SIGNATURE_HEADER cursor=80 stage=region start=0 end=80 depth=0
+SIGNATURE_HEADER cursor=80 stage=command site=68 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=80 stage=selected site=68 available=false
+SIGNATURE_HEADER cursor=52 stage=region start=0 end=52 depth=0
+SIGNATURE_HEADER cursor=52 stage=command site=40 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=52 stage=selected site=40 available=true
+SIGNATURE_HEADER cursor=80 stage=region start=0 end=80 depth=0
+SIGNATURE_HEADER cursor=80 stage=command site=68 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=80 stage=selected site=68 available=false
+SIGNATURE_HEADER cursor=52 stage=region start=0 end=52 depth=0
+SIGNATURE_HEADER cursor=52 stage=command site=40 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=52 stage=selected site=40 available=true
+SIGNATURE_HEADER cursor=80 stage=region start=0 end=80 depth=0
+SIGNATURE_HEADER cursor=80 stage=command site=68 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=80 stage=selected site=68 available=false
+ok
+test signature_help::tests::original_signature_currency_and_registry_survive_reporting_counterfactuals ... SIGNATURE_HEADER cursor=19 stage=region start=0 end=19 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+ok
+test signature_help::tests::original_signature_expansion_cursor_selects_its_own_list_child ... SIGNATURE_HEADER cursor=19 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=39 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=39 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=39 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=45 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=45 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=45 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=39 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=39 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=39 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=45 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=45 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=45 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=39 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=39 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=39 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=45 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=45 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=45 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=30 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=39 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=39 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=39 stage=selected site=28 available=false
+SIGNATURE_HEADER cursor=45 stage=region start=0 end=48 depth=0
+SIGNATURE_HEADER cursor=45 stage=command site=28 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=45 stage=selected site=28 available=false
+ok
+test signature_help::tests::proc_doc_surfaces_as_documentation ... SIGNATURE_HEADER cursor=45 stage=region start=0 end=46 depth=0
+SIGNATURE_HEADER cursor=45 stage=command site=39 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=45 stage=selected site=39 available=false
+ok
+test signature_help::tests::proc_signature_stops_at_its_script_body ... SIGNATURE_HEADER cursor=57 stage=region start=27 end=156 depth=1
+SIGNATURE_HEADER cursor=127 stage=region start=27 end=156 depth=1
+SIGNATURE_HEADER cursor=155 stage=region start=27 end=156 depth=1
+SIGNATURE_HEADER cursor=155 stage=command site=132 written=2 effective=false binding=true
+SIGNATURE_HEADER cursor=155 stage=selected site=132 available=true
+ok
+test signature_help::tests::qualified_call_resolves_to_namespaced_proc ... SIGNATURE_HEADER cursor=56 stage=region start=0 end=57 depth=0
+SIGNATURE_HEADER cursor=56 stage=command site=47 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=56 stage=selected site=47 available=false
+ok
+test signature_help::tests::signature_help_continues_across_open_brace ... SIGNATURE_HEADER cursor=34 stage=region start=0 end=44 depth=0
+SIGNATURE_HEADER cursor=34 stage=command site=20 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=34 stage=selected site=20 available=false
+ok
+test signature_help::tests::signature_help_is_available_in_proc_header_and_nested_proc_call ... SIGNATURE_HEADER cursor=34 stage=region start=0 end=56 depth=0
+SIGNATURE_HEADER cursor=34 stage=command site=23 written=4 effective=true binding=true
+SIGNATURE_HEADER cursor=34 stage=selected site=23 available=true
+SIGNATURE_HEADER cursor=53 stage=region start=41 end=54 depth=1
+SIGNATURE_HEADER cursor=53 stage=command site=46 written=1 effective=false binding=true
+SIGNATURE_HEADER cursor=53 stage=selected site=46 available=false
+ok
+test signature_help::tests::signature_help_resets_on_semicolon ... SIGNATURE_HEADER cursor=35 stage=region start=0 end=36 depth=0
+SIGNATURE_HEADER cursor=35 stage=command site=33 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=35 stage=selected site=33 available=false
+ok
+test signature_help::tests::signature_subcommands_use_original_values_and_shared_prefix_rules ... SIGNATURE_HEADER cursor=15 stage=region start=0 end=15 depth=0
+SIGNATURE_HEADER cursor=15 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=15 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=19 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=23 stage=region start=0 end=23 depth=0
+SIGNATURE_HEADER cursor=23 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=23 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=14 stage=region start=0 end=14 depth=0
+SIGNATURE_HEADER cursor=14 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=14 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=false binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=25 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=15 stage=region start=0 end=15 depth=0
+SIGNATURE_HEADER cursor=15 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=15 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=19 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=23 stage=region start=0 end=23 depth=0
+SIGNATURE_HEADER cursor=23 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=23 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=14 stage=region start=0 end=14 depth=0
+SIGNATURE_HEADER cursor=14 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=14 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=false binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=25 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=15 stage=region start=0 end=15 depth=0
+SIGNATURE_HEADER cursor=15 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=15 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=19 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=23 stage=region start=0 end=23 depth=0
+SIGNATURE_HEADER cursor=23 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=23 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=14 stage=region start=0 end=14 depth=0
+SIGNATURE_HEADER cursor=14 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=14 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=false binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=25 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=15 stage=region start=0 end=15 depth=0
+SIGNATURE_HEADER cursor=15 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=15 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=19 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=23 stage=region start=0 end=23 depth=0
+SIGNATURE_HEADER cursor=23 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=23 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=14 stage=region start=0 end=14 depth=0
+SIGNATURE_HEADER cursor=14 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=14 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=false binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=25 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=15 stage=region start=0 end=15 depth=0
+SIGNATURE_HEADER cursor=15 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=15 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=19 stage=region start=0 end=19 depth=0
+SIGNATURE_HEADER cursor=19 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=19 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=23 stage=region start=0 end=23 depth=0
+SIGNATURE_HEADER cursor=23 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=23 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=14 stage=region start=0 end=14 depth=0
+SIGNATURE_HEADER cursor=14 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=14 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=false binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=25 stage=region start=0 end=25 depth=0
+SIGNATURE_HEADER cursor=25 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=25 stage=selected site=0 available=true
+SIGNATURE_HEADER cursor=22 stage=region start=0 end=22 depth=0
+SIGNATURE_HEADER cursor=22 stage=command site=0 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=22 stage=selected site=0 available=true
+ok
+test signature_help::tests::signature_uses_the_original_call_point_before_replacement ... SIGNATURE_HEADER cursor=31 stage=region start=0 end=110 depth=0
+SIGNATURE_HEADER cursor=31 stage=command site=22 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=31 stage=selected site=22 available=false
+SIGNATURE_HEADER cursor=96 stage=region start=0 end=110 depth=0
+SIGNATURE_HEADER cursor=96 stage=command site=83 written=3 effective=true binding=true
+SIGNATURE_HEADER cursor=96 stage=selected site=83 available=false
+SIGNATURE_HEADER cursor=109 stage=region start=0 end=110 depth=0
+SIGNATURE_HEADER cursor=109 stage=command site=97 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=109 stage=selected site=97 available=false
+ok
+test signature_help::tests::subcommand_signature_none_for_unknown_subcommand ... SIGNATURE_HEADER cursor=16 stage=region start=0 end=17 depth=0
+SIGNATURE_HEADER cursor=16 stage=command site=0 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=16 stage=selected site=0 available=true
+ok
+test signature_help::tests::subcommand_signature_resolves_for_string_length ... SIGNATURE_HEADER cursor=14 stage=region start=0 end=15 depth=0
+SIGNATURE_HEADER cursor=14 stage=command site=0 written=2 effective=true binding=true
+SIGNATURE_HEADER cursor=14 stage=selected site=0 available=true
+ok
+test signature_help::tests::substitution_free_quoted_proc_body_is_a_nested_script_region ... SIGNATURE_HEADER cursor=16 stage=region start=11 end=18 depth=1
+SIGNATURE_HEADER cursor=16 stage=command site=11 written=2 effective=false binding=true
+SIGNATURE_HEADER cursor=16 stage=selected site=11 available=true
+INCOMPLETE_HEADER site=0 stage=prefix-lookup available=true closed=true
+INCOMPLETE_HEADER site=0 stage=procedure-roles complete=true accepted=Some(true) roles=3 values=4
+INCOMPLETE_HEADER site=0 stage=procedure-geometry available=true
+SIGNATURE_HEADER cursor=16 stage=region start=11 end=16 depth=1
+SIGNATURE_HEADER cursor=16 stage=command site=11 written=1 effective=false binding=true
+INCOMPLETE_HEADER site=11 stage=inventory rows=1
+INCOMPLETE_HEADER site=0 stage=original-row available=true observations=1
+INCOMPLETE_HEADER site=0 stage=row-owner config=true words=true context=true frame=true contains=true
+INCOMPLETE_HEADER site=0 stage=prefix-lookup available=true closed=true
+INCOMPLETE_HEADER site=0 stage=procedure-roles complete=true accepted=Some(true) roles=3 values=4
+INCOMPLETE_HEADER site=0 stage=procedure-geometry available=true
+INCOMPLETE_HEADER site=11 stage=child-lookup available=true closed=true
+SIGNATURE_HEADER cursor=16 stage=selected site=11 available=true
+ok
+test signature_help::tests::user_proc_wins_over_builtin_with_same_name ... SIGNATURE_HEADER cursor=31 stage=region start=0 end=32 depth=0
+SIGNATURE_HEADER cursor=31 stage=command site=26 written=1 effective=true binding=true
+SIGNATURE_HEADER cursor=31 stage=selected site=26 available=false
+ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 2493 filtered out; finished in 43.05s
+

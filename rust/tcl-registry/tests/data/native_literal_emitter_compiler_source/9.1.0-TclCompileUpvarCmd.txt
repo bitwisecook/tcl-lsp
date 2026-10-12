@@ -1,0 +1,81 @@
+TclCompileUpvarCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr, *otherTokenPtr, *localTokenPtr;
+    Tcl_LVTIndex localIndex;
+    Tcl_Size numWords = parsePtr->numWords, i;
+    Tcl_Obj *objPtr;
+
+    if (!EnvIsProc(envPtr)) {
+	return TCL_ERROR;
+    }
+
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Push the frame index if it is known at compile time
+     */
+
+    TclNewObj(objPtr);
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    if (TclWordKnownAtCompileTime(tokenPtr, objPtr)) {
+	/*
+	 * Attempt to convert to a level reference.
+	 */
+
+	int numFrameWords = TclObjGetFrame(interp, objPtr, NULL);
+	Tcl_DecrRefCount(objPtr);
+
+	if (numFrameWords) {
+	    if (numWords % 2) {
+		return TCL_ERROR;
+	    }
+	    /* TODO: Push the known value instead? */
+	    PUSH_TOKEN(		tokenPtr, 1);
+	    otherTokenPtr = TokenAfter(tokenPtr);
+	    i = 2;
+	} else {
+	    if (!(numWords % 2)) {
+		return TCL_ERROR;
+	    }
+	    PUSH(		"1");
+	    otherTokenPtr = tokenPtr;
+	    i = 1;
+	}
+    } else {
+	Tcl_DecrRefCount(objPtr);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Loop over the (otherVar, thisVar) pairs. If any of the thisVar is not a
+     * local variable, return an error so that the non-compiled command will
+     * be called at runtime.
+     */
+
+    for (; i<numWords; i+=2, otherTokenPtr = TokenAfter(localTokenPtr)) {
+	localTokenPtr = TokenAfter(otherTokenPtr);
+
+	PUSH_TOKEN(		otherTokenPtr, i);
+	localIndex = TclLocalScalarFromToken(localTokenPtr, envPtr);
+	if (OutOfUintRange(localIndex)) {
+	    return TCL_ERROR;
+	}
+	OP4(			UPVAR, localIndex);
+    }
+
+    /*
+     * Pop the frame index, and set the result to empty
+     */
+
+    OP(				POP);
+    PUSH(			"");
+    return TCL_OK;
+}

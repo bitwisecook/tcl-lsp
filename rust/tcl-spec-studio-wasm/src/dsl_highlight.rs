@@ -74,7 +74,7 @@
 use std::fmt::Write as _;
 
 use serde_json::{Value, json};
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
+use tcl_lexer::{Lexer, SourceMap, SourceSegmentationPurpose, TokenType};
 
 /// Recursion guard, matching [`tcl_lexer::highlight`]'s own bound — a
 /// maliciously (or accidentally) deeply nested `{{{{…}}}}` document must not
@@ -193,14 +193,21 @@ fn classify_bare_word(text: &str, mode: Mode, is_head: bool) -> &'static str {
 /// Walk `src` (a full document on the first call, a braced/bracketed body's
 /// inner text on a recursive one) and append every classified span, with
 /// `base` translating `src`-relative offsets back to document-absolute ones.
-fn collect(src: &str, depth: usize, base: usize, mode: Mode, out: &mut Vec<HighlightToken>) {
+fn collect(
+    src: &str,
+    purpose: SourceSegmentationPurpose,
+    depth: usize,
+    base: usize,
+    mode: Mode,
+    out: &mut Vec<HighlightToken>,
+) {
     if src.is_empty() || depth >= MAX_DEPTH {
         return;
     }
     let source_map = SourceMap::new(src);
     // dialect-drift-ok: the `.tclspec` DSL's own grammar, not the Tcl the pack
     // describes — this module paints the pack file itself.
-    let config = LexerConfig::default();
+    let config = tcl_spec_studio::spectcl::pack_source_lexer_config(purpose);
     let Ok(tokens) = Lexer::with_source_map(source_map, config).tokenise_all() else {
         return;
     };
@@ -306,13 +313,27 @@ fn recurse(
     if inner.len() == close.len_utf8() && inner.starts_with(close) {
         inner = &inner[..inner.len() - close.len_utf8()];
     }
-    collect(inner, depth + 1, inner_base, mode, out);
+    collect(
+        inner,
+        SourceSegmentationPurpose::NestedScript,
+        depth + 1,
+        inner_base,
+        mode,
+        out,
+    );
 }
 
 /// The full token list for `source`, in source order.
 pub(crate) fn highlight_tokens(source: &str) -> Vec<HighlightToken> {
     let mut out = Vec::new();
-    collect(source, 0, 0, Mode::Statement, &mut out);
+    collect(
+        source,
+        SourceSegmentationPurpose::WholeInput,
+        0,
+        0,
+        Mode::Statement,
+        &mut out,
+    );
     out.sort_by_key(|t| (t.start, t.end));
     out
 }
@@ -800,5 +821,48 @@ mod tests {
         let hover = hover_json(src, offset);
         assert_eq!(hover["found"], json!(false));
         assert_eq!(hover["title"], json!("`zzz-not-a-real-field`"));
+    }
+
+    #[test]
+    fn original_dsl_highlight_keeps_loader_file_prologue_and_body_content_spans() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = "\u{feff}speclib demo 1.0 {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}\n";
+        let tokens = highlight_tokens(source);
+        assert!(tokens.iter().any(|token| token.class == "command-word"
+            && token.text == "speclib"
+            && token.start == '\u{feff}'.len_utf8()));
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.class == "command-word" && token.text == "command")
+        );
+        assert!(tokens.iter().any(|token| token.text == "\u{feff}command"));
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.class == "command-word" && token.text == "\u{feff}command")
+        );
+        for token in &tokens {
+            assert_eq!(source[token.start..token.end], token.text);
+        }
+        let mut body = Vec::new();
+        collect(
+            "\u{feff}command generated {}",
+            SourceSegmentationPurpose::NestedScript,
+            0,
+            0,
+            Mode::Statement,
+            &mut body,
+        );
+        assert!(
+            body.iter()
+                .any(|token| token.start == 0 && token.text == "\u{feff}command")
+        );
+        assert!(
+            !body
+                .iter()
+                .any(|token| token.class == "command-word" && token.text == "command")
+        );
     }
 }

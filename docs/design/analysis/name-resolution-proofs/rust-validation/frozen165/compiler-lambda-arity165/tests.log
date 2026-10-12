@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::diagnostics::tests::original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners ... 
+thread 'analyser::diagnostics::tests::original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners' (630327) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16065:9:
+assertion `left == right` failed: one genuine source count owner: "interp alias {} invoke {} apply {{a b} {return ok}}\ninvoke 1"
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8225 filtered out; finished in 1.98s
+

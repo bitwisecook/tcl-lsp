@@ -1,0 +1,3 @@
+package 1.0
+setup-error {setup body cleanup}
+c-wrapper {}

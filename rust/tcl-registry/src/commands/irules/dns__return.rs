@@ -45,6 +45,8 @@ pub const fn spec() -> CommandSpec {
             synopsis: "DNS::return",
             ..FormSpec::DEFAULT
         }],
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+        world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             writes: true,

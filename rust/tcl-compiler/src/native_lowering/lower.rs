@@ -33,14 +33,17 @@ use tcl_core_types::Code as CompletionCode;
 use tcl_dialect::DialectProfile;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::native_boolean_truth::{
+    NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
+};
 use tcl_registry::{CellUpdate, CommandRegistry, IntrinsicId, NativeLowering};
 use tcl_syntax::expr::ast::render_expr;
 use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, Numbers};
 
 use super::cells::{
-    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution, variable_word_place,
-    whole_reference,
+    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution,
+    variable_reference_place, variable_word_place, whole_reference,
 };
 use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
 use super::ir::{
@@ -59,7 +62,7 @@ use super::{
 use crate::codegen::structured::command_text;
 use crate::command_binding::ModuleCommandMutations;
 use crate::dispatch_proof::{
-    DispatchEntryAssumption, DispatchProofAnalysis, analyse_dispatch_stability,
+    DispatchEntryAssumption, DispatchProofAnalysis, analyse_original_dispatch_stability,
 };
 use crate::executable_ir::{
     ExecutableArgvId, ExecutableBlock, ExecutableExpr, ExecutableFunction, ExecutableInstruction,
@@ -67,7 +70,9 @@ use crate::executable_ir::{
 };
 use crate::intervals::Interval;
 use crate::ir::{CommandTokens, Module, NodeId, SourceSite, Statement, WordExpr, WordPart};
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_word_exprs};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution, resolve_word_exprs,
+};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::types::TypeShape;
 use crate::var_escape::types::ProcEscapeSummary;
@@ -116,6 +121,7 @@ enum ExprDecline {
     DynamicVariable,
     UnsupportedOperator,
     Raw,
+    OriginalBooleanObjectUnavailable,
 }
 
 /// Lower one executable function to NLIR.
@@ -128,6 +134,14 @@ pub fn lower_function(
     {
         return Err(FunctionDecline::PassDisabled);
     }
+    if input
+        .function
+        .native_compilation_admission
+        .as_ref()
+        .is_some_and(|admission| admission.requires_native_provider())
+    {
+        return Err(FunctionDecline::NativeCompilationAdmissionRequired);
+    }
     if input.function.validate().is_err() {
         return Err(FunctionDecline::InvalidExecutableIr);
     }
@@ -136,6 +150,9 @@ pub fn lower_function(
     }
     let mut lowerer = Lowerer::new(input);
     let function = lowerer.lower();
+    if lowerer.boolean_admission_missing {
+        return Err(FunctionDecline::NativeCompilationAdmissionRequired);
+    }
     let report = FunctionReport {
         status: FunctionStatus::Lowered,
         // The emitter decides binding, once it knows whether the module
@@ -148,11 +165,22 @@ pub fn lower_function(
 
 /// The first executable instruction kind this lowering does not project.
 fn unlowered_instruction(function: &ExecutableFunction) -> Option<&'static str> {
+    // No partial lowering: the original wrapper would replay phases already
+    // represented by executable edges. Reject before constructing the lowerer.
+    if function.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Some(ExecutableTerminator::RegionChoice { .. })
+        )
+    }) {
+        return Some("evaluated-body-region");
+    }
     function
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction {
+            ExecutableInstruction::CompleteEvaluatedRegion(_) => Some("evaluated-body-region"),
             ExecutableInstruction::IterateLists { .. } => Some("iterate-lists"),
             ExecutableInstruction::MatchPattern { .. } => Some("match-pattern"),
             ExecutableInstruction::JoinCompletion { .. } => Some("join-completion"),
@@ -169,6 +197,26 @@ fn unlowered_instruction(function: &ExecutableFunction) -> Option<&'static str> 
         })
 }
 
+/// Native truth stages require a current complete source input and its
+/// independently retained interpreter entry. Availability does not select a
+/// physical point, and stale entry metadata cannot donate its point.
+fn native_boolean_dialect(input: &LoweringInput<'_>) -> Option<tcl_registry::InvocationDialect> {
+    let metadata = InvocationMetadataContext::for_module(input.registry, input.module)?;
+    if input
+        .module
+        .source_entry
+        .metadata_context
+        .source_analysis_input()
+        != metadata.source_analysis_input()
+    {
+        return None;
+    }
+    let entry = input.module.source_entry.native_entry.as_deref()?;
+    entry
+        .execution_point
+        .map(tcl_registry::InvocationDialect::of_point)
+}
+
 struct Lowerer<'a> {
     input: &'a LoweringInput<'a>,
     values: Vec<NativeValue>,
@@ -180,6 +228,10 @@ struct Lowerer<'a> {
     proofs: DispatchProofAnalysis,
     numbers: Numbers,
     dialect: Option<&'static DialectProfile>,
+    /// A current source owner and independently retained physical entry select
+    /// the truth recipe; an authored profile alone supplies no opcode protocol.
+    boolean_dialect: Option<tcl_registry::InvocationDialect>,
+    boolean_admission_missing: bool,
     /// The document's lexer grammar, resolved once with `dialect` and
     /// threaded into every re-read of source text this pass makes
     /// (`docs/design/registry/dialect-profile-model.md` §2.5).
@@ -211,13 +263,23 @@ impl<'a> Lowerer<'a> {
         let module = input.module;
         let ledger = TraceLedger::new(
             &module.traced_variables,
-            module.has_dynamic_variable_trace,
+            // A source trace ledger cannot enumerate observers already installed
+            // in an independently entered native frame. Retain the runtime bit.
+            module.has_dynamic_variable_trace || module.source_entry.native_entry.is_some(),
             input.config,
         );
         let demotion = if input.top_level {
             CellDemotion::top_level(input.config)
         } else {
-            CellDemotion::procedure(input.escape, input.config)
+            // Named escape summaries are advisory. An actual native entry
+            // requires a separately retained byte/ordinal/layout projection;
+            // this lowering does not yet consume that capability.
+            CellDemotion::procedure(
+                input
+                    .escape
+                    .filter(|_| input.module.source_entry.native_entry.is_none()),
+                input.config,
+            )
         };
         let environment = input.context.map(SemanticContext::environment_id);
         // The document's profile, taken from the ingress rather than found
@@ -253,13 +315,20 @@ impl<'a> Lowerer<'a> {
             ledger,
             demotion,
             mutations,
-            proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
-            numbers: Numbers::of_dialect_name(environment),
+            proofs: analyse_original_dispatch_stability(
+                input.function,
+                input.entry_assumption,
+                input.registry,
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    input.registry,
+                    module,
+                ),
+            ),
+            numbers: Numbers::Target(module.number_syntax()),
             dialect: profile,
-            // `None` — no semantic context at all — keeps the permissive
-            // fallback grammar, matching what `parse_expr_for_profile` does
-            // with the same `None` on the line below.
-            lexer_config: tcl_lexer::LexerConfig::for_profile(profile),
+            boolean_dialect: native_boolean_dialect(input),
+            boolean_admission_missing: false,
+            lexer_config: module.native_lexer_config(),
             representation: input
                 .config
                 .is_enabled(SemanticOptimisationPassId::RepresentationInference),
@@ -359,37 +428,47 @@ impl<'a> Lowerer<'a> {
         dst
     }
 
-    /// The truth of `value`, through the erroring boolean conversion for
-    /// anything a native truth test could get wrong.
-    fn truth(&mut self, value: NativeValueId) -> NativeValueId {
-        match self.ty(value) {
-            NativeType::Bool => value,
-            NativeType::I64 => {
-                let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
-                self.emit(NativeOp::Truth { dst, src: value });
-                dst
-            }
-            NativeType::F64
-                if matches!(
-                    self.rep(value),
-                    Representation::NativeDouble { finite: true }
-                ) =>
-            {
-                let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
-                self.emit(NativeOp::Truth { dst, src: value });
-                dst
-            }
-            NativeType::F64 | NativeType::Obj => {
-                let src = self.boxed(value);
-                let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
-                self.emit(NativeOp::Unbox {
-                    dst,
-                    src,
-                    target: NativeType::Bool,
-                });
-                dst
-            }
+    /// Convert the original operand at its actual reached instruction.
+    /// Canonical Boolean values need no object conversion; all other values
+    /// remain boxed so the selected getter observes their original cache.
+    fn truth(&mut self, value: NativeValueId, purpose: NativeBooleanTruthPurpose) -> NativeValueId {
+        if self.ty(value) == NativeType::Bool {
+            return value;
         }
+        if self
+            .boolean_dialect
+            .and_then(|dialect| dialect.native_boolean_truth_protocol(purpose))
+            .is_none()
+        {
+            self.boolean_admission_missing = true;
+        }
+        debug_assert_eq!(self.ty(value), NativeType::Obj);
+        let src = value;
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        self.emit(NativeOp::UnboxBool { dst, src, purpose });
+        dst
+    }
+
+    fn expression_result_truth(
+        &mut self,
+        value: NativeValueId,
+        production: NativeBooleanExpressionResultProduction,
+    ) -> NativeValueId {
+        if self
+            .boolean_dialect
+            .and_then(|dialect| dialect.native_boolean_expression_result_protocol(production))
+            .is_none()
+        {
+            self.boolean_admission_missing = true;
+        }
+        let src = self.boxed(value);
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        self.emit(NativeOp::BooleanExpressionResult {
+            dst,
+            src,
+            production,
+        });
+        dst
     }
 
     fn int_to_double(&mut self, value: NativeValueId) -> NativeValueId {
@@ -441,6 +520,12 @@ impl<'a> Lowerer<'a> {
             self.record_cell(place, CellAccessKind::Read, barrier, true);
             return value;
         }
+        self.read_original_cell(place)
+    }
+
+    /// A reached Boolean operand retains the actual cell's object and cache,
+    /// independently of an equal numeric value in the shadow lattice.
+    fn read_original_cell(&mut self, place: &CellPlace) -> NativeValueId {
         let hint = self.input.type_hints.get(place.base()).cloned();
         let dst = self.new_value(NativeType::Obj, Representation::Boxed(hint));
         let barrier = self.ledger.decide(place);
@@ -526,6 +611,7 @@ impl<'a> Lowerer<'a> {
             })
             .collect();
         NativeFunction {
+            native_compilation_admission: function.native_compilation_admission.clone(),
             values: std::mem::take(&mut self.values),
             blocks,
             entry: NativeBlockId(u32::try_from(function.entry.index()).unwrap_or(u32::MAX)),
@@ -593,14 +679,17 @@ impl<'a> Lowerer<'a> {
             .as_ref()
             .expect("a validated executable block is terminated")
         {
+            ExecutableTerminator::RegionChoice { .. } => {
+                unreachable!("the function-level pre-check declines evaluated regions")
+            }
             ExecutableTerminator::Goto(next) => NativeTerminator::Goto(target(*next)),
             ExecutableTerminator::Branch {
                 condition,
                 then_target,
                 else_target,
             } => {
-                let value = self.exec_values[condition];
-                let condition = self.truth(value);
+                let condition = self.exec_values[condition];
+                debug_assert_eq!(self.ty(condition), NativeType::Bool);
                 NativeTerminator::Branch {
                     condition,
                     then_target: target(*then_target),
@@ -647,7 +736,13 @@ impl<'a> Lowerer<'a> {
     /// source text and its 1-based line within the body being compiled.
     fn statement_site(&self, node: &NodeId) -> Option<StatementSite> {
         let source = self.command_sites.get(node)?;
-        let text = command_text(self.input.source, source.span).to_owned();
+        let text = command_text(
+            self.input.source,
+            source.span,
+            &self.input.module.source,
+            self.input.module.lexer_config,
+        )
+        .to_owned();
         Some(StatementSite {
             line: body_line(
                 self.input.source,
@@ -677,7 +772,13 @@ impl<'a> Lowerer<'a> {
     }
 
     fn eval_source(&mut self, source: &SourceSite, reason: NativeLoweringDecline) {
-        let text = command_text(self.input.source, source.span).to_owned();
+        let text = command_text(
+            self.input.source,
+            source.span,
+            &self.input.module.source,
+            self.input.module.lexer_config,
+        )
+        .to_owned();
         self.emit(NativeOp::EvalSource { text, reason });
         self.clobber_shadows();
     }
@@ -771,8 +872,8 @@ impl<'a> Lowerer<'a> {
                 self.begin(Some(node), "evaluate-expr");
                 let outcome = match expr {
                     ExecutableExpr::Condition { expr, .. } => {
-                        let result = self.lower_expression(expr);
-                        let truth = self.truth(result);
+                        let text = render_expr(expr);
+                        let truth = self.lower_condition_expression(expr, &text);
                         self.exec_values.insert(*value, truth);
                         StatementOutcome::Native
                     }
@@ -790,7 +891,8 @@ impl<'a> Lowerer<'a> {
                     StatementOutcome::Empty,
                 )
             }
-            ExecutableInstruction::MatchPattern { .. }
+            ExecutableInstruction::CompleteEvaluatedRegion(_)
+            | ExecutableInstruction::MatchPattern { .. }
             | ExecutableInstruction::IterateLists { .. }
             | ExecutableInstruction::JoinCompletion { .. }
             | ExecutableInstruction::WriteCompletionCell { .. } => {
@@ -817,7 +919,8 @@ impl<'a> Lowerer<'a> {
             self.eval_source(&invoke.source, reason);
             return StatementOutcome::EvalSource(reason);
         };
-        if let InvocationResolution::Resolved(facts) = &invoke.resolution
+        if invoke.registry_specialisation_arguments_exact()
+            && let InvocationResolution::Resolved(facts) = &invoke.resolution
             && let Some(spec) = self.input.registry.get(&facts.canonical_command)
         {
             // The site proof's operand-admissibility verdict is conservative
@@ -1169,7 +1272,7 @@ impl<'a> Lowerer<'a> {
             // A retained `$name` word carries no lexical extent here, so the
             // owner's name reading decides it: an element access is not one
             // scalar operand.
-            let place = cell_place(whole_reference(text)?, true)?;
+            let place = cell_place(whole_reference(text, self.lexer_config)?, true)?;
             if matches!(place, CellPlace::Element { .. }) {
                 return None;
             }
@@ -1222,7 +1325,9 @@ impl<'a> Lowerer<'a> {
                     Ok(())
                 }
             }
-            WordExpr::Variable { spelling, source } => variable_place(spelling, source).map(|_| ()),
+            WordExpr::Variable { spelling, source } => {
+                variable_place(spelling, source, self.lexer_config).map(|_| ())
+            }
             WordExpr::CommandSubstitution { spelling, source } => {
                 let inner = nested_words(spelling, source, self.lexer_config)?;
                 self.words_lowerable(&inner, depth + 1)
@@ -1239,7 +1344,7 @@ impl<'a> Lowerer<'a> {
                             }
                         }
                         WordPart::Variable { spelling, source } => {
-                            variable_place(spelling, source)?;
+                            variable_place(spelling, source, self.lexer_config)?;
                         }
                         WordPart::CommandSubstitution { spelling, source } => {
                             let inner = nested_words(spelling, source, self.lexer_config)?;
@@ -1273,7 +1378,7 @@ impl<'a> Lowerer<'a> {
                 Ok(self.const_str(text))
             }
             WordExpr::Variable { spelling, source } => {
-                let place = variable_place(spelling, source)?;
+                let place = variable_place(spelling, source, self.lexer_config)?;
                 let value = self.read_cell(&place);
                 Ok(self.boxed(value))
             }
@@ -1294,7 +1399,7 @@ impl<'a> Lowerer<'a> {
                             self.const_str(text)
                         }
                         WordPart::Variable { spelling, source } => {
-                            let place = variable_place(spelling, source)?;
+                            let place = variable_place(spelling, source, self.lexer_config)?;
                             let value = self.read_cell(&place);
                             self.boxed(value)
                         }
@@ -1387,6 +1492,64 @@ impl<'a> Lowerer<'a> {
         dst
     }
 
+    /// A fallback owns raw expression evaluation, its result producer and truth
+    /// in one runtime operation. `ExprEval` already produces a public result,
+    /// so its object must not enter another public result producer here.
+    fn lower_condition_expression(&mut self, expr: &ExprNode, text: &str) -> NativeValueId {
+        if let Ok(value) = self.attempt(|this| this.lower_boolean_operand(expr)) {
+            return self.expression_result_truth(
+                value,
+                NativeBooleanExpressionResultProduction::InlineExpression,
+            );
+        }
+        if self
+            .boolean_dialect
+            .and_then(|dialect| {
+                dialect.native_boolean_expression_result_protocol(
+                    NativeBooleanExpressionResultProduction::PublicExpressionApi,
+                )
+            })
+            .is_none()
+        {
+            self.boolean_admission_missing = true;
+        }
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        self.emit(NativeOp::ExprBoolEval {
+            dst,
+            text: text.to_owned(),
+        });
+        self.clobber_shadows();
+        self.note_observation();
+        dst
+    }
+
+    /// Retain the object consumed by the reached truth stage. Mathematical
+    /// numeric shadows and intermediate machine numbers carry no observable
+    /// cache/conversion receipt; those expressions keep the runtime seam.
+    fn lower_boolean_operand(&mut self, node: &ExprNode) -> Result<NativeValueId, ExprDecline> {
+        match node {
+            ExprNode::Var { text, .. } => {
+                let place = variable_reference_place(text, self.lexer_config)
+                    .map_err(|_| ExprDecline::DynamicVariable)?;
+                Ok(self.read_original_cell(&place))
+            }
+            ExprNode::Literal { .. } | ExprNode::CompiledWord { .. } | ExprNode::String { .. } => {
+                // Source bytes are not an original compiled literal pool/cache
+                // receipt. Preserve the public expression runtime seam.
+                Err(ExprDecline::OriginalBooleanObjectUnavailable)
+            }
+            _ => {
+                let value = self.lower_expr(node)?;
+                match self.ty(value) {
+                    NativeType::Bool | NativeType::Obj => Ok(value),
+                    NativeType::I64 | NativeType::F64 => {
+                        Err(ExprDecline::OriginalBooleanObjectUnavailable)
+                    }
+                }
+            }
+        }
+    }
+
     #[allow(clippy::too_many_lines)]
     fn lower_expr(&mut self, node: &ExprNode) -> Result<NativeValueId, ExprDecline> {
         match node {
@@ -1411,8 +1574,9 @@ impl<'a> Lowerer<'a> {
                     None => Err(ExprDecline::SubstitutedString),
                 }
             }
-            ExprNode::Var { name, .. } => {
-                let place = expr_variable_place(name).ok_or(ExprDecline::DynamicVariable)?;
+            ExprNode::Var { text, .. } => {
+                let place = variable_reference_place(text, self.lexer_config)
+                    .map_err(|_| ExprDecline::DynamicVariable)?;
                 Ok(self.read_cell(&place))
             }
             ExprNode::Command { .. } => Err(ExprDecline::CommandSubstitution),
@@ -1424,8 +1588,8 @@ impl<'a> Lowerer<'a> {
                 true_branch,
                 false_branch,
             } => {
-                let condition = self.lower_expr(condition)?;
-                let condition = self.truth(condition);
+                let condition = self.lower_boolean_operand(condition)?;
+                let condition = self.truth(condition, NativeBooleanTruthPurpose::ConditionalJump);
                 // Exactly one arm runs: each lowers from the state the
                 // condition left, and only what both agree on survives.
                 let entry_shadows = self.shadows.clone();
@@ -1478,13 +1642,19 @@ impl<'a> Lowerer<'a> {
     ) -> Result<NativeValueId, ExprDecline> {
         match op {
             BinOp::And | BinOp::Or => {
-                let lhs = self.lower_expr(left)?;
-                let lhs = self.truth(lhs);
+                let original_lhs = self.lower_boolean_operand(left)?;
+                let conjunction = op == BinOp::And;
+                let purpose = if conjunction {
+                    NativeBooleanTruthPurpose::LogicalAnd
+                } else {
+                    NativeBooleanTruthPurpose::LogicalOr
+                };
+                let lhs = self.truth(original_lhs, purpose);
                 // The right operand is only evaluated when the left does not
                 // short-circuit, so its shadows hold on one path only.
                 let entry_shadows = self.shadows.clone();
                 self.push_buffer();
-                let rhs = self.lower_expr(right).map(|value| self.truth(value));
+                let rhs = self.lower_logical_right(original_lhs, right, conjunction);
                 let rhs_ops = self.pop_buffer();
                 self.shadows.intersect(&entry_shadows);
                 let rhs = rhs?;
@@ -1642,15 +1812,69 @@ impl<'a> Lowerer<'a> {
         Ok(dst)
     }
 
+    /// Keep the original left operand until the selected final instruction.
+    /// C8.4 reconverts left then right after evaluating the right expression;
+    /// the later C and Jim short-circuit paths convert only the right operand.
+    fn lower_logical_right(
+        &mut self,
+        original_lhs: NativeValueId,
+        right: &ExprNode,
+        conjunction: bool,
+    ) -> Result<NativeValueId, ExprDecline> {
+        let rhs = self.lower_boolean_operand(right)?;
+        let Some(purpose) = self
+            .boolean_dialect
+            .and_then(|dialect| dialect.native_logical_final_operand_purpose(conjunction))
+        else {
+            self.boolean_admission_missing = true;
+            return Err(ExprDecline::UnsupportedOperator);
+        };
+        if !matches!(
+            purpose,
+            NativeBooleanTruthPurpose::LogicalAndInstruction
+                | NativeBooleanTruthPurpose::LogicalOrInstruction
+        ) {
+            return Ok(self.truth(rhs, purpose));
+        }
+        let lhs = self.truth(original_lhs, purpose);
+        let rhs = self.truth(rhs, purpose);
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        let fixed = self.new_value(NativeType::Bool, Representation::NativeBool);
+        let constant = NativeOp::ConstBool {
+            dst: fixed,
+            value: !conjunction,
+        };
+        let (then_ops, else_ops, then_src, else_src) = if conjunction {
+            (Vec::new(), vec![constant], rhs, fixed)
+        } else {
+            (vec![constant], Vec::new(), fixed, rhs)
+        };
+        self.emit(NativeOp::IfElse {
+            condition: lhs,
+            then_ops,
+            else_ops,
+            result: Some(IfElseResult {
+                dst,
+                then_src,
+                else_src,
+            }),
+        });
+        Ok(dst)
+    }
+
     fn lower_unary(
         &mut self,
         op: UnaryOp,
         operand: &ExprNode,
     ) -> Result<NativeValueId, ExprDecline> {
-        let value = self.lower_expr(operand)?;
+        let value = if op == UnaryOp::Not {
+            self.lower_boolean_operand(operand)?
+        } else {
+            self.lower_expr(operand)?
+        };
         match op {
             UnaryOp::Not => {
-                let truth = self.truth(value);
+                let truth = self.truth(value, NativeBooleanTruthPurpose::LogicalNot);
                 let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
                 self.emit(NativeOp::NotBool { dst, src: truth });
                 Ok(dst)
@@ -1950,24 +2174,6 @@ fn value_word(tokens: Option<&CommandTokens>) -> Option<&WordExpr> {
     tokens.words().get(2)
 }
 
-/// The cell an expression `$name` / `$arr(key)` reads.
-fn expr_variable_place(name: &str) -> Option<CellPlace> {
-    let (base, key) = tcl_syntax::naming::split_array_name_braced(name, false);
-    if base.is_empty() || has_substitution(base) {
-        return None;
-    }
-    match key {
-        None => Some(CellPlace::Named {
-            name: base.to_owned(),
-        }),
-        Some(key) if !has_substitution(key) => Some(CellPlace::Element {
-            name: base.to_owned(),
-            key: key.to_owned(),
-        }),
-        Some(_) => None,
-    }
-}
-
 /// The cell a variable word reads, in this tier's decline vocabulary.
 ///
 /// [`variable_word_place`] is the one owner of the reading; this only names
@@ -2034,8 +2240,12 @@ fn body_line(source: &str, origin: u32, offset: u32) -> u32 {
         .saturating_add(1)
 }
 
-fn variable_place(spelling: &str, source: &SourceSite) -> Result<CellPlace, NativeLoweringDecline> {
-    variable_word_place(spelling, source).map_err(|decline| match decline {
+fn variable_place(
+    spelling: &str,
+    source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
+) -> Result<CellPlace, NativeLoweringDecline> {
+    variable_word_place(spelling, source, config).map_err(|decline| match decline {
         VariableWordDecline::Dynamic => NativeLoweringDecline::DynamicVariableName,
         VariableWordDecline::Ambiguous => NativeLoweringDecline::AmbiguousVariableSpelling,
     })
@@ -2070,6 +2280,9 @@ fn block_order(function: &ExecutableFunction) -> (Vec<usize>, HashSet<usize>, Ve
         .blocks
         .iter()
         .map(|block| match &block.terminator {
+            Some(ExecutableTerminator::RegionChoice { enter, skip }) => {
+                vec![enter.index(), skip.index()]
+            }
             Some(ExecutableTerminator::Goto(target)) => vec![target.index()],
             Some(ExecutableTerminator::Branch {
                 then_target,
@@ -2165,6 +2378,7 @@ fn instruction_completion(
         ExecutableInstruction::ExecuteLowered(operation) => operation.completion,
         ExecutableInstruction::ExecuteOpaqueRegion(region) => region.completion,
         ExecutableInstruction::CompleteStructuredRegion(region) => region.completion,
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => region.invocation.completion,
     }
 }
 
@@ -2190,5 +2404,92 @@ fn mixed_compare_is_exact(l: &Representation, r: &Representation) -> bool {
             exactly_representable_as_double(*i)
         }
         _ => true,
+    }
+}
+
+#[cfg(test)]
+mod evaluated_region_tests {
+    #[test]
+    fn evaluated_wrapper_is_rejected_before_native_operations_are_emitted() {
+        let function = crate::execution_region::evaluated_region_test_fixture();
+        function.validate().unwrap();
+        assert_eq!(
+            super::unlowered_instruction(&function),
+            Some("evaluated-body-region")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_entry_storage_tests {
+    #[test]
+    // Implementation contract: naming.variable.aot-original-slot-purpose
+    // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+    fn original_native_entry_keeps_cells_and_runtime_trace_guards_despite_escape_labels() {
+        use super::*;
+        let registry = CommandRegistry::build_default();
+        let function = crate::execution_region::evaluated_region_test_fixture();
+        let mutations = ModuleCommandMutations::default();
+        let hints = BTreeMap::new();
+        let mut summary = ProcEscapeSummary::default();
+        summary.local_slots.insert("x".into(), 11);
+        let config = SemanticOptimisationConfig::new()
+            .with_enabled(SemanticOptimisationPassId::CellDemotion)
+            .with_enabled(SemanticOptimisationPassId::TraceBarrierElision);
+        let authored = Module::default();
+        let input = LoweringInput {
+            registry: &registry,
+            context: None,
+            function: &function,
+            source: "",
+            module: &authored,
+            mutations: &mutations,
+            config,
+            escape: Some(&summary),
+            top_level: false,
+            line_origin: 0,
+            entry_assumption: DispatchEntryAssumption::UnknownWorld,
+            type_hints: &hints,
+        };
+        let lowerer = Lowerer::new(&input);
+        let place = super::super::cells::CellPlace::Named { name: "x".into() };
+        assert_eq!(
+            lowerer.demotion.decide("x").storage,
+            super::super::cells::CellStorage::Slot(11)
+        );
+        assert_eq!(
+            lowerer.ledger.incr_guard(&place),
+            super::super::elide::IncrGuard::Unguarded
+        );
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
+        entry.frame = tcl_runtime_api::native_compilation::NativeCompilationFrame::Procedure;
+        let mut native = authored.clone();
+        native.source_entry.native_entry = Some(std::sync::Arc::new(entry.clone()));
+        let native_input = LoweringInput {
+            module: &native,
+            ..input
+        };
+        let lowerer = Lowerer::new(&native_input);
+        assert_eq!(
+            lowerer.demotion.decide("x").storage,
+            super::super::cells::CellStorage::Cell
+        );
+        assert_eq!(
+            lowerer.ledger.incr_guard(&place),
+            super::super::elide::IncrGuard::RuntimeTraceBit
+        );
+        let mut traced = native.clone();
+        traced.traced_variables.insert("x".into());
+        let traced_input = LoweringInput {
+            module: &traced,
+            ..native_input
+        };
+        let lowerer = Lowerer::new(&traced_input);
+        assert_eq!(
+            lowerer.ledger.incr_guard(&place),
+            super::super::elide::IncrGuard::RuntimeTraceBit
+        );
     }
 }

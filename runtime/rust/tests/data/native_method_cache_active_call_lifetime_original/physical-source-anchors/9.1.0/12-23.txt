@@ -1,0 +1,97 @@
+    return result;
+}
+
+static int
+FinalizeMethodRefs(
+    void *data[],
+    TCL_UNUSED(Tcl_Interp *),
+    int result)
+{
+    CallContext *contextPtr = (CallContext *) data[0];
+    Tcl_Size i;
+
+    for (i = 0 ; i < contextPtr->callPtr->numChain ; i++) {
+	TclOODelMethodRef(contextPtr->callPtr->chain[i].mPtr);
+    }
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOContextTypeName --
+ *
+ *	Get the name of the (high-level) type of method that a context is
+ *	processing. Used for error message generation.
+ *
+ * ----------------------------------------------------------------------
+ */
+const char *
+TclOOContextTypeName(
+    CallContext *contextPtr)
+{
+    if (contextPtr->callPtr->flags & CONSTRUCTOR) {
+	return "constructor";
+    } else if (contextPtr->callPtr->flags & DESTRUCTOR) {
+	return "destructor";
+    } else {
+	return "method";
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOGetSortedMethodList, TclOOGetSortedClassMethodList --
+ *
+ *	Discovers the list of method names supported by an object or class.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+Tcl_Size
+TclOOGetSortedMethodList(
+    Object *oPtr,		/* The object to get the method names for. */
+    Object *contextObj,		/* From what context object we are inquiring.
+				 * NULL when the context shouldn't see
+				 * object-level private methods. Note that
+				 * flags can override this. */
+    Class *contextCls,		/* From what context class we are inquiring.
+				 * NULL when the context shouldn't see
+				 * class-level private methods. Note that
+				 * flags can override this. */
+    int flags,			/* Whether we just want the public method
+				 * names. */
+    Tcl_Obj ***namesLstPtr)	/* Where to write a pointer to the array of
+				 * names to. */
+{
+    Tcl_HashTable names;	/* Tcl_Obj * method name to "wanted in list"
+				 * mapping. */
+    Tcl_HashTable examinedClasses;
+				/* Used to track what classes have been looked
+				 * at. Is set-like in nature and keyed by
+				 * pointer to class. */
+    FOREACH_HASH_DECLS;
+    Tcl_Size i, numStrings;
+    Class *mixinPtr;
+    Tcl_Obj *namePtr;
+    Method *mPtr;
+
+    Tcl_InitObjHashTable(&names);
+    Tcl_InitHashTable(&examinedClasses, TCL_ONE_WORD_KEYS);
+
+    /*
+     * Process method names due to the object.
+     */
+
+    if (oPtr->methodsPtr) {
+	FOREACH_HASH(namePtr, mPtr, oPtr->methodsPtr) {
+	    if (IS_PRIVATE(mPtr)) {
+		continue;
+	    }
+	    if (IS_UNEXPORTED(mPtr) && !WANT_UNEXPORTED(flags)) {
+		continue;
+	    }
+	    AddStandardMethodName(flags, namePtr, mPtr, &names);
+	}
+    }

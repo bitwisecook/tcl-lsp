@@ -23,7 +23,7 @@ use crate::analyses::ConstValue;
 // predicates in `value_shapes`; re-exported here so the optimiser's
 // `helpers::literals::is_static_var_word` call sites keep one import
 // path and there is still only one definition.
-use crate::tcl_expr_eval::{TclValue, format_tcl_value};
+use crate::tcl_expr_eval::{FoldPolicy, TclValue, format_tcl_value_with_policy};
 pub use crate::value_shapes::is_static_var_word;
 
 /// Grammar of a word that can be emitted into Tcl source without
@@ -137,14 +137,21 @@ pub fn render_static_string_word(value: &str) -> Option<String> {
 }
 
 /// Render a [`ConstValue`] (from the SCCP lattice) as Tcl source
-/// text. The float case delegates to [`format_tcl_value`] so the
-/// rendered value round-trips.
+/// text. Without an execution policy, floating string materialisation is
+/// unproved; use [`format_constant_with_policy`] when the caller retains one.
 #[must_use]
 pub fn format_constant(value: &ConstValue) -> Option<String> {
+    format_constant_with_policy(value, FoldPolicy::default())
+}
+
+/// Render an SCCP value with its selected native string policy. An unproved
+/// mutable precision cannot be replaced by a preformatted floating string.
+#[must_use]
+pub fn format_constant_with_policy(value: &ConstValue, policy: FoldPolicy) -> Option<String> {
     match value {
         ConstValue::Bool(b) => Some(if *b { "1".into() } else { "0".into() }),
         ConstValue::Int(i) => Some(i.to_string()),
-        ConstValue::Float(f) => Some(format_tcl_value(&TclValue::Float(*f))),
+        ConstValue::Float(f) => format_tcl_value_with_policy(&TclValue::Float(*f), policy),
         ConstValue::String(s) => Some(s.clone()),
     }
 }
@@ -307,9 +314,17 @@ mod tests {
             Some("hello"),
         );
         // Float renders via format_tcl_value.
-        let rendered = format_constant(&ConstValue::Float(1.0)).unwrap();
+        let rendered = format_constant_with_policy(
+            &ConstValue::Float(1.0),
+            FoldPolicy::for_profile(Some(false), tcl_dialect::DialectProfile::find("tcl9.0")),
+        )
+        .unwrap();
         assert_eq!(rendered, "1.0");
-        let rendered = format_constant(&ConstValue::Float(3.5)).unwrap();
+        let rendered = format_constant_with_policy(
+            &ConstValue::Float(3.5),
+            FoldPolicy::for_profile(Some(false), tcl_dialect::DialectProfile::find("tcl9.0")),
+        )
+        .unwrap();
         assert_eq!(rendered, "3.5");
     }
 

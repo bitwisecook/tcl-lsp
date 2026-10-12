@@ -1,0 +1,17 @@
+
+running 1 test
+test command_binding::formal_value::tests::original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers ... 
+thread 'command_binding::formal_value::tests::original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers' (610965) panicked at rust/tcl-compiler/src/command_binding/formal_value.rs:796:9:
+assertion `left == right` failed: tcl8.6: upvar $unknown local;
+  left: Some("input")
+ right: None
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::formal_value::tests::original_receiver_formal_prefix_keeps_unrelated_aliases_and_refuses_clobbers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8198 filtered out; finished in 1.45s
+

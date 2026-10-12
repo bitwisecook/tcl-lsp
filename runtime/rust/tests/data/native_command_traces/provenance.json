@@ -1,0 +1,222 @@
+[
+  {
+    "version": "8.4.20",
+    "case": "direct",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-8.4"
+    ],
+    "binary_sha256": "03bf2af50be51d7a9c7760a01c6c25bba0519c8bff147ba4754bc346a6d2e0c4",
+    "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "stdout": "0\t36333632666620363336326666203020312030207b656e746572206c656176652072656e616d652064656c6574657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "8.4.20",
+    "case": "nul",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-8.4"
+    ],
+    "binary_sha256": "03bf2af50be51d7a9c7760a01c6c25bba0519c8bff147ba4754bc346a6d2e0c4",
+    "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "stdout": "0\t3633363266662030203633363266662030207b7b7d207b7d7d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "8.5.19",
+    "case": "direct",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-8.5"
+    ],
+    "binary_sha256": "69cb3b0b02418fe33d414cc0e89d424aed4dd35e8dfa86f36d3f22b6cd64b1df",
+    "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "stdout": "0\t36333632666620363336326666203020312030207b656e746572206c656176652072656e616d652064656c6574657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "8.5.19",
+    "case": "nul",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-8.5"
+    ],
+    "binary_sha256": "69cb3b0b02418fe33d414cc0e89d424aed4dd35e8dfa86f36d3f22b6cd64b1df",
+    "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "stdout": "0\t3633363266662030203633363266662030207b7b7d207b7d7d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "8.6.18",
+    "case": "direct",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-8.6"
+    ],
+    "binary_sha256": "95e72b2b226a5bc2da91f415588f86b00e58bb4e3a32d18b90faf6841f99e4e4",
+    "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "stdout": "0\t36333632666620363336326666203020312030207b656e746572206c656176652072656e616d652064656c6574657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "8.6.18",
+    "case": "nul",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-8.6"
+    ],
+    "binary_sha256": "95e72b2b226a5bc2da91f415588f86b00e58bb4e3a32d18b90faf6841f99e4e4",
+    "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "stdout": "0\t3633363266662030203633363266662030207b656e746572206c656176657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "9.0.4",
+    "case": "direct",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-9.0"
+    ],
+    "binary_sha256": "7da959c6f9f4c9c04cf113fac0846a41d9a70f353584451bab9b20537be36a22",
+    "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "stdout": "0\t36333632666620363336326666203020312030207b656e746572206c656176652072656e616d652064656c6574657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "9.0.4",
+    "case": "nul",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-9.0"
+    ],
+    "binary_sha256": "7da959c6f9f4c9c04cf113fac0846a41d9a70f353584451bab9b20537be36a22",
+    "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "stdout": "0\t3633363266662030203633363266662030207b656e746572206c656176657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "9.1.0",
+    "case": "direct",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-9.1"
+    ],
+    "binary_sha256": "dbfe9edd5b7611d49a9c2f3da50fe418ee8a2c94bb0dfc057b406a15bbcaa8ef",
+    "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "source_sha256": "105da1a8e0f516561c5be35a532940a47349148bd0d1ec83ca5687a2f1dc83c5",
+    "stdout": "0\t36333632666620363336326666203020312030207b656e746572206c656176652072656e616d652064656c6574657d\n",
+    "exit_code": 0
+  },
+  {
+    "version": "9.1.0",
+    "case": "nul",
+    "build": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-lz",
+      "-ldl",
+      "-lpthread",
+      "-o",
+      "/workspace/.proofs/2286-adapter-native-command-traces/capture-9.1"
+    ],
+    "binary_sha256": "dbfe9edd5b7611d49a9c2f3da50fe418ee8a2c94bb0dfc057b406a15bbcaa8ef",
+    "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "source_sha256": "6e2fb019d9f5c1b7aeb467734f315c7b5de2ed65a255cb368d5f85dbd5397784",
+    "stdout": "0\t3633363266662030203633363266662030207b656e746572206c656176657d\n",
+    "exit_code": 0
+  }
+]

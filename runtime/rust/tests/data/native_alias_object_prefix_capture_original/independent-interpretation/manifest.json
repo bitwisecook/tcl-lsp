@@ -1,0 +1,50 @@
+{
+  "status": "Independent interpretation of genuine Root-launched closed Native415 observations; no Rust/software assertion or hosted BigIP result",
+  "files": [
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/interpret.py",
+      "sha256": "643359f96ecf0a0e0ed6608e3f40adadca9e4c1807cf0c6eaf92d48ad8adf62c",
+      "bytes": 8648
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/interpretation.json",
+      "sha256": "2f3a60d87c50e876747948a3fafd7aa121ef36c04d776f57b54f1ece7e014adc",
+      "bytes": 1081739
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/public-alias-pretest-8.4.20.txt",
+      "sha256": "7cfa97c0ea0c075cabb6c194557180f52b17e0e48cbedf07859579bc47eed87f",
+      "bytes": 1140
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/public-alias-pretest-8.5.19.txt",
+      "sha256": "6cc9a359cd63974cdfd876d9d98c14df0f097bda3344e60cd722a83559a0bae7",
+      "bytes": 1080
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/public-alias-pretest-8.6.18.txt",
+      "sha256": "6685dbd87d90e9349bfbf2d9fe3a4995372ab176694d31bebcf5f306a1bc48af",
+      "bytes": 903
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/public-alias-pretest-9.0.4.txt",
+      "sha256": "277e37d9a081b35ed3f9284f055bcfcb2c7d06093251345651e75ba350d2fcc6",
+      "bytes": 907
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-interpretation415/public-alias-pretest-9.1.0.txt",
+      "sha256": "451be90840652aba6ae88c494de794f4687bdbef926187cdc5d31c642b08d2d6",
+      "bytes": 926
+    }
+  ],
+  "limited_contracts": [
+    "C84/85 target String pretest occurs before original alias capture; C86+ capture then alias-name String/publication then original-target loop lookup.",
+    "All five C raw queries allocate separate unstringified List headers containing the exact retained original members; member cache is shared, List String cache is not.",
+    "Jim core alias captures without target/prefix String; info alias returns the same stored List header and List String cache.",
+    "Invocation callbacks receive original members and select p2 then p1. Later invocation observes cached original members.",
+    "Held genuine query Lists preserve original members after original caller holds and alias ownership are released. Last query release retires unread internalRep without requesting String.",
+    "C child case6 uses original members in actual target parent invocation. Jim C-style child-query purpose is explicitly unavailable, separate from its measured core alias API."
+  ],
+  "source_input_request_sha256": "b4c7c7e8c2278dee8faa2384a6989c0c85033e392e37de24147d827515777917",
+  "source_input_closure_sha256": "0fb029c028925013ad0c3b2993de42a6f3e7347aebab9a570081a3ba063d06aa"
+}

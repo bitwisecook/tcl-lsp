@@ -1,0 +1,33 @@
+			Tcl_DecrRefCount(mapObj);
+		    }
+		    return TCL_ERROR;
+		}
+		unknownObj = (len > 0 ? objv[1] : NULL);
+		continue;
+	    }
+	}
+
+	/*
+	 * Create the ensemble. Note that this might delete another ensemble
+	 * linked to the same namespace, so we must be careful. However, we
+	 * should be OK because we only link the namespace into the list once
+	 * we've created it (and after any deletions have occurred.)
+	 */
+
+	token = Tcl_CreateEnsemble(interp, name, NULL,
+		(permitPrefix ? TCL_ENSEMBLE_PREFIX : 0));
+	Tcl_SetEnsembleSubcommandList(interp, token, subcmdObj);
+	Tcl_SetEnsembleMappingDict(interp, token, mapObj);
+	Tcl_SetEnsembleUnknownHandler(interp, token, unknownObj);
+
+	/*
+	 * Tricky! Must ensure that the result is not shared (command delete
+	 * traces could have corrupted the pristine object that we started
+	 * with). [Snit test rename-1.5]
+	 */
+
+	Tcl_ResetResult(interp);
+	Tcl_GetCommandFullName(interp, token, Tcl_GetObjResult(interp));
+	return TCL_OK;
+    }
+

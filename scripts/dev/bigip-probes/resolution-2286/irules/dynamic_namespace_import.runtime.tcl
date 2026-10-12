@@ -1,0 +1,2 @@
+namespace eval ::__tcl_lsp_probe_2286_lab2286 {proc p {} {return EXPORTED}; namespace export p}
+namespace eval ::__tcl_lsp_probe_2286_lab2286_consumer {namespace import ::__tcl_lsp_probe_2286_lab2286::p; p}

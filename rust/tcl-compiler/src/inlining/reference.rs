@@ -55,24 +55,24 @@ pub(super) fn import(
     profile: Option<&'static tcl_dialect::DialectProfile>,
 ) -> BTreeSet<String> {
     let mut imported = BTreeSet::new();
-    let mut called: Option<BTreeSet<String>> = None;
+    // Read the original callers before an appended body changes the image.
+    let called = called_descriptors(module, registry);
     for (spec, text) in registry.reference_bodies() {
-        let called = called.get_or_insert_with(|| called_tails(module));
-        if !called.contains(tail(spec.name)) {
-            continue;
-        }
-        let qualified = rooted(spec.name);
-        if module.procedures.contains_key(&qualified)
-            || module.redefined_procedures.contains(&qualified)
-        {
+        if !called.contains(spec.name) {
             continue;
         }
         let Some(facts) = crate::site_claims::reference_body_facts(registry, spec) else {
             continue;
         };
-        let Some(definition) = lower_definition(text, &qualified, registry, config, profile) else {
+        let Some(definition) = lower_definition(text, spec, registry, config, profile) else {
             continue;
         };
+        let qualified = definition.qualified_name.clone();
+        if module.procedures.contains_key(&qualified)
+            || module.redefined_procedures.contains(&qualified)
+        {
+            continue;
+        }
         let Some(proc) = append(module, text, definition) else {
             continue;
         };
@@ -89,37 +89,53 @@ pub(super) fn import(
     imported
 }
 
-/// The last segment of every command name `module` calls, anywhere in it.
-fn called_tails(module: &Module) -> BTreeSet<String> {
-    let mut tails = BTreeSet::new();
+/// Closed conditional Registry descriptor labels from the original module.
+/// These are import candidates, not entered command or pack/admission proofs.
+fn called_descriptors(module: &Module, registry: &CommandRegistry) -> BTreeSet<String> {
+    if crate::registry_invocation::InvocationMetadataContext::for_module(registry, module).is_none()
+    {
+        return BTreeSet::new();
+    }
+    let mut labels = BTreeSet::new();
     let mut note = |statement: &Statement| {
-        if let Statement::Call { command, .. } = statement {
-            tails.insert(tail(command).to_owned());
+        if !matches!(statement, Statement::Call { .. }) {
+            return;
+        }
+        let Some(tokens) = statement.tokens() else {
+            return;
+        };
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return;
+        };
+        let Some(metadata) =
+            binding.original_argument_metadata_for_module(tokens, module, registry)
+        else {
+            return;
+        };
+        let Some(advice) =
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                registry, Some(metadata), tokens,
+            )
+        else {
+            return;
+        };
+        if let Some(words) = advice.unanimous_command_words() {
+            labels.insert(words.command().to_owned());
         }
     };
     crate::ir::for_each_statement(&module.top_level, &mut note);
     for proc in module.procedures.values() {
         crate::ir::for_each_statement(&proc.body, &mut note);
     }
-    tails
+    labels
 }
 
-fn tail(name: &str) -> &str {
-    name.rsplit("::").next().unwrap_or(name)
-}
-
-fn rooted(name: &str) -> String {
-    if name.starts_with("::") {
-        name.to_owned()
-    } else {
-        format!("::{name}")
-    }
-}
-
-/// Lower `text` as a script that does nothing but define `qualified`.
+/// Lower the actual body and join its produced declaration key through the
+/// Registry's descriptor lookup to this exact backing row. No descriptor
+/// punctuation is treated as a constructed-key or Native naming contract.
 fn lower_definition(
     text: &str,
-    qualified: &str,
+    expected: &tcl_registry::CommandSpec,
     registry: &CommandRegistry,
     config: LexerConfig,
     profile: Option<&'static tcl_dialect::DialectProfile>,
@@ -133,7 +149,11 @@ fn lower_definition(
     {
         return None;
     }
-    let proc = lowered.procedures.remove(qualified)?;
+    let (_, proc) = lowered.procedures.drain().next()?;
+    let selected = registry.get(&proc.qualified_name)?;
+    if !std::ptr::eq(selected, expected) {
+        return None;
+    }
     // Without the body's text there is nothing for the runtime to compare.
     proc.body_source.is_some().then_some(proc)
 }
@@ -156,8 +176,10 @@ fn append(module: &mut Module, text: &str, mut proc: Procedure) -> Option<Proced
         .reference_bodies
         .appendix_start
         .get_or_insert(module.source.len());
-    module.source.push('\n');
-    module.source.push_str(text);
+    let mut source = module.source.bytes().to_vec();
+    source.push(b'\n');
+    source.extend_from_slice(text.as_bytes());
+    module.source = tcl_lexer::SourceImage::from_bytes(source, module.source.channel());
     Some(proc)
 }
 
@@ -180,4 +202,124 @@ pub(crate) fn claim_for(
         backing: import.backing,
         facts: import.facts.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn logical_module(source: &str, registry: &CommandRegistry) -> Module {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        )
+        .ir_module
+    }
+
+    #[test]
+    fn original_reference_candidates_use_selected_labels_instead_of_source_tails() {
+        // naming.inlining.original-reference-descriptor-selection
+        // docs/design/analysis/name-resolution-proofs/inlining-original-reference-descriptor-selection.md
+        // Conditional original source import candidates; no pack or Native admission.
+        let registry = CommandRegistry::build_default();
+        let selected = logical_module(
+            "interp alias {} originalAlias {} string length; originalAlias VALUE",
+            &registry,
+        );
+        assert!(called_descriptors(&selected, &registry).contains("string"));
+        assert!(!called_descriptors(&selected, &registry).contains("originalAlias"));
+        for source in [
+            "other::string length VALUE",
+            "namespace eval other {proc string args {}; string length VALUE}",
+        ] {
+            let module = logical_module(source, &registry);
+            assert!(
+                !called_descriptors(&module, &registry).contains("string"),
+                "{source}"
+            );
+        }
+        let mut missing = selected.clone();
+        missing.source_metadata_input = None;
+        assert!(called_descriptors(&missing, &registry).is_empty());
+        let mut changed = selected.clone();
+        changed.source = tcl_lexer::SourceImage::document("puts CHANGED");
+        assert!(called_descriptors(&changed, &registry).is_empty());
+        let mut foreign = CommandRegistry::build_default();
+        foreign.insert(registry.get("string").unwrap().clone());
+        assert!(called_descriptors(&selected, &foreign).is_empty());
+    }
+
+    #[test]
+    fn reference_definition_uses_its_produced_key_and_exact_registry_row() {
+        // naming.inlining.original-reference-descriptor-selection
+        // docs/design/analysis/name-resolution-proofs/inlining-original-reference-descriptor-selection.md
+        // Actual authored definition/source only; no body import or execution is granted.
+        let registry = CommandRegistry::build_default();
+        let selected = registry.get("string").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let declaration = lower_definition(
+            "proc string {x} {return $x}",
+            selected,
+            &registry,
+            config,
+            Some(profile),
+        )
+        .unwrap();
+        assert_eq!(declaration.qualified_name, "::string");
+        assert!(
+            lower_definition(
+                "proc other::string {x} {return $x}",
+                selected,
+                &registry,
+                config,
+                Some(profile),
+            )
+            .is_none()
+        );
+        assert!(
+            lower_definition(
+                "proc string {x} {return $x}; proc another {} {}",
+                selected,
+                &registry,
+                config,
+                Some(profile),
+            )
+            .is_none()
+        );
+        let mut foreign = CommandRegistry::build_default();
+        foreign.insert(selected.clone());
+        assert!(
+            lower_definition(
+                "proc string {x} {return $x}",
+                foreign.get("string").unwrap(),
+                &registry,
+                config,
+                Some(profile),
+            )
+            .is_none()
+        );
+    }
 }

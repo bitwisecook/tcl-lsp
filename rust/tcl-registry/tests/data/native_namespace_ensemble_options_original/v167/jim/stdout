@@ -1,0 +1,3 @@
+version 0.84-9-g5bac7c9
+observation capability status 1 result {only [namespace ensemble create] is supported} errorCode NONE
+conclusion namespace-ensemble unsupported

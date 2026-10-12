@@ -1,0 +1,3 @@
+set __tcl_lsp_probe_2286_r2286_20261006c_é PRECOMPOSED
+set __tcl_lsp_probe_2286_r2286_20261006c_é DECOMPOSED
+list [set __tcl_lsp_probe_2286_r2286_20261006c_é] [set __tcl_lsp_probe_2286_r2286_20261006c_é] [string equal __tcl_lsp_probe_2286_r2286_20261006c_é __tcl_lsp_probe_2286_r2286_20261006c_é]

@@ -1,0 +1,25 @@
+
+running 3 tests
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... 
+thread 'cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls' (980511) panicked at rust/tcl-vm/src/cmd_mathop.rs:190:17:
+jim/0 native mathop source: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("retired native object header"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (980630) panicked at rust/tcl-vm/src/cmd_mathop.rs:133:17:
+jim/0 native mathop source: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("retired native object header"))))
+FAILED
+test interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows ... 
+thread 'interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows' (980737) panicked at rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs:54:68:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 741 filtered out; finished in 91.56s
+

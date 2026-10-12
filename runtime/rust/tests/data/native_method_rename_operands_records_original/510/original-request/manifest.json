@@ -1,0 +1,245 @@
+{
+  "packet": "ReceiverNativeMethodRename510",
+  "status": "fixed immutable request READY; no native process launched by agent",
+  "question_id": "naming.tcloo.original-method-rename-operands-and-records",
+  "request_sha256": "a313617c40d8e6111bd29044989771b0855c80b6cea74de6405fd246dd28c4d9",
+  "probe_sha256": "d76759e50a8551357ae2abcf2d89b0f355859fb51b405cb345697fddb9d69d5f",
+  "source_windows_sha256": "084eaf860cb2299f15110b395bb9b0f5bce840c8a6bc0ed0455217e067ff3788",
+  "launch_plan_sha256": "2a35560bf556122a5b5f384d12d9ebbe0a4695703ae6edacadc71b8c9c58527e",
+  "launcher_sha256": "0d6aece97913e53bf659c1b20d2f739ca58165343ce630d6965ca345fc014472",
+  "launch_argv": [
+    "python3",
+    "/tmp/receiver-native-method-rename510/capture.py"
+  ],
+  "output_directory": "/workspace/.proofs/native-method-rename510",
+  "providers": 6,
+  "supported_cases_per_provider": 32,
+  "agent_checks": [
+    "Python syntax only",
+    "All actual fixed provider/source inputs verified using streaming SHA256",
+    "Public C86/C9 Count/MethodType/CmdInfo headers inspected, no Native compilation"
+  ],
+  "native_claims": false,
+  "files": [
+    {
+      "path": "availability.tcl",
+      "sha256": "e96cb98ed4321ee2c4994574d95f992d0a50f8ffec480e0c1db11bb394a11e6e",
+      "bytes": 85
+    },
+    {
+      "path": "c-version.tcl",
+      "sha256": "0e4973e37df90a3d43c7863a53fbbd057dde507b54eadfcfa6e66b641bfde0f9",
+      "bytes": 54
+    },
+    {
+      "path": "capture.py",
+      "sha256": "0d6aece97913e53bf659c1b20d2f739ca58165343ce630d6965ca345fc014472",
+      "bytes": 8127
+    },
+    {
+      "path": "jim-version-probe.tcl",
+      "sha256": "06da7d50c8fbc4dad05c55acff7ab4692095879b112996b75cfd4f7adb393437",
+      "bytes": 44
+    },
+    {
+      "path": "jim-version.tcl",
+      "sha256": "7ac778f7f7d6a8b7a6b655858676620395ff7f2c0817cdc34a46124d7e0643de",
+      "bytes": 51
+    },
+    {
+      "path": "launch-plan.json",
+      "sha256": "2a35560bf556122a5b5f384d12d9ebbe0a4695703ae6edacadc71b8c9c58527e",
+      "bytes": 87894
+    },
+    {
+      "path": "probe.c",
+      "sha256": "d76759e50a8551357ae2abcf2d89b0f355859fb51b405cb345697fddb9d69d5f",
+      "bytes": 13434
+    },
+    {
+      "path": "request.json",
+      "sha256": "a313617c40d8e6111bd29044989771b0855c80b6cea74de6405fd246dd28c4d9",
+      "bytes": 73440
+    },
+    {
+      "path": "setup.tcl",
+      "sha256": "2697f7d96853ff135ce6cbbb0c013b95d67f122f65f68de96b3bb8c63ef5da00",
+      "bytes": 67
+    },
+    {
+      "path": "source-inspection/8.4.20/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "bytes": 84169
+    },
+    {
+      "path": "source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "bytes": 203688
+    },
+    {
+      "path": "source-inspection/8.5.19/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "bytes": 86963
+    },
+    {
+      "path": "source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "bytes": 203084
+    },
+    {
+      "path": "source-inspection/8.6.18/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "bytes": 94296
+    },
+    {
+      "path": "source-inspection/8.6.18/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "bytes": 264771
+    },
+    {
+      "path": "source-inspection/8.6.18/tclOO.c",
+      "sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "bytes": 84935
+    },
+    {
+      "path": "source-inspection/8.6.18/tclOO.h",
+      "sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "bytes": 4284
+    },
+    {
+      "path": "source-inspection/8.6.18/tclOODecls.h",
+      "sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "bytes": 9677
+    },
+    {
+      "path": "source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "bytes": 70128
+    },
+    {
+      "path": "source-inspection/8.6.18/tclOOInt.h",
+      "sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "bytes": 24191
+    },
+    {
+      "path": "source-inspection/8.6.18/tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "bytes": 50906
+    },
+    {
+      "path": "source-inspection/8.6.18/tclObj.c",
+      "sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "bytes": 131144
+    },
+    {
+      "path": "source-inspection/9.0.4/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "bytes": 93953
+    },
+    {
+      "path": "source-inspection/9.0.4/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "bytes": 282535
+    },
+    {
+      "path": "source-inspection/9.0.4/tclOO.c",
+      "sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "bytes": 99274
+    },
+    {
+      "path": "source-inspection/9.0.4/tclOO.h",
+      "sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "bytes": 5663
+    },
+    {
+      "path": "source-inspection/9.0.4/tclOODecls.h",
+      "sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "bytes": 11299
+    },
+    {
+      "path": "source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "bytes": 115346
+    },
+    {
+      "path": "source-inspection/9.0.4/tclOOInt.h",
+      "sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "bytes": 30426
+    },
+    {
+      "path": "source-inspection/9.0.4/tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "bytes": 58997
+    },
+    {
+      "path": "source-inspection/9.0.4/tclObj.c",
+      "sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "bytes": 134339
+    },
+    {
+      "path": "source-inspection/9.1.0/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "bytes": 92559
+    },
+    {
+      "path": "source-inspection/9.1.0/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "bytes": 292230
+    },
+    {
+      "path": "source-inspection/9.1.0/tclOO.c",
+      "sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "bytes": 98735
+    },
+    {
+      "path": "source-inspection/9.1.0/tclOO.h",
+      "sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "bytes": 5729
+    },
+    {
+      "path": "source-inspection/9.1.0/tclOODecls.h",
+      "sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "bytes": 12613
+    },
+    {
+      "path": "source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "bytes": 111662
+    },
+    {
+      "path": "source-inspection/9.1.0/tclOOInt.h",
+      "sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "bytes": 32133
+    },
+    {
+      "path": "source-inspection/9.1.0/tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "bytes": 60880
+    },
+    {
+      "path": "source-inspection/9.1.0/tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "bytes": 132032
+    },
+    {
+      "path": "source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686
+    },
+    {
+      "path": "source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "bytes": 56502
+    },
+    {
+      "path": "source-windows.json",
+      "sha256": "084eaf860cb2299f15110b395bb9b0f5bce840c8a6bc0ed0455217e067ff3788",
+      "bytes": 54967
+    },
+    {
+      "path": "version-probe.tcl",
+      "sha256": "7c7dd5703a0b7dd07cc1b060be0263d994d17e1bbe6a58719fdb43d846a88905",
+      "bytes": 38
+    }
+  ]
+}

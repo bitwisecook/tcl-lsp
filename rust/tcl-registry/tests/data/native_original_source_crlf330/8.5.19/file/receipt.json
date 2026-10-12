@@ -1,0 +1,28 @@
+{
+  "provider": "8.5.19",
+  "command": [
+    "/workspace/.proofs/native-dictionary-path-publication319/8.5.19/probe.elf",
+    "-",
+    "/workspace/.proofs/native-original-source-crlf330/file-original.tcl",
+    "/workspace/.proofs/native-original-source-crlf330/query.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.002905933011788875,
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "ORIGINAL|0|2f524f4f542f6f6e650a74776f246c69746572616c",
+    "QUERY|0|3231207b34372038322037392037392038342034372031313120313130203130312031302031313620313139203131312033362031303820313035203131362031303120313134203937203130387d"
+  ],
+  "executable_sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+  "compile_receipt_path": "/workspace/.proofs/native-dictionary-path-publication319/8.5.19/compile.receipt.json",
+  "compile_receipt_sha256": "eaa023874916244268e4b7796984bc177b1d93951e86c2eb3c4d081184a7a91b",
+  "source_sha256": "9d082c283227f3f84cd20f4afb2431147a96d11b49bc3455a1c95b4ef81e0392",
+  "query_sha256": "a9a3fc012fd96b6ec29613ccb2fc7ec66178db2cad93df2d81bf4816d04b1060",
+  "payload_sha256": "a8fc26e138e238e2f9d3b52f49c4b80a40a57687b39fab4a229000db745da4df",
+  "stdout_sha256": "316f249012dfc17971f55d80cf5f9c04d456ba59d341d058864d50c2d336ab8a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "channel": "Exact original counted script via existing pinned full-init C Tcl_EvalEx flags0/Jim_EvalObj driver, fresh process; query independently evaluated after original; source is not surrounded by catch/puts/eval."
+}

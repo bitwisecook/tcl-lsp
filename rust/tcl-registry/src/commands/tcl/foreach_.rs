@@ -32,6 +32,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// Exact cardinality places the final body without reading iterator values.
+fn foreach_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
+    if count >= 3 {
+        u8::try_from(count - 1)
+            .map(|last| vec![(last, ArgRole::Body)])
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    }
+}
 /// `foreach varlist1 list1 ?varlist2 list2 ...? body`: binder groups — the
 /// stride and the excluded trailing body are `REPEATED`'s, which the group row
 /// cites — then the body per iteration. At least one whole group is needed,
@@ -62,6 +72,14 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Foreach,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Foreach,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("foreach"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
@@ -76,7 +94,10 @@ pub fn spec() -> CommandSpec {
         // tclsh 8.6.14: `foreach a $l1 b $l2 body extra` (6 args) fails
         // "wrong # args").
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
-        // The closed set of roles the grammar's walk emits.
+        representation_effect: Some(RepresentationEffect::CoerceOrdinaryListPairs {
+            variables_from: 0,
+        }),
+        arg_role_count_resolver: Some(foreach_count_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         clause_grammar: Some(&GRAMMAR),
         repeated_args: REPEATED,

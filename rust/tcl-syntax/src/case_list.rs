@@ -229,7 +229,21 @@ pub struct Clause {
 /// relative to it.
 #[must_use]
 pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
-    let elements = elements_of(inner);
+    split_case_list_with_syntax(inner, shape, tcl_dialect::ListParse::Strict)
+}
+
+/// The same clause geometry under the caller's independently selected list
+/// grammar. Returned source extents grant no matching or body execution.
+#[must_use]
+pub fn split_case_list_with_syntax(
+    inner: &str,
+    shape: &CaseListShape<'_>,
+    syntax: tcl_dialect::ListParse,
+) -> Vec<Clause> {
+    // Implementation contract: naming.source.original-editor-body-structure
+    // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+
+    let elements = elements_of(inner, syntax);
     let text = |e: &Element| inner.get(e.start..e.end).unwrap_or_default();
 
     let mut clauses = Vec::new();
@@ -284,11 +298,11 @@ pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
 }
 
 /// Every element of the list, in source order.
-fn elements_of(inner: &str) -> Vec<Element> {
+fn elements_of(inner: &str, syntax: tcl_dialect::ListParse) -> Vec<Element> {
     let bytes = inner.as_bytes();
     let mut out = Vec::new();
     let mut scan = 0usize;
-    while let Ok(Some(el)) = crate::list::find_element(inner, scan) {
+    while let Ok(Some(el)) = crate::list::find_element_with_syntax(inner, scan, syntax) {
         let braced = el.value.start > 0 && bytes.get(el.value.start - 1) == Some(&b'{');
         out.push(Element {
             start: if braced {
@@ -310,6 +324,23 @@ fn elements_of(inner: &str) -> Vec<Element> {
 #[cfg(test)]
 mod tests {
     use super::{CaseListShape, split_case_list};
+
+    #[test]
+    fn selected_clause_geometry_keeps_strict_and_lenient_body_extents_separate() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "x {puts x}tail";
+        let strict = split_case_list(source, &CaseListShape::default());
+        let lenient = super::split_case_list_with_syntax(
+            source,
+            &CaseListShape::default(),
+            tcl_dialect::ListParse::Lenient,
+        );
+        assert!(strict[0].body.is_none());
+        let body = lenient[0].body.unwrap();
+        assert!(body.braced);
+        assert_eq!(&source[body.content_range()], "puts x");
+    }
 
     const EXPECT: CaseListShape<'static> = CaseListShape {
         clause_flags: &[

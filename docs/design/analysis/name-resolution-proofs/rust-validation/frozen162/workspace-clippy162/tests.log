@@ -1,0 +1,166 @@
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bytecode)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error: unused import: `dispatch`
+  --> rust/tcl-compiler/src/analyser/diagnostics.rs:98:60
+   |
+98 | pub(super) use super::{class_hierarchy, confusables_table, dispatch, state, types, utils};
+   |                                                            ^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error: this function has too many lines (101/100)
+    --> rust/tcl-compiler/src/analyser/commands.rs:3549:5
+     |
+3549 | /     fn record_original_variable_receivers(
+3550 | |         &mut self,
+3551 | |         invocation_offset: u32,
+3552 | |         argument_tokens: &[Token],
+3553 | |         scope_path: &[usize],
+3554 | |     ) {
+     | |_____^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: redundant closure
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:1723:18
+     |
+1723 |             .map(|input| input.policy());
+     |                  ^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `crate::signature_scan::name_value::SignatureSourceNameInput::policy`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+     = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: large size difference between variants
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:403:1
+    |
+403 | /  enum AdviceCell {
+404 | |      Descriptor(String, Vec<Arc<OriginalSourceCommandTransition>>),
+405 | |      Declared(Arc<tcl_registry::model::DeclaredCommand>),
+406 | |      CreatedInterpreter(interpreter_handle::CreatedInterpreterSourceCell),
+    | |      -------------------------------------------------------------------- the largest variant contains at least 544 bytes
+407 | |/     Alias {
+408 | ||         target: Box<SourceAdviceNameInput>,
+409 | ||         prefix: Vec<SourceAdviceWord>,
+410 | ||         lookup: AliasTargetLookup,
+411 | ||         lineage: Vec<Arc<OriginalSourceCommandTransition>>,
+412 | ||     },
+    | ||_____- the second-largest variant contains at least 57 bytes
+413 | |      Shadowed,
+414 | |      Deleted,
+415 | |  }
+    | |__^ the entire enum is at least 544 bytes
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#large_enum_variant
+    = note: `-D clippy::large-enum-variant` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::large_enum_variant)]`
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+    |
+406 -     CreatedInterpreter(interpreter_handle::CreatedInterpreterSourceCell),
+406 +     CreatedInterpreter(Box<interpreter_handle::CreatedInterpreterSourceCell>),
+    |
+
+error: these match arms have identical bodies
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:951:13
+    |
+951 | /             StateTransition::Interpreter(
+952 | |                 tcl_registry::InterpreterTransition::Create {
+953 | |                     interpreter: Some(subject),
+954 | |                     ..
+...   |
+958 | |                 },
+959 | |             ) => subjects.push(subject.clone()),
+    | |_______________________________________________^
+960 | /             StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
+961 | |                 namespace: tcl_registry::NamespaceTransitionTarget::Named(subject),
+962 | |             }) => subjects.push(subject.clone()),
+    | |________________________________________________^
+    |
+    = help: if this is unintentional make the arms return different values
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#match_same_arms
+    = note: `-D clippy::match-same-arms` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::match_same_arms)]`
+help: otherwise merge the patterns into a single arm
+    |
+951 |             StateTransition::Interpreter(
+...
+958 |                 },
+959 ~             ) | StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
+960 +                 namespace: tcl_registry::NamespaceTransitionTarget::Named(subject),
+961 ~             }) => subjects.push(subject.clone()),
+962 ~             _ => {}
+    |
+
+error: this function has too many lines (101/100)
+   --> rust/tcl-compiler/src/command_binding/deferred_method.rs:917:1
+    |
+917 | / fn capture_definition_method_references(
+918 | |     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+919 | |     definition: &ExecutedScriptSource,
+920 | |     map: &tcl_lexer::SourceMap<'_>,
+...   |
+924 | |     context: SourceExecutionContext<'_>,
+925 | | ) -> Option<Vec<super::definition_method_references::SourceDefinitionMethodReferencePhase>> {
+    | |___________________________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: could not compile `tcl-compiler` (lib) due to 6 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: redundant closure
+    --> rust/tcl-compiler/src/command_binding/source_command_world.rs:2153:35
+     |
+2153 |                 inputs.iter().map(|input| input.bytes()).collect::<Vec<_>>(),
+     |                                   ^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `crate::signature_scan::name_value::SignatureSourceNameInput::bytes`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:1587:47
+     |
+1587 |                   .with_source_schema(&context, |schema| schema
+     |  _______________________________________________^
+1588 | |                     .authored_source_subcommand_diagnostic())
+     | |____________________________________________________________^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_subcommand_diagnostic`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2110:43
+     |
+2110 |             .with_source_schema(&context, |schema| schema.authored_source_argument_roles())
+     |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_argument_roles`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2149:47
+     |
+2149 |               call.with_source_schema(&context, |schema| schema
+     |  _______________________________________________^
+2150 | |                 .authored_source_rule_procedure_operand()),
+     | |_________________________________________________________^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_rule_procedure_operand`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2372:27
+     |
+2372 |                 .and_then(|dialect| dialect.source_file_grammar())
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::InvocationDialect::source_file_grammar`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: could not compile `tcl-compiler` (lib test) due to 11 previous errors

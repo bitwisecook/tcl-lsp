@@ -33,6 +33,14 @@ registry / `LexerConfig` dialect flags — `0o` / `0b` integer prefixes are 8.5+
 `{*}` expansion is 8.5+, and so on — never hardcoded to one version. Tcl 9.1 is
 a dialect-flag addition, not a bump of the reference standard.
 
+Native runtime comparisons must select their physical profile before the stock
+command and namespace allocations are created. Use `Interp::with_native_core`
+with the explicit profile and independently supplied `NativeBootstrapInputs`.
+`Interp::new` followed by a profile change is a change to an existing world;
+retiring a command with an unknown compiler attachment can withdraw its compiler
+epoch permanently. Re-pinning does not restore that currency. Keep profile-change and
+unknown-epoch refusal tests separate from fresh native constructor comparisons.
+
 ### 1. Time to first semantic tokens is paramount
 
 The single user-visible latency metric that matters is **time from
@@ -77,7 +85,7 @@ Consequences:
   Moving a large lex into `spawn_blocking` is the caller's decision, not baked
   into the lexer.
 - **Analysis passes are `async fn`** even when their bodies are CPU-bound, so
-  they compose with cancellation and can yield between phases. Long phases hit
+  they compose with cancellation and can yield between operations. Long operations hit
   `tokio::task::yield_now().await` at coarse checkpoints.
 - **Document-store updates use `tokio::sync` primitives.** No `std::sync::Mutex`
   held across an `.await`, no blocking read locks. Read-heavy paths clone an

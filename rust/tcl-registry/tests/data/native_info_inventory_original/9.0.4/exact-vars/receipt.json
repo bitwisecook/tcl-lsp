@@ -1,0 +1,17 @@
+{
+  "id": "exact-vars",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/9.0.4/probe",
+    "43"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "f53d332e1a83c9d8458be84cf18c3d46f4edafca438e5041878f5f690c130ddd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|5|392e302e34",
+    "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f2076617273203f7061747465726e3f22"
+  ],
+  "reported_version": "9.0.4"
+}

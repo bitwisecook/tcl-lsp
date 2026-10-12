@@ -1,0 +1,6 @@
+
+running 1 test
+test value_ops::original_increment::tests::original_increment_completion_keeps_prior_full_cause_and_stops_variable_publication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.59s
+

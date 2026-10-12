@@ -32,12 +32,10 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{
-    integer_conversion, try_dispatch_with_backend_int_width, IntWidth, IntegerConversion, NumValue,
-};
+use tcl_syntax::expr::mathfunc::{integer_conversion, IntegerConversion, NativeMathProtocol};
 use tcl_syntax::naming::qualifier_segments;
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `::tcl::mathfunc::*`.
@@ -45,19 +43,54 @@ pub fn install(interp: &mut Interp) {
     for name in crate::builtins::mathfunc_names() {
         let mut full = b"::tcl::mathfunc::".to_vec();
         full.extend_from_slice(name.as_bytes());
-        interp.register_builtin(&full, mathfunc);
+        interp.register_stock_builtin(&full, mathfunc);
     }
 }
 
 /// The shared implementation behind every `::tcl::mathfunc::NAME`. The function
-/// is `argv[0]`'s simple tail (so one builtin serves all names); operands are
+/// is the installed handler identity retained by native dispatch; operands are
 /// read off the tower as [`Num`] and dispatched.
 pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let name0 = obj_bytes(argv[0]);
-    let tail = qualifier_segments(&name0)
+    let Some(identity) = interp.active_native_builtin_identity() else {
+        return interp.set_error(b"math function implementation identity is unavailable");
+    };
+    mathfunc_identity(interp, argv, &identity)
+}
+
+/// Invoke an already proved installed fixed function, independently of Tcl command names.
+pub(crate) fn mathfunc_identity(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    identity: &[u8],
+) -> Code {
+    let operation = match crate::builtins::math_operation(interp) {
+        Ok(operation) => operation,
+        Err(error) => return interp.report_expr_error(error),
+    };
+    let result = mathfunc_original(interp, argv, identity, &operation);
+    match operation.check() {
+        Ok(()) => result,
+        Err(error) => interp.report_expr_error(error),
+    }
+}
+
+fn mathfunc_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    identity: &[u8],
+    operation: &crate::expr::MathOperation,
+) -> Code {
+    let Some(&original_head) = argv.first() else {
+        return interp.set_error(b"missing math function command head");
+    };
+    let name0 = match operation.string(original_head) {
+        Ok(name) => name,
+        Err(error) => return interp.report_expr_error(error),
+    };
+    let tail = qualifier_segments(identity)
         .last()
         .copied()
-        .unwrap_or(&name0[..]);
+        .unwrap_or(identity);
     let Ok(fname) = core::str::from_utf8(tail) else {
         return interp.set_error(b"unknown math function");
     };
@@ -104,24 +137,35 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Code::Ok;
         }
         "srand" => {
-            // The seed is the operand's low 64 bits (C's
-            // `TclGetWideBitsFromObj`), which takes an **integer** of any
-            // width and refuses a double rather than truncating it — tclsh
-            // 8.6.16: `expected integer but got "1.5"`, `-errorcode TCL VALUE
-            // INTEGER` (`TCL VALUE NUMBER` when the operand is not a number
-            // at all). The VM uses the identical wording.
-            if !crate::bignum::is_integer(argv[1]) {
-                let mut m = b"expected integer but got \"".to_vec();
-                m.extend_from_slice(&obj_bytes(argv[1]));
-                m.push(b'"');
-                let code: &[u8] = if crate::bignum::is_numeric(argv[1]) {
+            let number = match operation.number(argv[1]) {
+                Ok(number) => number,
+                Err(error) => return interp.report_expr_error(error),
+            };
+            let numeric = number.is_some();
+            let Some(number) = number.filter(|number| {
+                matches!(
+                    number,
+                    tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+                )
+            }) else {
+                let original = match operation.string(argv[1]) {
+                    Ok(original) => original,
+                    Err(error) => return interp.report_expr_error(error),
+                };
+                let mut message = b"expected integer but got \"".to_vec();
+                message.extend_from_slice(&original);
+                message.push(b'"');
+                let code: &[u8] = if numeric {
                     b"TCL VALUE INTEGER"
                 } else {
                     b"TCL VALUE NUMBER"
                 };
-                return interp.error_with_code(&m, code);
-            }
-            let seed = crate::bignum::truncate_to_wide(argv[1]);
+                return interp.error_with_code(&message, code);
+            };
+            let seed = match operation.integer_window(number) {
+                Ok(seed) => seed,
+                Err(error) => return interp.report_expr_error(error),
+            };
             interp.set_result(obj::new_double_obj(interp.srand(seed)));
             return Code::Ok;
         }
@@ -131,53 +175,53 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Which width `int()` uses is the shared owner's release axis: Tcl 9.0
     // binds `int` to the same unbounded `ExprIntFunc` as `entier`, 8.4-8.6
     // keep its 64-bit window.
-    let int_width = IntWidth::for_tcl_version(interp.runtime_version());
-
-    // `wide`/`int`/`entier` on an *integer* operand work on the object directly
-    // rather than through the shared dispatch, so the result keeps the operand's
-    // own string rep (tclsh: `::tcl::mathfunc::entier 0x10` is `0x10`, not
-    // `16`). A *float* operand falls through to the shared dispatch, which has
-    // its own exact bignum path.
-    //
-    // Which of the three preserves and which windows is the shared owner's
-    // call, not this consumer's: `integer_conversion` carries the release
-    // axis, and `tcl-vm`'s `cmd_math` reads the same function, so the two
-    // engines cannot drift apart.
-    let conversion = integer_conversion(&lname, int_width);
-    if let Some(conversion) = conversion.filter(|_| crate::bignum::is_integer(argv[1])) {
-        if conversion == IntegerConversion::Window {
-            interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
-                argv[1],
-            )));
-        } else {
-            interp.set_result(argv[1]); // integer is its own int/entier
+    let dialect = operation.dialect();
+    let int_width = crate::expr::int_width_for_dialect(dialect);
+    let conversion = (tcl_registry::mathfunc::native_math_protocol(dialect)
+        == Some(NativeMathProtocol::Tcl))
+    .then(|| integer_conversion(&lname, int_width))
+    .flatten();
+    let result = if let Some(conversion) = conversion {
+        let number = match operation.number(argv[1]) {
+            Ok(Some(number)) => number,
+            Ok(None) => {
+                return interp.set_error(b"argument to math function didn't have numeric value")
+            }
+            Err(error) => return interp.report_expr_error(error),
+        };
+        if matches!(
+            number,
+            tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+        ) {
+            if conversion == IntegerConversion::Window {
+                let integer = match operation.integer_window(number) {
+                    Ok(integer) => integer,
+                    Err(error) => return interp.report_expr_error(error),
+                };
+                interp.set_result(obj::new_wide_int_obj(integer));
+            } else {
+                // This actual integer-forward purpose retains the original
+                // header and resident spelling independently of the kernel.
+                interp.set_result(argv[1]);
+            }
+            return Code::Ok;
         }
-        return Code::Ok;
-    }
-
-    // Operands → Num (object-preserving: a bignum/double keeps its rep).
-    let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = argv[1..]
-        .iter()
-        .map(|&o| crate::bignum::as_math_num(o))
-        .collect();
-    let Some(nums) = nums else {
-        return interp.set_error(b"argument to math function didn't have numeric value");
+        operation.dispatch_numbers(&lname, vec![number], &argv[1..])
+    } else {
+        let operands = argv[1..]
+            .iter()
+            .map(|&value| crate::obj::Owned::retain(value))
+            .collect::<Vec<_>>();
+        let result = operation.dispatch(&lname, &operands);
+        drop(operands);
+        operation.after(result)
     };
-
-    // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    // The shared dispatch's *typed* refusals: C reports an infinity in
-    // an integer conversion as `ARITH IOVERFLOW`, a NaN operand as `TCL VALUE
-    // DOUBLE NAN`, and only a genuine out-of-range argument as `ARITH DOMAIN` —
-    // rather than the generic domain error for all three.
-    match try_dispatch_with_backend_int_width(&lname, &nums, int_width) {
-        Ok(num) => {
-            interp.set_result(crate::bignum::math_num_to_obj(num));
+    match result {
+        Ok(value) => {
+            interp.set_result(value.as_ptr());
             Code::Ok
         }
-        Err(e) => {
-            let err = crate::expr::math_func_err(e);
-            interp.error_with_code(&err.msg, err.code.as_deref().unwrap_or(b""))
-        }
+        Err(error) => interp.report_expr_error(error),
     }
 }
 
@@ -227,6 +271,19 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn renamed_and_aliased_builtin_retains_installed_function_identity() {
+        leak_free(|interp| {
+            assert_eq!(interp.eval_str(b"rename ::tcl::mathfunc::abs savedAbs; interp alias {} ::tcl::mathfunc::abs {} savedAbs; list [savedAbs -3] [expr {abs(-7)}]"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"3 7");
+            assert_eq!(
+                interp.eval_str(b"rename ::tcl::mathfunc::sqrt {}; rename savedAbs ::tcl::mathfunc::sqrt; expr {sqrt(-4)}"),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"4");
+        });
     }
 
     #[test]
@@ -286,10 +343,10 @@ mod tests {
                 i.result_bytes(),
                 b"invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
             );
-            assert_eq!(
-                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
-                Some(b"TCL PARSE EXPR BAREWORD".to_vec())
-            );
+            // A public read reaches the native error-global Read observer;
+            // the private cell accessor does not materialise that receiver.
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"TCL PARSE EXPR BAREWORD");
 
             // FN: the 9.0 builtin is no longer supplied by the 8.6 surface.
             assert_eq!(i.eval_str(b"expr {isfinite(1.0)}"), Code::Error);
@@ -297,11 +354,12 @@ mod tests {
                 i.result_bytes(),
                 b"invalid command name \"tcl::mathfunc::isfinite\""
             );
-            // The outermost eval publishes the error state to the Tcl global
-            // before resetting its transient accumulator.
+            // A public Read observer materialises this error episode, including
+            // replacement of the prior receiver's cached error code.
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
             assert_eq!(
-                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
-                Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".to_vec())
+                i.result_bytes(),
+                b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite"
             );
 
             // TP: older builtins retain their registry-backed handler.

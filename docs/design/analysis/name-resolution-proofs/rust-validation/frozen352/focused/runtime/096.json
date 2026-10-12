@@ -1,0 +1,22 @@
+{
+  "ordinal": 96,
+  "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 101,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 5.019843254995067,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.97s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/096.log",
+  "log_sha256": "5474aad1dfa558b1394dfcb9265df2e5d027cd7ba2fb1e4c879eeea99cb3906a"
+}

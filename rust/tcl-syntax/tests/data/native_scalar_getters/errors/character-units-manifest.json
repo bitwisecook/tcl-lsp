@@ -1,0 +1,47 @@
+[
+  {
+    "version": "8.4.20",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "binary_sha256": "c687ffcada782d2ca85ec61f922129773c9c263f846eedba3d74eb0a936da204",
+    "output_sha256": "6a83ceeff99204e5605dc0967f54d04993c1be4681155f0609bb63aa813d79b0",
+    "rows": 14,
+    "exit": 0
+  },
+  {
+    "version": "8.5.19",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "binary_sha256": "555da224d66004868ca3e3c95cf12e9af794f8726fa52301dc9d3e0985008adb",
+    "output_sha256": "6a83ceeff99204e5605dc0967f54d04993c1be4681155f0609bb63aa813d79b0",
+    "rows": 14,
+    "exit": 0
+  },
+  {
+    "version": "8.6.18",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "binary_sha256": "acc9768e9bb101b5a99e7738d42d2b374505ff2cc222a8cc2a2e896d143ef69c",
+    "output_sha256": "6bc4c59684366dfe6aa32bc792d1804c445cb277c7f9679ba8e615fd3cd7cbdd",
+    "rows": 14,
+    "exit": 0
+  },
+  {
+    "version": "9.0.4",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "binary_sha256": "b10513118f673c9ca9c855b005e22367f1d4c211d5371058992c76f404f1e6d6",
+    "output_sha256": "2294bb7ac85826ef3c0d81720847c8d5545a2b54750249e97209492d26ddf307",
+    "rows": 14,
+    "exit": 0
+  },
+  {
+    "version": "9.1.0",
+    "source_sha256": "c6ac9da843f7f584a9f324879eba8c5070c1546ff9b10956bdfa7cbeb4a414cd",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "binary_sha256": "031b08c9fec2cef84f570f5569bec6b1719bd09345d8a3c98800ee4f0d58af36",
+    "output_sha256": "2294bb7ac85826ef3c0d81720847c8d5545a2b54750249e97209492d26ddf307",
+    "rows": 14,
+    "exit": 0
+  }
+]

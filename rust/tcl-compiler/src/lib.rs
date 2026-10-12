@@ -81,6 +81,7 @@
 #![deny(missing_docs)]
 
 pub mod alias;
+pub mod allocated_instance;
 pub mod analyser;
 pub mod analyses;
 pub mod auto_path_eval;
@@ -103,12 +104,16 @@ pub mod dead_stores;
 pub mod def_use;
 mod deferred_writes;
 mod depth_guard;
+pub mod dictionary_bindings;
 pub mod dispatch_proof;
+pub mod durable_inventory;
 pub mod dynamic_names;
 pub mod effect_ssa;
 pub(crate) mod environment_ingress;
 pub mod executable_ir;
+pub mod execution_region;
 mod existence_query;
+pub mod expression_rewrite;
 // The `expr` AST and Pratt parser live in the shared `tcl-syntax` crate,
 // consumed by both the compiler and the runtime port. Re-exported here so
 // `crate::expr_ast` / `crate::expr_parser` resolve for in-crate consumers and
@@ -116,6 +121,7 @@ mod existence_query;
 pub use tcl_syntax::expr::ast as expr_ast;
 pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
+mod increment_rewrite;
 pub mod inline_uplevel;
 pub mod inlining;
 pub mod interprocedural;
@@ -131,19 +137,32 @@ pub use lattice_rebase::rebase_script;
 pub mod loops;
 pub mod lowering;
 pub mod lowering_hooks;
+pub mod math_function_binding;
 pub mod memory_ssa;
 pub mod mixed_region_plan;
+mod native_byte_compilation;
+pub mod native_compilation_admission;
 pub mod native_integer_proof;
 pub mod native_lowering;
+pub mod native_numeric;
 pub mod object_types;
+#[cfg(test)]
+pub(crate) mod provider_fixtures;
 // Name normalisation lives in the shared `tcl-syntax` crate; re-exported so
 // `crate::naming::*` resolves across the compiler.
 pub use tcl_syntax::naming;
+mod array_destruction;
+pub mod captured_cell;
+pub mod cell_state_ssa;
+mod contents_source;
+pub mod literal_contents;
 pub mod optimiser;
 pub mod parsing;
 pub mod path_concat;
 pub mod place;
 pub mod place_bridge;
+pub mod raw_binding;
+pub(crate) mod read_schedule;
 pub mod regex_source;
 pub mod registry_invocation;
 pub mod rendered_properties;
@@ -160,11 +179,13 @@ pub mod side_effects;
 pub mod signature_scan;
 pub mod site_claims;
 pub mod slot_allocation;
+pub mod source_graph;
 pub mod specialise_factories;
 pub mod ssa;
 pub mod state_ssa;
 pub mod static_loops;
 pub mod subst_nocommands;
+mod table_value_provenance;
 pub mod taint;
 pub mod taint_interproc;
 pub mod target_contract;
@@ -182,6 +203,7 @@ pub mod var_observability;
 pub mod var_refs;
 pub mod var_resolve;
 pub mod var_scoping;
+pub mod variable_bindings;
 pub mod word_expr;
 pub mod word_subst;
 pub mod world_state_ssa;

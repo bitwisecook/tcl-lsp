@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-O0",
+    "-DJIM_PROBE",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "-M",
+    "/tmp/native-active-command-retirement671/probe.c"
+  ],
+  "cwd": "/tmp/native-active-command-retirement671/jim",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "exit": 0,
+  "seconds": 0.058836885960772634,
+  "stdout": "/tmp/native-active-command-retirement671/jim/headers.stdout",
+  "stdout_sha256": "f31a2303a53c3611d6b7eb4443ec54d83978ba68bdd825ddcac1e038fb16efb6",
+  "stderr": "/tmp/native-active-command-retirement671/jim/headers.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

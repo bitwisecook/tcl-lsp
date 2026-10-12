@@ -1,0 +1,158 @@
+[
+  {
+    "provider": "8.4.20",
+    "input_channel": "ASCII file bytes passed to shell stdin",
+    "source_sha256": "285a98b19dbea8bf2dc322c166cbe6f7f2bd65fd37c327c5cdd9c92387b562c5",
+    "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "source_owner_sha256": "9165a6e94c18e7af7677bcb7071f89051bbdd46a3295017ddb7ee841d66920ca",
+    "makefile_sha256": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "process_exit": 0,
+    "stdout_sha256": "c14cc5b4c67a8b01fb0c248393981512bcf26b89fa82bf247b3eab842fcae631",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reported_version": "8.4.20",
+    "rows": [
+      "VERSION|8.4.20",
+      "CASE|EMPTY_LEXICAL|0|56414c5545",
+      "CASE|EMPTY_BRACED|0|56414c5545",
+      "CASE|EMPTY_SCALAR|1|63616e277420726561642022223a207661726961626c65206973206172726179",
+      "CASE|EMPTY_LITERAL|0|24286b29",
+      "CASE|NAMED_INDEX|0|4152524159"
+    ]
+  },
+  {
+    "provider": "8.5.19",
+    "input_channel": "ASCII file bytes passed to shell stdin",
+    "source_sha256": "285a98b19dbea8bf2dc322c166cbe6f7f2bd65fd37c327c5cdd9c92387b562c5",
+    "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+    "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "source_owner_sha256": "4855b382f7acc6e02e53383f667169a6a9d348a30b44c586c8622e97f34a3a8c",
+    "makefile_sha256": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "process_exit": 0,
+    "stdout_sha256": "12e84c7eb4fe19b16d7624b6280a3e004378626ade282530746c217edb93fa60",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reported_version": "8.5.19",
+    "rows": [
+      "VERSION|8.5.19",
+      "CASE|EMPTY_LEXICAL|0|56414c5545",
+      "CASE|EMPTY_BRACED|0|56414c5545",
+      "CASE|EMPTY_SCALAR|1|63616e277420726561642022223a207661726961626c65206973206172726179",
+      "CASE|EMPTY_LITERAL|0|24286b29",
+      "CASE|NAMED_INDEX|0|4152524159"
+    ]
+  },
+  {
+    "provider": "8.6.18",
+    "input_channel": "ASCII file bytes passed to shell stdin",
+    "source_sha256": "285a98b19dbea8bf2dc322c166cbe6f7f2bd65fd37c327c5cdd9c92387b562c5",
+    "executable_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+    "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "source_owner_sha256": "bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6",
+    "makefile_sha256": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "process_exit": 0,
+    "stdout_sha256": "c65dfedaf5900e78d35cb0d826b0774aac31e45e41fd7d7e499d006e279ae946",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reported_version": "8.6.18",
+    "rows": [
+      "VERSION|8.6.18",
+      "CASE|EMPTY_LEXICAL|0|56414c5545",
+      "CASE|EMPTY_BRACED|0|56414c5545",
+      "CASE|EMPTY_SCALAR|1|63616e277420726561642022223a207661726961626c65206973206172726179",
+      "CASE|EMPTY_LITERAL|0|24286b29",
+      "CASE|NAMED_INDEX|0|4152524159"
+    ]
+  },
+  {
+    "provider": "9.0.4",
+    "input_channel": "ASCII file bytes passed to shell stdin",
+    "source_sha256": "285a98b19dbea8bf2dc322c166cbe6f7f2bd65fd37c327c5cdd9c92387b562c5",
+    "executable_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+    "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "source_owner_sha256": "5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0",
+    "makefile_sha256": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "process_exit": 0,
+    "stdout_sha256": "bbb1c8d590cbc5072ae6c0025cb24d1c3dea5599c63e420f00e7a802e9e41096",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reported_version": "9.0.4",
+    "rows": [
+      "VERSION|9.0.4",
+      "CASE|EMPTY_LEXICAL|0|56414c5545",
+      "CASE|EMPTY_BRACED|0|56414c5545",
+      "CASE|EMPTY_SCALAR|1|63616e277420726561642022223a207661726961626c65206973206172726179",
+      "CASE|EMPTY_LITERAL|0|24286b29",
+      "CASE|NAMED_INDEX|0|4152524159"
+    ]
+  },
+  {
+    "provider": "9.1.0",
+    "input_channel": "ASCII file bytes passed to shell stdin",
+    "source_sha256": "285a98b19dbea8bf2dc322c166cbe6f7f2bd65fd37c327c5cdd9c92387b562c5",
+    "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+    "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "source_owner_sha256": "914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f",
+    "makefile_sha256": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "process_exit": 0,
+    "stdout_sha256": "10be8e237916587e5a14a980892375da05e40c0aa142fd0034a2b24c8cf5a7b4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reported_version": "9.1.0",
+    "rows": [
+      "VERSION|9.1.0",
+      "CASE|EMPTY_LEXICAL|0|56414c5545",
+      "CASE|EMPTY_BRACED|0|56414c5545",
+      "CASE|EMPTY_SCALAR|1|63616e277420726561642022223a207661726961626c65206973206172726179",
+      "CASE|EMPTY_LITERAL|0|24286b29",
+      "CASE|NAMED_INDEX|0|4152524159"
+    ]
+  },
+  {
+    "provider": "jim",
+    "input_channel": "ASCII file bytes passed to shell stdin",
+    "source_sha256": "285a98b19dbea8bf2dc322c166cbe6f7f2bd65fd37c327c5cdd9c92387b562c5",
+    "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "source_owner_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh"
+    ],
+    "TCL_LIBRARY": null,
+    "process_exit": 0,
+    "stdout_sha256": "f7b8fd568a648c7b693cfdd387ed696708b4f39628a1dd30baf7470885a6c46c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reported_version": "0.84-9-g5bac7c9",
+    "rows": [
+      "VERSION|0.84-9-g5bac7c9",
+      "CASE|EMPTY_LEXICAL|1|73796e746178206572726f7220696e2065787072657373696f6e3a2022286b2922",
+      "CASE|EMPTY_BRACED|0|56414c5545",
+      "CASE|EMPTY_SCALAR|0|6b2056414c5545",
+      "CASE|EMPTY_LITERAL|0|24286b29",
+      "CASE|NAMED_INDEX|0|4152524159"
+    ]
+  }
+]

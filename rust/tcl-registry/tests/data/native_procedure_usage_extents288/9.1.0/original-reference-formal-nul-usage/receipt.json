@@ -1,0 +1,41 @@
+{
+  "provider": "9.1.0",
+  "command": [
+    "/workspace/.proofs/native-procedure-usage-extents288-capture/9.1.0/probe.elf",
+    "-",
+    "/workspace/.proofs/native-procedure-usage-extents288-capture/original-reference-formal-nul-usage.tcl",
+    "-"
+  ],
+  "exit": 0,
+  "seconds": 0.0030224609945435077,
+  "rows": [
+    "VERSION|0|392e312e30",
+    "ORIGINAL|0|313520372030207b7d2031207b77726f6e67202320617267733a2073686f756c64206265202272323238365f7265666572656e6365202661c0807461696c2062227d"
+  ],
+  "executable_sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+  "compile_receipt_sha256": "231c33960b8773874ac4b27c4377eaddb84a3f1672e926997537243c8535b7f2",
+  "source_sha256": {
+    "original": "b3e634d9b69125ff9d80e61ff9f7a8be4b54527103d63a1dba7a22e4e9873aaa"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+    "/workspace/.proofs/native-procedure-usage-extents288-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a"
+  },
+  "stdout_sha256": "7b932775135cfc85513bb61467c3df18f88ac2c0932f50b1242bbc7d4be51de2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "reported_cli_provider_version_association": "version 9.1.0 initial_class {} alias_command {}",
+  "provider_version_receipt_sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+  "channel": "External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only"
+}

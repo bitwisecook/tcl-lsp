@@ -1,0 +1,8 @@
+equal 0
+length 3
+listlength 2
+equalnocase 1
+llengthempty 1 {wrong # args: should be "llength list"}
+llengthextra 1 {wrong # args: should be "llength list"}
+lengthmissing 1 {wrong # args: should be "string length string"}
+equalmissing 1 {wrong # args: should be "string equal ?-nocase? ?-length int? string1 string2"}

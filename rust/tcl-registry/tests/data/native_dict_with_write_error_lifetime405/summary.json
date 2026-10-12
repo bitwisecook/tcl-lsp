@@ -1,0 +1,8 @@
+{
+  "id": "native-dictionary-with-lifetime405",
+  "request_sha256": "d1c0b7f06139c75df5a0b35ce14e909c26398f4ebd769a31a57c00f708cc0073",
+  "launcher_sha256": "84e419d0f705deb9aa3be5a055b68cedae0f70ecfb2ea6ac967bd43d2b8212a5",
+  "question": "For the exact original compiled-with-dict-write-error source from native329, does TclDictWithFinish select a newly allocated dictionary and reach final free after failed writeback while the Var still selects that header? Are later public bytes observed after that release?",
+  "scope": "Independent WithFinish selection/release purpose, not the update-end branch in native398/399. Unchanged original guest source/probe; separate observer source/archive. Observer samples actual pre-set refcount/allocdict and post-set pointer/flags without dereferencing a released header, holding it or changing Tcl ownership. Final-free events and later process exits/signals are retained. A post-free result/status is only a process observation, never defined storage or execution/effect authority.",
+  "setup_failures": []
+}

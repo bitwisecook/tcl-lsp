@@ -1,0 +1,328 @@
+[
+  {
+    "path": "rust/tcl-compiler/tests/data/native_activation_presence/manifest.json",
+    "source_hash_verified": true,
+    "provider_rows": 6,
+    "process_statuses": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "all_stdout_exact": true
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "provider": "8.4",
+    "source_hash_verified": true,
+    "derived_matrix_matches_full_markers": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "provider": "8.5",
+    "source_hash_verified": true,
+    "derived_matrix_matches_full_markers": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "provider": "8.6",
+    "source_hash_verified": true,
+    "derived_matrix_matches_full_markers": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "provider": "9.0",
+    "source_hash_verified": true,
+    "derived_matrix_matches_full_markers": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "provider": "9.1",
+    "source_hash_verified": true,
+    "derived_matrix_matches_full_markers": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_expanded_head/manifest.json",
+    "provider": "jim",
+    "source_hash_verified": true,
+    "derived_matrix_matches_full_markers": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "colon-home",
+    "provider": "tcl8.4",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "colon-home",
+    "provider": "tcl8.5",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "colon-home",
+    "provider": "tcl8.6",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "colon-home",
+    "provider": "tcl9.0",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "colon-home",
+    "provider": "tcl9.1",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "colon-home",
+    "provider": "jim",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-qualified-variable",
+    "provider": "tcl8.4",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-qualified-variable",
+    "provider": "tcl8.5",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-qualified-variable",
+    "provider": "tcl8.6",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-qualified-variable",
+    "provider": "tcl9.0",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-qualified-variable",
+    "provider": "tcl9.1",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-qualified-variable",
+    "provider": "jim",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "local-and-linked",
+    "provider": "tcl8.4",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "local-and-linked",
+    "provider": "tcl8.5",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "local-and-linked",
+    "provider": "tcl8.6",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "local-and-linked",
+    "provider": "tcl9.0",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "local-and-linked",
+    "provider": "tcl9.1",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "local-and-linked",
+    "provider": "jim",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-activation",
+    "provider": "tcl8.4",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-activation",
+    "provider": "tcl8.5",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-activation",
+    "provider": "tcl8.6",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-activation",
+    "provider": "tcl9.0",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-activation",
+    "provider": "tcl9.1",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "root-activation",
+    "provider": "jim",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "raw-qualified-key",
+    "provider": "tcl8.4",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "raw-qualified-key",
+    "provider": "tcl8.5",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "raw-qualified-key",
+    "provider": "tcl8.6",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "raw-qualified-key",
+    "provider": "tcl9.0",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "raw-qualified-key",
+    "provider": "tcl9.1",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  },
+  {
+    "path": "rust/tcl-compiler/tests/data/native_path_constant_scopes/manifest.json",
+    "case": "raw-qualified-key",
+    "provider": "jim",
+    "source_hash_verified": true,
+    "output_hash_verified": true,
+    "embedded_stdout_equal_file": true,
+    "process_status": 0
+  }
+]

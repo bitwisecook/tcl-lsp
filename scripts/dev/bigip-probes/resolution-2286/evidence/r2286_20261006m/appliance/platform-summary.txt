@@ -1,0 +1,6 @@
+Source: tmsh show sys hardware
+Platform name: BIG-IP Virtual Edition
+System type: Z100
+Hypervisor: Standard PC (Q35 + ICH9, 2009)
+CPU model: Intel(R) Core(TM) Ultra 7 265K
+CPU cores: 4 physical

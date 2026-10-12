@@ -41,6 +41,16 @@ use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
 use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
+mod original_value_facts;
+pub(crate) use original_value_facts::DiagnosticValueFacts;
+pub use original_value_facts::{
+    ExistenceFrame, ExistenceMetadataInputs, ExpressionAnalysis, ExpressionEvaluationPoint,
+    SemanticValueFacts, SemanticValueProjection, ValueFactInputs, evaluate_branch, evaluate_def,
+    evaluate_def_with_folds, execution_value_facts, existence_constant_branches,
+    existence_constant_branches_with_metadata_context, existence_constant_branches_with_ssa,
+    existence_constant_branches_with_ssa_with_metadata_context, semantic_value_facts,
+};
+
 // Public aliases
 
 /// Predecessor map: block → set of blocks that branch into it. Thin
@@ -288,6 +298,10 @@ impl SelectionRecord {
 /// constant-folded branch annotations for reachable blocks.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SccpResult {
+    /// Original native math dependencies, independent of numerical knowledge.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Actual expression entry preparations retained by producer proofs.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     /// Per-SSA-value lattice entry.
     pub values: HashMap<ValueKey, LatticeValue>,
     /// Blocks reachable from `cfg.entry` under current assumptions.
@@ -657,6 +671,8 @@ pub fn sccp(
 /// also gets the registry `const_fold` engine.
 #[derive(Clone, Copy)]
 pub struct BuiltinFoldInputs<'a> {
+    /// Actual supplied source availability; absent input cannot recreate it.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Command / subcommand specs — the fold callbacks live here. Carried
     /// here (as well as on [`TraceInputs`]) so the statement-evaluation
     /// helpers need only this one bundle.
@@ -713,6 +729,8 @@ pub enum FoldTrust {
 /// under the clippy `too_many_arguments` ceiling.
 #[derive(Clone, Copy)]
 pub struct TraceInputs<'a> {
+    /// Actual supplied source availability and lexer axes.
+    pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Resolves the variable-trace grammar for the intra-procedural
     /// [`crate::var_observability`] lattice `sccp` builds internally.
     pub registry: &'a CommandRegistry,
@@ -766,15 +784,27 @@ impl TraceInputs<'_> {
     }
 }
 
+/// Initial variable presence, independently of a place's external mutability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExistenceInitialState {
+    /// A genuine declared frame supplies its parameter and linked-state facts.
+    DeclaredFrame,
+    /// A conditional child may inherit earlier caller writes or destruction.
+    InheritedFrame,
+}
+
 /// What a function's frame binds on entry, for the existence rung
 /// (`docs/design/compiler/value-transfers.md` § *Existence*, the entry
 /// state): parameters bound as scalars; a `TclOO` method's instance
 /// variables and, in an iRules `when` handler, the connection's variables,
 /// linked to state another invocation may have bound; in the document's
 /// initial global frame the registry's special variables as startup binds
-/// them. Every other local enters unbound.
+/// them. Other locals in a declared frame enter unbound; an inherited frame
+/// supplies no incoming absence and starts may-bound.
 #[derive(Clone, Copy)]
 pub struct ExistenceEntry<'a> {
+    /// Whether ordinary places begin in a new declared or inherited frame.
+    pub initial_state: ExistenceInitialState,
     /// The formal parameter names: bound as scalars on entry.
     pub params: &'a [String],
     /// A `TclOO` method body's instance variables
@@ -1021,6 +1051,7 @@ impl<'a> SolveInputs<'a> {
     /// run reads of the module.
     fn driver(&self, trace: TraceInputs<'a>, escaping: &HashSet<String>) -> LatticeDriver<'a> {
         LatticeDriver::new(trace, self.folds, self.policy, escaping)
+            .with_cfg_metadata(&self.cfg.metadata_context)
             .in_module(&self.cfg.name, self.module)
     }
 }
@@ -1060,10 +1091,15 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     let preds = compute_predecessors(cfg);
     let mut values = seeded_values(ssa, param_constants);
 
-    let grammar = trace
-        .registry
-        .profile()
-        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
+    let grammar = trace.source_metadata_input.map_or_else(
+        || {
+            trace
+                .registry
+                .profile()
+                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
+        },
+        |input| input.unit_profile().grammar,
+    );
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
     let escaping = escaping_names(cfg, &trace, extra_escaping, inputs.module.owned);
@@ -1075,7 +1111,12 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     // What every branch edge's condition proves, in every domain, read
     // under the document's grammar.
     let config = trace.existence.map_or_else(
-        || crate::dynamic_names::lexer_config_for(trace.registry),
+        || {
+            trace.source_metadata_input.map_or_else(
+                || crate::dynamic_names::lexer_config_for(trace.registry),
+                crate::analyser::ResolvedAnalysisInput::lexer_config,
+            )
+        },
         |entry| entry.config,
     );
     let facts = branch_facts(cfg, (trace.registry, config, policy), &driver);
@@ -2134,18 +2175,13 @@ fn branch_facts(
     driver: &LatticeDriver<'_>,
 ) -> Vec<BranchFact> {
     let trusted = |head: &str| driver.trusted(head);
-    let reading = crate::tcl_expr_eval::ConditionReading {
-        registry,
-        config,
-        policy,
-        trusted: &trusted,
-    };
     let mut out = Vec::new();
     for (&block_id, block) in &cfg.blocks {
         let Some(Terminator::Branch {
             condition,
             true_target,
             false_target,
+            condition_base,
             ..
         }) = &block.terminator
         else {
@@ -2154,6 +2190,19 @@ fn branch_facts(
         if true_target == false_target {
             continue;
         }
+        let reading = crate::tcl_expr_eval::ConditionReading {
+            registry,
+            config,
+            policy,
+            trusted: &trusted,
+            existence: crate::existence_query::QueryReading::for_cfg(
+                cfg,
+                registry,
+                config,
+                cfg.source_tokens_at(block_id, usize::MAX),
+                *condition_base,
+            ),
+        };
         let facts = crate::tcl_expr_eval::condition_edge_facts(condition, reading);
         for (target, facts) in [
             (*true_target, facts.on_true),
@@ -2807,30 +2856,100 @@ fn query_only_places(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<String> {
-    let mut texts: Vec<String> = Vec::new();
-    for block in cfg.blocks.values() {
-        for statement in &block.statements {
+    let mut names = Vec::new();
+    for (&block_id, block) in &cfg.blocks {
+        for (index, statement) in block.statements.iter().enumerate() {
+            let parent = cfg.source_tokens_at(block_id, index);
             match statement {
-                Statement::AssignExpr { expr, .. } => {
-                    crate::ir_helpers::collect_expr_commands(expr, &mut texts);
+                Statement::AssignExpr {
+                    expr, expr_base, ..
+                } => {
+                    collect_query_names(
+                        expr,
+                        crate::existence_query::QueryReading::for_cfg(
+                            cfg, registry, config, parent, *expr_base,
+                        ),
+                        &mut names,
+                    );
                 }
-                Statement::AssignValue { value, .. } => texts.push(value.clone()),
+                Statement::AssignValue { value, .. } => {
+                    let reading = crate::existence_query::QueryReading::for_cfg(
+                        cfg, registry, config, parent, None,
+                    );
+                    if cfg.metadata_context.is_standalone() {
+                        names.extend(reading.in_text(value).map(|query| query.var));
+                    } else if let Some(calls) = parent
+                        .and_then(|parent| crate::word_subst::checked_lifted_calls(parent, config))
+                    {
+                        for call in calls {
+                            names.extend(
+                                call.tokens
+                                    .as_ref()
+                                    .or(call.words.as_ref())
+                                    .and_then(|tokens| reading.in_tokens(tokens))
+                                    .map(|query| query.var),
+                            );
+                        }
+                    }
+                }
                 _ => {}
             }
         }
-        if let Some(Terminator::Branch { condition, .. }) = &block.terminator {
-            crate::ir_helpers::collect_expr_commands(condition, &mut texts);
+        if let Some(Terminator::Branch {
+            condition,
+            condition_base,
+            ..
+        }) = &block.terminator
+        {
+            collect_query_names(
+                condition,
+                crate::existence_query::QueryReading::for_cfg(
+                    cfg,
+                    registry,
+                    config,
+                    cfg.source_tokens_at(block_id, usize::MAX),
+                    *condition_base,
+                ),
+                &mut names,
+            );
         }
     }
-    let mut places: Vec<String> = texts
+    let mut places: Vec<String> = names
         .iter()
-        .filter_map(|text| crate::existence_query::in_text(text, registry, config))
-        .map(|(name, _)| place_base(&name).to_owned())
+        .map(|name| place_base(name).to_owned())
         .filter(|place| ssa.var_symbol(place).is_none())
         .collect();
     places.sort_unstable();
     places.dedup();
     places
+}
+
+/// Keep command leaves attached to the same original expression site while
+/// walking its tree. The explicit stack avoids native recursion depth limits.
+fn collect_query_names(
+    expression: &ExprNode,
+    reading: crate::existence_query::QueryReading<'_>,
+    names: &mut Vec<String>,
+) {
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Command { .. } => {
+                names.extend(reading.in_expr(node).map(|query| query.var));
+            }
+            ExprNode::Binary { left, right, .. } => pending.extend([&**left, &**right]),
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.extend([&**condition, &**true_branch, &**false_branch]);
+            }
+            ExprNode::Call { args, .. } => pending.extend(args.iter()),
+            _ => {}
+        }
+    }
 }
 
 /// The fact a place named `name` enters an unaliased frame with: a
@@ -2844,6 +2963,9 @@ fn entry_fact(
     registry: &CommandRegistry,
     dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
 ) -> Existence {
+    if entry.initial_state == ExistenceInitialState::InheritedFrame {
+        return Existence::MayBound;
+    }
     let linked = |name: &str| linked_to_state(name, entry);
     let special = |name: &str| special_at_entry(name, entry, registry, dialect);
     let base = place_base(name);
@@ -2939,11 +3061,8 @@ fn statement_clobber(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
-    let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier(
-        statement,
-        registry,
-        &cfg.declared_frame_effects,
-        config,
+    let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier_for_cfg(
+        statement, cfg, registry, config,
     ));
     if matches!(
         statement,
@@ -2973,11 +3092,8 @@ fn terminator_clobber(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
-    let mut clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier(
-        terminator,
-        registry,
-        &cfg.declared_frame_effects,
-        config,
+    let mut clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier_for_cfg(
+        terminator, cfg, registry, config,
     ));
     let mut touch = BodyTouch::default();
     match terminator {
@@ -2990,7 +3106,9 @@ fn terminator_clobber(
                 touch.expr(expr, registry, config, 0);
             }
         }
-        Terminator::Goto { .. } => {}
+        // Complete records an already observed invocation in this block;
+        // its operands and effects are accounted for by the original statement.
+        Terminator::Goto { .. } | Terminator::Complete { .. } => {}
     }
     clobber.all |= touch.all;
     clobber.touched = touched_symbols(&touch.names, ssa);
@@ -4112,18 +4230,20 @@ fn sccp_process_terminator(
             true_target,
             false_target,
             span,
+            condition_base,
             ..
         } => {
             let Some(ssa_block) = ssa.blocks.get(&bn) else {
                 return changed;
             };
             driver.explaining(*span);
-            let decision = evaluate_branch(
+            let decision = evaluate_branch_under(
                 ssa_block,
                 condition,
                 values,
                 ssa,
                 BranchFold { grammar, driver },
+                cfg.source_tokens_at(bn, usize::MAX).zip(*condition_base),
             );
             driver.explaining(None);
             let targets: Vec<BlockId> = match decision {
@@ -4154,7 +4274,9 @@ fn sccp_process_terminator(
                 }
             }
         }
-        Terminator::Return { .. } => {}
+        // Observed completion has no normal successor and performs no second
+        // operand evaluation. Original block exception edges remain below.
+        Terminator::Return { .. } | Terminator::Complete { .. } => {}
     }
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).
@@ -4201,6 +4323,7 @@ fn collect_constant_branches(
             true_target,
             false_target,
             span: term_span,
+            condition_base,
             ..
         }) = &block.terminator
         else {
@@ -4215,7 +4338,14 @@ fn collect_constant_branches(
             fold.driver.existence_enter(exit.clone());
         }
         let narrowed = narrowing.narrow(values, *bn);
-        let decision = evaluate_branch(ssa_block, condition, values, ssa, fold);
+        let decision = evaluate_branch_under(
+            ssa_block,
+            condition,
+            values,
+            ssa,
+            fold,
+            cfg.source_tokens_at(*bn, usize::MAX).zip(*condition_base),
+        );
         restore_values(values, narrowed);
         fold.driver.existence_leave();
         fold.driver.explaining(None);
@@ -4343,15 +4473,6 @@ fn record_condition_preserves(
 /// rather than a user `proc` of that name. A caller with the fact uses
 /// [`evaluate_def_with_folds`]; a run over a unit's own registry goes
 /// through [`sccp_with_builtin_folds`].
-#[must_use]
-pub fn evaluate_def<S: std::hash::BuildHasher>(
-    stmt_ssa: &SsaStatement,
-    values: &HashMap<ValueKey, LatticeValue, S>,
-    ssa: &SsaFunction,
-    policy: FoldPolicy,
-) -> LatticeValue {
-    evaluate_def_with_folds(stmt_ssa, values, ssa, policy, None)
-}
 
 /// [`evaluate_def`] with an optional registry builtin-fold context: when
 /// `folds` is supplied, an `AssignValue` command-substitution RHS
@@ -4362,17 +4483,6 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
 /// A statement that defines several variables (`regexp … a b`) answers
 /// for the first one its command names; the solver itself reads every
 /// definition's own value.
-#[must_use]
-pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
-    stmt_ssa: &SsaStatement,
-    values: &HashMap<ValueKey, LatticeValue, S>,
-    ssa: &SsaFunction,
-    policy: FoldPolicy,
-    folds: Option<BuiltinFoldInputs<'_>>,
-) -> LatticeValue {
-    let driver = LatticeDriver::detached(folds, policy);
-    evaluate_defs_under(stmt_ssa, values, ssa, &driver).primary(stmt_ssa, ssa)
-}
 
 /// What one statement's evaluation leaves in its definitions: the one
 /// value a typed statement computes, which every definition takes, or a
@@ -4464,25 +4574,6 @@ impl DefValues {
                 .map_or(ExistenceStep::UNKNOWN, |answer| answer.existence),
         }
     }
-
-    /// The value of the statement's first named definition: the only one,
-    /// or the first variable a call's command names.
-    fn primary(&self, stmt_ssa: &SsaStatement, ssa: &SsaFunction) -> LatticeValue {
-        let key = if stmt_ssa.defs.len() == 1 {
-            stmt_ssa.defs.iter().next().map(|(&sym, &ver)| (sym, ver))
-        } else if let Statement::Call { defs, .. } = &stmt_ssa.statement {
-            defs.first()
-                .and_then(|name| ssa.var_symbol(crate::naming::normalise_var_name(name)))
-                .and_then(|sym| stmt_ssa.defs.get(&sym).map(|&ver| (sym, ver)))
-        } else {
-            None
-        };
-        match (self, key) {
-            (Self::Each(value, _), _) => value.clone(),
-            (Self::PerDef(_) | Self::Raised(_), Some(key)) => self.of(key),
-            (Self::PerDef(_) | Self::Raised(_), None) => LatticeValue::Overdefined,
-        }
-    }
 }
 
 /// [`evaluate_def_with_folds`] under one run's driver, for every
@@ -4547,11 +4638,14 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         Statement::AssignExpr {
             expr,
             command_binding,
+            expr_base,
             ..
         } => {
+            let original = driver.original_expression_parent(&stmt_ssa.statement);
             return driver.evaluate_assign_expr(
                 expr,
                 command_binding.as_ref(),
+                original.as_ref().zip(*expr_base),
                 &stmt_ssa.uses,
                 values,
                 ssa,
@@ -4560,9 +4654,18 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         Statement::ExprEval {
             expr,
             command_binding,
+            expr_base,
             ..
         } => {
-            return driver.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa);
+            let original = driver.original_expression_parent(&stmt_ssa.statement);
+            return driver.evaluate_expr_eval(
+                expr,
+                command_binding,
+                original.as_ref().zip(*expr_base),
+                &stmt_ssa.uses,
+                values,
+                ssa,
+            );
         }
         Statement::Call { .. } => {
             return driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses);
@@ -4649,27 +4752,33 @@ pub(crate) struct BranchFold<'a> {
 /// operand reads a variable only as [`with_whole_variable_operands`] proves
 /// it; any other `Raw` text leaves the condition undecided.
 #[must_use]
-pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
+pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
     fold: BranchFold<'_>,
+    original: Option<(&crate::ir::CommandTokens, u32)>,
 ) -> Option<bool> {
     let mut uses: HashMap<Symbol, crate::ssa::Version> = ssa_block
         .exit_versions
         .iter()
         .map(|(&sym, &ver)| (sym, ver))
         .collect();
-    let config = tcl_lexer::LexerConfig::from_grammar(fold.grammar);
+    let config = fold.driver.source_lexer_config();
     for name in condition.vars_element_qualified_with_config(config) {
         if let Some(sym) = ssa.var_symbol(&name) {
             uses.entry(sym).or_insert(0);
         }
     }
     let resolved = with_whole_variable_operands(condition, fold.grammar.braced_var);
-    fold.driver
-        .evaluate_condition(resolved.as_ref().unwrap_or(condition), &uses, values, ssa)
+    fold.driver.evaluate_condition(
+        resolved.as_ref().unwrap_or(condition),
+        original,
+        &uses,
+        values,
+        ssa,
+    )
 }
 
 /// `condition` with every `Raw` *operand* the variable-name owner proves is
@@ -4958,6 +5067,7 @@ mod tests {
             ssa,
             policy,
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 mutations: &crate::command_binding::ModuleCommandMutations::default(),
                 dialect: None,
@@ -4983,6 +5093,7 @@ mod tests {
             param_constants,
             policy,
             TraceInputs {
+                source_metadata_input: None,
                 registry: &registry(),
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -5006,6 +5117,7 @@ mod tests {
             policy,
             &HashSet::new(),
             TraceInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
@@ -5014,6 +5126,7 @@ mod tests {
                 existence: None,
             },
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 mutations: &crate::command_binding::ModuleCommandMutations::default(),
                 dialect: None,
@@ -5151,6 +5264,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let p = compute_predecessors(&f);
@@ -5173,6 +5288,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let order = cfg_order(&f);
@@ -5862,6 +5979,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -5946,6 +6064,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -6048,6 +6167,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let mut ssa = make_ssa(&f, vec![]);
@@ -6076,6 +6197,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6083,6 +6206,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6109,6 +6234,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6116,6 +6243,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6144,6 +6273,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6151,6 +6282,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6214,6 +6347,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6271,6 +6405,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6316,6 +6451,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6441,6 +6577,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6593,6 +6730,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6604,6 +6742,7 @@ mod tests {
             OnceLock::new();
         let environment = tcl_registry::model::ingress::resolve_environment(dialect);
         BuiltinFoldInputs {
+            source_metadata_input: None,
             registry: tcl_registry::model::ingress::static_context_for(dialect).commands(),
             mutations: MUTATIONS.get_or_init(Default::default),
             dialect: Some(environment.analyser_profile()),
@@ -6714,6 +6853,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -7064,6 +7204,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -7285,6 +7426,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -7377,6 +7519,7 @@ mod tests {
             ssa,
             FoldPolicy::default(),
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry,
                 mutations,
                 dialect: None,
@@ -7452,6 +7595,7 @@ mod tests {
             ssa,
             FoldPolicy::default(),
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry,
                 mutations,
                 dialect: None,
@@ -7807,6 +7951,8 @@ p
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
@@ -7814,6 +7960,8 @@ p
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let order = cfg_order(&f);

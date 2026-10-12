@@ -1,0 +1,81 @@
+    }
+    /* (ct - cmds) is the index into the table */
+    int option = ct - cmds;
+
+    switch (option) {
+        case INFO_EXISTS:
+            Jim_SetResultBool(interp, Jim_GetVariable(interp, argv[2], 0) != NULL);
+            return JIM_OK;
+
+        case INFO_ALIAS:{
+            Jim_Cmd *cmdPtr;
+
+            if ((cmdPtr = Jim_GetCommand(interp, argv[2], JIM_ERRMSG)) == NULL) {
+                return JIM_ERR;
+            }
+            if ((cmdPtr->flags & JIM_CMD_ISALIAS) == 0) {
+                Jim_SetResultFormatted(interp, "command \"%#s\" is not an alias", argv[2]);
+                return JIM_ERR;
+            }
+            Jim_SetResult(interp, (Jim_Obj *)cmdPtr->u.native.privData);
+            return JIM_OK;
+        }
+
+        case INFO_TAINTED:
+            if (argc != 3) {
+                Jim_WrongNumArgs(interp, 2, argv, "value");
+                return JIM_ERR;
+            }
+            Jim_SetResultBool(interp, argv[2]->taint != 0);
+            return JIM_OK;
+        case INFO_CHANNELS:
+            mode <<= 1;             /* JIM_CMDLIST_CHANNELS */
+#ifndef jim_ext_aio
+            Jim_SetResultString(interp, "aio not enabled", -1);
+            return JIM_ERR;
+#endif
+            /* fall through */
+        case INFO_ALIASES:
+            mode <<= 1;             /* JIM_CMDLIST_ALIASES */
+            /* fall through */
+        case INFO_PROCS:
+            mode <<= 1;             /* JIM_CMDLIST_PROCS */
+            /* fall through */
+        case INFO_COMMANDS:{
+            int n = 0;
+            /* mode = 1 => JIM_CMDLIST_COMMANDS */
+            if (argc > 2 && Jim_CompareStringImmediate(interp, argv[2], "-all")) {
+                mode |= JIM_CMDLIST_ALL;
+                n++;
+            }
+            if (argc < 2 + n || argc > 3 + n) {
+                Jim_SetResultFormatted(interp, "wrong # args: should be \"info %#s %s\"", argv[1], cmds[option].args);
+                return JIM_ERR;
+            }
+#ifdef jim_ext_namespace
+            if (!nons) {
+                /* Called as 'info -nons commands|procs' so respect the current namespace */
+                if (Jim_Length(interp->framePtr->nsObj) || (argc == 3 && JimIsGlobalNamespace(argv[2]))) {
+                    return Jim_EvalPrefix(interp, "namespace info", argc - 1, argv + 1);
+                }
+            }
+#endif
+            Jim_SetResult(interp, JimCommandsList(interp, (argc == 3 + n) ? argv[2 + n] : NULL, mode));
+            return JIM_OK;
+        }
+
+        case INFO_VARS:
+            mode <<= 1;             /* JIM_VARLIST_VARS */
+            /* fall through */
+        case INFO_LOCALS:
+            mode <<= 1;             /* JIM_VARLIST_LOCALS */
+            /* fall through */
+        case INFO_GLOBALS:
+            /* mode = 1 => JIM_VARLIST_GLOBALS */
+#ifdef jim_ext_namespace
+            if (!nons) {
+                if (Jim_Length(interp->framePtr->nsObj) || (argc == 3 && JimIsGlobalNamespace(argv[2]))) {
+                    return Jim_EvalPrefix(interp, "namespace info", argc - 1, argv + 1);
+                }
+            }
+#endif

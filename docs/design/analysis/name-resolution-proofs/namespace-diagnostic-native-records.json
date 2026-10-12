@@ -1,0 +1,879 @@
+[
+  {
+    "id": "naming.namespace.dispatch-error-noun-and-ambiguity",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/namespace-dispatch-error-noun-and-ambiguity.md",
+    "problem_statement": "An invalid namespace worker and an ambiguous prefix can use different nouns and choice lists across releases. Reporting every rejected word as the same option error would change the actual dialect diagnostic.",
+    "question": "What diagnostic noun and choice list do namespace NOPE and namespace e produce?",
+    "conclusion": "C8.4/8.5 distinguish bad option NOPE from ambiguous option e; C8.6–9.1 use unknown or ambiguous subcommand for both. Jim distinguishes namespace, unknown command NOPE from namespace, ambiguous command e and has its own choice list. All are caught guest errors with outer process0. These strings do not establish a native name primary, result/options object or successful worker dispatch.",
+    "scope": "Selected NOPE,e from24 actual caught shell controls across six engines. The receipt preserves source SHA, executable SHA, process/guest streams and60-second budgets; original script/presenter bytes and file-versus-stdin argument vectors are not retained. errors.tsv is an18-row message projection, checked against exact embedded outputs. available.tsv records the release-specific surfaced choices. No raw zero/opaque object, callback, primary, return-options or BIG-IP measurement.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {bad option \"NOPE\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n1 {ambiguous option \"e\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.4-NOPE",
+          "row-tcl8.4-e"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {bad option \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n1 {ambiguous option \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.5-NOPE",
+          "row-tcl8.5-e"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {unknown or ambiguous subcommand \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n1 {unknown or ambiguous subcommand \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.6-NOPE",
+          "row-tcl8.6-e"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {unknown or ambiguous subcommand \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n1 {unknown or ambiguous subcommand \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl9.0-NOPE",
+          "row-tcl9.0-e"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {unknown or ambiguous subcommand \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n1 {unknown or ambiguous subcommand \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl9.1-NOPE",
+          "row-tcl9.1-e"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "jim; full launched patchlevel not independently queried by this capture; revision and UTF configuration unrecorded",
+        "build": "Recorded executable SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {namespace, unknown command \"NOPE\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}\n1 {namespace, ambiguous command \"e\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-jim-NOPE",
+          "row-jim-e"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No captured result for this exact purpose is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Full24 original caught dispatcher/usage results with exact source/executable associations."
+      },
+      {
+        "id": "errors",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/errors.tsv",
+        "sha256": "e72d24a7447bf92334669c6f2f38884b544f029aa0c2a095c1c0e988692e9c36",
+        "description": "Eighteen original message-byte projections verified against complete embedded outputs."
+      },
+      {
+        "id": "surface",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/available.tsv",
+        "sha256": "063a72cb6b1a7acaafc29ba71102d49f2bdcfd9674754bbf8df2b8b31c908921",
+        "description": "Six captured choice-list surfaces; not an arbitrary current registry grant."
+      },
+      {
+        "id": "row-tcl8.4-NOPE",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/1"
+      },
+      {
+        "id": "row-tcl8.4-e",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/2"
+      },
+      {
+        "id": "row-tcl8.5-NOPE",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/5"
+      },
+      {
+        "id": "row-tcl8.5-e",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/6"
+      },
+      {
+        "id": "row-tcl8.6-NOPE",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/9"
+      },
+      {
+        "id": "row-tcl8.6-e",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/10"
+      },
+      {
+        "id": "row-tcl9.0-NOPE",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/13"
+      },
+      {
+        "id": "row-tcl9.0-e",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/14"
+      },
+      {
+        "id": "row-tcl9.1-NOPE",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/17"
+      },
+      {
+        "id": "row-tcl9.1-e",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/18"
+      },
+      {
+        "id": "row-jim-NOPE",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/21"
+      },
+      {
+        "id": "row-jim-e",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/22"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-cmd-core/src/namespace.rs",
+        "selector": "namespace::native_dispatch_diagnostic_tests::original_namespace_dispatch_errors_match_all_eighteen_native_results",
+        "assertion": "Compares all18 attached rejected-worker messages using each captured surface. Jim u uniquely reaches upvar and is outside this unknown/ambiguous-message assertion.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-cmd-core/src/namespace.rs",
+        "symbol": "unknown_subcommand_message",
+        "purpose": "Selects the actual release noun and complete worker choice list for a rejected original byte selector."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No new native or Rust execution is claimed. The original presenter is absent where stated; a source digest alone does not reconstruct it. A new capture must retain exact source bytes, selected provider version/build, channel, separate process/guest codes and streams. Existing capture scripts write the retained fixture and use historical absolute launch paths; they are input/observer context, not an executable safe replay command."
+    }
+  },
+  {
+    "id": "naming.namespace.dispatch-prefix-worker-availability",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/namespace-dispatch-prefix-worker-availability.md",
+    "problem_statement": "A one-letter namespace prefix can be missing, ambiguous or uniquely select upvar depending on the available surface. A completion or diagnostic consumer must not infer prefix availability from another release.",
+    "question": "Does namespace u reject a missing or ambiguous prefix, or reach the upvar argument guard?",
+    "conclusion": "C8.4 reports bad option u. C8.5 reports ambiguous option u. C8.6–9.1 report unknown or ambiguous subcommand u. Jim uniquely reaches the upvar worker and reports its wrong-argument usage. No successful variable link is reached by this zero-argument control.",
+    "scope": "Selected u from24 actual caught shell controls across six engines. The receipt preserves source SHA, executable SHA, process/guest streams and60-second budgets; original script/presenter bytes and file-versus-stdin argument vectors are not retained. errors.tsv is an18-row message projection, checked against exact embedded outputs. available.tsv records the release-specific surfaced choices. No raw zero/opaque object, callback, primary, return-options or BIG-IP measurement.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {bad option \"u\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.4-u"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {ambiguous option \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.5-u"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {unknown or ambiguous subcommand \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.6-u"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {unknown or ambiguous subcommand \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl9.0-u"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {unknown or ambiguous subcommand \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl9.1-u"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "jim; full launched patchlevel not independently queried by this capture; revision and UTF configuration unrecorded",
+        "build": "Recorded executable SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {wrong # args: should be \"namespace upvar ns ?arg ...?\"}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-jim-u"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No captured result for this exact purpose is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Full24 original caught dispatcher/usage results with exact source/executable associations."
+      },
+      {
+        "id": "errors",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/errors.tsv",
+        "sha256": "e72d24a7447bf92334669c6f2f38884b544f029aa0c2a095c1c0e988692e9c36",
+        "description": "Eighteen original message-byte projections verified against complete embedded outputs."
+      },
+      {
+        "id": "surface",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/available.tsv",
+        "sha256": "063a72cb6b1a7acaafc29ba71102d49f2bdcfd9674754bbf8df2b8b31c908921",
+        "description": "Six captured choice-list surfaces; not an arbitrary current registry grant."
+      },
+      {
+        "id": "row-tcl8.4-u",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/3"
+      },
+      {
+        "id": "row-tcl8.5-u",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/7"
+      },
+      {
+        "id": "row-tcl8.6-u",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/11"
+      },
+      {
+        "id": "row-tcl9.0-u",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/15"
+      },
+      {
+        "id": "row-tcl9.1-u",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/19"
+      },
+      {
+        "id": "row-jim-u",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/23"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-cmd-core/src/namespace.rs",
+        "selector": "namespace::native_dispatch_diagnostic_tests::original_namespace_dispatch_errors_match_all_eighteen_native_results",
+        "assertion": "Compares all18 attached rejected-worker messages using each captured surface. Jim u uniquely reaches upvar and is outside this unknown/ambiguous-message assertion.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-cmd-core/src/namespace.rs",
+        "symbol": "unknown_subcommand_message",
+        "purpose": "Selects the actual release noun and complete worker choice list for a rejected original byte selector."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No new native or Rust execution is claimed. The original presenter is absent where stated; a source digest alone does not reconstruct it. A new capture must retain exact source bytes, selected provider version/build, channel, separate process/guest codes and streams. Existing capture scripts write the retained fixture and use historical absolute launch paths; they are input/observer context, not an executable safe replay command."
+    }
+  },
+  {
+    "id": "naming.namespace.dispatch-upvar-zero-argument-usage",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/namespace-dispatch-upvar-zero-argument-usage.md",
+    "problem_statement": "The exact upvar worker can be absent or installed with release-specific usage grammar. A malformed call must not be treated as evidence that a link was installed.",
+    "question": "Which worker availability and usage result follows namespace upvar with no namespace operand?",
+    "conclusion": "C8.4 reports bad option upvar because that surface is absent. C8.5 reports namespace upvar ns otherVar myVar ?otherVar myVar ...?; C8.6–9.1 report namespace upvar ns ?otherVar myVar ...?; Jim reports namespace upvar ns ?arg ...?. Those reached workers reject the call before any link; process0 records the surrounding catch/reporter only.",
+    "scope": "Selected upvar from24 actual caught shell controls across six engines. The receipt preserves source SHA, executable SHA, process/guest streams and60-second budgets; original script/presenter bytes and file-versus-stdin argument vectors are not retained. errors.tsv is an18-row message projection, checked against exact embedded outputs. available.tsv records the release-specific surfaced choices. No raw zero/opaque object, callback, primary, return-options or BIG-IP measurement.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "unsupported",
+        "answer": "Exact reported output:\n\n```text\n1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.4-upvar"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\"}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.5-upvar"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl8.6-upvar"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl9.0-upvar"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-tcl9.1-upvar"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "jim; full launched patchlevel not independently queried by this capture; revision and UTF configuration unrecorded",
+        "build": "Recorded executable SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "Shell source; original channel/presenter unavailable",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reported output:\n\n```text\n1 {wrong # args: should be \"namespace upvar ns ?arg ...?\"}\n```\n\nOuter status0 and empty stderr are distinct from each caught guest code1.",
+        "evidence": [
+          "receipt",
+          "errors",
+          "surface",
+          "row-jim-upvar"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No captured result for this exact purpose is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Full24 original caught dispatcher/usage results with exact source/executable associations."
+      },
+      {
+        "id": "errors",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/errors.tsv",
+        "sha256": "e72d24a7447bf92334669c6f2f38884b544f029aa0c2a095c1c0e988692e9c36",
+        "description": "Eighteen original message-byte projections verified against complete embedded outputs."
+      },
+      {
+        "id": "surface",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/available.tsv",
+        "sha256": "063a72cb6b1a7acaafc29ba71102d49f2bdcfd9674754bbf8df2b8b31c908921",
+        "description": "Six captured choice-list surfaces; not an arbitrary current registry grant."
+      },
+      {
+        "id": "row-tcl8.4-upvar",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/0"
+      },
+      {
+        "id": "row-tcl8.5-upvar",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/4"
+      },
+      {
+        "id": "row-tcl8.6-upvar",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/8"
+      },
+      {
+        "id": "row-tcl9.0-upvar",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/12"
+      },
+      {
+        "id": "row-tcl9.1-upvar",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/16"
+      },
+      {
+        "id": "row-jim-upvar",
+        "role": "observation",
+        "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+        "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+        "description": "Actual selected caught guest result and independent outer status.",
+        "json_pointer": "/rows/20"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_namespace_upvar.rs",
+        "selector": "native_namespace_upvar::tests::original_namespace_upvar_grammar_preserves_worker_and_forwarded_frontiers",
+        "assertion": "Asserts C84 unavailable and zero-argument refusal on every installed protocol; this pure grammar assertion does not construct a native link.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-cmd-core/src/namespace.rs",
+        "symbol": "unknown_subcommand_message",
+        "purpose": "Selects the actual release noun and complete worker choice list for a rejected original byte selector."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_namespace_upvar.rs",
+        "symbol": "NativeNamespaceUpvarProtocol::arguments",
+        "purpose": "Keeps absent surface and each installed worker/forwarding argument grammar distinct from successful cell installation."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No new native or Rust execution is claimed. The original presenter is absent where stated; a source digest alone does not reconstruct it. A new capture must retain exact source bytes, selected provider version/build, channel, separate process/guest codes and streams. Existing capture scripts write the retained fixture and use historical absolute launch paths; they are input/observer context, not an executable safe replay command."
+    }
+  },
+  {
+    "id": "naming.namespace.origin-generated-opaque-failure-units",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/namespace-origin-generated-opaque-failure-units.md",
+    "problem_statement": "A binary-format-produced missing command name contains zero and ff units. A namespace-origin consumer could truncate or sanitize those units when reporting an invalid command and its errorCode, even though no successful origin exists.",
+    "question": "Which invalid-command result and errorCode units does namespace origin preserve for the generated miss00ff operand?",
+    "conclusion": "All five C captures preserve miss00ff in the invalid-command result. C8.4 reports errorCode NONE; C8.5–9.1 report TCL LOOKUP COMMAND with the same generated miss00ff operand. The capture observes final result/errorCode byte projections after the catch, not the operand primary, command token, native rawString00 producer or successful origin allocation.",
+    "scope": "One ASCII source produces the operand through binary format H*, catches namespace origin and returns a list of code/result/errorCode. The retained observer wraps that exact script in set observed, binary scan and puts, then feeds stdin to a selected shell. Source and wrapper complete hashes, executable digests, process0 and exact double-encoded output are retained. C release labels are recorded, launched patchlevel/library/compiler/configuration unqueried; no Jim/BIG-IP attempt. Generated zero units do not imply raw NUL source or an original native String object.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "ASCII observer bytes supplied through shell stdin; operand produced at runtime by binary format",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact final list value bytes are hex 31207b696e76616c696420636f6d6d616e64206e616d6520226d69737300ff227d204e4f4e45. The original shell writes that hex line with process0 and empty stderr. The list has guest code1, invalid-command result with miss00ff, and NONE errorCode.",
+        "evidence": [
+          "source",
+          "observer",
+          "receipt",
+          "projection",
+          "row-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "ASCII observer bytes supplied through shell stdin; operand produced at runtime by binary format",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact final list value bytes are hex 31207b696e76616c696420636f6d6d616e64206e616d6520226d69737300ff227d207b54434c204c4f4f4b555020434f4d4d414e44206d69737300ff7d. The original shell writes that hex line with process0 and empty stderr. The list has guest code1, invalid-command result with miss00ff, and TCL LOOKUP COMMAND miss00ff errorCode.",
+        "evidence": [
+          "source",
+          "observer",
+          "receipt",
+          "projection",
+          "row-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "ASCII observer bytes supplied through shell stdin; operand produced at runtime by binary format",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact final list value bytes are hex 31207b696e76616c696420636f6d6d616e64206e616d6520226d69737300ff227d207b54434c204c4f4f4b555020434f4d4d414e44206d69737300ff7d. The original shell writes that hex line with process0 and empty stderr. The list has guest code1, invalid-command result with miss00ff, and TCL LOOKUP COMMAND miss00ff errorCode.",
+        "evidence": [
+          "source",
+          "observer",
+          "receipt",
+          "projection",
+          "row-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "ASCII observer bytes supplied through shell stdin; operand produced at runtime by binary format",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact final list value bytes are hex 31207b696e76616c696420636f6d6d616e64206e616d6520226d69737300ff227d207b54434c204c4f4f4b555020434f4d4d414e44206d69737300ff7d. The original shell writes that hex line with process0 and empty stderr. The list has guest code1, invalid-command result with miss00ff, and TCL LOOKUP COMMAND miss00ff errorCode.",
+        "evidence": [
+          "source",
+          "observer",
+          "receipt",
+          "projection",
+          "row-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0; full launched patchlevel not independently queried by this capture",
+        "build": "Recorded executable SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; library/header/compiler/configuration closure unrecorded.",
+        "input_channel": "ASCII observer bytes supplied through shell stdin; operand produced at runtime by binary format",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact final list value bytes are hex 31207b696e76616c696420636f6d6d616e64206e616d6520226d69737300ff227d207b54434c204c4f4f4b555020434f4d4d414e44206d69737300ff7d. The original shell writes that hex line with process0 and empty stderr. The list has guest code1, invalid-command result with miss00ff, and TCL LOOKUP COMMAND miss00ff errorCode.",
+        "evidence": [
+          "source",
+          "observer",
+          "receipt",
+          "projection",
+          "row-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No captured result for this exact purpose is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No captured result for this exact purpose is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "source",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/source.tcl",
+        "sha256": "b17c5c05efa5cd7e252d755486b2d26c0de2aa51bb9744b3ae3fc6294c997b6c",
+        "description": "Exact binary-format original source."
+      },
+      {
+        "id": "observer",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/run.py",
+        "sha256": "14fd14a468631155ad0748fb4b8fa442114994912190e8a19399e7c1504f2df8",
+        "description": "Retained original wrapper/capture algorithm; reconstructed observer matches its recorded full digest."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+        "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+        "description": "Five exact stdin shell/source/wrapper/status/stream associations."
+      },
+      {
+        "id": "projection",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv",
+        "sha256": "85f53ec956998e3b390de992750962d92485863b605e60ccafa9ae1454a3b278",
+        "description": "Five exact final value-byte projections; not original input-object headers."
+      },
+      {
+        "id": "row-tcl8.4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+        "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+        "description": "Actual process0/stdin result/errorCode byte projection.",
+        "json_pointer": "/0"
+      },
+      {
+        "id": "row-tcl8.5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+        "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+        "description": "Actual process0/stdin result/errorCode byte projection.",
+        "json_pointer": "/1"
+      },
+      {
+        "id": "row-tcl8.6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+        "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+        "description": "Actual process0/stdin result/errorCode byte projection.",
+        "json_pointer": "/2"
+      },
+      {
+        "id": "row-tcl9.0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+        "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+        "description": "Actual process0/stdin result/errorCode byte projection.",
+        "json_pointer": "/3"
+      },
+      {
+        "id": "row-tcl9.1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+        "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+        "description": "Actual process0/stdin result/errorCode byte projection.",
+        "json_pointer": "/4"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_command_names.rs",
+        "selector": "interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics",
+        "assertion": "Evaluates the retained source and compares all five final result/errorCode projections. The separate source-only String origin-result assertion in this test is not a captured input/object-header observation.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+        "selector": "interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics",
+        "assertion": "Evaluates the retained source and compares all five final result/errorCode projections. The separate source-only String origin-result assertion in this test is not a captured input/object-header observation.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_command_names.rs",
+        "symbol": "native_namespace_origin_failure",
+        "purpose": "Retains the actual original failure operand units and selected error publication purpose independently of successful origin lookup/result issuance."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+        "symbol": "native_namespace_origin_failure",
+        "purpose": "Retains the actual original failure operand units and selected error publication purpose independently of successful origin lookup/result issuance."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The retained run.py specifies the exact stdin wrapper, and its reconstructed bytes match every original observer digest. That script uses historical absolute shell paths and overwrites retained artifacts, so it is not advertised as a maintained safe replay. A new capture must use independently selected provider builds and a distinct output destination. No new native or Rust execution is claimed."
+    }
+  }
+]

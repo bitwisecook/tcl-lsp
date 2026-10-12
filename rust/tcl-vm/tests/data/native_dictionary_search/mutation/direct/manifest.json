@@ -1,0 +1,259 @@
+{
+  "source": "/workspace/.proofs/2286-search-active-mutation/probe.c",
+  "source_sha256": "9ac8f87c98e6fece548c4852ae0728bd9944b6917f8cd1e97d82341edea2cc15",
+  "rows": [
+    {
+      "version": "8.5.19",
+      "action": "replace",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.5.19",
+        "replace"
+      ],
+      "binary_sha256": "87409cad82de52fcb8fc7aec249e4010728d6eedfd4eac6c349a0adee1aac41c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+    },
+    {
+      "version": "8.5.19",
+      "action": "replace",
+      "follow": "next",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.5.19",
+        "replace",
+        "next"
+      ],
+      "binary_sha256": "87409cad82de52fcb8fc7aec249e4010728d6eedfd4eac6c349a0adee1aac41c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+    },
+    {
+      "version": "8.5.19",
+      "action": "add",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.5.19",
+        "add"
+      ],
+      "binary_sha256": "87409cad82de52fcb8fc7aec249e4010728d6eedfd4eac6c349a0adee1aac41c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+    },
+    {
+      "version": "8.5.19",
+      "action": "add",
+      "follow": "next",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.5.19",
+        "add",
+        "next"
+      ],
+      "binary_sha256": "87409cad82de52fcb8fc7aec249e4010728d6eedfd4eac6c349a0adee1aac41c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+    },
+    {
+      "version": "8.6.18",
+      "action": "replace",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.6.18",
+        "replace"
+      ],
+      "binary_sha256": "9510ac9305940b02e27c650ee23e79dd62182e4cb4cd45a159f33b8c3e3341d7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "8.6.18",
+      "action": "replace",
+      "follow": "next",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.6.18",
+        "replace",
+        "next"
+      ],
+      "binary_sha256": "9510ac9305940b02e27c650ee23e79dd62182e4cb4cd45a159f33b8c3e3341d7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "8.6.18",
+      "action": "add",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.6.18",
+        "add"
+      ],
+      "binary_sha256": "9510ac9305940b02e27c650ee23e79dd62182e4cb4cd45a159f33b8c3e3341d7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "8.6.18",
+      "action": "add",
+      "follow": "next",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/8.6.18",
+        "add",
+        "next"
+      ],
+      "binary_sha256": "9510ac9305940b02e27c650ee23e79dd62182e4cb4cd45a159f33b8c3e3341d7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "9.0.4",
+      "action": "replace",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.0.4",
+        "replace"
+      ],
+      "binary_sha256": "bc585383632c5ca6174dda587a4db329809389c3595f4dd19c4bdec002b062f2",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.0.4",
+      "action": "replace",
+      "follow": "next",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.0.4",
+        "replace",
+        "next"
+      ],
+      "binary_sha256": "bc585383632c5ca6174dda587a4db329809389c3595f4dd19c4bdec002b062f2",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.0.4",
+      "action": "add",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.0.4",
+        "add"
+      ],
+      "binary_sha256": "bc585383632c5ca6174dda587a4db329809389c3595f4dd19c4bdec002b062f2",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.0.4",
+      "action": "add",
+      "follow": "next",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.0.4",
+        "add",
+        "next"
+      ],
+      "binary_sha256": "bc585383632c5ca6174dda587a4db329809389c3595f4dd19c4bdec002b062f2",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.1.0",
+      "action": "replace",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.1.0",
+        "replace"
+      ],
+      "binary_sha256": "8242897c4ef3d7c1175bd2c34c154e044fb6c62854273ef8f2672f7d7ccf93c1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    },
+    {
+      "version": "9.1.0",
+      "action": "replace",
+      "follow": "next",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.1.0",
+        "replace",
+        "next"
+      ],
+      "binary_sha256": "8242897c4ef3d7c1175bd2c34c154e044fb6c62854273ef8f2672f7d7ccf93c1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    },
+    {
+      "version": "9.1.0",
+      "action": "add",
+      "follow": "close",
+      "exit": 0,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\nclosed\n",
+      "stderr": "",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.1.0",
+        "add"
+      ],
+      "binary_sha256": "8242897c4ef3d7c1175bd2c34c154e044fb6c62854273ef8f2672f7d7ccf93c1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    },
+    {
+      "version": "9.1.0",
+      "action": "add",
+      "follow": "next",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-active-mutation/9.1.0",
+        "add",
+        "next"
+      ],
+      "binary_sha256": "8242897c4ef3d7c1175bd2c34c154e044fb6c62854273ef8f2672f7d7ccf93c1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    }
+  ],
+  "completed_native_processes": 16,
+  "clean_close_processes": 8,
+  "native_abort_processes": 8,
+  "rust_comparisons": 0,
+  "observation": "Original root unshared; active backing search lock alone does not COW; after mutation explicit close clean, next aborts by actual native epoch guard. Refcounts captured before result observers."
+}

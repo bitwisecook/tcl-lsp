@@ -1,0 +1,35 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-list-arity146/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.004452259003301151,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "03dd0d973f283518d7a1dc2a9d17332ccfe82f3ad62ce973b5a4dde200ae0cc8",
+  "runner_sha256": "6e739313b414a3ca71c6aa2b27023440e00b7c0a31f77a957796a7e4da301f73",
+  "stdout_sha256": "e0b5980957f59a9517f7cd0025699ec45e885659a7d63578b63806580c4561ed",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "PATCHLEVEL 0.84-9-g5bac7c9",
+    "RESULT no_operands 1 {wrong # args: should be \"lassign varList list ?varName ...?\"}",
+    "RESULT literal_no_target 1 {wrong # args: should be \"lassign varList list ?varName ...?\"}",
+    "RESULT dynamic_no_target 1 {wrong # args: should be \"lassign varList list ?varName ...?\"}",
+    "RESULT compiled_no_target 1 {wrong # args: should be \"lassign varList list ?varName ...?\"}",
+    "RESULT malformed_no_target 1 {wrong # args: should be \"lassign varList list ?varName ...?\"}",
+    "RESULT literal_one_target 0 B",
+    "RESULT empty_no_target 1 {wrong # args: should be \"lassign varList list ?varName ...?\"}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Seven fixed list-assignment invocation controls covering target-free arity, literal/dynamic/compiled source entry, malformed list before arity, one target and empty list. CLI outcomes only; no physical compiler/header/cache or BIG-IP claim."
+}

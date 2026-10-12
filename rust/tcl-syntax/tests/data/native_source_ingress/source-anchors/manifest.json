@@ -1,0 +1,92 @@
+[
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "core-8-4-20",
+    "original_path": "generic/tclEncoding.c",
+    "function": "UtfToUtfProc",
+    "lines": [
+      2055,
+      2138
+    ],
+    "source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+    "snippet": "rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.4.20-UtfToUtfProc.c",
+    "snippet_sha256": "a35b1c6d11a81e442c0435d3cc16f94095ffaaa4476cdb898e9be50fa87931a7",
+    "evidence": "source-8.4.20-UtfToUtfProc"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "core-8-6-18",
+    "original_path": "generic/tclEncoding.c",
+    "function": "UtfToUtfProc",
+    "lines": [
+      2328,
+      2445
+    ],
+    "source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+    "snippet": "rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.6.18-UtfToUtfProc.c",
+    "snippet_sha256": "31d0d860a607787deb987674bb08321b56d9caabb506e308af451d5a7c7f7236",
+    "evidence": "source-8.6.18-UtfToUtfProc"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "core-9-1-0",
+    "original_path": "generic/tclEncoding.c",
+    "function": "UtfToUtfProc",
+    "lines": [
+      2965,
+      3153
+    ],
+    "source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+    "snippet": "rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/9.1.0-UtfToUtfProc.c",
+    "snippet_sha256": "ddadfc554be09ab05d8e614524dcdfbce843c98c4ae047cad03ff25f07b8b9e4",
+    "evidence": "source-9.1.0-UtfToUtfProc"
+  },
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "revision": "core-8-4-20",
+    "original_path": "generic/tclIO.c",
+    "function": "Tcl_ReadChars",
+    "lines": [
+      4554,
+      4630
+    ],
+    "source_sha256": "cffb29befe39d56eb1e2de552124ec67380318d3359bf189b72a27a02f504858",
+    "snippet": "rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.4.20-Tcl_ReadChars.c",
+    "snippet_sha256": "87342b998371dfb4729109202735e4f0a0b670d387a581250c0e44610faabcae",
+    "evidence": "source-8.4.20-Tcl_ReadChars"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "revision": "core-8-6-18",
+    "original_path": "generic/tclIO.c",
+    "function": "Tcl_ReadChars",
+    "lines": [
+      5780,
+      5840
+    ],
+    "source_sha256": "06e174e8ec55ffc301fe87f2be0298587e3946ca66d81ddefedfa814658cac0e",
+    "snippet": "rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.6.18-Tcl_ReadChars.c",
+    "snippet_sha256": "52c78cf85daf2ac4b9108a18f756bbaed3579c282cbfeca4c71bd9cecb69714d",
+    "evidence": "source-8.6.18-Tcl_ReadChars"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "revision": "core-9-1-0",
+    "original_path": "generic/tclIO.c",
+    "function": "Tcl_ReadChars",
+    "lines": [
+      5897,
+      5970
+    ],
+    "source_sha256": "6b4b84f18f65c635335db6b0a667f109bbbde08b91f59dd90aefc0a704f20c08",
+    "snippet": "rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/9.1.0-Tcl_ReadChars.c",
+    "snippet_sha256": "9c3eef631d123b88b4a0db853779be7774a654dab9f5498bac507b225bd1744e",
+    "evidence": "source-9.1.0-Tcl_ReadChars"
+  }
+]

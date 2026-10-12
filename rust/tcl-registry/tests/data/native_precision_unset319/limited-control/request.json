@@ -1,0 +1,25 @@
+{
+  "question": "What public existence/read results follow root or linked unset of the precision variable, and does an unrelated namespace variable with the same tail remain ordinary?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "source_sha256": "a12f059ec57a3377a86539bc5aed8a488122dc26a026eefcfda8114fb2704827",
+  "channel": "Same original counted C API fullInit capture driver as Native202/307; supplied exact ASCII source in one fresh interpreter per provider; no raw NUL or Unicode.",
+  "observation": "Exact final public result rows only: root unset existence/read, old alias existence/read after unset, unrelated namespace same tail. No physical variable/object/header identity, compiled opcode or hidden pointer identity claim. C9/Jim ordinary variable behaviours retained independently from C8.x hidden precision trace.",
+  "notes": [
+    "Initial tcl_precision is explicitly set to12 in all providers. Alias local `p` is a genuine upvar to the original global receiver before unset.",
+    "Preserve exact source and full patchlevel/library/header/build/process receipts, unavailable command rows, exit and stderr. Do not replace with a CLI or inferred observation."
+  ],
+  "cases": [
+    {
+      "id": "original-precision-unset",
+      "source_file": "source.tcl",
+      "source_sha256": "a12f059ec57a3377a86539bc5aed8a488122dc26a026eefcfda8114fb2704827"
+    }
+  ]
+}

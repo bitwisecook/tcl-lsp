@@ -1,0 +1,25 @@
+
+running 11 tests
+test registry_invocation::source_structure::tests::original_conditional_operand_keeps_its_static_word_and_list_lineage ... ok
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct ... ok
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_shadow_and_produced_script_boundaries ... ok
+test registry_invocation::source_structure::tests::original_hosted_source_schema_keeps_controls_and_unknown_single_slots ... ok
+test registry_invocation::source_structure::tests::original_logical_source_schema_selects_its_positive_input_before_native_advice ... ok
+test registry_invocation::source_structure::tests::original_source_structure_is_shared_and_owner_checked ... ok
+test registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose ... ok
+test registry_invocation::source_structure::tests::original_standalone_source_context_keeps_conditional_bodies_and_alias_order ... ok
+test registry_invocation::source_structure::tests::original_standalone_source_context_keeps_nested_unknown_selector_source_only ... 
+thread 'registry_invocation::source_structure::tests::original_standalone_source_context_keeps_nested_unknown_selector_source_only' (555100) panicked at rust/tcl-compiler/src/registry_invocation/source_structure.rs:1531:9:
+assertion failed: matches!(words.source(), OriginalRegistrySource::Conditional(_))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::source_structure::tests::original_vendor_source_schema_keeps_comment_trivia_out_of_word_identity ... ok
+test registry_invocation::source_structure::tests::selected_source_roles_retain_procedure_grammar_under_the_actual_context ... ok
+
+failures:
+
+failures:
+    registry_invocation::source_structure::tests::original_standalone_source_context_keeps_nested_unknown_selector_source_only
+
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 8141 filtered out; finished in 10.55s
+

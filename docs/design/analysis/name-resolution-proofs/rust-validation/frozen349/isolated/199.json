@@ -1,0 +1,19 @@
+{
+  "ordinal": 199,
+  "selector": "expr::float_error_tests::c84_cached_resident_primary_refuses_missing_recorded_abi_without_fresh_conversion",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "expr::float_error_tests::c84_cached_resident_primary_refuses_missing_recorded_abi_without_fresh_conversion",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.007004902989137918,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/199.log",
+  "log_sha256": "3d5155f2095f8be6dfe623264dd116444520a83f1a4a3219b36f425dbfc741eb"
+}

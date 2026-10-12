@@ -1,0 +1,9 @@
+
+running 4 tests
+test package_resolver::original_names::file_candidates::tests::original_package_file_advice_keeps_future_values_shadow_arity_and_currency_separate ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_file_currency_keeps_file_ingress_and_nested_bom_distinct ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_file_scanner_keeps_the_full_input_generation ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_files_keep_source_ordinals_data_and_directory_hints_distinct ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 2624 filtered out; finished in 14.75s
+

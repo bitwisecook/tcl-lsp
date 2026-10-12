@@ -1,0 +1,7 @@
+::itcl::class|1|0
+::itcl::parser::method|1|0
+::itcl::parser::proc|1|0
+::itcl::clazz|1|0
+::C|1|0
+::C::ping|1|0
+::named|1|0

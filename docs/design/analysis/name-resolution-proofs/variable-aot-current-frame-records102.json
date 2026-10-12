@@ -1,0 +1,142 @@
+[
+  {
+    "id": "naming.variable.aot-original-slot-purpose",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md",
+    "problem_statement": "Escape summaries and reporting formal names carry String ordinals, while original native variable cells and compiled layouts retain counted names, anonymous slots, frame owners and layout incarnations. Matching the labels cannot establish a native slot or a proposed positional formal binding.",
+    "question": "Which original formal or actual native layout receipt may select an AOT argument or materialisable slot without borrowing String escape ordinals?",
+    "conclusion": "Original fixed scalar argument slots retain the actual ParamList input and counted names in argument order. Defaults, rest, caller links, duplicate bindings and compiler first-primary collisions withdraw positional argument selection. Retained native frame slots require the actual native compilation entry, matching procedure activation, selected byte primary, complete layout owner and incarnation, and actual ordinal including anonymous slots. Every represented point must retain that same selected local activation, exact namespace owner and independently selected entry name policy; quiet facts from a foreign frame cannot use its slot. Common AOT keeps source-formal, sealed-program and native-frame authorities distinct; typed cells cannot borrow escape-label ordinals. WASM direct-call parameter admission consumes original formal slots, and NativeLowering does not demote an actual native entry from a String escape summary and retains runtime trace checks when that native frame may have external observers absent from source reporting labels. These receipts supply neither current contents nor observer closure, Normal completion, physical source-local allocation, source edits or TMM values.",
+    "scope": "Rust AOT and backend slot admission contract. Fixed original ParamList inputs cover six selected C/Jim protocols. Native layout controls are explicit Rust fixtures and are not native header captures. The separate compiled-versus-runtime-root-purpose question binds retained C8.6/9.0/9.1 comparison results only; it does not establish a physical layout or current activation. No execution receipt for the new Rust selectors is attached.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/var_escape/original_slots.rs",
+        "selector": "var_escape::original_slots::tests::original_argument_slots_keep_counted_order_and_reject_nonpositional_bindings",
+        "assertion": "Retains exact counted formal keys and source order; rejects authored escape spellings as keys, duplicates, defaults, rest and Jim caller-link bindings.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_escape/original_slots.rs",
+        "selector": "var_escape::original_slots::tests::original_native_slots_require_selected_primary_frame_and_current_layout",
+        "assertion": "Selects exact native primary ordinals including anonymous slots; rejects comparison aliases, authored labels, foreign activation, missing protocol, different owner, changed epoch and a separately declared procedure body.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/native_lowering/lower.rs",
+        "selector": "native_lowering::lower::original_entry_storage_tests::original_native_entry_keeps_cells_and_runtime_trace_guards_despite_escape_labels",
+        "assertion": "An independently retained native entry ignores the authored String slot demotion and keeps its runtime trace guard, including when source labels name a trace; explicit authored synthetic IR retains its separate slot and unguarded path.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_escape/original_slots.rs",
+        "selector": "var_escape::original_slots::tests::original_native_slot_usage_requires_the_actual_selected_activation",
+        "assertion": "Uses an original source point under the captured entry frame; retained layout equality survives independent foreign activation, frame kind, frame selector, missing namespace and missing name-policy controls, while the slot refuses those uses. Changing presentation alone does not change activation correspondence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/var_escape/original_slots.rs",
+        "symbol": "OriginalScalarArgumentSlots",
+        "purpose": "Retain exact original fixed scalar formal bindings and source calling-convention ordinals without granting a physical compiled-local layout."
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_escape/original_slots.rs",
+        "symbol": "OriginalNativeFrameSlot",
+        "purpose": "Select actual retained native layout primary, ordinal, activation owner and layout currency; check each represented point against the actual selected frame, exact namespace owner and independent entry policy without granting observer or value authority."
+      },
+      {
+        "path": "rust/tcl-compiler/src/common_aot_plan.rs",
+        "symbol": "materialisable_slot_allocation",
+        "purpose": "Project typed SSA cells through original formal, sealed-program or actual native slot owners; String ordinals remain authored analysis metadata."
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+        "symbol": "direct_proc_eligible",
+        "purpose": "Validate direct-call positional parameters through the original byte-formal owner before using reporting header labels."
+      },
+      {
+        "path": "rust/tcl-compiler/src/native_lowering/lower.rs",
+        "symbol": "Lowerer",
+        "purpose": "Keep actual native entry storage and runtime observer checks separate from String escape-summary demotion and source trace-label inventories."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Fixed Rust selectors are linked without an attached execution receipt. Physical native layout fixtures and separate empirical compiler comparison outcomes do not grant activation, observer, value, Normal, relocation or edit authority."
+    }
+  }
+]

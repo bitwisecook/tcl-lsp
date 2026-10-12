@@ -1,0 +1,141 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-math-input202.base-files.tar.gz",
+  "archive_sha256": "7b561b430c381eb2061904d5facac61266ce04f3e0390fd685f1f75ccbe29cbb",
+  "archive_bytes": 195295,
+  "uncompressed_bytes": 775806,
+  "source_manifest_sha256": "6f56f00af006a1c35633eb0fd240aa6d9a5d26334386439c7753e23731e28f77",
+  "source_patch_sha256": "dd0647c17adb0f538c4169f93f35a5cc45c142aaa56010f7b87bb14eeb97c3de",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/dd0647c17adb0f538c4169f93f35a5cc45c142aaa56010f7b87bb14eeb97c3de.patch",
+  "original_application_journal_sha256": "dd0647c17adb0f538c4169f93f35a5cc45c142aaa56010f7b87bb14eeb97c3de",
+  "member_count": 14,
+  "members": {
+    "native-math-input202/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5244923,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5244923,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5244923,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5444922,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5488667,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/base/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5493762,
+      "size": 330916,
+      "sha256": "d114892c9b03b49c8d5cb11018df2a93e97efaf372183cf839c0283c9e9a96de"
+    },
+    "native-math-input202/base/rust/tcl-compiler/src/realm.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5484686,
+      "size": 54876,
+      "sha256": "e948b8f29d7958d696bc72046d863cd4d59521645b0fe8a45a89e8a378cad192"
+    },
+    "native-math-input202/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5244923,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5244923,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5244923,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5484686,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.5493762,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-input202/files/rust/tcl-compiler/src/analyser/state.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559566.6404915,
+      "size": 331030,
+      "sha256": "69a7f3f790e9073e28d6e8ca08babd492515b055f18dd882af6b576a690b8cdd"
+    },
+    "native-math-input202/files/rust/tcl-compiler/src/realm.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791559614.5252326,
+      "size": 58984,
+      "sha256": "729b3a97a0a6fd7b99ed4356296500a3e1c3e8eed0f85f459af59fa9adc93c38"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

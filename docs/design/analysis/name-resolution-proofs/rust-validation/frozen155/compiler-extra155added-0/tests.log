@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::tests::setter_source_reads_use_selected_child_expression_owners ... 
+thread 'ssa::tests::setter_source_reads_use_selected_child_expression_owners' (607433) panicked at rust/tcl-compiler/src/ssa.rs:8210:21:
+tcl8.4: original aliased setter must retain call IR: AssignExpr { span: Span { start: 44, end: 77 }, name: "output", name_braced: false, expr: Binary { op: Add, left: Var { text: "$input", name: "input", start: 0, end: 5 }, right: Literal { text: "1", start: 9, end: 9 } }, command_binding: Some(CommandBindingIdentity { namespace_context: Some(Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) })), resolution_namespace: "", name: "expr", identity: "expr", guard: BeforeArguments }), fallback_value: "[expr {$input + 1}]", expr_base: Some(65) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::tests::setter_source_reads_use_selected_child_expression_owners
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8198 filtered out; finished in 0.41s
+

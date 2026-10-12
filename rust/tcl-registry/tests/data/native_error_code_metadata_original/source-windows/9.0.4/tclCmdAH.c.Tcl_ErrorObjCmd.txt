@@ -1,0 +1,117 @@
+ *	user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_ErrorObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Tcl_Obj *options, *optName;
+
+    if ((objc < 2) || (objc > 4)) {
+	Tcl_WrongNumArgs(interp, 1, objv, "message ?errorInfo? ?errorCode?");
+	return TCL_ERROR;
+    }
+
+    TclNewLiteralStringObj(options, "-code error -level 0");
+
+    if (objc >= 3) {		/* Process the optional info argument */
+	TclNewLiteralStringObj(optName, "-errorinfo");
+	Tcl_ListObjAppendElement(NULL, options, optName);
+	Tcl_ListObjAppendElement(NULL, options, objv[2]);
+    }
+
+    if (objc >= 4) {		/* Process the optional code argument */
+	TclNewLiteralStringObj(optName, "-errorcode");
+	Tcl_ListObjAppendElement(NULL, options, optName);
+	Tcl_ListObjAppendElement(NULL, options, objv[3]);
+    }
+
+    Tcl_SetObjResult(interp, objv[1]);
+    return Tcl_SetReturnOptions(interp, options);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_EvalObjCmd --
+ *
+ *	This object-based procedure is invoked to process the "eval" Tcl
+ *	command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+EvalCmdErrMsg(
+    TCL_UNUSED(void **),
+    Tcl_Interp *interp,
+    int result)
+{
+    if (result == TCL_ERROR) {
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (\"eval\" body line %d)", Tcl_GetErrorLine(interp)));
+    }
+    return result;
+}
+
+int
+Tcl_EvalObjCmd(
+    void *clientData,
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    return Tcl_NRCallObjProc(interp, TclNREvalObjCmd, clientData, objc, objv);
+}
+
+int
+TclNREvalObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Tcl_Obj *objPtr;
+    Interp *iPtr = (Interp *) interp;
+    CmdFrame *invoker = NULL;
+    int word = 0;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "arg ?arg ...?");
+	return TCL_ERROR;
+    }
+
+    if (objc == 2) {
+	/*
+	 * TIP #280. Make argument location available to eval'd script.
+	 */
+
+	invoker = iPtr->cmdFramePtr;
+	word = 1;
+	objPtr = objv[1];
+	TclArgumentGet(interp, objPtr, &invoker, &word);
+    } else {
+	/*
+	 * More than one argument: concatenate them together with spaces
+	 * between, then evaluate the result. Tcl_EvalObjEx will delete the
+	 * object when it decrements its refcount after eval'ing it.
+	 *
+	 * TIP #280. Make invoking context available to eval'd script, done
+	 * with the default values.

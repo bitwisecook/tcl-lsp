@@ -1,0 +1,31 @@
+
+running 17 tests
+test semantic_tokens::original::original_source_schema_tests::logical_format_colours_keep_actual_context_and_original_alias_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_actual_context_over_a_profiled_store ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_nested_and_alias_original_operand_anchors ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_actual_option_context_and_reserved_data ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_effective_alias_operands_and_shadow_refusal ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members ... 
+thread 'semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members' (622387) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1595:13:
+string is alnum abc: alnum
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test semantic_tokens::original::original_source_schema_tests::original_expression_colours_require_actual_source_roles_and_lambda_parent_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_format_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_alias_written_operands_and_captured_refusal ... ok
+test semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_method_roles_keep_canonical_worker_words ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_roles_decline_custom_and_deleted_command_cells ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_grammar_and_hosted_object_roles_remain_independent ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_roles_survive_reporting_map_erasure ... ok
+test semantic_tokens::original::original_source_schema_tests::retained_head_colours_keep_the_selected_full_context_descriptor_traits ... ok
+
+failures:
+
+failures:
+    semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members
+
+test result: FAILED. 16 passed; 1 failed; 0 ignored; 0 measured; 2637 filtered out; finished in 15.78s
+

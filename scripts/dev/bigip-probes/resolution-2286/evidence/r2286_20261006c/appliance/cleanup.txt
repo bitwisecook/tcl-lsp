@@ -1,0 +1,571 @@
+### final owned VIP
+ltm virtual __tcl_lsp_probe_2286_r2286_20261006c_vs {
+    acmev2-challenge disabled
+    address-status yes
+    app-cloud-security-services none
+    app-service none
+    auth none
+    auto-lasthop default
+    bwc-policy none
+    clone-pools none
+    cmp-enabled yes
+    connection-limit 0
+    creation-time 1969-12-31:16:00:00
+    description none
+    destination 192.168.9.24:18086
+    enabled
+    ephemeral-auth-access-config none
+    eviction-protected disabled
+    fallback-persistence none
+    flow-eviction-policy none
+    gtm-score 0
+    ip-protocol tcp
+    last-hop-pool none
+    last-modified-time 2026-10-06:04:57:00
+    mask 255.255.255.255
+    metadata none
+    mirror disabled
+    mobile-app-tunnel disabled
+    nat64 disabled
+    parent-name none
+    partition Common
+    per-flow-request-access-policy none
+    persist none
+    policies none
+    pool __tcl_lsp_probe_2286_r2286_20261006c_pool
+    profiles {
+        http {
+            context all
+        }
+        tcp {
+            context all
+        }
+    }
+    rate-class none
+    rate-limit disabled
+    rate-limit-dst-mask 0
+    rate-limit-mode object
+    rate-limit-src-mask 0
+    related-rules none
+    rules {
+        __tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup_ascii
+    }
+    security-log-profiles none
+    serverssl-use-sni disabled
+    service-down-immediate-action none
+    service-policy none
+    source 0.0.0.0/0
+    source-address-translation {
+        pool none
+        type automap
+    }
+    source-port preserve
+    syn-cookie-status not-activated
+    traffic-classes none
+    traffic-matching-criteria none
+    translate-address enabled
+    translate-port enabled
+    transparent-nexthop none
+    urldb-feed-policy none
+    vlans none
+    vlans-disabled
+    vs-index 3
+}
+
+------------------------------------------------------------------
+Ltm::Virtual Server: __tcl_lsp_probe_2286_r2286_20261006c_vs
+------------------------------------------------------------------
+Status                         
+  Availability     : unknown   
+  State            : enabled   
+  Reason           : The children pool member(s) either don't have service checking enabled, or service check results are not available yet
+  CMP              : enabled   
+  CMP Mode         : all-cpus  
+  Destination      : 192.168.9.24:18086
+                               
+Traffic                             ClientSide  Ephemeral  General
+  Bits In                                40.1M          0        -
+  Bits Out                              237.4M          0        -
+  Packets In                             53.1K          0        -
+  Packets Out                            53.1K          0        -
+  Current Connections                        0          0        -
+  Maximum Connections                     1.6K          0        -
+  Total Connections                      10.6K          0        -
+  Evicted Connections                        0          0        -
+  Slow Connections Killed                    0          0        -
+  Min Conn Duration/msec                     -          -     8.0K
+  Max Conn Duration/msec                     -          -     8.0K
+  Mean Conn Duration/msec                    -          -     8.0K
+  Total Requests                             -          -      136
+                               
+SYN Cookies                    
+  Status                         not-activated
+  Hardware SYN Cookie Instances              0
+  Software SYN Cookie Instances              0
+  Current SYN Cache                          0
+  SYN Cache Overflow                         0
+  Total Software                             0
+  Total Software Accepted                    0
+  Total Software Rejected                    0
+  Total Hardware                             0
+  Total Hardware Accepted                    0
+                               
+Message Routing Framework                   In        Out
+  Message                                    0          0
+  Request                                    0          0
+  Response                                   0          0
+                               
+CPU Usage Ratio (%)            
+  Last 5 Seconds                             0
+  Last 1 Minute                              0
+  Last 5 Minutes                             0
+
+  ----------------------------------------------------------------------------------
+  | Ltm::Pool: __tcl_lsp_probe_2286_r2286_20261006c_pool     
+  ----------------------------------------------------------------------------------
+  | Status                                                   
+  |   Availability           : unknown                       
+  |   State                  : enabled                       
+  |   Reason                 : The children pool member(s) either don't have service checking enabled, or service check results are not available yet
+  |   Monitor                : none                          
+  |   Minimum Active Members : 0                             
+  |   Priority Groups        : 0/0/0 (highest/current/lowest)
+  |   Current Active Members : 0                             
+  |   Available Members      : 1                             
+  |   Total Members          : 1                             
+  |   Total Requests         : 136                           
+  |   Current Sessions       : 0                             
+  |                                                          
+  | Traffic                                                    ServerSide
+  |   Bits In                                                      551.6K
+  |   Bits Out                                                     722.3K
+  |   Packets In                                                      816
+  |   Packets Out                                                     680
+  |   Current Connections                                               0
+  |   Maximum Connections                                               4
+  |   Total Connections                                               136
+  |                                                          
+  | Connection Queue                                                 Pool  Pool and members
+  |   Number of connections queued now                                  0                 0
+  |   Number of connections serviced                                    0                 0
+  |   Queue head entry age (ms)                                         0                 0
+  |   Maximum queue entry age ever (ms)                                 0                 0
+  |   Maximum queue entry age recently (ms)                             0                 0
+  |   Average queue entry age (ms)                                      0                 0
+  |                                                          
+  | Message Routing Framework                                          In               Out
+  |   Message                                                           0                 0
+  |   Request                                                           0                 0
+  |   Response                                                          0                 0
+
+     --------------------------------------------------------------
+     | Ltm::Pool Member: 192.168.9.80:18080   
+     --------------------------------------------------------------
+     | Status                                 
+     |   Availability   : unknown             
+     |   State          : enabled             
+     |   Reason         : Pool member does not have service checking enabled
+     |   Monitor        : none                
+     |   Monitor Status : unchecked           
+     |   Session Status : enabled             
+     |   Pool Name      : __tcl_lsp_probe_2286_r2286_20261006c_pool
+     |   IP Address     : 192.168.9.80        
+     |                                        
+     | Traffic                                  ServerSide  General
+     |   Bits In                                    551.6K        -
+     |   Bits Out                                   722.3K        -
+     |   Packets In                                    816        -
+     |   Packets Out                                   680        -
+     |   Current Connections                             0        -
+     |   Maximum Connections                             4        -
+     |   Total Connections                             136        -
+     |   Total Requests                                  -      136
+     |   Current Sessions                                -        0
+     |                                        
+     | Connection Queue                       
+     |   Number of connections queued now                0
+     |   Number of connections serviced                  0
+     |   Queue head entry age (ms)                       0
+     |   Maximum queue entry age ever (ms)               0
+     |   Maximum queue entry age recently (ms)           0
+     |   Average queue entry age (ms)                    0
+     |                                        
+     | Message Routing Framework                        In      Out
+     |   Message                                         0        0
+     |   Request                                         0        0
+     |   Response                                        0        0
+
+        --------------------------------------------
+        | Ltm::Node: 192.168.9.80 (192.168.9.80)
+        --------------------------------------------
+        | Status               
+        |   Availability   : unknown
+        |   State          : enabled
+        |   Reason         :   
+        |   Monitor        : none
+        |   Monitor Status : unchecked
+        |   Session Status : enabled
+        |                      
+        | Traffic                ServerSide  General
+        |   Bits In                  551.6K        -
+        |   Bits Out                 722.3K        -
+        |   Packets In                  816        -
+        |   Packets Out                 680        -
+        |   Current Connections           0        -
+        |   Maximum Connections           4        -
+        |   Total Connections           136        -
+        |   Total Requests                -      136
+        |   Current Sessions              -        0
+
+  --------------------------------------------------------------------
+  | Ltm::HTTP Profile: http  
+  --------------------------------------------------------------------
+  | Virtual Server Name        __tcl_lsp_probe_2286_r2286_20261006c_vs
+  |                          
+  | Requests                 
+  |   GET                                                        10.6K
+  |   POST                                                           0
+  |   Version 0.9                                                    0
+  |   Version 1.0                                                    0
+  |   Version 1.1                                                10.6K
+  |   Version 2.0                                                    0
+  |   Version 3.0                                                    0
+  |   Maximum Per Connection                                         1
+  |   Total                                                      10.6K
+  |                          
+  | Responses                
+  |   Successful                                                 10.6K
+  |   Redirection                                                    0
+  |   Client-Errors                                                  0
+  |   Server-Errors                                                  0
+  |   Version 0.9                                                    0
+  |   Version 1.0                                                10.4K
+  |   Version 1.1                                                  136
+  |   Version 2.0                                                    0
+  |   Version 3.0                                                    0
+  |                          
+  | Response Size            
+  |   Under 1K                                                    6.9K
+  |   Under 4K                                                      84
+  |   Under 16K                                                   3.6K
+  |   Under 32K                                                      0
+  |   Under 64K                                                      0
+  |   Under 128K                                                     0
+  |   Under 512K                                                     0
+  |   Under 2M                                                       0
+  |   Over 2M                                                        0
+  |                          
+  | Miscellaneous            
+  |   Set-Cookie Insertions                                          0
+  |   Proxy requests                                                 0
+  |   Proxy CONNECT requests                                         0
+  | Passthrough Reasons      
+  |   iRule                                                          0
+  |   CONNECT                                                        0
+  |   Web Sockets                                                    0
+  |   Oversize Client Headers                                        0
+  |   Excess Client Headers                                          0
+  |   Oversize Server Headers                                        0
+  |   Excess Server Headers                                          0
+  |   Unknown Method                                                 0
+  |   Pipelining Data                                                0
+  |   Invalid Headers                                                0
+
+  ---------------------------------------------------------------------------
+  | Ltm::TCP Profile: tcp           
+  ---------------------------------------------------------------------------
+  | Virtual Server Name               __tcl_lsp_probe_2286_r2286_20261006c_vs
+  |                                 
+  | Connections                     
+  |   Open                                                                  0
+  |   Current in CLOSE-WAIT/LAST-ACK                                        0
+  |   Current in FIN-WAIT-1/CLOSING                                         0
+  |   Current in FIN-WAIT-2                                                 0
+  |   Current in TIME-WAIT                                                  0
+  |   Accepted                                                          10.6K
+  |   Not Accepted                                                          0
+  |   Established                                                         136
+  |   Failed                                                                0
+  |   Expired                                                               0
+  |   Abandoned                                                             0
+  |                                 
+  | Miscellaneous                   
+  |   Received Reset                                                        7
+  |   Bad Checksum Datagrams                                                0
+  |   Malformed Segments                                                    0
+  |   Out-of-Order Segments                                                 0
+  |   Received SYN Cookies                                                  0
+  |   Received Bad SYN Cookies                                              0
+  |   SYN-Cache Overflow                                                    0
+  |   Retransmitted Segments                                                0
+
+  ----------------------------------------------------------------------------------
+  | Ltm::Rule Event: __tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup_ascii:HTTP_REQUEST
+  ----------------------------------------------------------------------------------
+  | Priority                    500
+  | Executions             
+  |   Total                    3.6K
+  |   Failures                    0
+  |   Aborts                      0
+  | CPU Cycles on Executing
+  |   Average                232.1K
+  |   Maximum                  1.6M
+  |   Minimum                138.6K
+
+  ---------------------------------------------------
+  | Ltm::Virtual Address: 192.168.9.24 (192.168.9.24)
+  ---------------------------------------------------
+  | Status               
+  |   Availability : unknown
+  |   State        : enabled
+  |   Reason       : The children virtual server(s) either don't have service checking enabled, or service check results are not available yet
+  |                      
+  | Traffic                ClientSide
+  |   Bits In                   40.1M
+  |   Bits Out                 237.4M
+  |   Packets In                53.1K
+  |   Packets Out               53.1K
+  |   Current Connections           0
+  |   Maximum Connections        1.6K
+  |   Total Connections         10.6K
+
+### delete virtual
+delete_virtual_status=0
+01020036:3: The requested Virtual Server (/Common/__tcl_lsp_probe_2286_r2286_20261006c_vs) was not found.
+list_virtual_status=1
+### delete pool
+delete_pool_status=0
+01020036:3: The requested Pool (/Common/__tcl_lsp_probe_2286_r2286_20261006c_pool) was not found.
+list_pool_status=1
+### node after pool
+ltm node 192.168.9.80 {
+    address 192.168.9.80
+    app-service none
+    connection-limit 0
+    delay-timeout 0
+    description none
+    dynamic-ratio 1
+    ephemeral false
+    fqdn {
+        address-family ipv4
+        autopopulate disabled
+        down-interval 5
+        interval 3600
+        name none
+    }
+    logging disabled
+    metadata none
+    monitor default
+    partition Common
+    rate-limit disabled
+    ratio 1
+    session user-enabled
+    state unchecked
+}
+node_list_status=0
+delete_node_status=0
+01020036:3: The requested Node (/Common/192.168.9.80) was not found.
+node_absence_status=1
+### rule cleanup
+journal=/var/tmp/r2286_20261006c/journals/collision_a_bfirst
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_collision_a) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_collision_a
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/collision_b_bfirst
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_collision_b) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_collision_b
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/collision_observer_bfirst
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_collision_observer) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_collision_observer
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_alias
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_alias) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_alias
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_alias_rename
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_alias_rename) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_alias_rename
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_colon_names
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_colon_names) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_colon_names
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_exists
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_exists) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_exists
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_expr
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_expr) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_expr
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_global_alias
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_global_alias) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_global_alias
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_namespace
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_namespace) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_namespace
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_namespace_delete
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_namespace_delete) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_namespace_delete
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_namespace_import
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_namespace_import) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_namespace_import
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_package
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_package) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_package
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_package_resolution
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_package_resolution) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_package_resolution
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_path_provider
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_path_provider) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_path_provider
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_path_shadow
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_path_shadow) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_path_shadow
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_read_failure
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_read_failure) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_read_failure
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_rename_epoch
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_rename_epoch) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_rename_epoch
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_static_global_link
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_static_global_link) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_static_global_link
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_trace_scalar
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_trace_scalar) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_trace_scalar
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_trace_static
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_trace_static) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_trace_static
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_trace_upvar_array
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_trace_upvar_array) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_trace_upvar_array
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_unicode_names
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_unicode_variable_syntax
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_uplevel
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_uplevel) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_uplevel
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_uplevel_absolute
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_uplevel_absolute) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_uplevel_absolute
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_upvar
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_upvar_absolute
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar_absolute) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar_absolute
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_upvar_unset
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar_unset) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar_unset
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_upvar_zero
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar_zero) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_upvar_zero
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/dynamic_word_bytes
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_dynamic_word_bytes) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_word_bytes
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/encoding
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/event_frames
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_event_frames) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_event_frames
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/global_reinit_cmp_yes
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_global) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_global
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/identity
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_identity) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_identity
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/identity_group
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_identity_group) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_identity_group
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/init_identity
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_init_identity) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_init_identity
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/literal_interp
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/literal_namespace
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/literal_package
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/literal_proc
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/literal_rename
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/literal_trace
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/minimal
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_minimal) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_minimal
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/ordinary_literal
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/physical_words_crlf
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/physical_words_lf
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/procedure_a_bfirst
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_procedure_a) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_procedure_a
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/procedure_b_bfirst
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_procedure_b) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_procedure_b
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/procedure_caller_bfirst
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_procedure_caller) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_procedure_caller
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/runtime_cleanup
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/runtime_cleanup_ascii
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup_ascii) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup_ascii
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/static
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_static) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_static
+cleanup_status=0
+journal=/var/tmp/r2286_20261006c/journals/static_group_reinit_cmp_yes
+01020036:3: The requested iRule (__tcl_lsp_probe_2286_r2286_20261006c_static_group) was not found.
+ABSENT /Common/__tcl_lsp_probe_2286_r2286_20261006c_static_group
+cleanup_status=0
+### remaining exact rules
+01020036:3: The requested iRule (one-line) was not found.
+remaining_rules_grep_status=1
+### final object absence
+01020036:3: The requested Virtual Server (/Common/__tcl_lsp_probe_2286_r2286_20261006c_vs) was not found.
+vs_status=1
+01020036:3: The requested Pool (/Common/__tcl_lsp_probe_2286_r2286_20261006c_pool) was not found.
+pool_status=1
+01020036:3: The requested Node (/Common/192.168.9.80) was not found.
+node_status=1
+capture_kill_status=0
+capture_wait_status=127

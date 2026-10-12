@@ -287,7 +287,10 @@ pub struct ProcEscapeSummary {
     /// eligibility check.  Empty when the proc isn't eligible at
     /// all (dynamic eval body, `has_fallback`, etc.) or when no
     /// local survives the per-name checks.  Populated by
-    /// [`super::slot_resolution::populate_local_slots`].
+    /// [`super::slot_resolution::populate_local_slots`]. These are authored
+    /// analysis ordinals; they do not authenticate original byte cells or
+    /// physical compiled locals. A native consumer requires its independent
+    /// exact byte/frame/layout receipt before selecting indexed storage.
     pub local_slots: BTreeMap<String, u32>,
     /// Recorded barrier triggers.  Each barrier carries its kind +
     /// detail + source range so callers (codegen, compiler
@@ -630,7 +633,10 @@ mod tests {
         // ``Local`` vars never have a reason to surface — they
         // don't live in the frame.
         let s = ProcEscapeSummary::default();
-        assert!(s.reasons_for("any_var").is_empty());
+        assert_eq!(
+            s.reasons_for("any_var"),
+            [] as [crate::var_escape::types::EscapeReason; 0]
+        );
     }
 
     #[test]
@@ -681,7 +687,7 @@ mod tests {
         let rs = s.reasons_for("anything");
         assert_eq!(rs.len(), 1);
         assert_eq!(rs[0].kind, EscapeReasonKind::Barrier);
-        assert!(rs[0].detail.is_empty());
+        assert_eq!(rs[0].detail, "");
     }
 
     #[test]
@@ -696,7 +702,7 @@ mod tests {
     fn escape_reason_constructors() {
         let r = EscapeReason::new(EscapeReasonKind::CalleeUpvar);
         assert_eq!(r.kind, EscapeReasonKind::CalleeUpvar);
-        assert!(r.detail.is_empty());
+        assert_eq!(r.detail, "");
 
         let r2 = EscapeReason::with_detail(EscapeReasonKind::EvalReference, "eval body refs x");
         assert_eq!(r2.detail, "eval body refs x");

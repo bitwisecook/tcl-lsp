@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::family_b_tests::string_length_intrinsic_uses_the_selected_runtime_character_model ... 
+thread 'interp::family_b_tests::string_length_intrinsic_uses_the_selected_runtime_character_model' (1360502) panicked at rust/tcl-vm/src/interp.rs:28816:47:
+called `Result::unwrap()` on an `Err` value: Guest(Completion { code: Error, result: Value("expected integer but got \"\""), options: Value("-code 1 -level 0 -errorcode NONE"), option_origin: ErrorMetadata })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::string_length_intrinsic_uses_the_selected_runtime_character_model
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.56s
+

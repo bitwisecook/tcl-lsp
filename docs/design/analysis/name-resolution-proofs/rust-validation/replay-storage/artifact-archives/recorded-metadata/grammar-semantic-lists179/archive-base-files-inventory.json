@@ -1,0 +1,231 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-semantic-lists179.base-files.tar.gz",
+  "archive_sha256": "d18e13bc8061b9be416b2e9ce835cee96d6c3b7e2b90fd214093cec5589afd22",
+  "archive_bytes": 256933,
+  "uncompressed_bytes": 1129819,
+  "source_manifest_sha256": "8badee53dee1e9746c20553d8c91e9baed0fd57128b78f15416772839b4d451b",
+  "source_patch_sha256": "7534f9605bffb5566f285ff92cac1f907a58ff60613ff80d01ddb24c8d7e1d2e",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/7534f9605bffb5566f285ff92cac1f907a58ff60613ff80d01ddb24c8d7e1d2e.patch",
+  "original_application_journal_sha256": "7534f9605bffb5566f285ff92cac1f907a58ff60613ff80d01ddb24c8d7e1d2e",
+  "member_count": 24,
+  "members": {
+    "grammar-semantic-lists179/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.448447,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4572253,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-lsp-core/src/semantic_tokens": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4572253,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4581175,
+      "size": 98131,
+      "sha256": "451c49d3348003651dcdd3a9828e92ef3888fe20b4737f77517924c7f713d72b"
+    },
+    "grammar-semantic-lists179/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4564009,
+      "size": 430745,
+      "sha256": "9a4f0c8561e233dd8afd45a5b16a2400508229195d7684d538b1a37184e95b7b"
+    },
+    "grammar-semantic-lists179/base/rust/tcl-syntax": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.448447,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-syntax/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-syntax/src/word_rules": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/base/rust/tcl-syntax/src/word_rules/source_list.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "grammar-semantic-lists179/base/rust/tcl-syntax/src/word_rules.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4531384,
+      "size": 29727,
+      "sha256": "9b9f302e384232c455d441164c8c27b1e77a20446c87fff4d882d3baa1ce9b64"
+    },
+    "grammar-semantic-lists179/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4531384,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4564009,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4564009,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4581175,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-lsp-core/src/semantic_tokens": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4581175,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587444.9828026,
+      "size": 105751,
+      "sha256": "165b9617583e434d1b764072e98951dc67d240a19e042b2995ceeaaba97f4605"
+    },
+    "grammar-semantic-lists179/files/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587513.5615835,
+      "size": 424434,
+      "sha256": "7326b598be538e2a23aaa661297fc772a410cf1ec99c9212e6d1b8bde605398f"
+    },
+    "grammar-semantic-lists179/files/rust/tcl-syntax": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4531384,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-syntax/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-syntax/src/word_rules": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587231.4537117,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-semantic-lists179/files/rust/tcl-syntax/src/word_rules/source_list.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587513.5574844,
+      "size": 10520,
+      "sha256": "3a91572e02e03c843538ee3da866248cfea0902cf25010d39ab4b9e969d8142d"
+    },
+    "grammar-semantic-lists179/files/rust/tcl-syntax/src/word_rules.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791587364.9714272,
+      "size": 30511,
+      "sha256": "34b8a6c24eb830c38933ca62644b927dc8dfa29c5607e503c76210c5b8456413"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

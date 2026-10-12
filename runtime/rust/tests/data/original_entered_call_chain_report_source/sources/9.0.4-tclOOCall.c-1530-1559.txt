@@ -1,0 +1,30 @@
+     */
+
+    AddSimpleChainToCallContext(&obj, NULL, methodNameObj, &cb, NULL,
+	    flags|BUILDING_MIXINS, NULL);
+    AddSimpleChainToCallContext(&obj, NULL, methodNameObj, &cb, NULL, flags,
+	    NULL);
+
+    /*
+     * Check to see if the method has no implementation. If so, we probably
+     * need to add in a call to the unknown method. Otherwise, set up the
+     * caching of the method implementation (if relevant).
+     */
+
+    if (count == callPtr->numChain) {
+	AddSimpleChainToCallContext(&obj, NULL, fPtr->unknownMethodNameObj,
+		&cb, NULL, BUILDING_MIXINS, NULL);
+	AddSimpleChainToCallContext(&obj, NULL, fPtr->unknownMethodNameObj,
+		&cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = 0;
+	if (count == callPtr->numChain) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+    } else {
+	if (hPtr == NULL) {
+	    int isNew;
+	    if (clsPtr->classChainCache == NULL) {
+		clsPtr->classChainCache = (Tcl_HashTable *)
+			Tcl_Alloc(sizeof(Tcl_HashTable));

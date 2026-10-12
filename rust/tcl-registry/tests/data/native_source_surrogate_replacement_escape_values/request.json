@@ -1,0 +1,39 @@
+{
+  "request": "SourceUnitDistinction431",
+  "question": "naming.source.original-surrogate-versus-replacement-escape-values",
+  "proof_doc": "docs/design/analysis/name-resolution-proofs/source-original-surrogate-versus-replacement-escape-values.md",
+  "source": "/tmp/diagnostic-source-unit-distinction431/probe.tcl",
+  "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "delivery": "Exact unchanged ASCII file to each original stock CLI in a fresh process; retain whole stdout/stderr, host exit, actual provider/source/executable and before/after digests. Root owns execution.",
+  "scope": "Public string equal and string length observations for single source numeric high-surrogate vs replacement-character escapes, adjacent high-surrogate escapes, replacement self comparison, valid non-ASCII escape vs ASCII value, and braced literal escape text. Source/request only; no claimed outcome before actual run. No binary scan/getter, bytes/object/header/name-slot/Normal/pairing or wide-escape claim.",
+  "rows": {
+    "SOURCE_SURROGATE_REPLACEMENT": [
+      "equality",
+      "surrogate_length",
+      "replacement_length"
+    ],
+    "SOURCE_ADJACENT_SURROGATES": [
+      "equality",
+      "adjacent_surrogate_length"
+    ],
+    "SOURCE_REPLACEMENT_SELF": [
+      "equality"
+    ],
+    "SOURCE_VALID_UNICODE": [
+      "equality",
+      "unicode_length"
+    ],
+    "SOURCE_BRACED_ESCAPE": [
+      "equality",
+      "literal_escape_length"
+    ]
+  }
+}

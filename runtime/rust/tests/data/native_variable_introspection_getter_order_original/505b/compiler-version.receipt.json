@@ -1,0 +1,31 @@
+{
+  "provider": "compiler",
+  "channel": "compiler-version",
+  "status": "closed",
+  "command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "--version"
+  ],
+  "cwd": "/workspace/.proofs/native-variable-introspection-order505b",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "489071bc1661058953d58b17f456e8c26fc50ca0d0dd7a6d2c397a7b3b355fb1",
+  "source_sha256": "3d8db6cb4de0f895365184d88a8bcb49a87ecd63de8d1cd32ac81bf1acbb1099",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.010897542000748217,
+  "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,14 @@
+[
+  "string match * $subject",
+  "string match A $subject",
+  "string match {]} $subject",
+  "string match -n A $subject",
+  "string match - A $subject",
+  "string match -nocaseX A $subject",
+  "string match $flag A $subject",
+  "string match $pattern $subject",
+  "string match \\-n A $subject",
+  "string match {*}\"A\" $subject",
+  "string match {*}{* X}",
+  "string match A"
+]

@@ -1,0 +1,1 @@
+set source {if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {rename ::tcl::mathop::+ original; proc ::tcl::mathop::+ args {return OVERRIDE}; list [original 2 3] [::tcl::mathop::+ 2 3]}};set code [catch $source result];list $code $result

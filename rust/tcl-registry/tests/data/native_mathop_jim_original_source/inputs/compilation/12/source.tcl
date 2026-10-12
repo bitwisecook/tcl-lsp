@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 1e16 -1e16 1] [::tcl::mathop::- 1e16 1e16 -1] [::tcl::mathop::/ 100.0 5 2]}; p}

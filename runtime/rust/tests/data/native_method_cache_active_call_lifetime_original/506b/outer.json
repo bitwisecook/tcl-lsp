@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "/tmp/receiver-native-method-lifetime506b/capture.py"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "started_ns": 1791686692120711410,
+  "ended_ns": 1791686704879410703,
+  "exit_code": 0,
+  "manifest_sha256": "c6ae88cd1c3232ba78d830c90b09b6e8d10990d1e890d8d8fe4b8ddac9bca91d",
+  "stdout": {
+    "path": "/workspace/.proofs/native-method-lifetime506b-outer.stdout",
+    "sha256": "03ecd3c3559457918e3a2a7e9c01ec95159f183f5b5fa36f2ff594a4c3ceb5fb"
+  },
+  "stderr": {
+    "path": "/workspace/.proofs/native-method-lifetime506b-outer.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

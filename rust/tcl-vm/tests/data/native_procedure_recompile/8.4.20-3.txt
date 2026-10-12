@@ -1,0 +1,6 @@
+S|3|defined|1|1|1|1|1|none|1|none|1|1|none|2|0|-1|1|0
+S|3|warm-return|1|1|1|2|1|bytecode|1|none|2|1|localVarName|2|0|-1|1|0
+R|3|warm-return|0|44454641554c54
+S|3|invalidated|1|1|1|2|1|bytecode|1|none|1|1|localVarName|2|0|-1|1|1
+S|3|recompiled-return|0|0|1|2|1|bytecode|1|none|2|1|localVarName|2|0|-1|1|1
+R|3|recompiled-return|0|44454641554c54

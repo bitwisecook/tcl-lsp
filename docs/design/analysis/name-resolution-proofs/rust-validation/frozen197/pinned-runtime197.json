@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-runtime197.elf",
+  "sha256": "a2c34e5ced4cd776bebe9668ca700096d14828ace88c38e514bd93f25dc6de71",
+  "build_receipt": "/workspace/.proofs/recovery-runtime-build197.json",
+  "build_receipt_sha256": "60204085eb3320727aa36560a3b47f22dff0e6d2a59d2a978e14eaf6043e3615",
+  "source_snapshot_sha256": "05636e4543c6045ee3acef2fa8d05a5a93d36c8bf57448f171e8816982828f5c"
+}

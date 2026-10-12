@@ -1907,7 +1907,7 @@ function renderTestReport(): void {
       code.appendChild(document.createTextNode(chunk.text));
       continue;
     }
-    const token = report.tokens[chunk.token];
+    const token = report.tokens?.[chunk.token];
     if (!token) {
       code.appendChild(document.createTextNode(chunk.text));
       continue;
@@ -1930,6 +1930,15 @@ function renderTestReport(): void {
   }
 
   const s = report.summary;
+  if (report.source_available === false || !report.tokens || !s) {
+    byId("testSummary").textContent = "Sample source analysis unavailable.";
+    setStatus(
+      "testStatus",
+      "sample source analysis is unavailable",
+      "err",
+    );
+    return;
+  }
   byId("testSummary").textContent =
     `${s.calls} call(s), ${s.pack_calls} into the pack` +
     (s.unknown_commands ? `, ${s.unknown_commands} unknown` : "") +

@@ -1,0 +1,1124 @@
+[
+  {
+    "id": "naming.variable.error-globals-bootstrap-and-legacy-copy",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.error-globals-bootstrap-and-legacy-copy.md",
+    "problem_statement": "A fresh errorInfo/errorCode root can be absent, present-but-undefined, or backed by an implicit private-object copy. Treating it as an ordinary quiet global read can change contents or suppress a recreation callback. The private legacy-copy bit is explicitly controlled; C8.4 has no inspected private-field counterpart.",
+    "question": "What do original error-variable construction, controlled legacy-copy reads, unsets, missing private values and reset do to the physical global cells?",
+    "conclusion": "C8.4 has ordinary lazily created error globals in this probe. C8.5\u20139.1 start with undefined allocated error cells; the controlled legacy-copy flag selects private-object copying on reads, and unsets retain/recreate an undefined root that can later copy again. The exact rows include null private values and reset. This is a special error-variable purpose, not a general quiet namespace read or a Jim/iRules policy.",
+    "scope": "Original C API/worker and internal root-cell inspection with the exact retained probes, headers, libraries and controlled exception phases. The input objects are retained before the reported windows; any report conversion is part of the exact probe. Only C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 were queried. No fresh rerun, Rust pass, general variable lookup, Jim or BIG-IP observation is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Captured library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by probe.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.4.20:\nconstructor\tcode=0\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=0\terrorCode_defined=0\terrorCode_value=null\nfresh-read\tcode=1\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=0\terrorCode_defined=0\terrorCode_value=null\nclear-flag-read\tcode=0\tread=\"475545535420494e464f\"\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"475545535420494e464f\"\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\nset-flag-read\tcode=0\tread=\"475545535420494e464f\"\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"475545535420494e464f\"\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\nunset-defined\tcode=0\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\nread-after-unset\tcode=1\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\nunset-code-defined\tcode=0\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=0\terrorCode_defined=0\terrorCode_value=null\nunset-code-undefined\tcode=1\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=0\terrorCode_defined=0\terrorCode_value=null\nnull-private-read\tcode=1\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=0\terrorCode_defined=0\terrorCode_value=null\nreset-legacy\tcode=0\tread=null\tlegacy=-1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=0\terrorInfo_defined=0\terrorInfo_value=null\terrorCode_present=0\terrorCode_defined=0\terrorCode_value=null",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Captured library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by probe.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.5.19:\nconstructor\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nfresh-read\tcode=1\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nclear-flag-read\tcode=0\tread=\"475545535420494e464f\"\tlegacy=0\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"475545535420494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nset-flag-read\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nread-after-unset\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-code-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nunset-code-undefined\tcode=1\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nnull-private-read\tcode=0\tread=\"\"\tlegacy=1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"\"\terrorCode_same=0\nreset-legacy\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"5052495641544520434f4445\"\terrorCode_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Captured library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by probe.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.6.18:\nconstructor\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nfresh-read\tcode=1\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=\"54434c2052454144205641524e414d45\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nclear-flag-read\tcode=0\tread=\"475545535420494e464f\"\tlegacy=0\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"475545535420494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nset-flag-read\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nread-after-unset\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-code-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nunset-code-undefined\tcode=1\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nnull-private-read\tcode=0\tread=\"\"\tlegacy=1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"\"\terrorCode_same=0\nreset-legacy\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"5052495641544520434f4445\"\terrorCode_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Captured library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by probe.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.0.4:\nconstructor\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nfresh-read\tcode=1\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=\"54434c2052454144205641524e414d45\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nclear-flag-read\tcode=0\tread=\"475545535420494e464f\"\tlegacy=0\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"475545535420494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nset-flag-read\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nread-after-unset\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-code-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nunset-code-undefined\tcode=1\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nnull-private-read\tcode=0\tread=\"\"\tlegacy=1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"\"\terrorCode_same=0\nreset-legacy\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"5052495641544520434f4445\"\terrorCode_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Captured library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by probe.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.1.0:\nconstructor\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nfresh-read\tcode=1\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=\"54434c2052454144205641524e414d45\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nclear-flag-read\tcode=0\tread=\"475545535420494e464f\"\tlegacy=0\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"475545535420494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nset-flag-read\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=0\terrorInfo_value=null\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nread-after-unset\tcode=0\tread=\"5052495641544520494e464f\"\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"475545535420434f4445\"\terrorCode_same=0\nunset-code-defined\tcode=0\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nunset-code-undefined\tcode=1\tread=null\tlegacy=1\tprivateinfo=\"5052495641544520494e464f\"\tprivatecode=\"5052495641544520434f4445\"\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=1\terrorCode_present=1\terrorCode_defined=0\terrorCode_value=null\terrorCode_same=0\nnull-private-read\tcode=0\tread=\"\"\tlegacy=1\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"\"\terrorCode_same=0\nreset-legacy\tcode=0\tread=null\tlegacy=0\tprivateinfo=null\tprivatecode=null\terrorInfo_present=1\terrorInfo_defined=1\terrorInfo_value=\"5052495641544520494e464f\"\terrorInfo_same=0\terrorCode_present=1\terrorCode_defined=1\terrorCode_value=\"5052495641544520434f4445\"\terrorCode_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/manifest.json",
+        "sha256": "b4b56484236768bafb41b9f74cc262693d2172ff6e1dfff3b90ea9210e806bbc",
+        "description": "Exact original build and capture receipt, including all observed engine versions and source/library/output hashes."
+      },
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/probe.c",
+        "sha256": "1e8a1d8ec6512fcf0991d33d403da62f78f7e6dc372c7bc366b8dcceb03e3085",
+        "description": "Original API calls, reporting order, object retention and internal root-cell observation windows."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.4.20.tsv",
+        "sha256": "3381bc073bd7502d0f1240b330b063fcab81ee626107bc1d19c506749e6c0d4c",
+        "description": "Exact native result/state/callback rows for 8.4.20"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.5.19.tsv",
+        "sha256": "846ff9095a3f5e572f316b42907f1d6896640183d5293b474a32be2cfffe4894",
+        "description": "Exact native result/state/callback rows for 8.5.19"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.6.18.tsv",
+        "sha256": "5ce398c7dc280ad30a4a17ae5cbf73515289ad3570c1ae2d4dfc829123072a3e",
+        "description": "Exact native result/state/callback rows for 8.6.18"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.0.4.tsv",
+        "sha256": "5ce398c7dc280ad30a4a17ae5cbf73515289ad3570c1ae2d4dfc829123072a3e",
+        "description": "Exact native result/state/callback rows for 9.0.4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0.tsv",
+        "sha256": "5ce398c7dc280ad30a4a17ae5cbf73515289ad3570c1ae2d4dfc829123072a3e",
+        "description": "Exact native result/state/callback rows for 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "selector": "interp::native_error_variables::tests::hidden_error_reads_and_unsets_match_original_native_objects",
+        "assertion": "Checks the scoped original-object/cell/phase windows in this question; retained native rows remain independent evidence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "symbol": "hidden_error_reads_and_unsets_match_original_native_objects",
+        "purpose": "Independent Rust fixture comparison; no native capability inferred from the test marker."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-std=c99",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/tcl9.0.4/generic",
+        "-I/path/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_error_variables/probe.c",
+        "/path/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/naming-error-variable-probe"
+      ],
+      "limitations": "Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed."
+    }
+  },
+  {
+    "id": "naming.variable.error-info-append-original-object",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.error-info-append-original-object.md",
+    "problem_statement": "Appending error context can preserve an original result object for an empty append yet convert or replace it for a nonempty append. Bytes alone cannot certify the original ByteArray header or private/public reference ownership.",
+    "question": "How do empty and nonempty Tcl_AddObjErrorInfo appends and reset affect the original ByteArray result and private/global error objects?",
+    "conclusion": "The original ff 00 61 ByteArray, empty append, eight-byte context append and reset have distinct measured object/header windows. The retained rows determine sameness and reference counts for each C release; they do not establish an arbitrary string mutation or physical identity from equal bytes.",
+    "scope": "Original C API/worker and internal root-cell inspection with the exact retained probes, headers, libraries and controlled exception phases. The input objects are retained before the reported windows; any report conversion is part of the exact probe. Only C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 were queried. No fresh rerun, Rust pass, general variable lookup, Jim or BIG-IP observation is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Captured library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by info-append.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.4.20:\nempty-append\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=3\tcode_refs=-1\tglobal0=bytearray\tglobal0_same=1\tglobal1=string\tglobal1_same=0\nnonempty-append\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=2\tcode_refs=-1\tglobal0=string\tglobal0_same=0\tglobal1=string\tglobal1_same=0\nappend-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=1\tcode_refs=-1\tglobal0=string\tglobal0_same=0\tglobal1=string\tglobal1_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Captured library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by info-append.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.5.19:\nempty-append\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=3\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nnonempty-append\tprivateinfo=string\tprivatecode=list\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nappend-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=1\tcode_refs=-1\tglobal0=string\tglobal0_same=0\tglobal1=list\tglobal1_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Captured library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by info-append.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.6.18:\nempty-append\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=3\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nnonempty-append\tprivateinfo=string\tprivatecode=list\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nappend-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=1\tcode_refs=-1\tglobal0=string\tglobal0_same=0\tglobal1=list\tglobal1_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Captured library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by info-append.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.0.4:\nempty-append\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=3\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nnonempty-append\tprivateinfo=string\tprivatecode=list\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nappend-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=1\tcode_refs=-1\tglobal0=string\tglobal0_same=0\tglobal1=list\tglobal1_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Captured library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by info-append.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.1.0:\nempty-append\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=3\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nnonempty-append\tprivateinfo=string\tprivatecode=list\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=-1\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=1\nappend-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=1\tinfo_refs=1\tcode_refs=-1\tglobal0=string\tglobal0_same=0\tglobal1=list\tglobal1_same=0",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/info-append-manifest.json",
+        "sha256": "9bdc22e97e6fc37c4c03843f577657ec7831648cf0fc5e8cd78530e498510c3f",
+        "description": "Exact original build and capture receipt, including all observed engine versions and source/library/output hashes."
+      },
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/info-append.c",
+        "sha256": "370e2e15b2de0c73471783baa4d9d96c93c846eaadedd7b3b3a1f4f366a42921",
+        "description": "Original API calls, reporting order, object retention and internal root-cell observation windows."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.4.20-info-append.tsv",
+        "sha256": "88f030fbe4c69fafbc0eef8174c5e2c82c113bdde9c678ec5818f1ab266ac95c",
+        "description": "Exact native result/state/callback rows for 8.4.20"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.5.19-info-append.tsv",
+        "sha256": "d4c34c2232955a9b0b62e67fdc0246ba56918a9bf3189e436e9c9665f6951346",
+        "description": "Exact native result/state/callback rows for 8.5.19"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.6.18-info-append.tsv",
+        "sha256": "d4c34c2232955a9b0b62e67fdc0246ba56918a9bf3189e436e9c9665f6951346",
+        "description": "Exact native result/state/callback rows for 8.6.18"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.0.4-info-append.tsv",
+        "sha256": "d4c34c2232955a9b0b62e67fdc0246ba56918a9bf3189e436e9c9665f6951346",
+        "description": "Exact native result/state/callback rows for 9.0.4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0-info-append.tsv",
+        "sha256": "d4c34c2232955a9b0b62e67fdc0246ba56918a9bf3189e436e9c9665f6951346",
+        "description": "Exact native result/state/callback rows for 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "selector": "interp::native_error_variables::tests::error_info_byte_append_preserves_seed_primary_until_nonempty_mutation",
+        "assertion": "Checks the scoped original-object/cell/phase windows in this question; retained native rows remain independent evidence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "symbol": "error_info_byte_append_preserves_seed_primary_until_nonempty_mutation",
+        "purpose": "Independent Rust fixture comparison; no native capability inferred from the test marker."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-std=c99",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/tcl9.0.4/generic",
+        "-I/path/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_error_variables/info-append.c",
+        "/path/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/naming-error-variable-probe"
+      ],
+      "limitations": "Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed."
+    }
+  },
+  {
+    "id": "naming.variable.error-producer-reset-callback-order",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.error-producer-reset-callback-order.md",
+    "problem_statement": "The actual error worker retains original info/code operands differently from visible globals, and reset publishes those objects through write traces. Callback-time additional references cannot be inferred from pre-reset values or script-trace behaviour.",
+    "question": "Which original ByteArray info/code objects does the error worker retain, and what do direct native write traces see during reset?",
+    "conclusion": "For the measured direct-worker ff 00 61 operands, C8.5+ retains the info object and validates the same code object into a List. Direct native reset callbacks observe code publication before info and an additional saved-interpreter-state owner. C8.4 uses its separately recorded global path. These windows do not apply to script callbacks or prove source-analysis observer closure.",
+    "scope": "Original C API/worker and internal root-cell inspection with the exact retained probes, headers, libraries and controlled exception phases. The input objects are retained before the reported windows; any report conversion is part of the exact probe. Only C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 were queried. No fresh rerun, Rust pass, general variable lookup, Jim or BIG-IP observation is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Captured library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producers.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.4.20:\ndefault-code\tprivateinfo=null\tprivatecode=null\tinfo_same=1\tcode_same=1\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=list\tglobal1_same=0\nerror_code=1\nexplicit-error\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=1\tcode_refs=2\tglobal0=string\tglobal0_same=0\tglobal1=bytearray\tglobal1_same=1\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=1\tcode_refs=2\tglobal0=string\tglobal0_same=0\tglobal1=bytearray\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Captured library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producers.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.5.19:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorCode\tprivate=list\tprivate_refs=5\tglobal_same=1\ntrace-::errorInfo\tprivate=bytearray\tprivate_refs=5\tglobal_same=1\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Captured library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producers.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.6.18:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorCode\tprivate=list\tprivate_refs=5\tglobal_same=1\ntrace-::errorInfo\tprivate=bytearray\tprivate_refs=5\tglobal_same=1\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Captured library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producers.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.0.4:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorCode\tprivate=list\tprivate_refs=5\tglobal_same=1\ntrace-::errorInfo\tprivate=bytearray\tprivate_refs=5\tglobal_same=1\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Captured library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producers.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.1.0:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorCode\tprivate=list\tprivate_refs=5\tglobal_same=1\ntrace-::errorInfo\tprivate=bytearray\tprivate_refs=5\tglobal_same=1\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/producers-manifest.json",
+        "sha256": "a69004c9aac5b891e466c6da2e254baee81260a046bbe8aef2e225275d47cc98",
+        "description": "Exact original build and capture receipt, including all observed engine versions and source/library/output hashes."
+      },
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/producers.c",
+        "sha256": "557d71f70cb1e73bb71417edb027a82e086757b628530e12fc45accddd2446bf",
+        "description": "Original API calls, reporting order, object retention and internal root-cell observation windows."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.4.20-producers.tsv",
+        "sha256": "fce12318d7f826d6240b1962f809d511d0162255367b1edc4850c03f187c6458",
+        "description": "Exact native result/state/callback rows for 8.4.20"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.5.19-producers.tsv",
+        "sha256": "d06adeabd57ec85e2435248b12fd3e91c667e214c4a4a1a424f2058d1e2488a6",
+        "description": "Exact native result/state/callback rows for 8.5.19"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.6.18-producers.tsv",
+        "sha256": "d06adeabd57ec85e2435248b12fd3e91c667e214c4a4a1a424f2058d1e2488a6",
+        "description": "Exact native result/state/callback rows for 8.6.18"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.0.4-producers.tsv",
+        "sha256": "d06adeabd57ec85e2435248b12fd3e91c667e214c4a4a1a424f2058d1e2488a6",
+        "description": "Exact native result/state/callback rows for 9.0.4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0-producers.tsv",
+        "sha256": "d06adeabd57ec85e2435248b12fd3e91c667e214c4a4a1a424f2058d1e2488a6",
+        "description": "Exact native result/state/callback rows for 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "selector": "interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers",
+        "assertion": "Checks the scoped original-object/cell/phase windows in this question; retained native rows remain independent evidence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "symbol": "original_private_error_primaries_and_script_reset_match_native_producers",
+        "purpose": "Independent Rust fixture comparison; no native capability inferred from the test marker."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-std=c99",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/tcl9.0.4/generic",
+        "-I/path/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_error_variables/producers.c",
+        "/path/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/naming-error-variable-probe"
+      ],
+      "limitations": "Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed."
+    }
+  },
+  {
+    "id": "naming.variable.error-producer-script-trace-reset-order",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.error-producer-script-trace-reset-order.md",
+    "problem_statement": "Entering a script write-trace callback resets interpreter exception state before its body. Thus direct native callback state and script callback state can disagree even for the same copied operands; using the former to close script effects would skip real phase changes.",
+    "question": "What is the measured callback chronology and private/global object state when error reset reaches script write traces?",
+    "conclusion": "The source registers actual script traces and calls the original error worker. Modern C script callbacks see null private fields after their evaluation entry; the measured info callback precedes the outer code callback, while physical globals retain the original operands. C8.4 retains its distinct rows. This result is specific to these registrations and entry phases, not a blanket trace or normal-return grant.",
+    "scope": "Original C API/worker and internal root-cell inspection with the exact retained probes, headers, libraries and controlled exception phases. The input objects are retained before the reported windows; any report conversion is part of the exact probe. Only C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 were queried. No fresh rerun, Rust pass, general variable lookup, Jim or BIG-IP observation is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Captured library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producer-script-traces.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.4.20:\ndefault-code\tprivateinfo=null\tprivatecode=null\tinfo_same=1\tcode_same=1\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=list\tglobal1_same=0\ntrace-::errorInfo\tlegacy=-1\ntrace-::errorCode\tlegacy=-1\ntrace-::errorInfo\tlegacy=-1\ntrace-errorCode\tlegacy=-1\nerror_code=1\nexplicit-error\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=1\tcode_refs=2\tglobal0=string\tglobal0_same=0\tglobal1=bytearray\tglobal1_same=1\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=1\tcode_refs=2\tglobal0=string\tglobal0_same=0\tglobal1=bytearray\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Captured library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producer-script-traces.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.5.19:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorInfo\tprivate=null\tprivate_refs=-1\tglobal_same=0\ntrace-::errorCode\tprivate=null\tprivate_refs=-1\tglobal_same=0\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Captured library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producer-script-traces.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.6.18:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorInfo\tprivate=null\tprivate_refs=-1\tglobal_same=0\ntrace-::errorCode\tprivate=null\tprivate_refs=-1\tglobal_same=0\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Captured library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producer-script-traces.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.0.4:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorInfo\tprivate=null\tprivate_refs=-1\tglobal_same=0\ntrace-::errorCode\tprivate=null\tprivate_refs=-1\tglobal_same=0\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Captured library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by producer-script-traces.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.1.0:\ndefault-code\tprivateinfo=null\tprivatecode=list\tinfo_same=1\tcode_same=0\tinfo_refs=-1\tcode_refs=-1\tglobal0=null\tglobal0_same=1\tglobal1=null\tglobal1_same=1\nerror_code=1\nexplicit-error\tprivateinfo=bytearray\tprivatecode=list\tinfo_same=1\tcode_same=1\tinfo_refs=3\tcode_refs=3\tglobal0=null\tglobal0_same=0\tglobal1=null\tglobal1_same=0\ntrace-::errorInfo\tprivate=null\tprivate_refs=-1\tglobal_same=0\ntrace-::errorCode\tprivate=null\tprivate_refs=-1\tglobal_same=0\nafter-reset\tprivateinfo=null\tprivatecode=null\tinfo_same=0\tcode_same=0\tinfo_refs=2\tcode_refs=2\tglobal0=bytearray\tglobal0_same=1\tglobal1=list\tglobal1_same=1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/producer-script-traces-manifest.json",
+        "sha256": "2e35c2a3c555bbf1c771fce64dfae1e72524fa64a685b95ebf2902f3e37b25d9",
+        "description": "Exact original build and capture receipt, including all observed engine versions and source/library/output hashes."
+      },
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/producer-script-traces.c",
+        "sha256": "bd8a2e158d6b6bee94fc6084821d2a3c872841b701267afdcf81f7dc02786923",
+        "description": "Original API calls, reporting order, object retention and internal root-cell observation windows."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.4.20-producer-script-traces.tsv",
+        "sha256": "349183c7efb3256d57c1689666ce036ccc605d3b90c30a5fc683256fd7055f48",
+        "description": "Exact native result/state/callback rows for 8.4.20"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.5.19-producer-script-traces.tsv",
+        "sha256": "cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad",
+        "description": "Exact native result/state/callback rows for 8.5.19"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/8.6.18-producer-script-traces.tsv",
+        "sha256": "cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad",
+        "description": "Exact native result/state/callback rows for 8.6.18"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.0.4-producer-script-traces.tsv",
+        "sha256": "cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad",
+        "description": "Exact native result/state/callback rows for 9.0.4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0-producer-script-traces.tsv",
+        "sha256": "cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad",
+        "description": "Exact native result/state/callback rows for 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "selector": "interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers",
+        "assertion": "Checks the scoped original-object/cell/phase windows in this question; retained native rows remain independent evidence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "symbol": "original_private_error_primaries_and_script_reset_match_native_producers",
+        "purpose": "Independent Rust fixture comparison; no native capability inferred from the test marker."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-std=c99",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/tcl9.0.4/generic",
+        "-I/path/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_error_variables/producer-script-traces.c",
+        "/path/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/naming-error-variable-probe"
+      ],
+      "limitations": "Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed."
+    }
+  },
+  {
+    "id": "naming.variable.error-reset-distinct-episodes",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.error-reset-distinct-episodes.md",
+    "problem_statement": "Resetting a result need not destroy a retained public errorInfo object, but a later shorter error must start a new clean episode. A historical object receipt cannot be treated as current episode storage merely because it survived reset and an unrelated successful definition.",
+    "question": "Does errorInfo retain its original header across reset/successful definition, and do later shorter/repeated errors form clean distinct episodes?",
+    "conclusion": "All five captured C releases preserve the retained errorInfo header across reset and the intervening successful definition. The subsequent X error uses a fresh header without FIRST_ERROR_LONG, and the repeated error remains clean. This does not certify arbitrary future cell currency, Jim reset semantics or observer-free error handling.",
+    "scope": "Original C API/worker and internal root-cell inspection with the exact retained probes, headers, libraries and controlled exception phases. The input objects are retained before the reported windows; any report conversion is part of the exact probe. Only C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 were queried. No fresh rerun, Rust pass, general variable lookup, Jim or BIG-IP observation is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Captured library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by reset-episodes.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.4.20:\nversion\tdefinition\tfirst_error\tsame_reset_header\treset_refs\tsecond_definition\tsame_definition_header\tdefinition_refs\tsecond_error\tfresh_error_header\tmessage_X\tclean_episode\tthird_error\tthird_clean_episode; 8.4.20\t0\t1\t1\t2\t0\t1\t2\t1\t1\t1\t1\t1\t1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Captured library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by reset-episodes.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.5.19:\nversion\tdefinition\tfirst_error\tsame_reset_header\treset_refs\tsecond_definition\tsame_definition_header\tdefinition_refs\tsecond_error\tfresh_error_header\tmessage_X\tclean_episode\tthird_error\tthird_clean_episode; 8.5.19\t0\t1\t1\t2\t0\t1\t2\t1\t1\t1\t1\t1\t1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Captured library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by reset-episodes.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.6.18:\nversion\tdefinition\tfirst_error\tsame_reset_header\treset_refs\tsecond_definition\tsame_definition_header\tdefinition_refs\tsecond_error\tfresh_error_header\tmessage_X\tclean_episode\tthird_error\tthird_clean_episode; 8.6.18\t0\t1\t1\t2\t0\t1\t2\t1\t1\t1\t1\t1\t1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Captured library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by reset-episodes.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.0.4:\nversion\tdefinition\tfirst_error\tsame_reset_header\treset_refs\tsecond_definition\tsame_definition_header\tdefinition_refs\tsecond_error\tfresh_error_header\tmessage_X\tclean_episode\tthird_error\tthird_clean_episode; 9.0.4\t0\t1\t1\t2\t0\t1\t2\t1\t1\t1\t1\t1\t1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Captured library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by reset-episodes.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.1.0:\nversion\tdefinition\tfirst_error\tsame_reset_header\treset_refs\tsecond_definition\tsame_definition_header\tdefinition_refs\tsecond_error\tfresh_error_header\tmessage_X\tclean_episode\tthird_error\tthird_clean_episode; 9.1.0\t0\t1\t1\t2\t0\t1\t2\t1\t1\t1\t1\t1\t1",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes-manifest.json",
+        "sha256": "38b32ca3b24b6ab3f53f4c851e18e9719f30b4fa1ed652b4b4b6441e021d9e18",
+        "description": "Exact original build and capture receipt, including all observed engine versions and source/library/output hashes."
+      },
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.c",
+        "sha256": "ba54cc68a231bff05900bcad3b890882e5971e81dc24208efd45564652845199",
+        "description": "Original API calls, reporting order, object retention and internal root-cell observation windows."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv",
+        "sha256": "9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8",
+        "description": "Exact native result/state/callback rows for 8.4.20"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv",
+        "sha256": "9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8",
+        "description": "Exact native result/state/callback rows for 8.5.19"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv",
+        "sha256": "9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8",
+        "description": "Exact native result/state/callback rows for 8.6.18"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv",
+        "sha256": "9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8",
+        "description": "Exact native result/state/callback rows for 9.0.4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv",
+        "sha256": "9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8",
+        "description": "Exact native result/state/callback rows for 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "selector": "interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+        "assertion": "Checks the scoped original-object/cell/phase windows in this question; retained native rows remain independent evidence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_error_variables.rs",
+        "symbol": "public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+        "purpose": "Independent Rust fixture comparison; no native capability inferred from the test marker."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-std=c99",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/tcl9.0.4/generic",
+        "-I/path/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.c",
+        "/path/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/naming-error-variable-probe"
+      ],
+      "limitations": "Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed."
+    }
+  },
+  {
+    "id": "naming.variable.empty-vector-reset-result-and-error-episode",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/variable.empty-vector-reset-result-and-error-episode.md",
+    "problem_statement": "An empty original argv vector resets the result even without invoking a command. Shared and unshared result headers can take different replacement paths, while the previous public error episode remains a separate object lifetime.",
+    "question": "What does Tcl_EvalObjv with zero argv do to shared/unshared integer result primaries and an existing errorInfo episode?",
+    "conclusion": "All five captured C releases return OK for the empty vector and an empty untyped result. The unshared original result is reused and the retained shared original is replaced; the separately held errorInfo header remains the same. This is the zero-vector evaluation door, not a general command result, native header grant or Jim policy.",
+    "scope": "Original C API/worker and internal root-cell inspection with the exact retained probes, headers, libraries and controlled exception phases. The input objects are retained before the reported windows; any report conversion is part of the exact probe. Only C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 were queried. No fresh rerun, Rust pass, general variable lookup, Jim or BIG-IP observation is inferred.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Captured library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by empty-vector-reset.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.4.20:\n0\t0\t1\t1\t1\tnone\t1\t0\n1\t0\t0\t1\t1\tnone\t1\t0\nepisode\t1\t0\t1\t2",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Captured library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by empty-vector-reset.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.5.19:\n0\t0\t1\t1\t1\tnone\t1\t0\n1\t0\t0\t1\t1\tnone\t1\t0\nepisode\t1\t0\t1\t2",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Captured library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by empty-vector-reset.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 8.6.18:\n0\t0\t1\t1\t1\tnone\t1\t0\n1\t0\t0\t1\t1\tnone\t1\t0\nepisode\t1\t0\t1\t2",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Captured library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by empty-vector-reset.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.0.4:\n0\t0\t1\t1\t1\tnone\t1\t0\n1\t0\t0\t1\t1\tnone\t1\t0\nepisode\t1\t0\t1\t2",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Captured library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+        "input_channel": "Original C API objects and counted/ASCII Tcl scripts as specified by empty-vector-reset.c",
+        "dialect": "Tcl",
+        "status": "observed",
+        "answer": "Observed capture for 9.1.0:\n0\t0\t1\t1\t1\tnone\t1\t0\n1\t0\t0\t1\t1\tnone\t1\t0\nepisode\t1\t0\t1\t2",
+        "evidence": [
+          "capture",
+          "probe",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "capture",
+        "role": "provider",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-manifest.json",
+        "sha256": "b3a659666e6cbe6bbb60152b5e29442088dddea7748258fe51ad0de43891b71e",
+        "description": "Exact original build and capture receipt, including all observed engine versions and source/library/output hashes."
+      },
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset.c",
+        "sha256": "bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58",
+        "description": "Original API calls, reporting order, object retention and internal root-cell observation windows."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv",
+        "sha256": "69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0",
+        "description": "Exact native result/state/callback rows for 8.4.20"
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv",
+        "sha256": "69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0",
+        "description": "Exact native result/state/callback rows for 8.5.19"
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv",
+        "sha256": "69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0",
+        "description": "Exact native result/state/callback rows for 8.6.18"
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv",
+        "sha256": "69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0",
+        "description": "Exact native result/state/callback rows for 9.0.4"
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv",
+        "sha256": "69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0",
+        "description": "Exact native result/state/callback rows for 9.1.0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "selector": "interp::native_object_vector::tests::empty_public_vectors_reset_original_result_owners_without_dispatch",
+        "assertion": "Checks the scoped original-object/cell/phase windows in this question; retained native rows remain independent evidence.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/interp/native_object_vector.rs",
+        "symbol": "empty_public_vectors_reset_original_result_owners_without_dispatch",
+        "purpose": "Independent Rust fixture comparison; no native capability inferred from the test marker."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cc",
+        "-std=c99",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/path/tcl9.0.4/generic",
+        "-I/path/tcl9.0.4/unix",
+        "rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset.c",
+        "/path/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/tmp/naming-error-variable-probe"
+      ],
+      "limitations": "Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed."
+    }
+  }
+]

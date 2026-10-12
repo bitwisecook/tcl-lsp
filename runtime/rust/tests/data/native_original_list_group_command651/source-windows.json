@@ -1,0 +1,149 @@
+[
+  {
+    "provider": "C Tcl",
+    "version": "8.4.20",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+    "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "lines": [
+      3693,
+      4172
+    ],
+    "byte_range": [
+      105199,
+      118437
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.4.20-lsort.txt",
+    "snippet_sha256": "a134aca95a0fa306661e8d3dc5ad55c4db434b9f472dff0415272a1d4cdd8c3c",
+    "function": "Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+    "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "lines": [
+      3463,
+      4024
+    ],
+    "byte_range": [
+      92458,
+      107735
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.5.19-lsort.txt",
+    "snippet_sha256": "29e462bd833530d0f3df93526e2f00d5d545c56df0d62a361630768094e9a162",
+    "function": "Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+    "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "lines": [
+      3651,
+      4357
+    ],
+    "byte_range": [
+      98374,
+      118325
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.6.18-lsort.txt",
+    "snippet_sha256": "1ee662e0cfc2b1db3aed6ecc4b2f08f7c0628ba3a69918d85510826b8459c402",
+    "function": "Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "9.0.4",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+    "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "lines": [
+      4502,
+      5324
+    ],
+    "byte_range": [
+      118534,
+      141307
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl9.0.4-lsort.txt",
+    "snippet_sha256": "fa99c4d187f3f1ec85376241edd1bd77e89b53527151d52a3295701649e257fa",
+    "function": "Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "9.1.0",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+    "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "lines": [
+      4349,
+      5173
+    ],
+    "byte_range": [
+      115160,
+      137975
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl9.1.0-lsort.txt",
+    "snippet_sha256": "9df78b98509bc890c82f1c314e8ea83036af1e2c4df36d6a8977d98314af5b18",
+    "function": "Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result"
+  },
+  {
+    "provider": "Jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "lines": [
+      7053,
+      7062
+    ],
+    "byte_range": [
+      217634,
+      218070
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-7053-7062.txt",
+    "snippet_sha256": "80ac0273eec6b38c21a40ca57ace4ec7e444684d5e784ff684cdda29e2694dd6",
+    "function": "ListSortIndexHelper"
+  },
+  {
+    "provider": "Jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "lines": [
+      7150,
+      7265
+    ],
+    "byte_range": [
+      221014,
+      224536
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-7150-7265.txt",
+    "snippet_sha256": "f73e2f7e2b2101531ea596815c2d623cca1fa212f361a5e84d096e7de4bba2fd",
+    "function": "ListSortCommand, ListRemoveDuplicates and ListSortElements"
+  },
+  {
+    "provider": "Jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "lines": [
+      13831,
+      13970
+    ],
+    "byte_range": [
+      436968,
+      441634
+    ],
+    "line_unit": "physical LF only",
+    "retained": "runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-13831-13970.txt",
+    "snippet_sha256": "c1dbc5858d2381b482116362a40b49e1479aa7dd9be1d6e3f64149b9dca3e96d",
+    "function": "Jim_LsortCoreCommand"
+  }
+]

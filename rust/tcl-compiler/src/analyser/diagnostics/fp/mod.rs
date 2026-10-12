@@ -53,9 +53,9 @@ pub(super) fn codes(src: &str, dialect: &str) -> Vec<String> {
         .map(|d| d.code.to_string())
         .collect();
     let registry = static_context_for(dialect).commands();
-    let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty())
-        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    let cu = CompilationUnit::build_for_profile(src, registry, false, profile);
+    let dialect_opt = (!dialect.is_empty()).then_some(profile);
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;

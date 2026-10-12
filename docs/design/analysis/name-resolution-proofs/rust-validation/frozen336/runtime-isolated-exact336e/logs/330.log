@@ -1,0 +1,6 @@
+
+running 1 test
+test typed_value::native_boolean_truth::tests::original_c84_logical_sides_keep_distinct_boolean_and_integer_primary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.56s
+

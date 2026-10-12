@@ -1,0 +1,8 @@
+{
+  "status": "compile-process-failed",
+  "output_existed_before": false,
+  "execute": "not entered",
+  "process_receipt": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/8.6.18/compile.receipt.json",
+  "process_receipt_sha256": "dbd182f5823f95bea2e5e6e6a25a650b6d8b93820e8c1c982a059a0cbf316fe3",
+  "request_sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821"
+}

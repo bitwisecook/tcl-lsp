@@ -1,0 +1,26 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "exit_code": 0,
+  "original_objects": 104,
+  "inputs": 26,
+  "getter_kinds": [
+    "Wide",
+    "Double"
+  ],
+  "errno_seeds": [
+    "0",
+    "ERANGE"
+  ],
+  "numeric_environment": "Linux GNU libc, unsigned long long 64-bit, pinned actual Jim build",
+  "source_sha256": "053f99fca7ab9d0c9164d505c3203bf071b8bee1d425cf17aadd1a9a6d135fdb",
+  "probe_sha256": "2da9ed1dc3a9cefa08b2b1bbadd07b1d0985590f172fb4b220659074a3996b62",
+  "observations_sha256": "6724f772f1602625dfdead7dba56a865c6c794df565f1cc59856e1cd90c57089",
+  "jim_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "jim_library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+  "notes": [
+    "errno seeded immediately before original getter; after state and payload captured before object/result updater.",
+    "Unsigned overflow, signed min/max, all Jim prefixes, prefix fallback, counted NUL, float overflow/underflow, nonfinite and failed conversions retained.",
+    "Cached-object conversion is separate and must not execute these fresh stages."
+  ]
+}

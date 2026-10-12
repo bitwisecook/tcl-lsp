@@ -1,0 +1,105 @@
+TclCompileDictMergeCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    Tcl_Size i, numWords = parsePtr->numWords;
+    Tcl_LVTIndex infoIndex;
+    Tcl_ExceptionRange outLoop;
+    Tcl_BytecodeLabel end;
+
+    /*
+     * Deal with some special edge cases. Note that in the case with one
+     * argument, the only thing to do is to verify the dict-ness.
+     */
+
+    /* TODO: Consider support for compiling expanded args. (less likely) */
+    if (numWords < 2) {
+	PUSH(			"");
+	return TCL_OK;
+    } else if (numWords == 2) {
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	PUSH_TOKEN(		tokenPtr, 1);
+	OP(			DUP);
+	OP(			DICT_VERIFY);
+	return TCL_OK;
+    }
+
+    /*
+     * There's real merging work to do.
+     *
+     * Allocate some working space. This means we'll only ever compile this
+     * command when there's an LVT present.
+     */
+
+    if (!EnvIsProc(envPtr)) {
+	return TclCompileBasicMin2ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+    }
+    infoIndex = AnonymousLocal(envPtr);
+
+    /*
+     * Get the first dictionary and verify that it is so.
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PUSH_TOKEN(			tokenPtr, 1);
+    OP(				DUP);
+    OP(				DICT_VERIFY);
+
+    /*
+     * For each of the remaining dictionaries...
+     */
+
+    outLoop = MAKE_CATCH_RANGE();
+    OP4(			BEGIN_CATCH, outLoop);
+    CATCH_RANGE(outLoop) {
+	for (i=2 ; i<numWords ; i++) {
+	    Tcl_BytecodeLabel haveNext, noNext;
+	    /*
+	     * Get the dictionary, and merge its pairs into the first dict (using
+	     * a small loop).
+	     */
+
+	    tokenPtr = TokenAfter(tokenPtr);
+	    PUSH_TOKEN(		tokenPtr, i);
+	    OP4(		DICT_FIRST, infoIndex);
+	    FWDJUMP(		JUMP_TRUE, noNext);
+	    BACKLABEL(	haveNext);
+	    OP(			SWAP);
+	    OP(			DICT_PUT);
+	    OP4(		DICT_NEXT, infoIndex);
+	    BACKJUMP(		JUMP_FALSE, haveNext);
+	    FWDLABEL(	noNext);
+	    OP(			POP);
+	    OP(			POP);
+	    OP14(		UNSET_SCALAR, 0, infoIndex);
+	}
+    }
+    OP(				END_CATCH);
+
+    /*
+     * Clean up any state left over.
+     */
+
+    FWDJUMP(			JUMP, end);
+    STKDELTA(-1);
+
+    /*
+     * If an exception happens when starting to iterate over the second (and
+     * subsequent) dicts. This is strictly not necessary, but it is nice.
+     */
+
+    CATCH_TARGET(outLoop);
+    OP(				PUSH_RETURN_OPTIONS);
+    OP(				PUSH_RESULT);
+    OP(				END_CATCH);
+    OP14(			UNSET_SCALAR, 0, infoIndex);
+    INVOKE(			RETURN_STK);
+    FWDLABEL(		end);
+    return TCL_OK;
+}

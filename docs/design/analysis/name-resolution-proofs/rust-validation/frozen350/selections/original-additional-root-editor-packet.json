@@ -1,0 +1,31 @@
+{
+  "status": "READY private source packet; no LIVE or execution result.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "base_sha256": "efa0e8487d00d9a07fd89e2bc525540ec5798d260c18c79ab5ef4faaf65dfe81",
+      "candidate_sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source.rs",
+      "base_sha256": "107d2adec96105360047ecaa161ed7629b2a02b8c1233f40a6c2f5aa108122c3",
+      "candidate_sha256": "3b090a03dd053c6beb527332647b57760bb64d7fb8ce0c7ebc9ae62d44fa7bd6"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "base_sha256": "c74aca87d2af95a63070f74b968881c25e073697b829fdc02b97dd0d6ec5079a",
+      "candidate_sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098"
+    }
+  ],
+  "patch_sha256": "eb9276292c353826719ece85d1bd0247e8102fa9359b823c3572ac23b07a17ce",
+  "semantic_owners": [
+    "tcl_syntax::naming::canonical_written_command/unroot_rooted_key for explicitly Logical written package hints only",
+    "tcl_compiler::analyser::utils::insert_qualified_and_tail for parser recognition labels only"
+  ],
+  "native_and_hosted_paths": "Existing independent original package-input selector and recovery source/availability gates remain unchanged. Recognition labels cannot grant lookup, loader, frame, Normal or edit authority.",
+  "new_controls": [
+    "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+    "recovery_source::tests::malformed_recovery_preserves_original_autoload_labels_and_root_marker"
+  ],
+  "validation": "Private rustfmt parser/format only; all existing test bodies unchanged. Actual own-target builds and literal assertion results remain required."
+}

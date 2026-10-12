@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-support206.elf",
+  "sha256": "15aec8cbda751bb57d4971c1f30eda7ae20dd9ac992c184185b6f47c50da0776",
+  "build_receipt": "/workspace/.proofs/recovery-valid-consumer-build206.json",
+  "build_receipt_sha256": "5a05ff256214d81b2ee76ab00474ce502f9037a3b530e42dd16c663d59fbac89",
+  "source_snapshot_sha256": "7847b040899f51af163d7baab3e1c787c28ec7a723d8a2bac924683592e01b66"
+}

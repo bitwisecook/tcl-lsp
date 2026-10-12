@@ -494,10 +494,17 @@ fn member_effect_expr(effect: &Value) -> Option<String> {
 
 /// One built-in object method as a `BuiltinObjectMethod` literal.
 fn builtin_object_method_expr(method: &Value) -> Option<String> {
+    let operation = match method.get("operation") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(value) => format!(
+            "Some(crate::definer::BuiltinObjectMethodOperation::{})",
+            value.as_str()?
+        ),
+    };
     Some(format!(
         "crate::definer::BuiltinObjectMethod {{ name: {}, visibility: \
          crate::definer::MemberVisibility::{}, receiver: crate::definer::BuiltinMethodReceiver::{}, \
-         detail: {} }}",
+         operation: {operation}, detail: {} }}",
         rust_string(method.get("name")?.as_str()?),
         method.get("visibility")?.as_str()?,
         method.get("receiver")?.as_str()?,
@@ -582,6 +589,16 @@ fn surface_expr(value: &Value) -> String {
 fn index_slice(values: &[Value]) -> String {
     let items: Vec<String> = values.iter().map(|v| as_u64(v).to_string()).collect();
     format!("&[{}]", items.join(", "))
+}
+
+fn variable_receivers_expr(values: &[Value]) -> String {
+    let Some(selected) = draft::selected_variable_receivers(values) else {
+        return "VARIABLE_RECEIVERS_REQUIRE_UNIQUE_U8_INDICES_AND_VALID_FORMS".to_owned();
+    };
+    let rows = selected.iter().map(|(index, form)| {
+        format!("({index}, tcl_registry::resolved_invocation::VariableReceiverOperandForm::{form:?})")
+    }).collect::<Vec<_>>();
+    format!("Some(&[{}])", rows.join(", "))
 }
 
 /// Render a slice of catalogue enum variants such as `&[ArgRole::Body]`.
@@ -721,9 +738,14 @@ fn arity_expr(value: &Value) -> String {
             max.map_or_else(|| "Arity::UNLIMITED".to_owned(), |m| m.to_string())
         )
     };
-    match also {
+    let expression = match also {
         None => base,
         Some(n) => format!("{base}.with_also_exact({n})"),
+    };
+    if value["count"] == "positionals" {
+        format!("{expression}.with_positionals()")
+    } else {
+        expression
     }
 }
 
@@ -1305,6 +1327,12 @@ fn command_form_expr(entry: &Value, indent: &str) -> String {
     if !roles.is_empty() {
         parts.push(format!("{inner}arg_roles: {},", role_map_expr(roles)));
     }
+    if let Some(receivers) = entry["variable_receivers"].as_array() {
+        parts.push(format!(
+            "{inner}variable_receivers: {},",
+            variable_receivers_expr(receivers)
+        ));
+    }
     let options = as_array(&entry["options"]);
     if !options.is_empty() {
         let opt_indent = format!("{inner}    ");
@@ -1404,9 +1432,23 @@ fn sub_subcommand_expr(entry: &Value, indent: &str) -> String {
             parts.push(format!("{indent}    {key}: {},", rust_string(text)));
         }
     }
+    if let Some(prefix) = entry["option_prefix_words"]
+        .as_u64()
+        .filter(|prefix| *prefix > 0)
+    {
+        parts.push(format!("{indent}    option_prefix_words: {prefix},"));
+    }
     parts.extend(dialects_line(entry, indent));
     if let Some(lifecycle) = lifecycle_expr(entry) {
         parts.push(format!("{indent}    lifecycle: {lifecycle},"));
+    }
+    if entry
+        .get("native_compilation")
+        .is_some_and(|value| !value.is_null())
+    {
+        parts.push(format!(
+            "{indent}    // Native worker compilation proof is excluded from this draft."
+        ));
     }
     row_literal("SubSubCommand", &parts, indent)
 }
@@ -1432,6 +1474,9 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
     if value == default {
         return None;
     }
+    if field.key == "variable_receivers" {
+        return Some(variable_receivers_expr(value.as_array()?));
+    }
     let expr = match field.kind {
         FieldKind::Bool => as_bool(value).to_string(),
         FieldKind::OptBool => format!("Some({})", value.as_bool()?),
@@ -1442,6 +1487,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::TextList => str_slice(as_array(value)),
         FieldKind::IndexList => index_slice(as_array(value)),
         FieldKind::OptIndexList => format!("Some({})", index_slice(value.as_array()?)),
+        FieldKind::VariableReceivers => variable_receivers_expr(value.as_array()?),
         FieldKind::Enum {
             catalogue,
             optional,
@@ -1521,10 +1567,14 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "argRole" => "ArgRole",
         "tclType" => "TclType",
         "bodyKind" => "BodyKind",
+        "scriptLookupScope" => "ScriptLookupScope",
         "storageType" => "StorageType",
         "byteArrayEffect" => "ByteArrayEffect",
         "commandTableEffect" => "CommandTableEffect",
         "patternType" => "PatternType",
+        "sourcePathOperation" => "SourcePathOperation",
+        "sourceIndexBounds" => "SourceIndexBounds",
+        "channelConfiguration" => "ChannelConfigurationSpec",
         "formatType" => "FormatType",
         "formKind" => "FormKind",
         "definedSymbolKind" => "DefinedSymbolKind",
@@ -1539,6 +1589,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "taintColour" => "TaintColour",
         "dialects" => "&'static [SpecSurface]",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
+        "sourceDeprecationAdvice" => "SourceDeprecationAdvice",
         "prefixMatching" => "PrefixMatching",
         "optionPlacement" => "OptionPlacement",
         _ => "Unknown",
@@ -2041,6 +2092,23 @@ mod tests {
 
     use super::*;
     use tcl_dialect::model::SpecSurface;
+
+    #[test]
+    fn original_abstract_grammar_rust_render_keeps_the_shared_named_descriptor() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let seeded = draft::from_command_spec(registry.get("oo::abstract").unwrap());
+        let rendered = render(&seeded);
+        assert!(
+            rendered.contains("definition_body: Some(&crate::definer::TCLOO_ABSTRACT_GRAMMAR)")
+        );
+        assert!(rendered.contains("manufacturer_methods:"));
+        assert_eq!(
+            definition_body_expr(&serde_json::json!("tcloo-abstract"), ""),
+            Some("Some(&crate::definer::TCLOO_ABSTRACT_GRAMMAR)".into())
+        );
+    }
 
     /// A draft that is nothing but a name — all these tests read is the stem.
     fn named_draft(name: &str) -> (String, Draft) {
@@ -2619,7 +2687,7 @@ mod tests {
         let mut checked = 0_usize;
         for pack in tcl_registry::commands::SPEC_PACKS {
             for spec in (pack.specs)() {
-                if !spec.name.trim_start_matches("::").contains("::") {
+                if !tcl_syntax::naming::unroot_rooted_key(&spec.name).unwrap_or(&spec.name).contains("::") {
                     continue;
                 }
                 assert!(
@@ -2652,7 +2720,7 @@ mod tests {
         for spec in (pack.specs)() {
             // One command may ship under both its bare and its fully-qualified
             // spelling, and the registry files those in one module.
-            let command = spec.name.trim_start_matches("::").to_owned();
+            let command = tcl_syntax::naming::unroot_rooted_key(&spec.name).unwrap_or(&spec.name).to_owned();
             let path = suggested_path(spec.name, pack.id);
             if let Some(other) = seen.insert(path.clone(), command.clone())
                 && other != command

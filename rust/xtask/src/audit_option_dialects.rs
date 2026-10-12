@@ -681,11 +681,13 @@ const KNOWN_UNSPECIFIED: &[(&str, Option<&str>, &str, &str)] = &[];
 static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
     LazyLock::new(tcl_registry::commands::tcl::tcl_command_specs);
 
-/// Every option name the registry declares for *command*, with no dialect or
-/// package-version filter: the command's own [`OptionSpec`]s, every
+/// Every option name authored for *command* in at least one of the audit's
+/// actual C engine profiles, without a package-version filter: the command's
+/// own [`OptionSpec`]s, every
 /// `CommandForm`'s options, and its subcommands' options. Declared aliases
 /// (`-bd` for `-borderwidth`) count as declarations. `None` means the command
-/// itself is not in the registry.
+/// itself has no applicable C row. Jim-only variants and options cannot fill
+/// a C declaration gap even when they precede that C row in registry order.
 ///
 /// A **second-level** subcommand's own table (`SubSubCommand::options` —
 /// `namespace ensemble create` vs `configure`) is deliberately
@@ -706,23 +708,66 @@ static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
 /// an option surface the audit knows about and the registry has never heard
 /// of.
 fn registry_option_names(command: &str) -> Option<Vec<&'static str>> {
-    let spec = TCL_SPECS.iter().find(|s| s.name == command)?;
+    registry_option_names_from(command, &TCL_SPECS)
+}
+
+fn registry_option_names_from(command: &str, specs: &[CommandSpec]) -> Option<Vec<&'static str>> {
+    let queries = TCL_VERSIONS
+        .iter()
+        .map(|(profile, _)| {
+            tcl_registry::model::ingress::static_context_for(profile)
+                .commands()
+                .profile()
+                .unwrap()
+                .surface_query()
+        })
+        .collect::<Vec<_>>();
+    let specs = specs
+        .iter()
+        .filter(|spec| {
+            spec.name == command
+                && queries
+                    .iter()
+                    .any(|query| spec.supports_dialect(Some(*query)))
+        })
+        .collect::<Vec<_>>();
+    if specs.is_empty() {
+        return None;
+    }
     let mut names: Vec<&'static str> = Vec::new();
     let push = |opt: &'static OptionSpec, names: &mut Vec<&'static str>| {
-        names.push(opt.name);
-        names.extend(opt.aliases.iter().copied());
+        if opt.surface.is_none_or(|rows| {
+            queries
+                .iter()
+                .any(|query| tcl_dialect::model::surface_admits(rows, Some(query)))
+        }) {
+            names.push(opt.name);
+            names.extend(opt.aliases.iter().copied());
+        }
     };
-    for opt in spec.options {
-        push(opt, &mut names);
-    }
-    for form in spec.command_forms {
-        for opt in form.options {
+    // The audit measures only these actual C engine profiles. Union applicable
+    // authored variants; a Jim-only row cannot satisfy a C declaration gap.
+    for spec in specs {
+        for opt in spec.options {
             push(opt, &mut names);
         }
-    }
-    for sub in spec.subcommands {
-        for opt in sub.options {
-            push(opt, &mut names);
+        for form in spec.command_forms {
+            for opt in form.options {
+                push(opt, &mut names);
+            }
+        }
+        for sub in spec.subcommands {
+            if sub.surface.is_some_and(|rows| {
+                !queries.iter().any(|query| {
+                    spec.supports_dialect(Some(*query))
+                        && tcl_dialect::model::surface_admits(rows, Some(query))
+                })
+            }) {
+                continue;
+            }
+            for opt in sub.options {
+                push(opt, &mut names);
+            }
         }
     }
     names.sort_unstable();
@@ -1252,6 +1297,63 @@ mod tests {
     /// audit probes must be declared by the registry's `OptionSpec` tables, so
     /// the two cannot describe different option surfaces. `fconfigure
     /// -profile` (TIP 656) drifted exactly this way and was found by hand.
+    #[test]
+    fn native_floor_rows_do_not_erase_other_authored_option_tables() {
+        for (command, option) in [
+            ("interp", "-safe"),
+            ("interp", "-unwind"),
+            ("interp", "-global"),
+            ("interp", "-namespace"),
+            ("package", "-exact"),
+        ] {
+            assert!(
+                registry_option_names(command).unwrap().contains(&option),
+                "{command} retains all authored native option variants: {option}"
+            );
+        }
+    }
+
+    #[test]
+    fn jim_only_option_cannot_satisfy_a_missing_c_option_declaration() {
+        static JIM_OPTION: &[OptionSpec] = &[OptionSpec {
+            name: "-safe",
+            value: tcl_registry::hover::OptionValue::flag(),
+            detail: "synthetic Jim-only audit counterexample",
+            surface: None,
+            aliases: &[],
+            lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
+        }];
+        let query = tcl_registry::model::ingress::static_context_for("tcl8.6")
+            .commands()
+            .profile()
+            .unwrap()
+            .surface_query();
+        let mut variants = TCL_SPECS
+            .iter()
+            .filter(|spec| spec.name == "interp")
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            !variants.first().unwrap().supports_dialect(Some(query)),
+            "Jim-first registry order is deliberate"
+        );
+        for spec in &mut variants {
+            if spec.supports_dialect(Some(query)) {
+                spec.options = &[];
+                spec.subcommands = &[];
+                spec.command_forms = &[];
+            } else {
+                spec.options = JIM_OPTION;
+            }
+        }
+        assert!(
+            !registry_option_names_from("interp", &variants)
+                .unwrap()
+                .contains(&"-safe")
+        );
+    }
+
     #[test]
     fn probe_options_exist_in_registry() {
         let findings = cross_check();

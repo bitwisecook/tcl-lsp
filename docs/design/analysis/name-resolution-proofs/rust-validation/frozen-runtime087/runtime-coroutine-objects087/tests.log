@@ -1,0 +1,27 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-dialect v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-dialect)
+   Compiling tcl-core-types v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-core-types)
+   Compiling tcl-platform v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-platform)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-host-c-abi)
+   Compiling tcl-runtime v0.1.0 (/workspace/.checkpoints/runtime-naming087/runtime/rust)
+   Compiling tcl-lexer v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-runtime-api)
+   Compiling tcl-test-support v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-test-support)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-bytecode)
+   Compiling tcl-host-native v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-host-native)
+   Compiling tcl-regex v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/runtime-naming087/rust/tcl-registry)
+    Finished `test` profile [unoptimized] target(s) in 1m 04s
+     Running unittests src/lib.rs (/workspace/.targets/naming-runtime/debug/deps/tcl_runtime-dd86b2f6957f1b82)
+
+running 2 tests
+test cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries ... ok
+test cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_objects ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1197 filtered out; finished in 5.28s
+

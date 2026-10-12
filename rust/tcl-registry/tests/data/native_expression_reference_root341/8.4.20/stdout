@@ -1,0 +1,9 @@
+META patchlevel 8.4.20
+EXPR label unmatched_scalar_open expression_hex 247b7363616c6172286f70656e7d code 0 result_hex 3131
+EXPR label scalar_parenthesis_tail expression_hex 247b7363616c6172286f70656e297461696c7d code 0 result_hex 3132
+EXPR label combined_closed_element expression_hex 247b617272286b6579297d code 0 result_hex 3231
+EXPR label separate_closed_element expression_hex 24617272286b657929 code 0 result_hex 3231
+EXPR label combined_multiple_parentheses expression_hex 247b61727228696e6e657229286b6579297d code 0 result_hex 3232
+EXPR label first_close_reference expression_hex 247b617b627d code 0 result_hex 3331
+EXPR label nested_close_reference expression_hex 247b617b627d637d code 1 result_hex 73796e746178206572726f7220696e2065787072657373696f6e2022247b617b627d637d223a20657874726120746f6b656e7320617420656e64206f662065787072657373696f6e
+EXPR label literal_dollar_scalar expression_hex 247b63617368246e616d657d code 0 result_hex 3431

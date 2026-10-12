@@ -1,0 +1,15 @@
+
+running 1 test
+test lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions ... 
+thread 'lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions' (571571) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1334:13:
+assertion failed: region(&unit.ir_module).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8160 filtered out; finished in 1.03s
+

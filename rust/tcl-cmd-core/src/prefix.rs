@@ -25,10 +25,10 @@
 //! generic over `AsRef<[u8]>` entries, so a static `&str` table
 //! (`switch`'s option scan), a runtime `String` table (`tcl::prefix
 //! match`), and the runtimes' byte tables (OO property declarations) all
-//! resolve through the same value. Re-derived from
-//! `tmp/tcl8.6.14/generic/tclIndexObj.c`
-//! (unchanged in 9.0.1 but for the TIP-defined `TCL_NULL_OK`, which no
-//! consumer here uses), so the fiddly corners live once:
+//! resolve through the same value. Static executable consumers retain the
+//! original object through [`OptionTable::index_of_original`]; the physical
+//! adapter owns cache validation, getter ordering and native failure metadata.
+//! The byte matcher supplies these rules:
 //!
 //! - an **exact** entry always wins, even under `-exact` or when it is also a
 //!   prefix of another entry;
@@ -51,6 +51,11 @@
 //! prefixes), not this one.
 
 use crate::error::CmdError;
+
+mod native;
+pub use native::{
+    NativePrefixProtocol, NativePrefixTableMatch, native_all, native_longest, native_table_match,
+};
 
 /// Outcome of a raw table scan — `Tcl_GetIndexFromObjStruct`'s three-way
 /// result, refined into [`Resolution`] by [`OptionTable::resolve`].
@@ -320,19 +325,60 @@ impl<'t, T: AsRef<[u8]>> OptionTable<'t, T> {
     /// The C-shaped message and `TCL LOOKUP INDEX …` identity for an unmatched
     /// or ambiguous word.
     pub fn index_of_cmd(&self, word: &[u8]) -> Result<usize, CmdError> {
-        self.index_of(word).map_err(|message| {
-            CmdError::lookup_index(
-                String::from_utf8_lossy(&message).into_owned(),
-                self.what,
-                &String::from_utf8_lossy(word),
-            )
-        })
+        self.index_of(word)
+            .map_err(|message| CmdError::lookup_index_bytes(message, self.what.as_bytes(), word))
+    }
+}
+
+impl OptionTable<'static> {
+    /// Resolve a static table through the original object's physical Index owner.
+    /// A portable adapter can decline that owner without fabricating a cache.
+    pub fn index_of_original<O: tcl_syntax::value::ValueOps>(
+        &self,
+        ops: &mut O,
+        original: &O::Value,
+    ) -> Result<usize, CmdError> {
+        use tcl_syntax::value::OriginalOptionLookup;
+        match ops.original_option_index(original, self.names, self.exact, self.what)? {
+            Some(OriginalOptionLookup::Index(index)) => Ok(index),
+            Some(OriginalOptionLookup::Failure {
+                message,
+                error_code,
+                string_result,
+            }) => {
+                let error = CmdError::with_error_code_bytes(message, error_code);
+                Err(match string_result {
+                    Some(protocol) => error.with_native_string_result(protocol),
+                    None => error,
+                })
+            }
+            None => self.index_of_cmd(&ops.native_string_bytes(original)?),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn byte_lookup_diagnostics_retain_native_words() {
+        let table = OptionTable::abbreviating("option", &["names", "provide"]);
+        let error = table.index_of_cmd(b"\xff").expect_err("unknown option");
+        assert_eq!(
+            error.message_bytes(),
+            b"bad option \"\xff\": must be names or provide"
+        );
+        assert_eq!(
+            error.error_code_bytes().expect("guest error"),
+            &b"TCL LOOKUP INDEX option \xff"[..]
+        );
+        let nul = table.index_of_cmd(b"n\0suffix").expect_err("counted word");
+        assert_eq!(
+            nul.message_bytes(),
+            b"bad option \"n\0suffix\": must be names or provide"
+        );
+    }
 
     /// [`bad_key_message`] over `&str` parts, as the tests' [`CmdError`]
     /// convenience (production consumers go through [`OptionTable`]).
@@ -432,17 +478,23 @@ mod tests {
     #[test]
     fn miss_messages_match_tclsh() {
         assert_eq!(
-            lookup_error(&FRUIT, "option", "ap", Lookup::Ambiguous).message(),
+            lookup_error(&FRUIT, "option", "ap", Lookup::Ambiguous)
+                .message()
+                .unwrap(),
             r#"ambiguous option "ap": must be apple, apricot, or banana"#
         );
         assert_eq!(
-            lookup_error(&FRUIT, "option", "z", Lookup::None).message(),
+            lookup_error(&FRUIT, "option", "z", Lookup::None)
+                .message()
+                .unwrap(),
             r#"bad option "z": must be apple, apricot, or banana"#
         );
         // Empty table: hardcoded `no valid options` even for a custom noun
         // (tclsh8.6: `tcl::prefix match -message thing {} foo`).
         assert_eq!(
-            lookup_error::<&str>(&[], "thing", "foo", Lookup::None).message(),
+            lookup_error::<&str>(&[], "thing", "foo", Lookup::None)
+                .message()
+                .unwrap(),
             r#"bad thing "foo": no valid options"#
         );
     }
@@ -537,10 +589,13 @@ mod tests {
             panic!("`w` must not abbreviate an exact-only table");
         };
         assert_eq!(
-            e.message(),
+            e.message().unwrap(),
             "bad operation \"w\": must be array, read, unset, or write"
         );
-        assert_eq!(e.error_code(), Some("TCL LOOKUP INDEX operation w"));
+        assert_eq!(
+            e.error_code().unwrap(),
+            Some("TCL LOOKUP INDEX operation w")
+        );
     }
 
     #[test]

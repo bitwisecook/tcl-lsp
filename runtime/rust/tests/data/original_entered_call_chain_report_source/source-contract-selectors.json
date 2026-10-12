@@ -1,0 +1,11 @@
+{
+  "runtime_lib": [
+    "cmd_oo::original_call_report_tests::original_call_report_uses_payload_descriptors_before_literal_names_and_stock_fallbacks",
+    "cmd_oo::original_call_report_tests::original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independent",
+    "cmd_oo::original_call_report_tests::original_call_report_keeps_exact_entered_record_through_deletion_rename_and_payload_replacement",
+    "cmd_oo::original_call_report_tests::original_call_report_retains_original_name_until_checked_presentation_and_first_cause"
+  ],
+  "registry_lib": [
+    "native_tcloo_method_definition::call_report_tests::original_call_report_flags_and_payload_types_do_not_classify_selector_spellings"
+  ]
+}

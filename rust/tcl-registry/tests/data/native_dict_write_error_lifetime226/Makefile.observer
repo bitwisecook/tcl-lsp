@@ -1,0 +1,7 @@
+include /workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile
+BUILD_DIR := /workspace/tcl-lsp/tmp/tcl8.5.19/unix
+.PHONY: observed-execute observed-object
+observed-execute:
+	$(CC) -c $(CC_SWITCHES) /workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclExecute.c -o /workspace/.proofs/native-dict-write-error-lifetime226/tclExecute.o
+observed-object:
+	$(CC) -c $(CC_SWITCHES) /workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclObj.c -o /workspace/.proofs/native-dict-write-error-lifetime226/tclObj.o

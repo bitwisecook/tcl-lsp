@@ -1,0 +1,125 @@
+[
+  {
+    "id": "naming.variable.conditional-registry-receiver-geometry",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/conditional-registry-receiver-geometry.md",
+    "problem_statement": "An earlier unavailable command world can remove variable declarations and references from source navigation even when a later absolute original operand has exact naming geometry. A reporting name or an assumed root frame would lose byte identity or manufacture storage authority.",
+    "question": "Can conditional Registry source metadata retain exact absolute variable declarations and references while preserving unresolved applicability and refusing unavailable bare namespace targets?",
+    "conclusion": "The common conditional Registry metadata owner selects original VarRead and VarWrite receiver forms from the actual full analysis context and original command vector. Write cards retain the complete conditional metadata and its applicability obligations. Absolute original operands can retain intrinsic namespace naming geometry after unavailable execution; bare and relative operands still require independently selected source scope and variable-frame evidence. Conditional unknown alternatives block rename coverage. These source cards and symbols supply no reached handler, selected runtime cell, normal completion, store, observer closure or edit authority.",
+    "scope": "Rust source-analysis contract for explicit Tcl 8.4\u20139.1 and current Jim authoring policies, complete original Document images and full lexer configurations. The absolute opaque-name test follows earlier namespace commands and retains D800 source bytes, declaration/reference identity, full source currency and unresolved coverage. A separate unknown-command namespace fixture cannot select a bare variable target.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "selector": "analyser::scope::tests::original_conditional_variable_receivers_keep_absolute_source_geometry_and_unknown_coverage",
+        "assertion": "All six authored inputs preserve original opaque absolute declaration/reference geometry and conditional write metadata after earlier namespace commands; unknown obligations block rename coverage and a changed full source withdraws cursor selection.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "selector": "analyser::scope::tests::original_conditional_variable_receivers_do_not_invent_bare_namespace_targets",
+        "assertion": "An earlier unknown command and a conditional namespace body cannot provide the selected storage target of a bare ordinary variable operand.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/conditional_metadata.rs",
+        "symbol": "OriginalConditionalRegistryMetadata",
+        "purpose": "Retain full original source vector, selected Registry source schema, actual complete context and independent applicability obligations."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/commands.rs",
+        "symbol": "record_original_variable_receivers",
+        "purpose": "Consume the shared conditional schema at exact original role ordinals without reconstructing a catalogue or executable facts."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "symbol": "record_original_variable_receiver",
+        "purpose": "Keep absolute naming geometry independent from unavailable runtime occupancy; bare and relative geometry require actual selected context."
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+        "symbol": "OriginalVariableWriteAdvice",
+        "purpose": "Preserve complete conditional metadata separately from possible written receiver spelling, optional frame and source home."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The named fixed Rust selectors bind conditional source geometry and negative context premises. No Rust execution receipt or native observation is attached; existing measured variable lookup and physical lifecycle questions remain independent."
+    }
+  }
+]

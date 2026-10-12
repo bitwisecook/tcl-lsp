@@ -1,0 +1,146 @@
+[
+  {
+    "id": "naming.diagnostic.typed-subject-reporting",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/diagnostic-typed-subject-reporting.md",
+    "problem_statement": "W120 package names and W123 unresolved commands can contain opaque native units, while quoted diagnostic wording and suggested fixes are presentation. Parsing that presentation can identify another subject or lose counted bytes; deserializing a reporting payload can also be mistaken for an original source/native issuer. Consumers need to preserve the emitting subject while rejecting unsupported or absent payloads.",
+    "question": "Does diagnostic reporting retain the emitting typed package/source subject independently of presentation, preserve counted bytes and source coordinates, and refuse to turn decoded reporting data into resolution or edit authority?",
+    "conclusion": "The emitting diagnostic supplies its typed subject. The shared versioned readonly projection retains package bytes or original command bytes, policy description, source channel and reporting span without parsing message/fix text. Missing, malformed, future and code-mismatched payloads remain unknown. A decoded description supplies reporting advice only; it recreates neither original source ownership nor a native allocation, lookup/execution or editable-reference grant.",
+    "scope": "Current Compiler-to-Core reporting contract used by protocol adapters. The named tests bind concrete opaque-byte, changed-presentation and absent-payload assertions; no execution of these Rust tests or native-language result is claimed by this record. The structured subject retains its genuine source manufacturer separately from serialized display/coordinates.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "source-owner",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+        "sha256": "b4c829668e1b3f841be184776e79d4e620b33acef2139393912dfff8f1314675",
+        "description": "Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority."
+      },
+      {
+        "id": "reporting-transport",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+        "sha256": "1168b10e3561f6a7b545dcee386bc278af2caccfe166785e76f2af951236f671",
+        "description": "Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+        "selector": "tests::package_transport_ignores_message_and_fixes_but_retains_opaque_bytes",
+        "assertion": "Changing message/fix presentation preserves the serialized counted package bytes; distinct opaque keys remain distinct.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+        "selector": "tests::absent_malformed_future_or_wrong_code_payload_never_recreates_subject",
+        "assertion": "Absent, malformed, future-version or wrong-code reporting payloads cannot recreate a typed subject.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+        "selector": "tests::unresolved_transport_uses_the_emitting_original_source_owner",
+        "assertion": "W123 transports original source units/channel and emitting geometry despite a changed diagnostic message.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+        "symbol": "SourceUnresolvedCommandSubject",
+        "purpose": "Retains the genuine emitting source invocation and original lexical name input independently of presentation."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+        "symbol": "DiagnosticSubject",
+        "purpose": "Carries a typed required-package key or original unresolved command subject."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+        "symbol": "DiagnosticSubjectData",
+        "purpose": "Readonly versioned reporting description; decoding supplies no naming issuer or edit grant."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+        "symbol": "diagnostic_subject_data",
+        "purpose": "Shared protocol projection preserves the emitting typed subject."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The record names actual Rust test functions and their assertions but contains no execution receipt. Root-owned package builds/tests are required to establish test outcomes; native guest execution does not verify this reporting invariant."
+    }
+  }
+]

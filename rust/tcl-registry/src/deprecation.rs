@@ -298,3 +298,63 @@ mod tests {
         );
     }
 }
+
+/// Registry-owned source advice for a deprecated invocation shape.
+/// These plans are proposals for review, not proof of runtime equivalence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SourceDeprecationAdvice {
+    /// Propose `class match` for the declared two- or three-operand legacy shape.
+    IruleMatchclass,
+}
+impl SourceDeprecationAdvice {
+    /// Complete closed descriptor vocabulary used by loaders and authoring UIs.
+    pub const ALL: [Self; 1] = [Self::IruleMatchclass];
+    /// Actual authoring context in which this source advice is applicable.
+    #[must_use]
+    pub fn applies_to(self, query: tcl_dialect::model::SurfaceQuery<'_>) -> bool {
+        match self {
+            Self::IruleMatchclass => query
+                .core
+                .nearest()
+                .is_some_and(|(family, _)| family == tcl_dialect::model::Family::F5Irules),
+        }
+    }
+    /// Diagnostic identity supplied by this authored descriptor.
+    #[must_use]
+    pub const fn code(self) -> tcl_core_types::DiagCode {
+        match self {
+            Self::IruleMatchclass => tcl_core_types::DiagCode::Irule2001,
+        }
+    }
+    /// Advice supplied by the descriptor, independent of reporting head spelling.
+    #[must_use]
+    pub const fn message(self) -> &'static str {
+        match self {
+            Self::IruleMatchclass => {
+                "'matchclass' is deprecated since BIG-IP v10. Use 'class match <item> <operator> <class>' instead."
+            }
+        }
+    }
+    /// Review proposal using complete original argument source spellings.
+    /// The caller must prove every supplied word and the invocation range are
+    /// original, nonexpanded and contiguous; captured or missing words decline.
+    #[must_use]
+    pub fn replacement(self, arguments: &[&str]) -> Option<String> {
+        match (self, arguments) {
+            (Self::IruleMatchclass, [item, class]) => {
+                Some(format!("class match {item} equals {class}"))
+            }
+            (Self::IruleMatchclass, [item, operator, class]) => {
+                Some(format!("class match {item} {operator} {class}"))
+            }
+            _ => None,
+        }
+    }
+    /// Description for the source proposal.
+    #[must_use]
+    pub const fn description(self) -> &'static str {
+        match self {
+            Self::IruleMatchclass => "Replace with 'class match'",
+        }
+    }
+}

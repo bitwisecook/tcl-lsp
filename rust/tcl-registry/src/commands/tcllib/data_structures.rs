@@ -105,6 +105,8 @@ fn creator(
     CommandSpec {
         name,
         arity: Arity::any(),
+        // Successful creation returns the object's command handle.
+        return_type: Some(TclType::Object),
         hover: Some(HoverSnippet::brief(
             summary,
             synopsis,

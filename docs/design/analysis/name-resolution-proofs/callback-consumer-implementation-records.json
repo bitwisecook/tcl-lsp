@@ -1,0 +1,122 @@
+[
+  {
+    "id": "naming.database.original-callback-future-lookup",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/database-original-callback-future-lookup.md",
+    "problem_statement": "A retained original callback name identifies the actual source producer but does not select the namespace, frame or command table where a later callback runs. Using reporting candidates or the printed tail when its future lookup is missing can report an arity error for a different command. The diagnostic consumer must withdraw until that independent lookup exists.",
+    "question": "Does the database callback arity consumer refuse reporting-name candidates when an original input has no independently selected future lookup?",
+    "conclusion": "callback_command_keys returns no legacy candidate keys whenever an original name input is retained. The original callback consumer obtains per-slot arities only through the invocation's OriginalLookup and uses the shared callback arity calculation. A missing lookup withdraws that diagnostic instead of replacing it with a printed name, resolved reporting reference or candidate list. This is a Rust consumer obligation; it does not establish callback execution, future frame selection or a native descriptor.",
+    "scope": "Current database implementation contract. The regression obtains an authentic original cb invocation from analysis, removes its lookup and reporting reference, supplies an appended arity of two and a conflicting display-key arity map, then asserts empty candidate keys and no legacy project callback diagnostic. The positive original-lookup path and shared exact/range calculation are inspected owners, not asserted by this refusal regression. No Rust execution outcome or C Tcl, Jim or BIG-IP result is claimed.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No native provider was invoked for this Rust callback-consumer contract.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "database-callback-consumer",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "sha256": "45f7288b9c02a7856a5b1427281859e0d1ae04b8a08892ba75ae051af8bcb7b5",
+        "description": "Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "selector": "tests::original_callback_missing_future_lookup_declines_reporting_candidates",
+        "assertion": "An authentic retained cb input with its future lookup removed and a conflicting legacy arity map has no candidate keys and produces no project callback diagnostic.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "symbol": "callback_command_keys",
+        "purpose": "Withdraw legacy reporting-name candidates for any retained original input."
+      },
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "symbol": "apply_original_callback_arity",
+        "purpose": "Demand arity through the actual independently retained OriginalLookup."
+      },
+      {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "symbol": "callback_arity_diagnostic",
+        "purpose": "Share exact and range appended-argument arithmetic across callback diagnostic consumers."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "This record links a Rust regression without claiming it ran. A current source edit requires review/reissue of the evidence digest. An OriginalLookup owner and native callback role remain separate requirements; this record does not certify the pending Registry descriptor or a provider probe."
+    }
+  }
+]

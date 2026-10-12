@@ -1,0 +1,6 @@
+
+running 1 test
+test command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.65s
+

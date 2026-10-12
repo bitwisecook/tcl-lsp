@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_trace_result::settlement_tests::original_script_and_native_trace_settlement_separate_host_from_guest_failure ... 
+thread 'interp::native_trace_result::settlement_tests::original_script_and_native_trace_settlement_separate_host_from_guest_failure' (1339252) panicked at src/interp/native_trace_result.rs:457:21:
+assertion `left == right` failed
+  left: Err(NameProtocolUnavailable)
+ right: Err(TraceError)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_trace_result::settlement_tests::original_script_and_native_trace_settlement_separate_host_from_guest_failure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.82s
+

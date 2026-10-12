@@ -1,0 +1,333 @@
+[
+  {
+    "release": "8.4.20",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "output_sha256": "8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d",
+    "rows": 5,
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe-8.4.20"
+    ],
+    "observations": [
+      {
+        "case": "prefix",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "cached-exact",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "different-table-exact",
+        "code": 1,
+        "index": -9,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "resident-from-retained-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "6368616e676564"
+      },
+      {
+        "case": "duplicate-retains-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "616761696e"
+      }
+    ]
+  },
+  {
+    "release": "8.5.19",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "output_sha256": "8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d",
+    "rows": 5,
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe-8.5.19"
+    ],
+    "observations": [
+      {
+        "case": "prefix",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "cached-exact",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "different-table-exact",
+        "code": 1,
+        "index": -9,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "resident-from-retained-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "6368616e676564"
+      },
+      {
+        "case": "duplicate-retains-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "616761696e"
+      }
+    ]
+  },
+  {
+    "release": "8.6.18",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "output_sha256": "8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d",
+    "rows": 5,
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe-8.6.18"
+    ],
+    "observations": [
+      {
+        "case": "prefix",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "cached-exact",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "different-table-exact",
+        "code": 1,
+        "index": -9,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "resident-from-retained-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "6368616e676564"
+      },
+      {
+        "case": "duplicate-retains-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "616761696e"
+      }
+    ]
+  },
+  {
+    "release": "9.0.4",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "output_sha256": "2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614",
+    "rows": 6,
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe-9.0.4"
+    ],
+    "observations": [
+      {
+        "case": "prefix",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "cached-exact",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "different-table-exact",
+        "code": 1,
+        "index": -9,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "resident-from-retained-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "6368616e676564"
+      },
+      {
+        "case": "duplicate-retains-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "616761696e"
+      },
+      {
+        "case": "temporary-table",
+        "code": 0,
+        "index": 0,
+        "type": "none",
+        "resident": 1,
+        "hex": "61"
+      }
+    ]
+  },
+  {
+    "release": "9.1.0",
+    "source_sha256": "0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "output_sha256": "2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614",
+    "rows": 6,
+    "exit_code": 0,
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lpthread",
+      "-ldl",
+      "-lm",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/index-cache/probe-9.1.0"
+    ],
+    "observations": [
+      {
+        "case": "prefix",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "cached-exact",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "different-table-exact",
+        "code": 1,
+        "index": -9,
+        "type": "index",
+        "resident": 1,
+        "hex": "61"
+      },
+      {
+        "case": "resident-from-retained-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "6368616e676564"
+      },
+      {
+        "case": "duplicate-retains-table",
+        "code": 0,
+        "index": 0,
+        "type": "index",
+        "resident": 1,
+        "hex": "616761696e"
+      },
+      {
+        "case": "temporary-table",
+        "code": 0,
+        "index": 0,
+        "type": "none",
+        "resident": 1,
+        "hex": "61"
+      }
+    ]
+  }
+]

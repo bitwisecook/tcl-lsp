@@ -1,0 +1,11 @@
+{
+  "command": "python3 /workspace/.proofs/native-dict-write-error-lifetime225-request/capture.py",
+  "tool": "exec_command",
+  "tool_response": {
+    "chunk_id": "5b7321",
+    "wall_time_seconds": 0.012490331,
+    "exit_code": 1,
+    "output": "Traceback (most recent call last):\n  File \"/workspace/.proofs/native-dict-write-error-lifetime225-request/capture.py\", line 30, in <module>\n    raise RuntimeError('Current archive differs from original C85 provider archive')\nRuntimeError: Current archive differs from original C85 provider archive\n"
+  },
+  "record_scope": "Verbatim completed exec_command response retained from this chat tool execution; combined tool output only. No independent stdout/stderr split, process receipt from launcher, compilation or native case completion was issued."
+}

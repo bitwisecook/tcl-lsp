@@ -43,6 +43,7 @@
 //! new registry.
 
 pub mod authored_surface;
+pub mod bigip_execution_context;
 mod bundled_environments;
 pub mod dynamic;
 pub mod environment;
@@ -53,7 +54,7 @@ pub mod point;
 pub mod version_set;
 
 pub use authored_surface::{
-    CorePoint, CorePoints, PackageFloor, SpecProvider, SpecSurface, SpecWindow, SurfaceLayer,
+    CorePoint, CorePoints, InvocationRealm, PackageFloor, SpecProvider, SpecSurface, SpecWindow, SurfaceLayer,
     SurfaceQuery, surface_admits, surface_admits_from, surface_breadth, surface_nearness,
     surface_provided_by, surfaces_overlap,
 };

@@ -1,0 +1,68 @@
+{
+  "source": "/workspace/.proofs/2286-native-dictionary-cat.c",
+  "source_sha256": "6d0a9ef345435e4228d3107936740fc9c3165e18d1ec7ddf149cf30732b1ac3e",
+  "case_count": 23,
+  "sharing_axes": 2,
+  "observations": [
+    {
+      "version": "9.0.4",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-native-dictionary-cat.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-native-dictionary-cat-9.0.4"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "rows": 312,
+      "log": "/workspace/.proofs/2286-native-dictionary-cat-9.0.4.jsonl",
+      "log_sha256": "1f480ff295bb886788f9a5457a83d168e4a0f781c40848dc91f6842871d96aea",
+      "binary": "/workspace/.proofs/2286-native-dictionary-cat-9.0.4",
+      "binary_sha256": "f88297127324677c227c04a673dfeb0c5d9b47450106f308cd30ed759427768e",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "fixture_sha256": "bab68a8ce4ea55e93e0522c8db0783a3569b08fd1b21432eaafd03ab934281b3"
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-native-dictionary-cat.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-native-dictionary-cat-9.1.0"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "rows": 312,
+      "log": "/workspace/.proofs/2286-native-dictionary-cat-9.1.0.jsonl",
+      "log_sha256": "1f480ff295bb886788f9a5457a83d168e4a0f781c40848dc91f6842871d96aea",
+      "binary": "/workspace/.proofs/2286-native-dictionary-cat-9.1.0",
+      "binary_sha256": "f4f91ff2cb78f5bca25ea44d55b2f910c942cff17a906d960a66ad2604d866e2",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "fixture_sha256": "bab68a8ce4ea55e93e0522c8db0783a3569b08fd1b21432eaafd03ab934281b3"
+    }
+  ],
+  "vm_comparisons": 0,
+  "observation_window": "actual pointer/cache/refcounts sampled before Cat and after Cat before result string generation; result identity tracked with original objects alive"
+}

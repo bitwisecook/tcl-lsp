@@ -1,0 +1,10 @@
+ordinary-duplicate	78	78
+nul-equal-length	6b0061	6b0062
+nul-different-length	6b0061	6b006262
+modified-nul	6bc08061	6bc08062
+qualification-after-nul	6b003a3a61	6b003a3a62
+qualification-before-nul	6b3a3a0061	6b3a3a0062
+opaque-array-after-nul	6b0061287129	6b0062287129
+opaque-array-ordinary	61287129	61287229
+raw-invalid-byte	6bff61	6bff62
+identical-duplicate	6b0061	6b0061

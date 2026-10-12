@@ -1,0 +1,107 @@
+	return TCL_OK;
+    }
+
+    // Resolve all values
+    Tcl_Obj *resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    // Get slot contents; store in list
+    Tcl_Obj *list = CallSlotGet(interp, oPtr);
+    if (list == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(list);
+    Tcl_ResetResult(interp);
+
+    // Prepare a set of items in the list to set
+    Tcl_Size listc;
+    Tcl_Obj **listv;
+    if (TclListObjGetElements(interp, list, &listc, &listv) != TCL_OK) {
+	Tcl_DecrRefCount(list);
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_HashTable unique;
+    Tcl_InitObjHashTable(&unique);
+    for (Tcl_Size i=0 ; i<listc; i++) {
+	Tcl_CreateHashEntry(&unique, listv[i], NULL);
+    }
+
+    // Append the new items if they're not already there
+    if (Tcl_IsShared(list)) {
+	Tcl_Obj *dup = Tcl_DuplicateObj(list);
+	Tcl_IncrRefCount(dup);
+	Tcl_DecrRefCount(list);
+	list = dup;
+    }
+    TclListObjGetElements(NULL, resolved, &listc, &listv);
+    for (Tcl_Size i=0 ; i<listc; i++) {
+	int isNew;
+	Tcl_CreateHashEntry(&unique, listv[i], &isNew);
+	if (isNew) {
+	    Tcl_ListObjAppendElement(interp, list, listv[i]);
+	}
+    }
+    Tcl_DecrRefCount(resolved);
+    Tcl_DeleteHashTable(&unique);
+
+    // Set slot contents
+    int code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Clear --
+ *
+ *	Implementation of the "-clear" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Clear(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip != objc) {
+	Tcl_WrongNumArgs(interp, skip, objv, NULL);
+	return TCL_ERROR;
+    }
+    Tcl_Obj *list = Tcl_NewObj();
+    Tcl_IncrRefCount(list);
+    int code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Prepend --
+ *
+ *	Implementation of the "-prepend" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Prepend(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip == objc) {
+	return TCL_OK;

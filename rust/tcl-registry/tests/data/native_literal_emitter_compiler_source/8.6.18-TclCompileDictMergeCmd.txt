@@ -1,0 +1,112 @@
+TclCompileDictMergeCmd(
+    Tcl_Interp *interp,		/* Used for looking up stuff. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    int i, workerIndex, infoIndex, outLoop;
+
+    /*
+     * Deal with some special edge cases. Note that in the case with one
+     * argument, the only thing to do is to verify the dict-ness.
+     */
+
+    /* TODO: Consider support for compiling expanded args. (less likely) */
+    if (parsePtr->numWords < 2) {
+	PushStringLiteral(envPtr, "");
+	return TCL_OK;
+    } else if (parsePtr->numWords == 2) {
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, 1);
+	TclEmitOpcode(		INST_DUP,			envPtr);
+	TclEmitOpcode(		INST_DICT_VERIFY,		envPtr);
+	return TCL_OK;
+    }
+
+    /*
+     * There's real merging work to do.
+     *
+     * Allocate some working space. This means we'll only ever compile this
+     * command when there's an LVT present.
+     */
+
+    workerIndex = AnonymousLocal(envPtr);
+    if (workerIndex < 0) {
+	return TclCompileBasicMin2ArgCmd(interp, parsePtr, cmdPtr, envPtr);
+    }
+    infoIndex = AnonymousLocal(envPtr);
+
+    /*
+     * Get the first dictionary and verify that it is so.
+     */
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    CompileWord(envPtr, tokenPtr, interp, 1);
+    TclEmitOpcode(		INST_DUP,			envPtr);
+    TclEmitOpcode(		INST_DICT_VERIFY,		envPtr);
+    Emit14Inst(			INST_STORE_SCALAR, workerIndex,	envPtr);
+    TclEmitOpcode(		INST_POP,			envPtr);
+
+    /*
+     * For each of the remaining dictionaries...
+     */
+
+    outLoop = TclCreateExceptRange(CATCH_EXCEPTION_RANGE, envPtr);
+    TclEmitInstInt4(		INST_BEGIN_CATCH4, outLoop,	envPtr);
+    ExceptionRangeStarts(envPtr, outLoop);
+    for (i=2 ; i<parsePtr->numWords ; i++) {
+	/*
+	 * Get the dictionary, and merge its pairs into the first dict (using
+	 * a small loop).
+	 */
+
+	tokenPtr = TokenAfter(tokenPtr);
+	CompileWord(envPtr, tokenPtr, interp, i);
+	TclEmitInstInt4(	INST_DICT_FIRST, infoIndex,	envPtr);
+	TclEmitInstInt1(	INST_JUMP_TRUE1, 24,		envPtr);
+	TclEmitInstInt4(	INST_REVERSE, 2,		envPtr);
+	TclEmitInstInt4(	INST_DICT_SET, 1,		envPtr);
+	TclEmitInt4(			workerIndex,		envPtr);
+	TclAdjustStackDepth(-1, envPtr);
+	TclEmitOpcode(		INST_POP,			envPtr);
+	TclEmitInstInt4(	INST_DICT_NEXT, infoIndex,	envPtr);
+	TclEmitInstInt1(	INST_JUMP_FALSE1, -20,		envPtr);
+	TclEmitOpcode(		INST_POP,			envPtr);
+	TclEmitOpcode(		INST_POP,			envPtr);
+	TclEmitInstInt1(	INST_UNSET_SCALAR, 0,		envPtr);
+	TclEmitInt4(			infoIndex,		envPtr);
+    }
+    ExceptionRangeEnds(envPtr, outLoop);
+    TclEmitOpcode(		INST_END_CATCH,			envPtr);
+
+    /*
+     * Clean up any state left over.
+     */
+
+    Emit14Inst(			INST_LOAD_SCALAR, workerIndex,	envPtr);
+    TclEmitInstInt1(		INST_UNSET_SCALAR, 0,		envPtr);
+    TclEmitInt4(			workerIndex,		envPtr);
+    TclEmitInstInt1(		INST_JUMP1, 18,			envPtr);
+
+    /*
+     * If an exception happens when starting to iterate over the second (and
+     * subsequent) dicts. This is strictly not necessary, but it is nice.
+     */
+
+    TclAdjustStackDepth(-1, envPtr);
+    ExceptionRangeTarget(envPtr, outLoop, catchOffset);
+    TclEmitOpcode(		INST_PUSH_RETURN_OPTIONS,	envPtr);
+    TclEmitOpcode(		INST_PUSH_RESULT,		envPtr);
+    TclEmitOpcode(		INST_END_CATCH,			envPtr);
+    TclEmitInstInt1(		INST_UNSET_SCALAR, 0,		envPtr);
+    TclEmitInt4(			workerIndex,		envPtr);
+    TclEmitInstInt1(		INST_UNSET_SCALAR, 0,		envPtr);
+    TclEmitInt4(			infoIndex,		envPtr);
+    TclEmitOpcode(		INST_RETURN_STK,		envPtr);
+
+    return TCL_OK;
+}

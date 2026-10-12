@@ -1,0 +1,2892 @@
+[
+  {
+    "id": "naming.regex.c-match-capture-store-frontiers",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-match-capture-store-frontiers.md",
+    "problem_statement": "regexp -all writes a capture variable for each match. A trace can fail on the second write, leaving earlier capture/submatch state; treating the command as a single transactional write loses that frontier. The oldest failing-trace attempt also aborts instead of returning a caught result.",
+    "question": "What per-match write values and first-failure result does the original regexp -all trace control retain?",
+    "conclusion": "Every normal case records the capture write sequence a, b, c and final capture/submatch c. The failing trace reaches a then b on C8.5\u20139.1 and leaves the preceding submatch a, with release-specific error text/code. The C8.4 failing-trace process aborts with free(): invalid pointer and no result output; it supplies no successful completion.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 15923b6f2dec95f3337706dd373128d37f33059aac7a13f0637e49934a55996b; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t7b61206220637d20632063\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":-6,\"stdout\":\"\",\"stderr\":\"free(): invalid pointer\\n\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-0",
+          "tcl8.4-case-1"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 808e26d6f6d9cfc40bd5fbbe16f5c2498cf1868f0aa65c39d21894e24416dcfb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t7b61206220637d20632063\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b6120627d207b636f756c646e277420736574207661726961626c6520226d227d2061204e4f4e45\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-0",
+          "tcl8.5-case-1"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 9cc3a8be42775066c0660d41a5134c681eadd60290fd54bd53149bb786a38393; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t7b61206220637d20632063\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b6120627d207b63616e27742073657420226d223a2053544f507d2061207b54434c205752495445205641524e414d457d\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-0",
+          "tcl8.6-case-1"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 88957a4c70cba565fc8533e5ada50be50597d6a8882d0fcee8263acb16c8f8eb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t7b61206220637d20632063\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b6120627d207b63616e27742073657420226d223a2053544f507d2061207b54434c205752495445205641524e414d457d\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-0",
+          "tcl9.0-case-1"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 57e7d7744b930c4feec94ea34a290993d32074fb4f94f482b6ebf79ed88c4893; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t7b61206220637d20632063\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b6120627d207b63616e27742073657420226d223a2053544f507d2061207b54434c205752495445205641524e414d457d\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-0",
+          "tcl9.1-case-1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regex_original/probe.c",
+        "sha256": "d53afd2143239af6cc9fc8d3d166d7d7054f748e7e614c2c60bcbe5c3ae7c336",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/0"
+      },
+      {
+        "id": "tcl8.4-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/1"
+      },
+      {
+        "id": "tcl8.5-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/0"
+      },
+      {
+        "id": "tcl8.5-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/1"
+      },
+      {
+        "id": "tcl8.6-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/0"
+      },
+      {
+        "id": "tcl8.6-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/1"
+      },
+      {
+        "id": "tcl9.0-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/0"
+      },
+      {
+        "id": "tcl9.0-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/1"
+      },
+      {
+        "id": "tcl9.1-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/0"
+      },
+      {
+        "id": "tcl9.1-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/1"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::original_regexp_each_match_and_first_failure_match_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regexp_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-substitution-result-variable-error",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-substitution-result-variable-error.md",
+    "problem_statement": "A regsub result destination a(k) can fail because a is scalar. A catch-wrapped call and a direct call expose different surrounding result owners, and older releases publish different diagnostic primaries and error codes.",
+    "question": "What completion, original result primary and diagnostic bytes does regsub retain when its result destination indexes a scalar?",
+    "conclusion": "All five recorded builds reject the scalar a(k) result destination. The caught control returns a list describing the failure; direct regsub returns error. The C8.4 direct result is untyped, whereas the later direct results have string primary, and detailed diagnostic/error-code bytes differ by release. No failed-set rollback or arbitrary variable state is inferred.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 15923b6f2dec95f3337706dd373128d37f33059aac7a13f0637e49934a55996b; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b636f756c646e277420736574207661726961626c65202261286b29227d204e4f4e45\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"result\\t1\\tnone\\t1\\t1\\t636f756c646e277420736574207661726961626c65202261286b2922\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-2",
+          "tcl8.4-case-4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 808e26d6f6d9cfc40bd5fbbe16f5c2498cf1868f0aa65c39d21894e24416dcfb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b636f756c646e277420736574207661726961626c65202261286b29227d204e4f4e45\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t636f756c646e277420736574207661726961626c65202261286b2922\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-2",
+          "tcl8.5-case-4"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 9cc3a8be42775066c0660d41a5134c681eadd60290fd54bd53149bb786a38393; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b63616e277420736574202261286b29223a207661726961626c652069736e27742061727261797d207b54434c204c4f4f4b5550205641524e414d4520617d\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t63616e277420736574202261286b29223a207661726961626c652069736e2774206172726179\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-2",
+          "tcl8.6-case-4"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 88957a4c70cba565fc8533e5ada50be50597d6a8882d0fcee8263acb16c8f8eb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b63616e277420736574202261286b29223a207661726961626c652069736e27742061727261797d207b54434c204c4f4f4b5550205641524e414d4520617d\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t63616e277420736574202261286b29223a207661726961626c652069736e2774206172726179\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-2",
+          "tcl9.0-case-4"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 57e7d7744b930c4feec94ea34a290993d32074fb4f94f482b6ebf79ed88c4893; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"result\\t0\\tlist\\t0\\t1\\t31207b63616e277420736574202261286b29223a207661726961626c652069736e27742061727261797d207b54434c204c4f4f4b5550205641524e414d4520617d\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t63616e277420736574202261286b29223a207661726961626c652069736e2774206172726179\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-2",
+          "tcl9.1-case-4"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regex_original/probe.c",
+        "sha256": "d53afd2143239af6cc9fc8d3d166d7d7054f748e7e614c2c60bcbe5c3ae7c336",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/2"
+      },
+      {
+        "id": "tcl8.4-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/4"
+      },
+      {
+        "id": "tcl8.5-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/2"
+      },
+      {
+        "id": "tcl8.5-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/4"
+      },
+      {
+        "id": "tcl8.6-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/2"
+      },
+      {
+        "id": "tcl8.6-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/4"
+      },
+      {
+        "id": "tcl9.0-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/2"
+      },
+      {
+        "id": "tcl9.0-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/4"
+      },
+      {
+        "id": "tcl9.1-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/2"
+      },
+      {
+        "id": "tcl9.1-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/4"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::original_regex_unmatched_target_and_quiet_write_match_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regexp_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-no-match-original-output-name",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-no-match-original-output-name.md",
+    "problem_statement": "A pure List output-name object has no resident string. Reading or canonicalizing that name eagerly would change its object state even when regexp finds no match and has no value to assign.",
+    "question": "Does a no-match regexp call materialize or alter its original pure List output-name object?",
+    "conclusion": "All five original object-vector calls return integer zero while the retained output-name remains List, with absent resident string and reference count one at the sampled target window. This is the exact no-match output-name door; it does not establish successful setter behavior.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 15923b6f2dec95f3337706dd373128d37f33059aac7a13f0637e49934a55996b; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"target\\t0\\tlist\\t1\\nresult\\t0\\tint\\t0\\t1\\t30\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 808e26d6f6d9cfc40bd5fbbe16f5c2498cf1868f0aa65c39d21894e24416dcfb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"target\\t0\\tlist\\t1\\nresult\\t0\\tint\\t0\\t1\\t30\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-3"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 9cc3a8be42775066c0660d41a5134c681eadd60290fd54bd53149bb786a38393; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"target\\t0\\tlist\\t1\\nresult\\t0\\tint\\t0\\t1\\t30\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-3"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 88957a4c70cba565fc8533e5ada50be50597d6a8882d0fcee8263acb16c8f8eb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"target\\t0\\tlist\\t1\\nresult\\t0\\tint\\t0\\t1\\t30\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-3"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 57e7d7744b930c4feec94ea34a290993d32074fb4f94f482b6ebf79ed88c4893; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"target\\t0\\tlist\\t1\\nresult\\t0\\tint\\t0\\t1\\t30\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-3"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regex_original/probe.c",
+        "sha256": "d53afd2143239af6cc9fc8d3d166d7d7054f748e7e614c2c60bcbe5c3ae7c336",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/3"
+      },
+      {
+        "id": "tcl8.5-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/3"
+      },
+      {
+        "id": "tcl8.6-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/3"
+      },
+      {
+        "id": "tcl9.0-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/3"
+      },
+      {
+        "id": "tcl9.1-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/3"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::original_regex_unmatched_target_and_quiet_write_match_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regexp_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-command-prefix-object-arguments",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-command-prefix-object-arguments.md",
+    "problem_statement": "regsub -command carries an original List prefix member to a callback and separately creates match arguments. Reissuing the prefix from displayed text would lose object identity, while older command surfaces reject this option before callback entry.",
+    "question": "Which original prefix member and match-object windows do the C regsub -command callbacks receive?",
+    "conclusion": "C9.0 and C9.1 call keep twice with the same original List seed member and a string match argument whose resident bytes are initially absent; the first callback sees a stringless seed and the second sees its materialized bytes. The result is SS. C8.4\u20138.6 reject -command and execute no callback; their exact guest errors remain retained.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 15923b6f2dec95f3337706dd373128d37f33059aac7a13f0637e49934a55996b; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "unsupported",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":5,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t6261642073776974636820222d636f6d6d616e64223a206d757374206265202d616c6c2c202d6e6f636173652c202d657870616e6465642c202d6c696e652c202d6c696e6573746f702c202d6c696e65616e63686f722c202d73746172742c206f72202d2d\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-5"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 808e26d6f6d9cfc40bd5fbbe16f5c2498cf1868f0aa65c39d21894e24416dcfb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "unsupported",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":5,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t6261642073776974636820222d636f6d6d616e64223a206d757374206265202d616c6c2c202d6e6f636173652c202d657870616e6465642c202d6c696e652c202d6c696e6573746f702c202d6c696e65616e63686f722c202d73746172742c206f72202d2d\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 9cc3a8be42775066c0660d41a5134c681eadd60290fd54bd53149bb786a38393; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "unsupported",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":5,\"exit\":0,\"stdout\":\"result\\t1\\tstring\\t1\\t1\\t626164206f7074696f6e20222d636f6d6d616e64223a206d757374206265202d616c6c2c202d6e6f636173652c202d657870616e6465642c202d6c696e652c202d6c696e6573746f702c202d6c696e65616e63686f722c202d73746172742c206f72202d2d\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 88957a4c70cba565fc8533e5ada50be50597d6a8882d0fcee8263acb16c8f8eb; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":5,\"exit\":0,\"stdout\":\"callback\\t1\\t1\\tlist\\t0\\t1\\tstring\\t0\\ncallback\\t1\\t1\\tlist\\t1\\t1\\tstring\\t0\\nresult\\t0\\tstring\\t0\\t1\\t5353\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-5"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 57e7d7744b930c4feec94ea34a290993d32074fb4f94f482b6ebf79ed88c4893; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":5,\"exit\":0,\"stdout\":\"callback\\t1\\t1\\tlist\\t0\\t1\\tstring\\t0\\ncallback\\t1\\t1\\tlist\\t1\\t1\\tstring\\t0\\nresult\\t0\\tstring\\t0\\t1\\t5353\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-5"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regex_original/probe.c",
+        "sha256": "d53afd2143239af6cc9fc8d3d166d7d7054f748e7e614c2c60bcbe5c3ae7c336",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/5"
+      },
+      {
+        "id": "tcl8.5-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/5"
+      },
+      {
+        "id": "tcl8.6-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/5"
+      },
+      {
+        "id": "tcl9.0-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/5"
+      },
+      {
+        "id": "tcl9.1-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regex_original/manifest.json",
+        "sha256": "50248809f0a9c83a28dee996973692e561adfa8dcb4216df613c95150eb29ed3",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/5"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::original_regsub_prefix_and_unicode_arguments_match_native_c9_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regexp_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-compiled-pattern-cache-lifetime",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-compiled-pattern-cache-lifetime.md",
+    "problem_statement": "A compiled pattern can survive removal of its resident string when its flags match. Recompiling different flags requires a different path, and a duplicate can retain the compiled artifact. Treating every getter as a string read erases the cache-first distinction.",
+    "question": "How do same flags, changed flags, duplicate patterns and invalidated resident bytes affect the original C RegExp cache?",
+    "conclusion": "All five captured same-flag and duplicated-pattern controls retain the same compiled artifact after string invalidation. A flag change with resident bytes produces a different artifact. Changing flags after invalidating the pattern aborts every recorded process with the missing RegExp string-updater message (statuses -6 or -4); those attempts provide no successful completion.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 254739d0e2469770dc8ff8d0a79abc8aa8f3e0ddc8e0d37d20a22938e8991f43; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t0\\nafter\\tregexp\\t1\\t1\\n\",\"stderr\":\"\"},{\"case\":9,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nduplicate\\tregexp\\t1\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":10,\"exit\":-6,\"stdout\":\"\",\"stderr\":\"UpdateStringProc should not be invoked for type regexp\\n\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-0",
+          "tcl8.4-case-1",
+          "tcl8.4-case-9",
+          "tcl8.4-case-10"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 174b3d5380e50f6a40d6aa40f3c4199d6ab8a04e82a5578c2a8208cd03618b2a; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t0\\nafter\\tregexp\\t1\\t1\\n\",\"stderr\":\"\"},{\"case\":9,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nduplicate\\tregexp\\t1\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":10,\"exit\":-6,\"stdout\":\"\",\"stderr\":\"UpdateStringProc should not be invoked for type regexp\\n\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-0",
+          "tcl8.5-case-1",
+          "tcl8.5-case-9",
+          "tcl8.5-case-10"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 4a36829b28f7c202cd55a531978d1963fd4c6618c933ac7d56c8206ef4f52ac0; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t0\\nafter\\tregexp\\t1\\t1\\n\",\"stderr\":\"\"},{\"case\":9,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nduplicate\\tregexp\\t1\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":10,\"exit\":-6,\"stdout\":\"\",\"stderr\":\"UpdateStringProc should not be invoked for type regexp\\n\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-0",
+          "tcl8.6-case-1",
+          "tcl8.6-case-9",
+          "tcl8.6-case-10"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 59abc79a4fcdc39cbb69e49cb6226d0de5f14ee5e3a4515ebbbbdd8b4f18e58c; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t0\\nafter\\tregexp\\t1\\t1\\n\",\"stderr\":\"\"},{\"case\":9,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nduplicate\\tregexp\\t1\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":10,\"exit\":-4,\"stdout\":\"\",\"stderr\":\"UpdateStringProc should not be invoked for type regexp\\n\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-0",
+          "tcl9.0-case-1",
+          "tcl9.0-case-9",
+          "tcl9.0-case-10"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 2a7482f87de4f8443c1798aed562002ab32848b9382905eae1bbcc32aef51001; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":0,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t0\\nafter\\tregexp\\t1\\t1\\n\",\"stderr\":\"\"},{\"case\":9,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nduplicate\\tregexp\\t1\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\t61\\n\",\"stderr\":\"\"},{\"case\":10,\"exit\":-4,\"stdout\":\"\",\"stderr\":\"UpdateStringProc should not be invoked for type regexp\\n\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-0",
+          "tcl9.1-case-1",
+          "tcl9.1-case-9",
+          "tcl9.1-case-10"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_cache/probe.c",
+        "sha256": "ece4064597072cc821d332f2bc5de3467604edec8d8d153736aaa4b31ce76876",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/0"
+      },
+      {
+        "id": "tcl8.4-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/1"
+      },
+      {
+        "id": "tcl8.4-case-9",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 9 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/9"
+      },
+      {
+        "id": "tcl8.4-case-10",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 10 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/10"
+      },
+      {
+        "id": "tcl8.5-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/0"
+      },
+      {
+        "id": "tcl8.5-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/1"
+      },
+      {
+        "id": "tcl8.5-case-9",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 9 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/9"
+      },
+      {
+        "id": "tcl8.5-case-10",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 10 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/10"
+      },
+      {
+        "id": "tcl8.6-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/0"
+      },
+      {
+        "id": "tcl8.6-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/1"
+      },
+      {
+        "id": "tcl8.6-case-9",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 9 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/9"
+      },
+      {
+        "id": "tcl8.6-case-10",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 10 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/10"
+      },
+      {
+        "id": "tcl9.0-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/0"
+      },
+      {
+        "id": "tcl9.0-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/1"
+      },
+      {
+        "id": "tcl9.0-case-9",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 9 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/9"
+      },
+      {
+        "id": "tcl9.0-case-10",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 10 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/10"
+      },
+      {
+        "id": "tcl9.1-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 0 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/0"
+      },
+      {
+        "id": "tcl9.1-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 1 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/1"
+      },
+      {
+        "id": "tcl9.1-case-9",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 9 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/9"
+      },
+      {
+        "id": "tcl9.1-case-10",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 10 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/10"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::native_regexp_cache_hit_precedes_getter_and_duplicate_keeps_artifact",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regsub_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-malformed-pattern-installation",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-malformed-pattern-installation.md",
+    "problem_statement": "A failed compile of an original string pattern must not be treated as a valid cached RegExp merely because a getter was attempted. Result errors and installed pattern state are independent.",
+    "question": "Does compiling the original malformed pattern ( install a C RegExp primary?",
+    "conclusion": "Every recorded build reports compile false and leaves the original pattern untyped with resident bytes and reference count one. The probe does not print detailed compilation error bytes; none are inferred.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 254739d0e2469770dc8ff8d0a79abc8aa8f3e0ddc8e0d37d20a22938e8991f43; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"pattern\\tnone\\t1\\t1\\ncompile\\t0\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-2"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 174b3d5380e50f6a40d6aa40f3c4199d6ab8a04e82a5578c2a8208cd03618b2a; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"pattern\\tnone\\t1\\t1\\ncompile\\t0\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-2"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 4a36829b28f7c202cd55a531978d1963fd4c6618c933ac7d56c8206ef4f52ac0; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"pattern\\tnone\\t1\\t1\\ncompile\\t0\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-2"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 59abc79a4fcdc39cbb69e49cb6226d0de5f14ee5e3a4515ebbbbdd8b4f18e58c; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"pattern\\tnone\\t1\\t1\\ncompile\\t0\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-2"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 2a7482f87de4f8443c1798aed562002ab32848b9382905eae1bbcc32aef51001; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":2,\"exit\":0,\"stdout\":\"pattern\\tnone\\t1\\t1\\ncompile\\t0\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-2"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_cache/probe.c",
+        "sha256": "ece4064597072cc821d332f2bc5de3467604edec8d8d153736aaa4b31ce76876",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/2"
+      },
+      {
+        "id": "tcl8.5-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/2"
+      },
+      {
+        "id": "tcl8.6-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/2"
+      },
+      {
+        "id": "tcl9.0-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/2"
+      },
+      {
+        "id": "tcl9.1-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 2 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/2"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regsub_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-original-range-native-units",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-original-range-native-units.md",
+    "problem_statement": "The original pattern and subject can contain FF, modified zero or a four-byte astral sequence. A matched range is a new native object whose string encoding and residency can differ from the original subject and across releases.",
+    "question": "What original range bytes and storage windows follow matching FF, modified zero and astral native input units?",
+    "conclusion": "All selected controls match. C8.4/8.5 retain FF and the four-byte astral spelling in the reported ranges; C8.6\u20139.1 report C3BF for FF. C8.6 reports the astral range as EDA0BDEDB880, while C9.0/9.1 report F09F9880. Modified zero is C080 in all captured outputs. Range residency differs independently from these bytes, as the exact rows show; this is not a Unicode-normalization or source-channel theorem.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 254739d0e2469770dc8ff8d0a79abc8aa8f3e0ddc8e0d37d20a22938e8991f43; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\tff\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc080\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\tf09f9880\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-3",
+          "tcl8.4-case-4",
+          "tcl8.4-case-5"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 174b3d5380e50f6a40d6aa40f3c4199d6ab8a04e82a5578c2a8208cd03618b2a; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\tff\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc080\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t1\\t1\\nrangebytes\\tf09f9880\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-3",
+          "tcl8.5-case-4",
+          "tcl8.5-case-5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 4a36829b28f7c202cd55a531978d1963fd4c6618c933ac7d56c8206ef4f52ac0; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc3bf\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc080\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\teda0bdedb880\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-3",
+          "tcl8.6-case-4",
+          "tcl8.6-case-5"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 59abc79a4fcdc39cbb69e49cb6226d0de5f14ee5e3a4515ebbbbdd8b4f18e58c; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc3bf\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc080\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tf09f9880\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-3",
+          "tcl9.0-case-4",
+          "tcl9.0-case-5"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 2a7482f87de4f8443c1798aed562002ab32848b9382905eae1bbcc32aef51001; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":3,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc3bf\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tc080\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nmatch\\t1\\nsubject\\tstring\\t1\\t1\\nrange\\tstring\\t0\\t1\\nrangebytes\\tf09f9880\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-3",
+          "tcl9.1-case-4",
+          "tcl9.1-case-5"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_cache/probe.c",
+        "sha256": "ece4064597072cc821d332f2bc5de3467604edec8d8d153736aaa4b31ce76876",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/3"
+      },
+      {
+        "id": "tcl8.4-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/4"
+      },
+      {
+        "id": "tcl8.4-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/5"
+      },
+      {
+        "id": "tcl8.5-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/3"
+      },
+      {
+        "id": "tcl8.5-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/4"
+      },
+      {
+        "id": "tcl8.5-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/5"
+      },
+      {
+        "id": "tcl8.6-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/3"
+      },
+      {
+        "id": "tcl8.6-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/4"
+      },
+      {
+        "id": "tcl8.6-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/5"
+      },
+      {
+        "id": "tcl9.0-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/3"
+      },
+      {
+        "id": "tcl9.0-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/4"
+      },
+      {
+        "id": "tcl9.0-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/5"
+      },
+      {
+        "id": "tcl9.1-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 3 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/3"
+      },
+      {
+        "id": "tcl9.1-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 4 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/4"
+      },
+      {
+        "id": "tcl9.1-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 5 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/5"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::native_regexp_ranges_preserve_selected_original_units_and_storage",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regsub_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-regsub-primary-path-selection",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-regsub-primary-path-selection.md",
+    "problem_statement": "A backreference substitution uses a compiled RegExp path, a simple literal replacement may use a mapping path, and a no-match call may return the original subject. Equal textual results do not reveal which original object or primary was retained.",
+    "question": "How do RegExp replacement, literal mapping and no-match regsub differ in pattern primary, result residency and subject identity?",
+    "conclusion": "All five captured backreference replacements retain a RegExp pattern and return aXb; literal replacements leave string pattern primary and return Xb. The no-match control returns the same original subject ab with its increased reference count. C8.4/8.5 replacement results already have resident strings; later replacement results are sampled before materialization. These are the fixed original vectors, not all optimization choices.",
+    "scope": "Only the selected cases of this retained public C API probe and the recorded five library/header builds are covered. Original input object construction, reference holders, reporting conversions and callback setup are part of the probe. Private physical fields are sampled before result rendering where specified. A recorded build label is not an independent runtime version query. No new native launch, Rust test result, Jim or BIG-IP behavior is claimed; manually invalidated objects and aborted attempts provide no successful adapter or language completion.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 254739d0e2469770dc8ff8d0a79abc8aa8f3e0ddc8e0d37d20a22938e8991f43; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{\"case\":6,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tregexp\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t1\\ncommandbytes\\t615862\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t1\\ncommandbytes\\t5862\\n\",\"stderr\":\"\"},{\"case\":8,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t1\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t2\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t2\\ncommandbytes\\t6162\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.4-case-6",
+          "tcl8.4-case-7",
+          "tcl8.4-case-8"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 174b3d5380e50f6a40d6aa40f3c4199d6ab8a04e82a5578c2a8208cd03618b2a; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{\"case\":6,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tregexp\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t1\\ncommandbytes\\t615862\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t1\\ncommandbytes\\t5862\\n\",\"stderr\":\"\"},{\"case\":8,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t1\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t2\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t2\\ncommandbytes\\t6162\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.5-case-6",
+          "tcl8.5-case-7",
+          "tcl8.5-case-8"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 4a36829b28f7c202cd55a531978d1963fd4c6618c933ac7d56c8206ef4f52ac0; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{\"case\":6,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tregexp\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t0\\t1\\ncommandbytes\\t615862\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t0\\t1\\ncommandbytes\\t5862\\n\",\"stderr\":\"\"},{\"case\":8,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t1\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t2\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t2\\ncommandbytes\\t6162\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl8.6-case-6",
+          "tcl8.6-case-7",
+          "tcl8.6-case-8"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 59abc79a4fcdc39cbb69e49cb6226d0de5f14ee5e3a4515ebbbbdd8b4f18e58c; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{\"case\":6,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tregexp\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t0\\t1\\ncommandbytes\\t615862\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t0\\t1\\ncommandbytes\\t5862\\n\",\"stderr\":\"\"},{\"case\":8,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t1\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t2\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t2\\ncommandbytes\\t6162\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.0-case-6",
+          "tcl9.0-case-7",
+          "tcl9.0-case-8"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime version query not retained)",
+        "build": "Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 2a7482f87de4f8443c1798aed562002ab32848b9382905eae1bbcc32aef51001; exact header digests in original-capture.",
+        "input_channel": "Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{\"case\":6,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tregexp\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t0\\t1\\ncommandbytes\\t615862\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t0\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t1\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t0\\t1\\ncommandbytes\\t5862\\n\",\"stderr\":\"\"},{\"case\":8,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncommand\\t0\\t1\\ncommandpattern\\tstring\\t1\\t1\\ncommandsubject\\tstring\\t1\\t2\\ncommandspec\\tstring\\t1\\t1\\ncommandresult\\tstring\\t1\\t2\\ncommandbytes\\t6162\\n\",\"stderr\":\"\"}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "tcl9.1-case-6",
+          "tcl9.1-case-7",
+          "tcl9.1-case-8"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Immutable build/header/library/executable identities and complete case statuses/streams."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_cache/probe.c",
+        "sha256": "ece4064597072cc821d332f2bc5de3467604edec8d8d153736aaa4b31ce76876",
+        "description": "Exact retained original object constructors, Tcl_EvalEx/Tcl_EvalObjv or RegExp API calls, reporting order and case selector."
+      },
+      {
+        "id": "tcl8.4-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 6 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/6"
+      },
+      {
+        "id": "tcl8.4-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 7 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/7"
+      },
+      {
+        "id": "tcl8.4-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 8 process status, raw stdout and raw stderr.",
+        "json_pointer": "/0/captures/8"
+      },
+      {
+        "id": "tcl8.5-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 6 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/6"
+      },
+      {
+        "id": "tcl8.5-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 7 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/7"
+      },
+      {
+        "id": "tcl8.5-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 8 process status, raw stdout and raw stderr.",
+        "json_pointer": "/1/captures/8"
+      },
+      {
+        "id": "tcl8.6-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 6 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/6"
+      },
+      {
+        "id": "tcl8.6-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 7 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/7"
+      },
+      {
+        "id": "tcl8.6-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 8 process status, raw stdout and raw stderr.",
+        "json_pointer": "/2/captures/8"
+      },
+      {
+        "id": "tcl9.0-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 6 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/6"
+      },
+      {
+        "id": "tcl9.0-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 7 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/7"
+      },
+      {
+        "id": "tcl9.0-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 8 process status, raw stdout and raw stderr.",
+        "json_pointer": "/3/captures/8"
+      },
+      {
+        "id": "tcl9.1-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 6 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/6"
+      },
+      {
+        "id": "tcl9.1-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 7 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/7"
+      },
+      {
+        "id": "tcl9.1-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_cache/manifest.json",
+        "sha256": "27428a28d53c5aa18e9741bddb805f2afb7221cfe3d49feff092cf8a3e163605",
+        "description": "Exact case 8 process status, raw stdout and raw stderr.",
+        "json_pointer": "/4/captures/8"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::native_regsub_mapping_and_regexp_keep_distinct_original_primaries",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regsub_cmd",
+        "purpose": "Independent current regex consumer; the retained native windows do not certify a Rust implementation result."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.jim-original-regexp-range",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-jim-original-regexp-range.md",
+    "problem_statement": "A Jim compiled pattern, original subject and stored range have independent primary/resident fields. UTF-shaped input bytes and a malformed pattern must be observed in the Jim worker rather than reconstructed from the C RegExp recipe.",
+    "question": "What pattern, subject, result and range windows do the original Jim regexp byte-unit and malformed-pattern controls retain?",
+    "conclusion": "The a/FF/C080/F09F9880 controls complete with RegExp pattern, untyped original subject and integer result; their stored string ranges report the original selected byte sequences. The malformed ( control reports compile false and leaves untyped pattern. These exact inputs do not establish a C range policy, Jim name comparison or universal UTF validity.",
+    "scope": "Only the exact retained Jim direct-worker/object probe and selected case windows are covered. The library/header/source identities in this manifest are original; a captured version label does not certify an unqueried patch, checkout or UTF configuration. Internal object invalidation/duplication and cleanup are harness-specific operations. Printed rows preceding an abnormal exit remain partial observations, not successful lifecycle or adapter completion. C Tcl, BIG-IP and fresh replay/Rust outcomes are not measured here.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "Jim0.84 (patch/revision not queried)",
+        "build": "Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.",
+        "input_channel": "Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Original selected native attempts: [{\"case\":0,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncode\\t0\\npatternafter\\tregexp\\t1\\t1\\nsubject\\tnone\\t1\\t1\\nresult\\tint\\t0\\t1\\nrange\\tstring\\t1\\t1\\nbytes\\t61\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncode\\t0\\npatternafter\\tregexp\\t1\\t1\\nsubject\\tnone\\t1\\t1\\nresult\\tint\\t0\\t1\\nrange\\tstring\\t1\\t1\\nbytes\\tff\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncode\\t0\\npatternafter\\tregexp\\t1\\t1\\nsubject\\tnone\\t1\\t1\\nresult\\tint\\t0\\t1\\nrange\\tstring\\t1\\t1\\nbytes\\tc080\\n\",\"stderr\":\"\"},{\"case\":6,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncode\\t0\\npatternafter\\tregexp\\t1\\t1\\nsubject\\tnone\\t1\\t1\\nresult\\tint\\t0\\t1\\nrange\\tstring\\t1\\t1\\nbytes\\tf09f9880\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"pattern\\tnone\\t1\\t1\\ncompile\\t0\\n\",\"stderr\":\"\"}]. Process status is independent of printed command return and object rows.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "jim-case-0",
+          "jim-case-4",
+          "jim-case-5",
+          "jim-case-6",
+          "jim-case-7"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Original source/library/header/build context and every process status/stream, including incomplete attempts."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_jim/probe.c",
+        "sha256": "dbd3c02c4d9b11f3f8cf91cefbffef96ca8a128ed6d84fd20fcec46315372f2e",
+        "description": "Exact direct Jim worker invocation, object construction and physical reporting order."
+      },
+      {
+        "id": "jim-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/0"
+      },
+      {
+        "id": "jim-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/4"
+      },
+      {
+        "id": "jim-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/5"
+      },
+      {
+        "id": "jim-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/6"
+      },
+      {
+        "id": "jim-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/7"
+      },
+      {
+        "id": "exact-source-0",
+        "role": "source-anchor",
+        "path": "docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json",
+        "sha256": "f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c",
+        "description": "Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.",
+        "json_pointer": "/0/snippet"
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "jim",
+        "version": "Jim0.84 captured source label; no captured patch query",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+        "original_path": "jim-regexp.c",
+        "function": "SetRegexpFromAny",
+        "lines": [
+          64,
+          118
+        ],
+        "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+        "snippet": "static void FreeRegexpInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)\n{\n    jim_regfree(objPtr->internalRep.ptrIntValue.ptr);\n    Jim_Free(objPtr->internalRep.ptrIntValue.ptr);\n}\n\n/* internal rep is stored in ptrIntvalue\n *  ptr = compiled regex\n *  int1 = flags\n */\nstatic const Jim_ObjType regexpObjType = {\n    \"regexp\",\n    FreeRegexpInternalRep,\n    NULL,\n    NULL,\n    JIM_TYPE_NONE\n};\n\nstatic regex_t *SetRegexpFromAny(Jim_Interp *interp, Jim_Obj *objPtr, unsigned flags)\n{\n    regex_t *compre;\n    const char *pattern;\n    int ret;\n\n    /* Check if the object is already an uptodate variable */\n    if (objPtr->typePtr == &regexpObjType &&\n        objPtr->internalRep.ptrIntValue.ptr && objPtr->internalRep.ptrIntValue.int1 == flags) {\n        /* nothing to do */\n        return objPtr->internalRep.ptrIntValue.ptr;\n    }\n\n    /* Not a regexp or the flags do not match */\n\n    /* Get the string representation */\n    pattern = Jim_String(objPtr);\n    compre = Jim_Alloc(sizeof(regex_t));\n\n    if ((ret = jim_regcomp(compre, pattern, REG_EXTENDED | flags)) != 0) {\n        char buf[100];\n\n        jim_regerror(ret, compre, buf, sizeof(buf));\n        Jim_SetResultFormatted(interp, \"couldn't compile regular expression pattern: %s\", buf);\n        jim_regfree(compre);\n        Jim_Free(compre);\n        return NULL;\n    }\n\n    Jim_FreeIntRep(interp, objPtr);\n\n    objPtr->typePtr = &regexpObjType;\n    objPtr->internalRep.ptrIntValue.int1 = flags;\n    objPtr->internalRep.ptrIntValue.ptr = compre;\n\n    return compre;\n}\n",
+        "snippet_sha256": "59666c07b5a37595ac1f946f1a627d8212ece3241bf8c95609abfbdd66380a5f",
+        "evidence": "exact-source-0"
+      }
+    ],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::jim_original_regexp_cache_ranges_and_unsafe_lifecycles_match_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regexp_cmd",
+        "purpose": "Separate Rust regex consumer; these physical native rows provide no executed Rust or object-manufacturer grant."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.jim-compiled-pattern-lifetime",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-jim-compiled-pattern-lifetime.md",
+    "problem_statement": "Removing a Jim pattern string, changing flags or duplicating a compiled pattern exercises cache and lifetime paths that are separate from successful pattern matching. A process abort cannot be replaced by an invented successful getter result.",
+    "question": "Which original Jim compiled-pattern invalidation and duplicate attempts complete, and which retain an abnormal process exit?",
+    "conclusion": "The same-flag invalidation control completes and reuses the compiled pointer without resident bytes. Changed flags and direct-worker use after string invalidation exit -11 after their initial rows; duplicate cleanup exits -6 with a double-free diagnostic. These retained attempts certify no successful replacement or cleanup beyond the reported windows.",
+    "scope": "Only the exact retained Jim direct-worker/object probe and selected case windows are covered. The library/header/source identities in this manifest are original; a captured version label does not certify an unqueried patch, checkout or UTF configuration. Internal object invalidation/duplication and cleanup are harness-specific operations. Printed rows preceding an abnormal exit remain partial observations, not successful lifecycle or adapter completion. C Tcl, BIG-IP and fresh replay/Rust outcomes are not measured here.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "Jim0.84 (patch/revision not queried)",
+        "build": "Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.",
+        "input_channel": "Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Original selected native attempts: [{\"case\":1,\"exit\":0,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\ncache\\t1\\nafter\\tregexp\\t0\\t1\\n\",\"stderr\":\"\"},{\"case\":2,\"exit\":-11,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\n\",\"stderr\":\"\"},{\"case\":3,\"exit\":-6,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\nduplicate\\tregexp\\t1\\t1\\ncache\\t1\\n\",\"stderr\":\"free(): double free detected in tcache 2\\n\"},{\"case\":8,\"exit\":-11,\"stdout\":\"pattern\\tregexp\\t1\\t1\\ncompile\\t1\\n\",\"stderr\":\"\"}]. Process status is independent of printed command return and object rows.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "jim-case-1",
+          "jim-case-2",
+          "jim-case-3",
+          "jim-case-8"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Original source/library/header/build context and every process status/stream, including incomplete attempts."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_jim/probe.c",
+        "sha256": "dbd3c02c4d9b11f3f8cf91cefbffef96ca8a128ed6d84fd20fcec46315372f2e",
+        "description": "Exact direct Jim worker invocation, object construction and physical reporting order."
+      },
+      {
+        "id": "jim-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/1"
+      },
+      {
+        "id": "jim-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/2"
+      },
+      {
+        "id": "jim-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/3"
+      },
+      {
+        "id": "jim-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim/manifest.json",
+        "sha256": "9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/8"
+      },
+      {
+        "id": "exact-source-0",
+        "role": "source-anchor",
+        "path": "docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json",
+        "sha256": "f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c",
+        "description": "Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.",
+        "json_pointer": "/0/snippet"
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "jim",
+        "version": "Jim0.84 captured source label; no captured patch query",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+        "original_path": "jim-regexp.c",
+        "function": "SetRegexpFromAny",
+        "lines": [
+          64,
+          118
+        ],
+        "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+        "snippet": "static void FreeRegexpInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)\n{\n    jim_regfree(objPtr->internalRep.ptrIntValue.ptr);\n    Jim_Free(objPtr->internalRep.ptrIntValue.ptr);\n}\n\n/* internal rep is stored in ptrIntvalue\n *  ptr = compiled regex\n *  int1 = flags\n */\nstatic const Jim_ObjType regexpObjType = {\n    \"regexp\",\n    FreeRegexpInternalRep,\n    NULL,\n    NULL,\n    JIM_TYPE_NONE\n};\n\nstatic regex_t *SetRegexpFromAny(Jim_Interp *interp, Jim_Obj *objPtr, unsigned flags)\n{\n    regex_t *compre;\n    const char *pattern;\n    int ret;\n\n    /* Check if the object is already an uptodate variable */\n    if (objPtr->typePtr == &regexpObjType &&\n        objPtr->internalRep.ptrIntValue.ptr && objPtr->internalRep.ptrIntValue.int1 == flags) {\n        /* nothing to do */\n        return objPtr->internalRep.ptrIntValue.ptr;\n    }\n\n    /* Not a regexp or the flags do not match */\n\n    /* Get the string representation */\n    pattern = Jim_String(objPtr);\n    compre = Jim_Alloc(sizeof(regex_t));\n\n    if ((ret = jim_regcomp(compre, pattern, REG_EXTENDED | flags)) != 0) {\n        char buf[100];\n\n        jim_regerror(ret, compre, buf, sizeof(buf));\n        Jim_SetResultFormatted(interp, \"couldn't compile regular expression pattern: %s\", buf);\n        jim_regfree(compre);\n        Jim_Free(compre);\n        return NULL;\n    }\n\n    Jim_FreeIntRep(interp, objPtr);\n\n    objPtr->typePtr = &regexpObjType;\n    objPtr->internalRep.ptrIntValue.int1 = flags;\n    objPtr->internalRep.ptrIntValue.ptr = compre;\n\n    return compre;\n}\n",
+        "snippet_sha256": "59666c07b5a37595ac1f946f1a627d8212ece3241bf8c95609abfbdd66380a5f",
+        "evidence": "exact-source-0"
+      }
+    ],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::jim_original_regexp_cache_ranges_and_unsafe_lifecycles_match_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regexp_cmd",
+        "purpose": "Separate Rust regex consumer; these physical native rows provide no executed Rust or object-manufacturer grant."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.jim-regsub-original-operands",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-jim-regsub-original-operands.md",
+    "problem_statement": "Jim regsub can use a duplicated pattern for compilation while leaving its original pattern and subject untouched. Backreferences, zero-width matches, start-index parsing and callback prefixes use distinct original operands and should not inherit a C result-storage rule.",
+    "question": "What original operand primaries and result bytes do the nine completed Jim regsub controls retain?",
+    "conclusion": "The nine recorded attempts complete with code zero, unchanged untyped original pattern/subject and a string result. They cover literal/backreference/zero-width/start and callback replacements, with exact result bytes retained per case; only the callback replacement becomes List and the start index becomes index primary. No native input channel or ordinary interpreter call outside the exact direct-worker probe is inferred.",
+    "scope": "Only the exact retained Jim direct-worker/object probe and selected case windows are covered. The library/header/source identities in this manifest are original; a captured version label does not certify an unqueried patch, checkout or UTF configuration. Internal object invalidation/duplication and cleanup are harness-specific operations. Printed rows preceding an abnormal exit remain partial observations, not successful lifecycle or adapter completion. C Tcl, BIG-IP and fresh replay/Rust outcomes are not measured here.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not queried by this probe; Jim source/library identities retained (patch/revision not queried)",
+        "build": "Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.",
+        "input_channel": "Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Original selected native attempts: [{\"case\":0,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t586258\\n\",\"stderr\":\"\"},{\"case\":1,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t58\\n\",\"stderr\":\"\"},{\"case\":2,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t58\\n\",\"stderr\":\"\"},{\"case\":3,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t58\\n\",\"stderr\":\"\"},{\"case\":4,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t616261\\n\",\"stderr\":\"\"},{\"case\":5,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t6161626161\\n\",\"stderr\":\"\"},{\"case\":6,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t586158625861\\n\",\"stderr\":\"\"},{\"case\":7,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nobject\\tindex\\tindex\\t1\\t1\\nbytes\\t616258\\n\",\"stderr\":\"\"},{\"case\":8,\"exit\":0,\"stdout\":\"code\\t0\\nobject\\tpattern\\tnone\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tlist\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t416261\\n\",\"stderr\":\"\"}]. Process status is independent of printed command return and object rows.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "jim-case-0",
+          "jim-case-1",
+          "jim-case-2",
+          "jim-case-3",
+          "jim-case-4",
+          "jim-case-5",
+          "jim-case-6",
+          "jim-case-7",
+          "jim-case-8"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Original source/library/header/build context and every process status/stream, including incomplete attempts."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/probe.c",
+        "sha256": "b427c8677cb8dcf5d7343c9cda1bae6d93e492fbe964a5c2de49c88b8fa5a803",
+        "description": "Exact direct Jim worker invocation, object construction and physical reporting order."
+      },
+      {
+        "id": "jim-case-0",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/0"
+      },
+      {
+        "id": "jim-case-1",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/1"
+      },
+      {
+        "id": "jim-case-2",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/2"
+      },
+      {
+        "id": "jim-case-3",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/3"
+      },
+      {
+        "id": "jim-case-4",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/4"
+      },
+      {
+        "id": "jim-case-5",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/5"
+      },
+      {
+        "id": "jim-case-6",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/6"
+      },
+      {
+        "id": "jim-case-7",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/7"
+      },
+      {
+        "id": "jim-case-8",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/8"
+      },
+      {
+        "id": "exact-source-1",
+        "role": "source-anchor",
+        "path": "docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json",
+        "sha256": "f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c",
+        "description": "Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.",
+        "json_pointer": "/1/snippet"
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "jim",
+        "version": "Jim0.84 captured source label; no captured patch query",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+        "original_path": "jim-regexp.c",
+        "function": "Jim_RegsubCmd",
+        "lines": [
+          452,
+          483
+        ],
+        "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+        "snippet": "    }\n    if (argc - i != 3 && argc - i != 4) {\n        return JIM_USAGE;\n    }\n\n    /* Need to ensure that this is unshared, so just duplicate it always */\n    regcomp_obj = Jim_DuplicateObj(interp, argv[i]);\n    Jim_IncrRefCount(regcomp_obj);\n    regex = SetRegexpFromAny(interp, regcomp_obj, regcomp_flags);\n    if (!regex) {\n        Jim_DecrRefCount(interp, regcomp_obj);\n        return JIM_ERR;\n    }\n    pattern = Jim_String(argv[i]);\n\n    source_str = Jim_GetString(argv[i + 1], &source_len);\n    if (opt_command) {\n        cmd_prefix = argv[i + 2];\n        if (Jim_ListLength(interp, cmd_prefix) == 0) {\n            Jim_SetResultString(interp, \"command prefix must be a list of at least one element\", -1);\n            Jim_DecrRefCount(interp, regcomp_obj);\n            return JIM_ERR;\n        }\n        Jim_IncrRefCount(cmd_prefix);\n    }\n    else {\n        replace_str = Jim_GetString(argv[i + 2], &replace_len);\n    }\n    varname = argv[i + 3];\n\n    /* Create the result string */\n    resultObj = Jim_NewStringObj(interp, \"\", 0);\n",
+        "snippet_sha256": "60d1754027bfbe5928e2189ffd553ac28fab8a6d907b8874249f81775ff5b5c3",
+        "evidence": "exact-source-1"
+      }
+    ],
+    "tests": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "selector": "cmd_regex::tests::jim_regsub_original_objects_match_all_nine_completed_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regsub_cmd",
+        "purpose": "Separate Rust regex consumer; these physical native rows provide no executed Rust or object-manufacturer grant."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.jim-regsub-precompiled-cleanup",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-jim-regsub-precompiled-cleanup.md",
+    "problem_statement": "A manually precompiled original Jim pattern can print a successful regsub result and then fail while the harness releases objects. Treating the printed code as full process completion would hide the distinct cleanup boundary.",
+    "question": "Does the precompiled Jim regsub control complete after its result and original object windows are printed?",
+    "conclusion": "The retained attempt prints code zero, RegExp original pattern and result XbX, then exits -6 with a double-free diagnostic. It establishes the partial result window and the abnormal completion only; it supplies no successful object cleanup, reproduction guarantee or safe adapter behavior.",
+    "scope": "Only the exact retained Jim direct-worker/object probe and selected case windows are covered. The library/header/source identities in this manifest are original; a captured version label does not certify an unqueried patch, checkout or UTF configuration. Internal object invalidation/duplication and cleanup are harness-specific operations. Printed rows preceding an abnormal exit remain partial observations, not successful lifecycle or adapter completion. C Tcl, BIG-IP and fresh replay/Rust outcomes are not measured here.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not queried by this probe; Jim source/library identities retained (patch/revision not queried)",
+        "build": "Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.",
+        "input_channel": "Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Original selected native attempts: [{\"case\":9,\"exit\":-6,\"stdout\":\"code\\t0\\nobject\\tpattern\\tregexp\\t1\\t1\\nobject\\tsubject\\tnone\\t1\\t1\\nobject\\treplacement\\tnone\\t1\\t1\\nobject\\tresult\\tstring\\t1\\t1\\nbytes\\t586258\\n\",\"stderr\":\"free(): double free detected in tcache 2\\n\"}]. Process status is independent of printed command return and object rows.",
+        "evidence": [
+          "original-capture",
+          "original-probe",
+          "jim-case-9"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-capture",
+        "role": "provider",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Original source/library/header/build context and every process status/stream, including incomplete attempts."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/probe.c",
+        "sha256": "b427c8677cb8dcf5d7343c9cda1bae6d93e492fbe964a5c2de49c88b8fa5a803",
+        "description": "Exact direct Jim worker invocation, object construction and physical reporting order."
+      },
+      {
+        "id": "jim-case-9",
+        "role": "observation",
+        "path": "runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json",
+        "sha256": "6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e",
+        "description": "Exact original process status and raw output/error of this case.",
+        "json_pointer": "/captures/9"
+      },
+      {
+        "id": "exact-source-0",
+        "role": "source-anchor",
+        "path": "docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json",
+        "sha256": "f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c",
+        "description": "Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.",
+        "json_pointer": "/0/snippet"
+      },
+      {
+        "id": "exact-source-1",
+        "role": "source-anchor",
+        "path": "docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json",
+        "sha256": "f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c",
+        "description": "Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.",
+        "json_pointer": "/1/snippet"
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "jim",
+        "version": "Jim0.84 captured source label; no captured patch query",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+        "original_path": "jim-regexp.c",
+        "function": "SetRegexpFromAny",
+        "lines": [
+          64,
+          118
+        ],
+        "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+        "snippet": "static void FreeRegexpInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)\n{\n    jim_regfree(objPtr->internalRep.ptrIntValue.ptr);\n    Jim_Free(objPtr->internalRep.ptrIntValue.ptr);\n}\n\n/* internal rep is stored in ptrIntvalue\n *  ptr = compiled regex\n *  int1 = flags\n */\nstatic const Jim_ObjType regexpObjType = {\n    \"regexp\",\n    FreeRegexpInternalRep,\n    NULL,\n    NULL,\n    JIM_TYPE_NONE\n};\n\nstatic regex_t *SetRegexpFromAny(Jim_Interp *interp, Jim_Obj *objPtr, unsigned flags)\n{\n    regex_t *compre;\n    const char *pattern;\n    int ret;\n\n    /* Check if the object is already an uptodate variable */\n    if (objPtr->typePtr == &regexpObjType &&\n        objPtr->internalRep.ptrIntValue.ptr && objPtr->internalRep.ptrIntValue.int1 == flags) {\n        /* nothing to do */\n        return objPtr->internalRep.ptrIntValue.ptr;\n    }\n\n    /* Not a regexp or the flags do not match */\n\n    /* Get the string representation */\n    pattern = Jim_String(objPtr);\n    compre = Jim_Alloc(sizeof(regex_t));\n\n    if ((ret = jim_regcomp(compre, pattern, REG_EXTENDED | flags)) != 0) {\n        char buf[100];\n\n        jim_regerror(ret, compre, buf, sizeof(buf));\n        Jim_SetResultFormatted(interp, \"couldn't compile regular expression pattern: %s\", buf);\n        jim_regfree(compre);\n        Jim_Free(compre);\n        return NULL;\n    }\n\n    Jim_FreeIntRep(interp, objPtr);\n\n    objPtr->typePtr = &regexpObjType;\n    objPtr->internalRep.ptrIntValue.int1 = flags;\n    objPtr->internalRep.ptrIntValue.ptr = compre;\n\n    return compre;\n}\n",
+        "snippet_sha256": "59666c07b5a37595ac1f946f1a627d8212ece3241bf8c95609abfbdd66380a5f",
+        "evidence": "exact-source-0"
+      },
+      {
+        "provider": "jim",
+        "version": "Jim0.84 captured source label; no captured patch query",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+        "original_path": "jim-regexp.c",
+        "function": "Jim_RegsubCmd",
+        "lines": [
+          452,
+          483
+        ],
+        "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+        "snippet": "    }\n    if (argc - i != 3 && argc - i != 4) {\n        return JIM_USAGE;\n    }\n\n    /* Need to ensure that this is unshared, so just duplicate it always */\n    regcomp_obj = Jim_DuplicateObj(interp, argv[i]);\n    Jim_IncrRefCount(regcomp_obj);\n    regex = SetRegexpFromAny(interp, regcomp_obj, regcomp_flags);\n    if (!regex) {\n        Jim_DecrRefCount(interp, regcomp_obj);\n        return JIM_ERR;\n    }\n    pattern = Jim_String(argv[i]);\n\n    source_str = Jim_GetString(argv[i + 1], &source_len);\n    if (opt_command) {\n        cmd_prefix = argv[i + 2];\n        if (Jim_ListLength(interp, cmd_prefix) == 0) {\n            Jim_SetResultString(interp, \"command prefix must be a list of at least one element\", -1);\n            Jim_DecrRefCount(interp, regcomp_obj);\n            return JIM_ERR;\n        }\n        Jim_IncrRefCount(cmd_prefix);\n    }\n    else {\n        replace_str = Jim_GetString(argv[i + 2], &replace_len);\n    }\n    varname = argv[i + 3];\n\n    /* Create the result string */\n    resultObj = Jim_NewStringObj(interp, \"\", 0);\n",
+        "snippet_sha256": "60d1754027bfbe5928e2189ffd553ac28fab8a6d907b8874249f81775ff5b5c3",
+        "evidence": "exact-source-1"
+      }
+    ],
+    "tests": [],
+    "owners": [
+      {
+        "path": "runtime/rust/src/cmd_regex.rs",
+        "symbol": "regsub_cmd",
+        "purpose": "Separate Rust regex consumer; these physical native rows provide no executed Rust or object-manufacturer grant."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.jim-engine-program-range-matrix",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-jim-engine-program-range-matrix.md",
+    "problem_statement": "The low-level Jim engine compiles a fixed pattern matrix into integer programs and reports byte match ranges. A script-level regexp result cannot identify its exact program layout, compile error taxonomy or flags, and neither can a C RegExp cache.",
+    "question": "Which compile outcomes, integer programs and match ranges are retained for the thirty original Jim engine patterns under five flag vectors?",
+    "conclusion": "The retained aggregate contains 150 pattern/flag blocks: 120 successful compile blocks and thirty compile-error blocks. Each successful block preserves its integer program and eight subject match/range rows. FF and modified-zero spellings remain distinct original byte patterns, while astral input is represented by its engine unit. These recorded blocks establish no missing subprocess status, general pattern equivalence, native object ownership or Rust parity.",
+    "scope": "Direct jim_regcomp/jim_regexec C API probe, thirty fixed NUL-terminated pattern strings and eight fixed subjects, flags 0/2/4/8/32. Exact source/library/header/build identities are retained. The aggregate rows do not retain independent process exits for all 150 blocks, a runtime patch query or UTF configuration query; those properties remain unmeasured. C Tcl and BIG-IP were not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not queried; original source/library identities retained",
+        "build": "Original linked library SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; probe executable SHA256 9b704d15aa2e0e146cb9dc811971944ce725cb415f1ecf930e8fa0de5dec50c1",
+        "input_channel": "Direct jim_regcomp/jim_regexec calls with original native C string pattern/subject arrays.",
+        "dialect": "Jim regexp engine",
+        "status": "observed",
+        "answer": "The retained programs.txt contains thirty pattern indices under each of flags 0, 2, 4, 8 and 32, for 150 blocks. Compile codes: 120 code 0; five each of 8, 19, 13, 16, 18 and 10. Successful blocks include integer programs and eight subject rows. Build exit 0 is recorded, but per-block process status and runtime patch/UTF configuration queries are not retained.",
+        "evidence": [
+          "original-build",
+          "original-probe",
+          "original-matrix"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-build",
+        "role": "provider",
+        "path": "rust/tcl-regex/tests/data/native_jim_regexp/manifest.json",
+        "sha256": "2a623a8e4d6ba5827cc0f8d9c1347406b01895a9e420eec7d06f6d31ca29ccbf",
+        "description": "Original exact probe build and linked Jim source/library/header identities."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "rust/tcl-regex/tests/data/native_jim_regexp/probe.c",
+        "sha256": "c2eb3a6c97d6b3d638ec84c908545d1538e081a081b598315342fed546ed396f",
+        "description": "Exact fixed patterns/subjects and direct low-level compile/execute reporting."
+      },
+      {
+        "id": "original-matrix",
+        "role": "observation",
+        "path": "rust/tcl-regex/tests/data/native_jim_regexp/programs.txt",
+        "sha256": "e1833e37c5b6930ab3f900c16d73943c6aa3ac697287e494b3e08a6a6def9645",
+        "description": "Complete retained per-pattern/flag program, compile code/message and range rows; no missing process statuses are manufactured."
+      },
+      {
+        "id": "exact-source-2",
+        "role": "source-anchor",
+        "path": "docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json",
+        "sha256": "f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c",
+        "description": "Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.",
+        "json_pointer": "/2/snippet"
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "jim",
+        "version": "Jim0.84 captured source label; no captured patch query",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+        "original_path": "jimregexp.c",
+        "function": "jim_regcomp",
+        "lines": [
+          284,
+          342
+        ],
+        "source_sha256": "97cff9c0d8f2b0b6e09c40b46e77d09b80e667ea50aa2382e5e9b74552692acf",
+        "snippet": "int jim_regcomp(regex_t *preg, const char *exp, int cflags)\n{\n\tint scan;\n\tint longest;\n\tunsigned len;\n\tint flags;\n\n#ifdef DEBUG\n\tfprintf(stderr, \"Compiling: '%s'\\n\", exp);\n#endif\n\tmemset(preg, 0, sizeof(*preg));\n\n\tif (exp == NULL)\n\t\tFAIL(preg, REG_ERR_NULL_ARGUMENT);\n\n\tif (cflags & REG_EXPANDED) {\n\t\tpreg->exp = reg_expanded_new_pattern(exp);\n\t\texp = preg->exp;\n\t}\n\n\t/* First pass: determine size, legality. */\n\tpreg->cflags = cflags;\n\tpreg->regparse = exp;\n\n\t/* Allocate space. */\n\tpreg->proglen = (strlen(exp) + 1) * 5;\n\tpreg->program = malloc(preg->proglen * sizeof(int));\n\tif (preg->program == NULL)\n\t\tFAIL(preg, REG_ERR_NOMEM);\n\n\t/* Note that since we store a magic value as the first item in the program,\n\t * program offsets will never be 0\n\t */\n\tregc(preg, REG_MAGIC);\n\tif (reg(preg, 0, &flags) == 0) {\n\t\treturn preg->err;\n\t}\n\n\t/* Small enough for pointer-storage convention? */\n\tif (preg->re_nsub >= REG_MAX_PAREN)\t\t/* Probably could be 65535L. */\n\t\tFAIL(preg,REG_ERR_TOO_BIG);\n\n\t/* Dig out information for optimizations. */\n\tpreg->regstart = 0;\t/* Worst-case defaults. */\n\tpreg->reganch = 0;\n\tpreg->regmust = 0;\n\tpreg->regmlen = 0;\n\tscan = 1;\t\t\t/* First BRANCH. */\n\tif (OP(preg, regnext(preg, scan)) == END) {\t\t/* Only one top-level choice. */\n\t\tscan = OPERAND(scan);\n\n\t\t/* Starting-point info. */\n\t\tif (OP(preg, scan) == EXACTLY) {\n\t\t\tpreg->regstart = preg->program[OPERAND(scan)];\n\t\t}\n\t\telse if (OP(preg, scan) == BOL)\n\t\t\tpreg->reganch++;\n\n\t\t/*\n",
+        "snippet_sha256": "f4bb5293214ea7920646df0d88c596fc0cc1d8b776c705d729184dcbc66c8324",
+        "evidence": "exact-source-2"
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-regex/src/jim.rs",
+        "selector": "jim::tests::original_jim_programs_and_ranges_match_all_150_native_controls",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-regex/src/jim.rs",
+        "symbol": "Regex",
+        "purpose": "Independent low-level Rust program/range implementation; recorded native outputs do not execute its assertions."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  },
+  {
+    "id": "naming.regex.c-equivalent-glob-counted-conversion",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/regex-c-equivalent-glob-counted-conversion.md",
+    "problem_statement": "An equivalent glob is available only for a subset of RegExp syntax. Treating every pattern as a glob, or borrowing another release converter ABI, changes matching and can skip the actual compile path.",
+    "question": "Which of the fourteen exact counted patterns does TclReToGlob convert on the four captured C releases, and what glob bytes does it produce?",
+    "conclusion": "C8.5/8.6/9.0/9.1 return identical rows for these fourteen patterns: nine conversions return exact recorded glob bytes and five decline with code one and empty output. Declines include a.*b.*c, bracket syntax, an interior anchor, an unfinished escape and the anchored wildcard case. No C8.4 converter run, Jim behavior or general glob/RegExp equivalence is inferred.",
+    "scope": "Original private TclReToGlob C API probe with counted strlen of fourteen fixed ASCII pattern literals; C8.5 has the recorded four-argument ABI and later builds the five-argument ABI. Exact original build warnings, headers, libraries, executable digests and completed stdout/stderr are retained. The probe does not record exact/quantifier outputs or a runtime version query. No Rust execution, C8.4, Jim or BIG-IP observation is asserted.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (recorded build label; runtime query not retained)",
+        "build": "Original library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 8fce5d637533517944149880f3a6db15e7337793ad71ebd91cd26e5cc49cf15c",
+        "input_channel": "Direct counted TclReToGlob call on original C ASCII pattern literals.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: \"0\\t0\\t2a\\n1\\t0\\t2a666f6f2a\\n2\\t0\\t666f6f\\n3\\t0\\t2a\\n4\\t0\\t2a3f2a\\n5\\t1\\t\\n6\\t0\\t2a5c5c2a\\n7\\t0\\t2a0a2a\\n8\\t0\\t2a5c2a2a\\n9\\t0\\t2a785c3f2a\\n10\\t1\\t\\n11\\t1\\t\\n12\\t1\\t\\n13\\t1\\t\\n\". Code one is a converter decline, not a missing guest command.",
+        "evidence": [
+          "original-build-and-rows",
+          "original-probe",
+          "tcl8.5-rows"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (recorded build label; runtime query not retained)",
+        "build": "Original library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 9e397a137587a4dbfda5d803c5077f7b709ef4218996ccafe56f632f67a2d1d7",
+        "input_channel": "Direct counted TclReToGlob call on original C ASCII pattern literals.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: \"0\\t0\\t2a\\n1\\t0\\t2a666f6f2a\\n2\\t0\\t666f6f\\n3\\t0\\t2a\\n4\\t0\\t2a3f2a\\n5\\t1\\t\\n6\\t0\\t2a5c5c2a\\n7\\t0\\t2a0a2a\\n8\\t0\\t2a5c2a2a\\n9\\t0\\t2a785c3f2a\\n10\\t1\\t\\n11\\t1\\t\\n12\\t1\\t\\n13\\t1\\t\\n\". Code one is a converter decline, not a missing guest command.",
+        "evidence": [
+          "original-build-and-rows",
+          "original-probe",
+          "tcl8.6-rows"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (recorded build label; runtime query not retained)",
+        "build": "Original library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 adfad5badfb0d97e896003476009b819ce776bb1214f98f88d4107c6cddbd298",
+        "input_channel": "Direct counted TclReToGlob call on original C ASCII pattern literals.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: \"0\\t0\\t2a\\n1\\t0\\t2a666f6f2a\\n2\\t0\\t666f6f\\n3\\t0\\t2a\\n4\\t0\\t2a3f2a\\n5\\t1\\t\\n6\\t0\\t2a5c5c2a\\n7\\t0\\t2a0a2a\\n8\\t0\\t2a5c2a2a\\n9\\t0\\t2a785c3f2a\\n10\\t1\\t\\n11\\t1\\t\\n12\\t1\\t\\n13\\t1\\t\\n\". Code one is a converter decline, not a missing guest command.",
+        "evidence": [
+          "original-build-and-rows",
+          "original-probe",
+          "tcl9.0-rows"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (recorded build label; runtime query not retained)",
+        "build": "Original library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 bf7eecafa1a871669181c6d4bf587dde3cc2687f27829851a23dfedcb4be000b",
+        "input_channel": "Direct counted TclReToGlob call on original C ASCII pattern literals.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: \"0\\t0\\t2a\\n1\\t0\\t2a666f6f2a\\n2\\t0\\t666f6f\\n3\\t0\\t2a\\n4\\t0\\t2a3f2a\\n5\\t1\\t\\n6\\t0\\t2a5c5c2a\\n7\\t0\\t2a0a2a\\n8\\t0\\t2a5c2a2a\\n9\\t0\\t2a785c3f2a\\n10\\t1\\t\\n11\\t1\\t\\n12\\t1\\t\\n13\\t1\\t\\n\". Code one is a converter decline, not a missing guest command.",
+        "evidence": [
+          "original-build-and-rows",
+          "original-probe",
+          "tcl9.1-rows"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-build-and-rows",
+        "role": "provider",
+        "path": "rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json",
+        "sha256": "c948a2263a22c072d9377ed90ee814482e5a06577a2e17ad97f475d16fab37bc",
+        "description": "Exact original builds, warnings, process statuses and converter output rows."
+      },
+      {
+        "id": "original-probe",
+        "role": "input",
+        "path": "rust/tcl-syntax/tests/data/native_regexp_glob/probe.c",
+        "sha256": "12f235e3a3e124f12fd567e6daaa3c58b5b05a304a5c8622cc1405288fa5c879",
+        "description": "Exact counted pattern strings, version-selected ABI and observed output fields."
+      },
+      {
+        "id": "tcl8.5-rows",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt",
+        "sha256": "0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7",
+        "description": "Exact completed original fourteen converter result rows."
+      },
+      {
+        "id": "tcl8.6-rows",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt",
+        "sha256": "0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7",
+        "description": "Exact completed original fourteen converter result rows."
+      },
+      {
+        "id": "tcl9.0-rows",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt",
+        "sha256": "0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7",
+        "description": "Exact completed original fourteen converter result rows."
+      },
+      {
+        "id": "tcl9.1-rows",
+        "role": "observation",
+        "path": "rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt",
+        "sha256": "0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7",
+        "description": "Exact completed original fourteen converter result rows."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/native_regex.rs",
+        "selector": "native_regex::tests::equivalent_glob_matches_actual_counted_converter_rows",
+        "assertion": "Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/native_regex.rs",
+        "symbol": "NativeRegexpRecipe",
+        "purpose": "Independent release-selected converter recipe; outputs alone supply no selected command/cache/body authority."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun."
+    }
+  }
+]

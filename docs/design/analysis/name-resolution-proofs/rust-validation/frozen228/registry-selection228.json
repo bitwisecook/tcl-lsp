@@ -1,0 +1,11 @@
+{
+  "source_image": 228,
+  "executable_sha256": "cb73fa67611ff5803ff759507d515070c01f9b3b20a1a39f8ea3e48cad77ca64",
+  "inventory_log_sha256": "5f137abc25a9bf5c72bbadeb7484ecc3421096a3a2ff57c93878af4b930b22d7",
+  "inventory_count": 1513,
+  "selected": [
+    "source_path::tests::authored_source_path_operations_keep_selected_members_and_exact_effective_argv",
+    "commands::tcl::info_jim::tests::original_jim_core_arity_precedes_generic_info_parser_reporting"
+  ],
+  "missing": []
+}

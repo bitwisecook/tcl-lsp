@@ -1,0 +1,17 @@
+
+running 1 test
+test caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target ... 
+thread 'caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target' (568508) panicked at rust/tcl-lsp-core/src/caller_frame.rs:1573:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2628 filtered out; finished in 2.08s
+

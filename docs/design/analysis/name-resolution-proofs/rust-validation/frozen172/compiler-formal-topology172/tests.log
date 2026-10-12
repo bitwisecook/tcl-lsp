@@ -1,0 +1,7 @@
+
+running 2 tests
+test registry_invocation::source_structure::procedure::tests::original_procedure_descriptor_keeps_invalid_count_and_unknown_lookup_separate ... ok
+test registry_invocation::source_structure::procedure::tests::original_procedure_descriptor_precedes_selected_dialect_argument_binding ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8254 filtered out; finished in 5.10s
+

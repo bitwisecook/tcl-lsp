@@ -23,13 +23,19 @@ use crate::prelude::*;
 /// `string match ?-nocase? pattern string` — the declared option prefix shifts
 /// the pattern.  The shared descriptor walk also accepts Tcl's unambiguous
 /// `-noc` abbreviation without teaching any consumer about this subcommand.
-fn match_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let index = leading_option_word_count(MATCH_OPTIONS, args);
-    (index < args.len())
-        .then(|| u8::try_from(index).ok().map(|i| (i, ArgRole::Pattern)))
-        .flatten()
-        .into_iter()
-        .collect()
+fn match_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    // naming.core.original-pattern-retained-context
+    // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
+    let count = args.exact_argv_len()?;
+    let index = options.leading_word_count(args)?;
+    Some(if index < count {
+        vec![(u8::try_from(index).ok()?, ArgRole::Pattern)]
+    } else {
+        Vec::new()
+    })
 }
 
 const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
@@ -203,7 +209,7 @@ pub(crate) fn fold_totitle(args: &[&str]) -> Option<String> {
     ))
 }
 
-use crate::const_fold::{clamp_range, parse_index};
+use crate::const_fold::{NativeIndexSelection, parse_element_index, parse_index, parse_range};
 use tcl_dialect::model::SpecSurface;
 
 /// Fold `string match` for literal arguments.  The glob implementation is
@@ -230,28 +236,39 @@ pub(crate) fn fold_index(args: &[&str]) -> Option<String> {
     if !s.is_ascii() {
         return None;
     }
-    let idx = parse_index(idx_str, s.len())?;
-    Some(match usize::try_from(idx) {
-        Ok(i) if i < s.len() => s[i..=i].to_owned(),
-        _ => String::new(), // negative or out of range → ""
+    Some(match parse_element_index(idx_str, s.len())? {
+        NativeIndexSelection::Selected(i) => s[i..=i].to_owned(),
+        NativeIndexSelection::Empty => String::new(), // negative or out of range → ""
     })
 }
 
-/// `string range string first last` — the declared direct route run over
-/// literal words: the shared core under `version`'s grammar, or under the
-/// answer every release gives when the caller names none.
+/// `string range` over literal words. An explicit C release uses the shared
+/// value route; an unversioned fold requires C/Jim container and origin
+/// agreement and is restricted to ASCII character geometry.
 pub(crate) fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
-    crate::value_transfer::evaluate_literal(
-        &crate::value_transfer::builtins::STRING_RANGE,
-        "string",
-        Some("range"),
-        args,
-        version,
-    )
+    if let Some(version) = version {
+        return crate::value_transfer::evaluate_literal(
+            &crate::value_transfer::builtins::STRING_RANGE,
+            "string",
+            Some("range"),
+            args,
+            Some(version),
+        );
+    }
+    let [s, first_s, last_s] = args else {
+        return None;
+    };
+    let s = *s;
+    if !s.is_ascii() {
+        return None;
+    }
+    match parse_range(first_s, last_s, s.len())? {
+        NativeIndexSelection::Selected((lo, hi)) => Some(s[lo..=hi].to_owned()),
+        NativeIndexSelection::Empty => Some(String::new()),
+    }
 }
 
-/// [`fold_range`] for a caller with no release fact: the same route, answering
-/// what every release gives and declining where they differ.
+/// Unversioned container agreement, with no native dispatch or object claim.
 pub(crate) fn fold_range_unanimous(args: &[&str]) -> Option<String> {
     fold_range(args, None)
 }
@@ -266,11 +283,11 @@ pub(crate) fn fold_replace(args: &[&str]) -> Option<String> {
     if !s.is_ascii() {
         return None;
     }
-    let first = parse_index(first_s, s.len())?;
-    let last = parse_index(last_s, s.len())?;
-    match clamp_range(first, last, s.len()) {
-        Some((lo, hi)) => Some(format!("{}{}{}", &s[..lo], repl, &s[hi + 1..])),
-        None => Some(s.to_owned()),
+    match parse_range(first_s, last_s, s.len())? {
+        NativeIndexSelection::Selected((lo, hi)) => {
+            Some(format!("{}{}{}", &s[..lo], repl, &s[hi + 1..]))
+        }
+        NativeIndexSelection::Empty => Some(s.to_owned()),
     }
 }
 
@@ -585,6 +602,22 @@ pub fn string_is_member_type(args: &[&str]) -> Option<TclType> {
         "dict" => Some(TclType::Dict),
         _ => None,
     }
+}
+
+/// Conditional C class type under the independently selected invocation
+/// family and release. Lexical numeral grammar supplies no class availability,
+/// and this projection supplies no physical cache, frame or store effects.
+#[must_use]
+pub fn string_is_member_type_for_dialect(
+    args: &[&str],
+    dialect: crate::InvocationDialect,
+) -> Option<TclType> {
+    let point = dialect.execution_point()?;
+    if point.family() != tcl_dialect::model::Family::Tcl {
+        return None;
+    }
+    let class = tcl_cmd_core::string_is::resolve_class(args.first().copied()?).ok()?;
+    class_available(class, point.tcl_version()).then(|| string_is_member_type(args))?
 }
 
 /// Whether `string is class` is a *defined* operation in the target version
@@ -968,6 +1001,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return number of bytes used to represent the string in memory (obsolete; removed in Tcl 9.0 — use `string length` or `encoding convertto`).",
         synopsis: "string bytelength string",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "bytelength",
+                    slot: "::tcl::string::bytelength",
+                    command: "string",
+                    prepended: &["bytelength"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Int),
         // Documented "likely to go away in a future release" as far back
@@ -995,6 +1045,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Concatenate strings.",
         synopsis: "string cat ?string1? ?string2 ...?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "cat",
+                    slot: "::tcl::string::cat",
+                    command: "string",
+                    prepended: &["cat"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_cat),
@@ -1002,14 +1069,32 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "compare",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringCompare)),
         arity: Arity::at_least(2),
+        reserved_trailing_words: 2,
         detail: "Compare two strings lexicographically.",
         synopsis: "string compare ?-nocase? ?-length length? string1 string2",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "compare",
+                    slot: "::tcl::string::compare",
+                    command: "string",
+                    prepended: &["compare"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_compare),
@@ -1044,14 +1129,41 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "equal",
+        // C84 TclCompileStringCmd; C85+ TclCompileStringEqualCmd, with
+        // C86+ TclCompileEnsemble's private-name fallback on refused forms.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringEqual),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringEqual)),
         arity: Arity::at_least(2),
+        reserved_trailing_words: 2,
         detail: "Test string equality.",
         synopsis: "string equal ?-nocase? ?-length length? string1 string2",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "equal",
+                    slot: "::tcl::string::equal",
+                    command: "string",
+                    prepended: &["equal"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Boolean),
         const_fold: Some(fold_equal),
@@ -1086,13 +1198,30 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "first",
         arity: Arity::new(2, 3),
         detail: "Find first occurrence of needle in haystack.",
         synopsis: "string first needleString haystackString ?startIndex?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "first",
+                    slot: "::tcl::string::first",
+                    command: "string",
+                    prepended: &["first"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_first),
@@ -1138,7 +1267,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "index",
@@ -1150,6 +1279,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return character at index.",
         synopsis: "string index string charIndex",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "index",
+                    slot: "::tcl::string::index",
+                    command: "string",
+                    prepended: &["index"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_index),
@@ -1179,10 +1325,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "insert",
+        source_index_bounds: Some(crate::SourceIndexBounds::StringInsert),
         // S110 (9.0-only subcommand): built on `TclStringReplace`, so a pure
         // byte-array operand with a pure byte-array insertion keeps the
         // byte-array rep, but the typical string insertion coerces —
@@ -1191,6 +1338,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Insert string at index.",
         synopsis: "string insert string index insertString",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "insert",
+                    slot: "::tcl::string::insert",
+                    command: "string",
+                    prepended: &["insert"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL90_PLUS),
@@ -1217,6 +1381,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string is class ?-strict? ?-failindex varname? string",
         return_type: Some(TclType::Boolean),
         const_fold_versioned: Some(fold_is),
+        subcommand_forms: const {
+            &[crate::forms::SubCommandForm {
+                name: "value",
+                arity: Arity::exact(2),
+                side_effects: Some(&[]),
+                world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
+                state_transitions: Some(crate::StateTransitionDescriptor::EMPTY),
+                result_stability: Some(crate::ResultStability::ReferentiallyTransparent),
+                traits: Some(Traits::PURE.union(Traits::CSE_CANDIDATE)),
+                ..crate::forms::SubCommandForm::DEFAULT
+            }]
+        },
         // Deliberately NOT `pure: true`: `-failindex` (documented since
         // Tcl 8.4) optionally writes its `varname` argument, and the
         // static spec can't see whether a given call uses it — the same
@@ -1277,6 +1453,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Find last occurrence of needle in haystack.",
         synopsis: "string last needleString haystackString ?lastIndex?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "last",
+                    slot: "::tcl::string::last",
+                    command: "string",
+                    prepended: &["last"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_last),
@@ -1318,10 +1511,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "length",
+        // C84's monolithic TclCompileStringCmd; C85+ TclCompileStringLenCmd.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringLength)),
         // An already-resolved core `string length` does not consult TclOO or
         // `unknown`. Live binding, namespace lookup, execution traces, and
@@ -1333,6 +1534,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         detail: "Return number of characters.",
         synopsis: "string length string",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "length",
+                    slot: "::tcl::string::length",
+                    command: "string",
+                    prepended: &["length"],
+                },
+            },
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_length),
@@ -1363,6 +1577,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Map substrings via key-value pairs.",
         synopsis: "string map ?-nocase? mapping string",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "map",
+                    slot: "::tcl::string::map",
+                    command: "string",
+                    prepended: &["map"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_string_map),
@@ -1425,22 +1656,46 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "match",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringMatch(
+                crate::native_string_compilation::NativeStringMatchScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::at_least(2),
         detail: "Test glob-style pattern match.",
         synopsis: "string match ?-nocase? pattern string",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "match",
+                    slot: "::tcl::string::match",
+                    command: "string",
+                    prepended: &["match"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         const_fold: Some(fold_match),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_MATCH),
         return_type: Some(TclType::Boolean),
         options: MATCH_OPTIONS,
-        arg_role_resolver: Some(match_arg_roles),
+        arg_role_layout_resolver: Some(match_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern],
         pattern_type: Some(PatternType::Glob),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "range",
@@ -1453,6 +1708,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Return substring by index range.",
         synopsis: "string range string first last",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "range",
+                    slot: "::tcl::string::range",
+                    command: "string",
+                    prepended: &["range"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_RANGE),
@@ -1486,10 +1758,26 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "repeat",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "repeat",
+                    slot: "::tcl::string::repeat",
+                    command: "string",
+                    prepended: &["repeat"],
+                },
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                hook_from: tcl_dialect::TclVersion::V8_6,
+                arity: Arity::exact(2),
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // S110: 8.6 builds the result from the string rep (`StringReptCmd` →
         // `TclGetStringFromObj` + fresh buffer; tclsh 8.6.14-verified — a
         // bytearray operand yields a pure string). 9.0 differs:
@@ -1500,6 +1788,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Repeat string N times.",
         synopsis: "string repeat string count",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "repeat",
+                    slot: "::tcl::string::repeat",
+                    command: "string",
+                    prepended: &["repeat"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_repeat),
@@ -1514,7 +1819,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "replace",
@@ -1530,6 +1835,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(3, 4),
         detail: "Replace range with new string.",
         synopsis: "string replace string first last ?newString?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "replace",
+                    slot: "::tcl::string::replace",
+                    command: "string",
+                    prepended: &["replace"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_replace),
@@ -1568,7 +1890,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "reverse",
@@ -1579,6 +1901,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Reverse character order.",
         synopsis: "string reverse string",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "reverse",
+                    slot: "::tcl::string::reverse",
+                    command: "string",
+                    prepended: &["reverse"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_reverse),
@@ -1600,7 +1939,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "tolower",
@@ -1608,6 +1947,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Convert to lower case.",
         synopsis: "string tolower string ?first? ?last?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "tolower",
+                    slot: "::tcl::string::tolower",
+                    command: "string",
+                    prepended: &["tolower"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_tolower),
@@ -1632,7 +1988,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "totitle",
@@ -1640,6 +1996,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Convert to title case.",
         synopsis: "string totitle string ?first? ?last?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "totitle",
+                    slot: "::tcl::string::totitle",
+                    command: "string",
+                    prepended: &["totitle"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_totitle),
@@ -1664,7 +2037,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "toupper",
@@ -1672,6 +2045,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Convert to upper case.",
         synopsis: "string toupper string ?first? ?last?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "toupper",
+                    slot: "::tcl::string::toupper",
+                    command: "string",
+                    prepended: &["toupper"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_toupper),
@@ -1696,10 +2086,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "trim",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_trim_compilation::NativeStringTrimOperation::Both,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Whenever `trim` actually strips characters it builds a fresh
         // *string* from the UTF rep in both 8.6 and 9.0 (`StringTrimCmd`
         // → `Tcl_NewStringObj`, and the compiled `INST_STR_TRIM`
@@ -1713,51 +2111,135 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Trim leading and trailing characters.",
         synopsis: "string trim string ?chars?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "trim",
+                    slot: "::tcl::string::trim",
+                    command: "string",
+                    prepended: &["trim"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_trim),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "trimleft",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_trim_compilation::NativeStringTrimOperation::Left,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // An effective trim builds a fresh string in both 8.6 and 9.0
         // (`StringTrimLCmd` / `INST_STR_TRIM_LEFT`); see `trim` above.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim leading characters.",
         synopsis: "string trimleft string ?chars?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "trimleft",
+                    slot: "::tcl::string::trimleft",
+                    command: "string",
+                    prepended: &["trimleft"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimleft),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "trimright",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_trim_compilation::NativeStringTrimOperation::Right,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // An effective trim builds a fresh string in both 8.6 and 9.0
         // (`StringTrimRCmd` / `INST_STR_TRIM_RIGHT`); see `trim` above.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim trailing characters.",
         synopsis: "string trimright string ?chars?",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "trimright",
+                    slot: "::tcl::string::trimright",
+                    command: "string",
+                    prepended: &["trimright"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimright),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "wordend",
         arity: Arity::exact(2),
         detail: "Index of character after end of word.",
         synopsis: "string wordend string charIndex",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "wordend",
+                    slot: "::tcl::string::wordend",
+                    command: "string",
+                    prepended: &["wordend"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Int),
         // Subject (index 0) deliberately carries NO hint: 8.6's
@@ -1785,6 +2267,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Index of first character of word.",
         synopsis: "string wordstart string charIndex",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "wordstart",
+                    slot: "::tcl::string::wordstart",
+                    command: "string",
+                    prepended: &["wordstart"],
+                },
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         pure: true,
         return_type: Some(TclType::Int),
         // Subject (index 0) deliberately un-stamped — same 8.6 dual-ported
@@ -1845,6 +2344,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("string"),
         // Present and unrestricted: its surface carries an iRules row
         // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
@@ -1884,7 +2389,7 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
-    use super::{fold_is, string_is_member_type};
+    use super::{fold_is, string_is_member_type, string_is_member_type_for_dialect};
     use crate::hooks::TclVersion;
     use crate::types::TclType;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
@@ -1913,6 +2418,51 @@ mod tests {
         ];
         for (args, expected) in cases {
             assert_eq!(string_is_member_type(args), expected, "{args:?}");
+        }
+    }
+
+    #[test]
+    fn string_is_value_form_preserves_optional_write_effects() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let context = crate::model::ingress::static_context_for(profile);
+            let dialect =
+                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let plain = [
+                crate::InvocationWord::Literal("is"),
+                crate::InvocationWord::Literal("integer"),
+                crate::InvocationWord::Literal("42"),
+            ];
+            let invocation = crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("string"),
+                &plain,
+            )
+            .with_dialect(dialect);
+            let resolved = context
+                .commands()
+                .resolve_structured_invocation(invocation, dialect.authoring_query())
+                .resolved()
+                .unwrap();
+            let effects = resolved.effects();
+            assert!(!effects.requires_world_barrier(), "{profile}: {effects:?}");
+            assert!(effects.accesses().is_empty(), "{profile}: {effects:?}");
+            for options in [
+                ["is", "integer", "-failindex", "index", "not-integer"],
+                ["is", "integer", "-failindex", "index", "42"],
+            ] {
+                let resolved = context
+                    .commands()
+                    .resolve_invocation("string", &options, dialect.authoring_query())
+                    .unwrap();
+                assert!(resolved.effects().requires_world_barrier(), "{profile}");
+                assert!(
+                    resolved
+                        .effects()
+                        .accesses()
+                        .iter()
+                        .any(|access| access.domain == crate::WorldStateDomain::VariableStore),
+                    "{profile}"
+                );
+            }
         }
     }
 
@@ -2090,6 +2640,50 @@ mod tests {
             fold_is(&["integer", "-failindex", "v", "42"], None),
             None,
             "-failindex writes a var → bail"
+        );
+    }
+
+    #[test]
+    fn original_class_type_projection_requires_its_own_family_and_release() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Software class-policy selection only; no Native cache/frame/store
+        // observation or successful command evaluation is asserted.
+        let c84 = crate::InvocationDialect::for_version(TclVersion::V8_4);
+        let c86 = crate::InvocationDialect::for_version(TclVersion::V8_6);
+        let mut c90 = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        c90.numbers = tcl_dialect::NumberSyntax::Tcl85;
+        assert_eq!(
+            string_is_member_type_for_dialect(&["wideinteger", "-strict", "VALUE"], c84),
+            None
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["wideinteger", "-strict", "VALUE"], c86),
+            Some(TclType::Int)
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["dict", "VALUE"], c86),
+            None
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["dict", "VALUE"], c90),
+            Some(TclType::Dict)
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["integer", "-failindex", "out", "VALUE"], c90),
+            None
+        );
+        let jim =
+            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jimtcl"));
+        assert_eq!(
+            string_is_member_type_for_dialect(&["integer", "-strict", "VALUE"], jim),
+            None
+        );
+        let mut foreign = c90;
+        foreign.native_family = Some(tcl_dialect::model::Family::Jim);
+        assert_eq!(
+            string_is_member_type_for_dialect(&["dict", "VALUE"], foreign),
+            None
         );
     }
 
@@ -2334,6 +2928,7 @@ mod tests {
 
         assert_eq!(f("index")(&["abc", "1"]).as_deref(), Some("b"));
         assert_eq!(f("index")(&["abc", "end"]).as_deref(), Some("c"));
+        assert_eq!(f("index")(&["abcde", "end--1"]).as_deref(), Some(""));
         assert_eq!(
             f("index")(&["abc", "9"]).as_deref(),
             Some(""),
@@ -2342,6 +2937,14 @@ mod tests {
         assert_eq!(f("range")(&["abcde", "1", "3"]).as_deref(), Some("bcd"));
         assert_eq!(f("range")(&["abcde", "2", "end"]).as_deref(), Some("cde"));
         assert_eq!(f("range")(&["abcde", "3", "1"]).as_deref(), Some(""));
+        assert_eq!(
+            f("range")(&["abcde", "0", "end--1"]).as_deref(),
+            Some("abcde")
+        );
+        assert_eq!(
+            f("replace")(&["abcde", "end--1", "end", "X"]).as_deref(),
+            Some("abcde")
+        );
         assert_eq!(f("replace")(&["abcde", "1", "3"]).as_deref(), Some("ae"));
         assert_eq!(
             f("replace")(&["abcde", "1", "3", "XY"]).as_deref(),

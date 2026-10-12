@@ -1,0 +1,19 @@
+{
+  "ordinal": 395,
+  "selector": "interp::tests::multi_command_script",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::multi_command_script",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 6.662704111018684,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 6.64s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/395.log",
+  "log_sha256": "9fd732e8b08da408379e8c228565f8b6338bb8601c3f64fa7af66b18a10f42e7"
+}

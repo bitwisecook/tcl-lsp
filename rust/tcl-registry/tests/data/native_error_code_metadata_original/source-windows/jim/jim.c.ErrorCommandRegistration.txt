@@ -1,0 +1,20 @@
+    {"apply", Jim_ApplyCoreCommand, 1, -1, "lambdaExpr ?arg ...?" },
+    {"break", Jim_BreakCoreCommand, 0, 1, "?level?" },
+    {"catch", Jim_CatchCoreCommand, 1, -1, "?-?no?code ... --? script ?resultVarName? ?optionVarName?" },
+    {"concat", Jim_ConcatCoreCommand, 0, -1, "?arg ...?" },
+    {"continue", Jim_ContinueCoreCommand, 0, 1, "?level?" },
+#if defined(JIM_DEBUG_COMMAND) && !defined(JIM_BOOTSTRAP)
+    {"debug", Jim_DebugCoreCommand, 1, -1, "subcommand ?arg ...?" },
+#endif /* JIM_DEBUG_COMMAND && !JIM_BOOTSTRAP */
+    {"dict", Jim_DictCoreCommand, 1, -1, "subcommand ?arg ...?"},
+    {"env", Jim_EnvCoreCommand, 0, 2, "?varName? ?default?" },
+    {"error", Jim_ErrorCoreCommand, 1, 2, "message ?stacktrace?" },
+    {"eval", Jim_EvalCoreCommand, 1, -1, "arg ?arg ...?" },
+    {"exists", Jim_ExistsCoreCommand, 1, 2, "?-command|-proc|-alias|-channel|-var? name" },
+    {"exit", Jim_ExitCoreCommand, 0, 1, "?exitCode?" },
+#ifdef JIM_COMPAT
+    {"expr", Jim_ExprCoreCommand, 1, -1, "expression ?...?" },
+#else
+    {"expr", Jim_ExprCoreCommand, 1, 1, "expression" },
+#endif
+    {"for", Jim_ForCoreCommand, 4, 4, "start test next body" },

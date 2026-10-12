@@ -1,0 +1,172 @@
+{
+  "source": "/workspace/.proofs/2286-root-namespace-opaque-children.c",
+  "source_sha256": "2294889fc0b754ec4d991193ed4cb6470e541d78dbff7646678a8f8def1d00c4",
+  "runs": [
+    {
+      "version": "8.4.20",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-root-namespace-opaque-children.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-namespace-opaque-children-8.4.20"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-namespace-opaque-children-8.4.20",
+      "binary_sha256": "6d7a18408c72664ab371f1ba75c92f16b7333d0196b5d2d46152f0610fc1bf98",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "log": "/workspace/.proofs/2286-root-namespace-opaque-children-8.4.20.txt",
+      "log_sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "observations": [
+        "enumerate|0|list|3a3a726177ff3a3a6368696c64fd",
+        "exact|0|list|3a3a726177ff3a3a6368696c64fd",
+        "star|0|list|3a3a726177ff3a3a6368696c64fd",
+        "negative|0|none|"
+      ]
+    },
+    {
+      "version": "8.5.19",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-root-namespace-opaque-children.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-namespace-opaque-children-8.5.19"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-namespace-opaque-children-8.5.19",
+      "binary_sha256": "86d55c4084ffc39abb037b25a792349e65f0009370a2b8d58639a95d984f4bc7",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "log": "/workspace/.proofs/2286-root-namespace-opaque-children-8.5.19.txt",
+      "log_sha256": "767b30056126cb1171a27b66d1219b2bbdf65b08573ae799d046ea0aa5ae1a99",
+      "observations": [
+        "enumerate|0|list|3a3a726177ff3a3a6368696c64fd",
+        "exact|0|none|",
+        "star|0|list|3a3a726177ff3a3a6368696c64fd",
+        "negative|0|none|"
+      ]
+    },
+    {
+      "version": "8.6.18",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-root-namespace-opaque-children.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-namespace-opaque-children-8.6.18"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-namespace-opaque-children-8.6.18",
+      "binary_sha256": "846d5e517e64dd3e1427f6ad5d903f836859ee32e5b1ed78e6179e44d2b2d76c",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "log": "/workspace/.proofs/2286-root-namespace-opaque-children-8.6.18.txt",
+      "log_sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "observations": [
+        "enumerate|0|list|3a3a726177ff3a3a6368696c64fd",
+        "exact|0|list|3a3a726177ff3a3a6368696c64fd",
+        "star|0|list|3a3a726177ff3a3a6368696c64fd",
+        "negative|0|none|"
+      ]
+    },
+    {
+      "version": "9.0.4",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-root-namespace-opaque-children.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-namespace-opaque-children-9.0.4"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-namespace-opaque-children-9.0.4",
+      "binary_sha256": "d1edfd8cb6830c739fbd64c4a65dbddd11214c0f8115b8bf3e3a7aa91b1b59de",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "log": "/workspace/.proofs/2286-root-namespace-opaque-children-9.0.4.txt",
+      "log_sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "observations": [
+        "enumerate|0|list|3a3a726177ff3a3a6368696c64fd",
+        "exact|0|list|3a3a726177ff3a3a6368696c64fd",
+        "star|0|list|3a3a726177ff3a3a6368696c64fd",
+        "negative|0|none|"
+      ]
+    },
+    {
+      "version": "9.1.0",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-root-namespace-opaque-children.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-namespace-opaque-children-9.1.0"
+      ],
+      "compile_exit": 0,
+      "exit": 0,
+      "binary": "/workspace/.proofs/2286-root-namespace-opaque-children-9.1.0",
+      "binary_sha256": "2b75e84772094e42f761bcfa60bf52605ca5e42712e79d1c8169a34699503f49",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "log": "/workspace/.proofs/2286-root-namespace-opaque-children-9.1.0.txt",
+      "log_sha256": "8e2cc6a190a142b140ff0fa2e8b16380ae08150a7fd7eba44cdf16fc9559522b",
+      "observations": [
+        "enumerate|0|list|3a3a726177ff3a3a6368696c64fd",
+        "exact|0|list|3a3a726177ff3a3a6368696c64fd",
+        "star|0|list|3a3a726177ff3a3a6368696c64fd",
+        "negative|0|none|"
+      ]
+    }
+  ],
+  "scope": "20 original namespace children code/result/type observations; no reference-count or return-options claim"
+}

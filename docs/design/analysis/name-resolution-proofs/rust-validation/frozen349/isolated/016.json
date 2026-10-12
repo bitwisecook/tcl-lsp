@@ -1,0 +1,19 @@
+{
+  "ordinal": 16,
+  "selector": "cmd_array::tests::search_absence_and_original_root_retirement_are_guest_observations",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_array::tests::search_absence_and_original_root_retirement_are_guest_observations",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.199058741010958,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 5.19s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/016.log",
+  "log_sha256": "14d1fe5fa7026f9c955ccbf9dfa04e1ccbe56b3d82f56205a6b53afad95b31f5"
+}

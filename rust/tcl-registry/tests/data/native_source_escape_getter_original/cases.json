@@ -1,0 +1,54 @@
+[
+  [
+    "bare-x25b",
+    "set value \\x25b"
+  ],
+  [
+    "quoted-x25b",
+    "set value \"\\x25b\""
+  ],
+  [
+    "braced-x25b",
+    "set value {\\x25b}"
+  ],
+  [
+    "bare-x25-ub",
+    "set value \\x25\\u0062"
+  ],
+  [
+    "quoted-x25-ub",
+    "set value \"\\x25\\u0062\""
+  ],
+  [
+    "braced-x25-ub",
+    "set value {\\x25\\u0062}"
+  ],
+  [
+    "bare-x4142",
+    "set value \\x4142"
+  ],
+  [
+    "quoted-x4142",
+    "set value \"\\x4142\""
+  ],
+  [
+    "bare-x25z",
+    "set value \\x25z"
+  ],
+  [
+    "bare-x25-upper",
+    "set value \\x25B"
+  ],
+  [
+    "bare-x0",
+    "set value \\x0"
+  ],
+  [
+    "bare-cu",
+    "set value c\\u0075"
+  ],
+  [
+    "braced-cu",
+    "set value {c\\u0075}"
+  ]
+]

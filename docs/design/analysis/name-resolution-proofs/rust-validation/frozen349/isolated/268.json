@@ -1,0 +1,19 @@
+{
+  "ordinal": 268,
+  "selector": "interp::native_error_headers::original_carried_option_tests::original_carried_option_same_header_take_restore_cannot_revive_prepared_read",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_error_headers::original_carried_option_tests::original_carried_option_same_header_take_restore_cannot_revive_prepared_read",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 7.957584957010113,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 7.74s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/268.log",
+  "log_sha256": "e5162f49e4277f2312663d8280a110cc4913a7fcdaf16490376654af4d394020"
+}

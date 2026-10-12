@@ -1,0 +1,35 @@
+{
+  "source_only": true,
+  "windows": [
+    {
+      "id": "c-api-publication",
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "function": "Tcl_CreateObjCommand",
+      "lines": [
+        2312,
+        2328
+      ],
+      "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "snippet_sha256": "17976e9d4552847698ab9d57ef733f4bec379e63abd4d4e1063e5f989aed6c08",
+      "snippet": "     * Determine where the command should reside. If its name contains\n     * namespace qualifiers, we put it in the specified namespace;\n     * otherwise, we always put it in the global namespace.\n     */\n\n    if (strstr(cmdName, \"::\") != NULL) {\n\tNamespace *dummy1, *dummy2;\n\n\tTclGetNamespaceForQualName(interp, cmdName, NULL,\n\t    TCL_CREATE_NS_IF_UNKNOWN, &nsPtr, &dummy1, &dummy2, &tail);\n\tif ((nsPtr == NULL) || (tail == NULL)) {\n\t    return (Tcl_Command) NULL;\n\t}\n    } else {\n\tnsPtr = iPtr->globalNsPtr;\n\ttail = cmdName;\n    }\n"
+    },
+    {
+      "id": "deleted-eval",
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "revision": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "function": "TclInterpReady",
+      "lines": [
+        3935,
+        3943
+      ],
+      "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "snippet_sha256": "d7c8a1e93d0e5966bbbd6246ffac2fce069def4f4a6e19482849bf6671c7aa04",
+      "snippet": "     * If the interpreter has been deleted, return an error.\n     */\n\n    if (iPtr->flags & DELETED) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"attempt to call eval in deleted interpreter\", -1));\n\tTcl_SetErrorCode(interp, \"TCL\", \"IDELETE\",\n\t\t\"attempt to call eval in deleted interpreter\", (char *)NULL);\n\treturn TCL_ERROR;\n"
+    }
+  ]
+}

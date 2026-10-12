@@ -1,0 +1,7 @@
+int Jim_CreateCommand(Jim_Interp *interp, const char *cmdNameStr,
+    Jim_CmdProc *cmdProc, void *privData, Jim_DelCmdProc *delProc)
+{
+    Jim_RegisterCmd(interp, cmdNameStr, NULL, 0, -1, cmdProc, delProc, privData, 0);
+    return JIM_OK;
+}
+

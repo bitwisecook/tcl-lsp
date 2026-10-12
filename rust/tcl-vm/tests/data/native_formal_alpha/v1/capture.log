@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-formal-alpha067/capture.py", line 42, in <module>
+    'stderr_sha256': sha(directory / 'stderr'), 'rows': result.stdout.decode('ascii').splitlines(), 'reported_version': bytes.fromhex(result.stdout.decode('ascii').splitlines()[0].split('|')[2]).decode('ascii')}
+                                                                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: non-hexadecimal number found in fromhex() arg at position 1

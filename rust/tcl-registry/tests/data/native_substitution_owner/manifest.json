@@ -1,0 +1,281 @@
+{
+  "format": 1,
+  "channel": "NativeValue",
+  "input": "Each original template is constructed by Tcl_NewStringObj with an explicit byte count; ASCII command option and label literals are independent.",
+  "observations": "R header observations precede the reached result string getter. C rows then inspect the original substcode. Each L header is printed before that child string getter.",
+  "variants": {
+    "v1": {
+      "probe_sha256": "b633702ddc869247bc9b00acb1f6068a72bf2b36066c21595d5e879a72f6bfc4",
+      "providers": {
+        "8.4.20": {
+          "rows": 170,
+          "receipt": "v1/8.4.20/receipt.json",
+          "stdout": "v1/8.4.20/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.5.19": {
+          "rows": 170,
+          "receipt": "v1/8.5.19/receipt.json",
+          "stdout": "v1/8.5.19/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.6.18": {
+          "rows": 961,
+          "receipt": "v1/8.6.18/receipt.json",
+          "stdout": "v1/8.6.18/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.0.4": {
+          "rows": 961,
+          "receipt": "v1/9.0.4/receipt.json",
+          "stdout": "v1/9.0.4/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.1.0": {
+          "rows": 961,
+          "receipt": "v1/9.1.0/receipt.json",
+          "stdout": "v1/9.1.0/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        }
+      },
+      "source_limit": "Sources 8 and 9 use count 16/24 and omit the final x. The reached truncated-dollar inputs are retained independently."
+    },
+    "v2": {
+      "probe_sha256": "eb0eb2cc580340b982745d616d9d9db9c6fc36bb4c0171c2d275f0fe9c1bdd9c",
+      "providers": {
+        "8.4.20": {
+          "rows": 343,
+          "receipt": "v2/8.4.20/receipt.json",
+          "stdout": "v2/8.4.20/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.5.19": {
+          "rows": 343,
+          "receipt": "v2/8.5.19/receipt.json",
+          "stdout": "v2/8.5.19/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.6.18": {
+          "rows": 1156,
+          "receipt": "v2/8.6.18/receipt.json",
+          "stdout": "v2/8.6.18/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.0.4": {
+          "rows": 1156,
+          "receipt": "v2/9.0.4/receipt.json",
+          "stdout": "v2/9.0.4/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.1.0": {
+          "rows": 1156,
+          "receipt": "v2/9.1.0/receipt.json",
+          "stdout": "v2/9.1.0/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        }
+      },
+      "source_limit": "Sources 8 and 9 retain complete count 17/25. N reports public namespace current, not a varFrame observation. Namespace setup uses unqualified set with an existing global x."
+    },
+    "v3": {
+      "probe_sha256": "7d7cedcd46b03c3634d8c974e9557a21333a2424c75a25aaec3603b5feac3538",
+      "providers": {
+        "8.4.20": {
+          "rows": 355,
+          "receipt": "v3/8.4.20/receipt.json",
+          "stdout": "v3/8.4.20/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.5.19": {
+          "rows": 355,
+          "receipt": "v3/8.5.19/receipt.json",
+          "stdout": "v3/8.5.19/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.6.18": {
+          "rows": 1182,
+          "receipt": "v3/8.6.18/receipt.json",
+          "stdout": "v3/8.6.18/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.0.4": {
+          "rows": 1182,
+          "receipt": "v3/9.0.4/receipt.json",
+          "stdout": "v3/9.0.4/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.1.0": {
+          "rows": 1182,
+          "receipt": "v3/9.1.0/receipt.json",
+          "stdout": "v3/9.1.0/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        }
+      },
+      "source_limit": "Adds direct Tcl_SubstObj callbacks. Namespace setup still uses unqualified set with an existing global x."
+    },
+    "v4": {
+      "probe_sha256": "9a0dd266956f6bbd7a283d95b8942681642135dd5e8b1edbdc5a3828ac562b8b",
+      "providers": {
+        "8.4.20": {
+          "rows": 0,
+          "receipt": "v4/8.4.20/receipt.json",
+          "stdout": "v4/8.4.20/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": -11
+        },
+        "8.5.19": {
+          "rows": 538,
+          "receipt": "v4/8.5.19/receipt.json",
+          "stdout": "v4/8.5.19/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.6.18": {
+          "rows": 1371,
+          "receipt": "v4/8.6.18/receipt.json",
+          "stdout": "v4/8.6.18/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.0.4": {
+          "rows": 1371,
+          "receipt": "v4/9.0.4/receipt.json",
+          "stdout": "v4/9.0.4/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.1.0": {
+          "rows": 1371,
+          "receipt": "v4/9.1.0/receipt.json",
+          "stdout": "v4/9.1.0/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        }
+      },
+      "source_limit": "Adds actual varFrame and cached ByteCode namespace booleans plus fresh templates. C8.4 probe dereferences its null root varFrame and fails with SIGSEGV before rows; that is a harness failure, not a guest semantic answer."
+    },
+    "v5": {
+      "probe_sha256": "f42aa9712f61038336f07e84b6b4182a8e0e4bde03621457f0c1e742d605139a",
+      "providers": {
+        "8.4.20": {
+          "rows": 538,
+          "receipt": "v5/8.4.20/receipt.json",
+          "stdout": "v5/8.4.20/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.5.19": {
+          "rows": 538,
+          "receipt": "v5/8.5.19/receipt.json",
+          "stdout": "v5/8.5.19/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.6.18": {
+          "rows": 1371,
+          "receipt": "v5/8.6.18/receipt.json",
+          "stdout": "v5/8.6.18/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.0.4": {
+          "rows": 1371,
+          "receipt": "v5/9.0.4/receipt.json",
+          "stdout": "v5/9.0.4/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.1.0": {
+          "rows": 1371,
+          "receipt": "v5/9.1.0/receipt.json",
+          "stdout": "v5/9.1.0/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        }
+      },
+      "source_limit": "Handles null varFrame explicitly, retaining the unqualified-set namespace setup."
+    },
+    "v6": {
+      "probe_sha256": "1d19fec43fcd1f3de7809dcce3f9fead2dbac32de27c3711a01dcd9aefb08f56",
+      "providers": {
+        "8.4.20": {
+          "rows": 539,
+          "receipt": "v6/8.4.20/receipt.json",
+          "stdout": "v6/8.4.20/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.5.19": {
+          "rows": 539,
+          "receipt": "v6/8.5.19/receipt.json",
+          "stdout": "v6/8.5.19/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "8.6.18": {
+          "rows": 1372,
+          "receipt": "v6/8.6.18/receipt.json",
+          "stdout": "v6/8.6.18/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.0.4": {
+          "rows": 1372,
+          "receipt": "v6/9.0.4/receipt.json",
+          "stdout": "v6/9.0.4/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        },
+        "9.1.0": {
+          "rows": 1372,
+          "receipt": "v6/9.1.0/receipt.json",
+          "stdout": "v6/9.1.0/stdout.tsv",
+          "compile_exit": 0,
+          "process_exit": 0
+        }
+      },
+      "source_limit": "Uses explicit variable x A/B to create namespace cells and independently reads A, B and ROOT before fresh/reused direct substitutions."
+    }
+  },
+  "inputs": {
+    "path": "inputs.json",
+    "sha256": "364bf581c1b5d6b4e6b2b321ae4005d553f7c84fe120ca17c0c61e443022c307",
+    "scope": "Complete v2-v6 templates; v1 uses the two explicitly shortened counts recorded above."
+  },
+  "source_anchors": [
+    {
+      "path": "source-anchors/8.4.20.json",
+      "sha256": "9aac3b4133f72a9c85c20ab494a86c35a85e56631126d0c9d95464a8080961cf"
+    },
+    {
+      "path": "source-anchors/8.5.19.json",
+      "sha256": "ba1772af2cf3f9ad9416853099aceee4669f53023c5f040a8b898ac089255266"
+    },
+    {
+      "path": "source-anchors/8.6.18.json",
+      "sha256": "1a31bc570e4965fb2cc150a6337ab2c88e04fb02f8e20663a3aded0d9c88e009"
+    },
+    {
+      "path": "source-anchors/9.0.4.json",
+      "sha256": "f5ab0243e1ecfd6e11fe6434d5f6f5792f574c7394643955d8fb5caf38f69b0b"
+    },
+    {
+      "path": "source-anchors/9.1.0.json",
+      "sha256": "5ae5ddbaf48a6ef7bea8d63ad9b90937ff27c362e681ad72f95739d44ce9fbe0"
+    }
+  ]
+}

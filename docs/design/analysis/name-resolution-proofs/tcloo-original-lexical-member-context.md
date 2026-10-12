@@ -1,0 +1,123 @@
+# naming.tcloo.original-lexical-member-context
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+A reporting method scope name split on its last namespace separator turns a member named a::b into a different class/member identity. Detached body reconstruction also cannot retain a genuine whole-document declaration by rebasing its labels or offsets.
+
+## Question
+
+Does the analyser retain the exact original instance member or lifecycle declaration and complete source input separately from entered receiver dispatch, and use that identity for bounded next-chain source signature advice?
+
+## Conclusion
+
+The selected definition walk issues a readonly context from one canonical declaration and complete original ParamList/Body words. Source class joins validate the complete retained input and publication/site/word correspondence. Next-chain source advice consumes the common complete Registry invocation, original publication/relation MRO, counted member ledger and shared formal binder; source ownership fallback retains whole-document lineage. After a genuine selected factory and closed declaration workers, source method bodies remain retained when the separate inherited runtime-chain check refuses overlapping mixin entries. Linked lexical-next controls retain complete original declaration/call words and the selected effective argument count, including expansion and nextto target layout. Preceding unrelated edits require current whole-image correspondence; the typed report retains declaration bytes and unknown-width state despite changed prose.
+
+## Scope
+
+C TclOO instance-side source declarations with authentic whole Document words and the same immutable availability/configuration input. Class-object, provider, transformed/materialised and ambiguous bodies do not receive this context. Absolute nextto target geometry is modelled; relative targets without actual object namespace remain unavailable. No native installation, entered receiver/provider, runtime next chain, Normal or edit grant is inferred. These three software source/transport controls establish no entered receiver, runtime MRO, current method table, native next chain, evaluated argv, physical frame, Normal or edit permission. Absolute source target geometry and genuine parent-body ownership remain independent requirements, and no assertion outcome is attached.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+
+This implementation question has no native execution receipt.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+
+This implementation question has no native execution receipt.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+
+This implementation question has no native execution receipt.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+
+This implementation question has no native execution receipt.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+
+This implementation question has no native execution receipt.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+
+This implementation question has no native execution receipt.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+
+This implementation question has no native execution receipt.
+
+## Exact evidence
+
+No evidence artifact is attached.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `from_class_body`: Actual canonical declaration, complete original worker words and full retained source input.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `source_class`: Exact unique original class publication and canonical declaration join; no reporting key or runtime ownership.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `from_source`: Common complete source Registry invocation with separate applicability and absolute target lookup purpose.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `source_arity`: Original source MRO/member/formal signature advice; no receiver dispatch.
+- [rust/tcl-compiler/src/analyser/scope.rs](../../../../rust/tcl-compiler/src/analyser/scope.rs), `current_method_context`: Retained source context; procedure/lambda frames reset it without splitting a display label.
+- [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `fill_deferred_bodies`: Existing OriginalSourceOwnership fallback where an isolated body lacks whole declaration words.
+- [rust/tcl-compiler/src/command_binding/deferred_method.rs](../../../../rust/tcl-compiler/src/command_binding/deferred_method.rs), `register_bounded_methods`: Retain genuine closed declaration-body source scopes before the independent inherited dispatch-chain check; runtime class/table refusal stays separate.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `OriginalLexicalNextCall::source_argument_count`: Count the authentic selected effective vector under the retained helper/options grammar; captured or expanded words retain their original minimum and unknown-width obligations.
+- [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `Analyser::fill_deferred_bodies`: Use genuine current whole declaration source for deferred lexical-next advice when an isolated body lacks its original parent receipt.
+- [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject_data`: Serialize the original lexical-next declaration and effective count with its typed source purpose, independently of message prose or runtime next dispatch.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::tests::original_lexical_member_keeps_colons_lifecycle_and_source_ownership_separate` (linked): Exact class/member bytes, nameless constructor/destructor roles, class-object exclusion, changed input/source and absent entered receiver remain independent.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::tests::original_lexical_next_uses_counted_member_and_complete_source_mro` (linked): Source signature follows exact counted member identity and complete source MRO, skipping an absent closed own table while mixin-before-declaring order supplies no next provider.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::tests::original_lexical_next_declines_relative_targets_and_occupied_forward_routes` (linked): Absolute target selects original publication; absent actual object namespace makes relative nextto unavailable, and occupied unsupported forward remains terminal.
+- [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `analyser::per_item::tests::original_lexical_member_body_keeps_the_whole_source_owner` (linked): Deferred body uses OriginalSourceOwnership full-source fallback; counted a::b identity and genuine full Body word survive.
+- [rust/tcl-compiler/src/command_binding/deferred_method.rs](../../../../rust/tcl-compiler/src/command_binding/deferred_method.rs), `command_binding::deferred_method::tests::original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain` (linked): C86/C90/C91 selected closed method workers retain original body/formal and complete conditional helper words while overlapping mixin runtime chain and completed-world authority remain unavailable.
+- [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject::tests::lexical_next_arity_transport_retains_declaration_and_effective_count` (linked): Typed lexical-next arity transport retains original class declaration bytes and effective minimum/indeterminate count, validates the appropriate diagnostic code and ignores changed presentation text.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::tests::original_lexical_next_count_uses_effective_words_and_whole_call_geometry` (linked): Original next/colon-qualified next/expanded next/absolute nextto retain the actual selected effective count and complete whole-call source words; nextto target data is excluded only by the selected helper grammar.
+- [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `analyser::per_item::tests::original_next_advice_reconstructs_whole_source_after_preceding_edits` (linked): The actual source-ownership fallback reconstructs complete current declaration/call words after preceding unrelated edits, retaining original source images and full member-body configuration rather than reusing detached body text.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::original_member_body_purpose_tests::original_next_body_keeps_bom_alias_and_complete_member_input` (linked): Finite source-defined control: original next body keeps bom alias and complete member input. Actual full supplied input/current class/member/braced body and selected alias to TclOO next helper; BOM-prefixed original helper argv/full word config remain intact with selected count/MRO advice. Foreign source/altered or missing full input refuse. Lexical helper advice, no receiver/frame/Native entry. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+No linked Rust selector execution receipt or guest execution is claimed by this implementation record. Source MRO is source advice and can differ from a future subclass receiver chain.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 2 | 1 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 2 | 1 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

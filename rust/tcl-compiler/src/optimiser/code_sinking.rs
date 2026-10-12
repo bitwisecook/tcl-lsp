@@ -216,9 +216,14 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     // real sink, and anchoring one there could move the def past an earlier
     // by-name read the textual scan cannot see. Decline instead.
     if targets.is_empty()
-        || targets
-            .iter()
-            .any(|t| matches!(t, Statement::Barrier { .. } | Statement::UpFrame { .. }))
+        || targets.iter().any(|t| {
+            matches!(
+                t,
+                Statement::Barrier { .. }
+                    | Statement::NativeCall { .. }
+                    | Statement::UpFrame { .. }
+            )
+        })
     {
         return;
     }
@@ -407,6 +412,9 @@ fn try_deeper_sink<'a>(
 /// Whether `stmt` writes `var` (an assignment to it, or a call whose
 /// `defs` include it).
 fn statement_defines_var(stmt: &Statement, var: &str) -> bool {
+    if stmt.has_opaque_native_accesses() {
+        return true;
+    }
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
@@ -508,7 +516,7 @@ fn stmt_redefines_sink_read(
     depth: u32,
     braced_var: tcl_dialect::BracedVarStyle,
 ) -> bool {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || stmt.has_opaque_native_accesses() {
         return true;
     }
     if stmt_defined_vars(stmt)
@@ -788,7 +796,9 @@ fn statement_uses_var(
         // An `UpFrame` (literal-body `uplevel`/`interp eval`)
         // evaluates in a *different* frame that can reach this one, so it
         // gets the same conservative answer rather than a body recursion.
-        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
+        Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. } => {
+            true
+        }
         Statement::AssignValue { value, .. } => text_references_var(value, var, braced_var),
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             expr_references_var(expr, var)
@@ -1258,6 +1268,24 @@ mod tests {
     /// an `UpFrame`) answers "uses every variable", matching
     /// `propagation`'s `has_intervening_barrier`.
     #[test]
+    fn opaque_native_call_blocks_sinking_a_read_across_unknown_writes() {
+        let native = crate::ir::native_call_for_test(b"opaque \xff");
+        let braced = tcl_dialect::BracedVarStyle::default();
+        let sink = Statement::AssignValue {
+            span: tcl_lexer::Span::new(0, 12),
+            name: "result".into(),
+            name_braced: false,
+            value: "$source".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        assert!(statement_uses_var(&native, "result", 0, braced));
+        assert!(statement_defines_var(&native, "source"));
+        assert!(stmt_redefines_sink_read(&native, &sink, 0, braced));
+        assert!(stmt_defined_vars(&native).is_empty());
+    }
+
+    #[test]
     fn barrier_statement_conservatively_uses_every_var() {
         let barrier = Statement::Barrier {
             span: tcl_lexer::Span::new(0, 4),
@@ -1281,6 +1309,6 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::CodeSinking]);
         // Single `set` with no following decision → no O125.
-        assert!(ctx.optimisations.is_empty());
+        assert_eq!(ctx.optimisations, [] as [crate::optimiser::Optimisation; 0]);
     }
 }

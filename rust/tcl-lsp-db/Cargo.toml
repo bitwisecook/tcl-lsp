@@ -31,6 +31,8 @@ workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-core-types = { path = "../tcl-core-types" }
+tcl-syntax = { path = "../tcl-syntax" }
 # `default-features = false` drops salsa's `rayon` (its default `macros` +
 # `rayon` + `salsa_unstable`-adjacent set): the parallel query machinery needs
 # real threads, which wasm32-unknown-unknown does not have, and nothing in this

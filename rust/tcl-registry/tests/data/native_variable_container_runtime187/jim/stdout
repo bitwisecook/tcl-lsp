@@ -1,0 +1,6 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}
+RESULT update_array_second 0 {0 1 NEW 1 0 OTHER {first NEW second OTHER}}
+RESULT alias_array_replacement 0 {0 OTHER 0 0 OTHER}
+RESULT reference_formal 0 {0 {{first NEW}} {first NEW}}
+RESULT update_direct_multiword 0 {0 1 DIRECT 1 {first DIRECT}}

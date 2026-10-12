@@ -270,6 +270,21 @@ impl Default for LexerConfig {
 pub const UTF8_BOM: &str = "\u{FEFF}";
 
 impl LexerConfig {
+    /// Select native lexical axes without changing the source location or
+    /// caller's parser mode. Use this before segmentation: changing the
+    /// grammar after words have been split cannot repair their components.
+    #[must_use]
+    pub fn with_grammar(self, grammar: tcl_dialect::LexerGrammar) -> Self {
+        Self {
+            base_offset: self.base_offset,
+            base_line: self.base_line,
+            base_col: self.base_col,
+            strict_quoting: self.strict_quoting,
+            leading_bom: self.leading_bom,
+            ..Self::from_grammar(grammar)
+        }
+    }
+
     /// Return the same lexical policy in local source coordinates.
     ///
     /// Cache keys for relocated/nested bodies must retain every semantic
@@ -284,6 +299,27 @@ impl LexerConfig {
             base_line: 0,
             base_col: 0,
             ..self
+        }
+    }
+
+    /// Apply this config's lexical axes to an independently selected grammar.
+    /// Numeral and expression policies remain those of `base`: a lexer config
+    /// does not identify a native interpreter or carry those semantic axes.
+    #[must_use]
+    pub const fn grammar_over(self, base: tcl_dialect::LexerGrammar) -> tcl_dialect::LexerGrammar {
+        tcl_dialect::LexerGrammar {
+            expand_syntax: self.expand_syntax,
+            irules_brace_separator: self.irules_brace_separator,
+            brace_line_continuation: self.brace_line_continuation,
+            braced_var: self.braced_var,
+            array_index: self.array_index,
+            escapes: self.escapes,
+            word_separators: self.word_separators,
+            quote_termination: self.quote_termination,
+            var_syntax: self.var_syntax,
+            brace_backslash_newline: self.brace_backslash_newline,
+            list_parse: self.list_parse,
+            ..base
         }
     }
 
@@ -418,6 +454,8 @@ pub enum LexError {
     /// A syntax error detected in strict-quoting mode.
     #[error("{message}")]
     SyntaxError {
+        /// Structured issue retained at its lexical creation site.
+        kind: crate::ParseIssueKind,
         /// Human-readable message.
         message: String,
     },
@@ -427,10 +465,24 @@ pub enum LexError {
 /// harvests these to produce LSP diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexWarning {
+    /// Structured issue retained independently of its diagnostic presentation.
+    pub kind: crate::ParseIssueKind,
     /// Byte offset in the source where the issue was detected.
     pub offset: u32,
     /// Human-readable message.
     pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TokenProtocol {
+    General,
+    JimNative,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JimPrecedingToken {
+    Other,
+    ScalarVariable,
 }
 
 /// Streaming Tcl lexer.
@@ -454,9 +506,16 @@ pub struct Lexer<'src> {
     /// brace- or quote-started word is immediately followed by a
     /// non-separator (F5 R2, measurements §1).
     pending_sep: Option<Token>,
+    token_protocol: TokenProtocol,
+    jim_missing: Option<u8>,
+    jim_missing_line: Option<u32>,
+    jim_token_start: Option<u32>,
+    jim_preceding_token: JimPrecedingToken,
     /// Non-fatal warnings collected during lexing (unterminated
     /// braces, extra chars after close-quote, etc.).
     warnings: Vec<LexWarning>,
+    /// Maximum balanced-brace level observed by the actual braced-word scanner.
+    max_brace_word_nesting: u32,
     /// Kind of the most recently emitted token. Used to decide whether
     /// EOF needs a trailing ghost EOL and to compute
     /// [`Lexer::is_newword`].
@@ -491,6 +550,18 @@ impl<'src> Lexer<'src> {
         Self::with_source_map(SourceMap::new(source), config)
     }
 
+    /// Lex original native value bytes under the supplied grammar and modes.
+    #[must_use]
+    pub fn with_bytes(source: &'src [u8], config: LexerConfig) -> Self {
+        Self::with_source_map(SourceMap::from_bytes(source), config)
+    }
+
+    /// Lex an immutable source image with its explicit input channel.
+    #[must_use]
+    pub fn with_source_image(source: &'src crate::SourceImage, config: LexerConfig) -> Self {
+        Self::with_source_map(SourceMap::from_image(source), config)
+    }
+
     /// Build a lexer with a pre-built `SourceMap` and custom config.
     ///
     /// The caller is responsible for ensuring the `SourceMap` was
@@ -502,7 +573,7 @@ impl<'src> Lexer<'src> {
         // as well as the bytes: the same lexer serves the VM's `eval`, where a
         // BOM at the head of a string is ordinary data.
         let pos = if config.leading_bom == LeadingBom::Skip
-            && source_map.source().starts_with(UTF8_BOM)
+            && source_map.source_bytes().starts_with(UTF8_BOM.as_bytes())
         {
             u32::try_from(UTF8_BOM.len()).unwrap_or(0)
         } else {
@@ -514,7 +585,13 @@ impl<'src> Lexer<'src> {
             at_command_start: true,
             in_quote: false,
             pending_sep: None,
+            token_protocol: TokenProtocol::General,
+            jim_missing: None,
+            jim_missing_line: Some(0),
+            jim_token_start: None,
+            jim_preceding_token: JimPrecedingToken::Other,
             warnings: Vec::new(),
+            max_brace_word_nesting: 0,
             // Start in "last kind was EOL" so an empty source produces
             // zero tokens rather than a lone ghost trailing EOL.
             last_kind: TokenType::Eol,
@@ -587,6 +664,187 @@ impl<'src> Lexer<'src> {
         &self.warnings
     }
 
+    pub(crate) fn jim_script_roster(
+        mut self,
+        image: crate::SourceImage,
+    ) -> Result<crate::JimScriptTokens, crate::JimScriptTokensUnavailable> {
+        let jim_grammar = tcl_dialect::model::grammar(
+            tcl_dialect::model::Family::Jim,
+            tcl_dialect::model::Release::JIM_0_84,
+        );
+        if self.config.with_grammar(jim_grammar) != self.config || !self.ghosts.is_empty() {
+            return Err(crate::JimScriptTokensUnavailable::Grammar);
+        }
+        self.token_protocol = TokenProtocol::JimNative;
+        self.config.strict_quoting = false;
+        let mut tokens = Vec::new();
+        let mut line_delta = 0_u32;
+        let mut previous = 0_usize;
+        while let Some(result) = self.next() {
+            let token = result.map_err(crate::JimScriptTokensUnavailable::Lexical)?;
+            if token.kind == TokenType::Comment || token.span.is_empty() {
+                continue;
+            }
+            let value_start = token.span.start() + u32::from(token.content_offset);
+            let body = if token.kind == TokenType::Esc && self.source_map.bytes(token.span) == b"$"
+            {
+                self.source_map.bytes(token.span)
+            } else {
+                self.source_map.token_bytes(token)
+            };
+            let value_len = u32::try_from(body.len())
+                .map_err(|_| crate::JimScriptTokensUnavailable::SourceGeometry)?;
+            let mut value = Span::new(value_start, value_start + value_len);
+            let kind = if token.kind == TokenType::Var && token.content_offset == 2 {
+                crate::JimScriptTokenKind::Variable
+            } else {
+                crate::jim_script_tokens::token_kind(token.kind, self.source_map.token_bytes(token))
+            };
+            if token.kind == TokenType::ExprSugar {
+                value = Span::new(token.span.start() + 1, self.pos);
+            }
+            line_delta += u32::try_from(bytecount::count(
+                &self.source()[previous..token.span.start() as usize],
+                b'\n',
+            ))
+            .map_err(|_| crate::JimScriptTokensUnavailable::SourceGeometry)?;
+            previous = token.span.start() as usize;
+            tokens.push(crate::JimScriptToken {
+                source: Span::new(token.span.start(), self.pos),
+                value,
+                kind,
+                line_delta,
+            });
+        }
+        let end = self.pos;
+        let at_end = Span::empty(end);
+        tokens.push(crate::JimScriptToken {
+            source: at_end,
+            value: at_end,
+            kind: crate::JimScriptTokenKind::EndCommand,
+            line_delta: crate::jim_script_tokens::line_delta(self.source(), end),
+        });
+        tokens.push(crate::JimScriptToken {
+            source: at_end,
+            value: at_end,
+            kind: crate::JimScriptTokenKind::EndSource,
+            line_delta: 0,
+        });
+        let completeness_line =
+            self.jim_missing_line
+                .map_or(crate::JimScriptLine::Zero, |offset| {
+                    crate::JimScriptLine::Original(crate::jim_script_tokens::line_delta(
+                        self.source(),
+                        offset,
+                    ))
+                });
+        Ok(crate::JimScriptTokens {
+            image,
+            tokens,
+            missing: self.jim_missing,
+            completeness_line,
+        })
+    }
+
+    pub(crate) fn jim_subst_roster(
+        mut self,
+        image: crate::SourceImage,
+        flags: u8,
+    ) -> Result<crate::JimSubstTokens, crate::JimScriptTokensUnavailable> {
+        use crate::{JimScriptToken, JimScriptTokenKind, JimScriptTokensUnavailable};
+        let grammar = tcl_dialect::model::grammar(
+            tcl_dialect::model::Family::Jim,
+            tcl_dialect::model::Release::JIM_0_84,
+        );
+        if self.config.with_grammar(grammar) != self.config
+            || !self.ghosts.is_empty()
+            || flags & !(7 | 128) != 0
+        {
+            return Err(JimScriptTokensUnavailable::Grammar);
+        }
+        self.token_protocol = TokenProtocol::JimNative;
+        self.config.strict_quoting = false;
+        let mut tokens = Vec::new();
+        let mut line_delta = 0_u32;
+        while let Some(byte) = self.current_byte() {
+            let start = self.pos;
+            let parsed = if byte == b'[' && flags & 2 == 0 {
+                Some(self.parse_command())
+            } else if byte == b'$' && flags & 1 == 0 {
+                Some(self.parse_var())
+            } else {
+                None
+            };
+            if let Some(parsed) = parsed {
+                let token = parsed.map_err(JimScriptTokensUnavailable::Lexical)?;
+                if token.kind != TokenType::Esc {
+                    let body = self.source_map.token_bytes(token);
+                    let length = u32::try_from(body.len())
+                        .map_err(|_| JimScriptTokensUnavailable::SourceGeometry)?;
+                    let value_start = token.span.start() + u32::from(token.content_offset);
+                    let mut value = Span::new(value_start, value_start + length);
+                    let kind = if token.kind == TokenType::Var && token.content_offset == 2 {
+                        JimScriptTokenKind::Variable
+                    } else {
+                        crate::jim_script_tokens::token_kind(token.kind, body)
+                    };
+                    if token.kind == TokenType::ExprSugar {
+                        value = Span::new(token.span.start() + 1, self.pos);
+                    }
+                    tokens.push(JimScriptToken {
+                        source: Span::new(start, self.pos),
+                        value,
+                        kind,
+                        line_delta,
+                    });
+                    // JimParseSubst leaves ordinary-text newlines uncounted.
+                    // Only these reached nested parsers advance its line.
+                    if token.kind == TokenType::Cmd
+                        || (token.kind == TokenType::Var && token.content_offset == 2)
+                    {
+                        line_delta += u32::try_from(bytecount::count(
+                            &self.source()[start as usize..self.pos as usize],
+                            b'\n',
+                        ))
+                        .map_err(|_| JimScriptTokensUnavailable::SourceGeometry)?;
+                    }
+                    continue;
+                }
+                // A bare dollar belongs to the following ordinary-text token.
+                self.pos = start;
+            }
+            self.pos += 1;
+            if byte == b'\\' && self.current_byte().is_some() {
+                self.pos += 1;
+            }
+            while let Some(byte) = self.current_byte() {
+                if (byte == b'$' && flags & 1 == 0) || (byte == b'[' && flags & 2 == 0) {
+                    break;
+                }
+                self.pos += 1;
+                if byte == b'\\' && self.current_byte().is_some() {
+                    self.pos += 1;
+                }
+            }
+            let span = Span::new(start, self.pos);
+            tokens.push(JimScriptToken {
+                source: span,
+                value: span,
+                kind: if flags & 4 == 0 {
+                    JimScriptTokenKind::Escaped
+                } else {
+                    JimScriptTokenKind::String
+                },
+                line_delta,
+            });
+        }
+        Ok(crate::JimSubstTokens {
+            image,
+            tokens,
+            flags,
+        })
+    }
+
     /// Consume the lexer and return its warnings.
     #[must_use]
     pub fn into_warnings(self) -> Vec<LexWarning> {
@@ -602,6 +860,34 @@ impl<'src> Lexer<'src> {
     /// (`parse_var`, `parse_command`, `parse_brace`, `parse_quoted`).
     pub fn tokenise_all(self) -> Result<Vec<Token>, LexError> {
         self.collect()
+    }
+
+    /// Consume the remaining token stream while checking the maximum nesting
+    /// observed by this lexer's braced-word scanner against a caller's budget.
+    /// Escaped braces, comments, quoted text and braces within bare words retain
+    /// their actual lexical treatment under the supplied complete configuration.
+    /// This bounds source preparation; it identifies no script body, command,
+    /// name, frame or evaluation. Other recursive consumers retain their own caps.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`LexError`] encountered before the budget is exceeded.
+    pub fn braced_word_nesting_within(
+        mut self,
+        limit: tcl_core_types::RecursionLimit,
+    ) -> Result<bool, LexError> {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        if limit.exceeded(self.max_brace_word_nesting) {
+            return Ok(false);
+        }
+        while let Some(token) = self.next() {
+            token?;
+            if limit.exceeded(self.max_brace_word_nesting) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// Collect every token alongside the non-fatal warnings
@@ -627,8 +913,8 @@ impl<'src> Lexer<'src> {
     }
 
     #[inline]
-    fn source(&self) -> &'src str {
-        self.source_map.source()
+    fn source(&self) -> &'src [u8] {
+        self.source_map.source_bytes()
     }
 
     #[inline]
@@ -638,7 +924,7 @@ impl<'src> Lexer<'src> {
         if let Some(g) = self.ghost_at(self.pos) {
             return Some(g);
         }
-        self.source().as_bytes().get(self.pos as usize).copied()
+        self.source().get(self.pos as usize).copied()
     }
 
     /// Return the character starting at `self.pos`, or `None` at EOF.
@@ -647,24 +933,24 @@ impl<'src> Lexer<'src> {
         if let Some(g) = self.ghost_at(self.pos) {
             return Some(char::from(g));
         }
-        self.source()
-            .get(self.pos as usize..)
-            .and_then(|s| s.chars().next())
+        self.current_byte().map(char::from)
     }
 
     /// Emit a warning (non-strict) or return an error (strict).
     /// Called from `parse_brace`, `parse_command`, and
     /// `parse_quoted` for unterminated constructs and
     /// extra-chars-after-close violations.
-    fn warn_or_error(&mut self, message: &str) -> Result<(), LexError> {
+    fn warn_or_error(&mut self, kind: crate::ParseIssueKind) -> Result<(), LexError> {
         if self.config.strict_quoting {
             Err(LexError::SyntaxError {
-                message: message.to_owned(),
+                kind,
+                message: kind.message().to_owned(),
             })
         } else {
             self.warnings.push(LexWarning {
+                kind,
                 offset: self.pos,
-                message: message.to_owned(),
+                message: kind.message().to_owned(),
             });
             Ok(())
         }
@@ -680,7 +966,16 @@ impl<'src> Lexer<'src> {
     fn parse_sep(&mut self) -> Token {
         let start_offset = self.pos;
         while let Some(byte) = self.current_byte() {
-            if !is_horizontal_whitespace_byte(byte, self.config.word_separators) {
+            if self.token_protocol == TokenProtocol::JimNative && self.source_is_line_continuation()
+            {
+                self.pos += 2;
+                continue;
+            }
+            if !(is_horizontal_whitespace_byte(byte, self.config.word_separators)
+                || self.token_protocol == TokenProtocol::JimNative
+                    && byte.is_ascii_whitespace()
+                    && byte != b'\n')
+            {
                 break;
             }
             self.pos += 1; // All SEP characters are ASCII.
@@ -700,7 +995,7 @@ impl<'src> Lexer<'src> {
             return false;
         }
         debug_assert_eq!(self.current_byte(), Some(b'\n'));
-        let bytes = self.source().as_bytes();
+        let bytes = self.source();
         let mut index = self.pos as usize + 1;
         while let Some(&byte) = bytes.get(index) {
             if is_horizontal_whitespace_byte(byte, self.config.word_separators) {
@@ -733,8 +1028,9 @@ impl<'src> Lexer<'src> {
         // Consume a run mixing EOL characters and horizontal
         // whitespace in a single token.
         while let Some(byte) = self.current_byte() {
-            if !is_horizontal_whitespace_byte(byte, self.config.word_separators)
-                && !is_eol_byte(byte)
+            if !(is_horizontal_whitespace_byte(byte, self.config.word_separators)
+                || is_eol_byte(byte)
+                || self.token_protocol == TokenProtocol::JimNative && byte.is_ascii_whitespace())
             {
                 break;
             }
@@ -752,26 +1048,28 @@ impl<'src> Lexer<'src> {
     /// must be treated exactly like a written LF here.
     fn source_backslash_escape_end(&self) -> usize {
         let at = self.pos as usize;
-        let bytes = self.source().as_bytes();
-        if bytes.get(at + 1) == Some(&b'\r') {
-            return if bytes.get(at + 2) == Some(&b'\n') {
-                at + 3
-            } else {
-                at + 2
-            };
-        }
-        crate::substitution::backslash_escape_end_in(self.source(), at, self.config.escapes)
+        crate::substitution::source_backslash_continuation_end(
+            self.source(),
+            at,
+            self.source_map.channel(),
+        )
+        .unwrap_or_else(|| {
+            crate::substitution::backslash_escape_end_bytes_in(
+                self.source(),
+                at,
+                self.config.escapes,
+            )
+        })
     }
 
-    /// Whether the source at `self.pos` starts a Tcl document continuation.
+    /// Whether this original offset starts a selected source continuation.
     fn source_is_line_continuation(&self) -> bool {
-        if self.current_byte() != Some(b'\\') {
-            return false;
-        }
-        matches!(
-            self.source().as_bytes().get(self.pos as usize + 1),
-            Some(b'\n' | b'\r')
+        crate::substitution::source_backslash_continuation_end(
+            self.source(),
+            self.pos as usize,
+            self.source_map.channel(),
         )
+        .is_some()
     }
 
     fn parse_comment(&mut self) -> Token {
@@ -780,6 +1078,7 @@ impl<'src> Lexer<'src> {
         while let Some(ch) = self.current_char() {
             match ch {
                 '\n' => break,
+                '\0' if self.token_protocol == TokenProtocol::JimNative => break,
                 '\\' => {
                     // Consume backslash + next char as a pair.
                     // `\<newline>` continues the comment to the
@@ -788,16 +1087,33 @@ impl<'src> Lexer<'src> {
                     self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                    self.pos += 1;
                 }
             }
         }
         self.make_token(TokenType::Comment, start_offset)
     }
 
+    fn jim_parenthesis_fragment(&mut self, start: u32) -> bool {
+        if self.token_protocol != TokenProtocol::JimNative {
+            return false;
+        }
+        let special = self.current_byte() == Some(b'(')
+            && self.peek_byte(1).is_none_or(|byte| byte == b'$')
+            || self.current_byte() == Some(b')')
+                && self.jim_preceding_token == JimPrecedingToken::ScalarVariable;
+        if special && self.pos == start {
+            self.pos += 1;
+        }
+        special
+    }
+
     fn parse_esc(&mut self) -> Token {
         let start_offset = self.pos;
         while let Some(ch) = self.current_char() {
+            if self.jim_parenthesis_fragment(start_offset) {
+                break;
+            }
             if is_horizontal_whitespace(ch, self.config.word_separators) || is_eol_char(ch) {
                 break;
             }
@@ -815,29 +1131,22 @@ impl<'src> Lexer<'src> {
                     }
                     break;
                 }
-                match self
-                    .source()
-                    .as_bytes()
-                    .get((self.pos + 1) as usize)
-                    .copied()
-                {
-                    Some(_) => {
-                        // `\<other>`: consume the pair as literal
-                        // content (both the backslash and the
-                        // escaped character stay in the token text).
-                        self.pos += 1;
-                        if let Some(esc) = self.current_char() {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                    }
-                    None => {
-                        // Trailing backslash at EOF: literal.
+                if self.source().get((self.pos + 1) as usize).is_some() {
+                    // Consume the original backslash and escaped character.
+                    self.pos += 1;
+                    if self.current_char().is_some() {
                         self.pos += 1;
                     }
+                } else {
+                    // Trailing backslash at EOF: literal.
+                    if self.token_protocol == TokenProtocol::JimNative {
+                        self.jim_missing = Some(b'\\');
+                    }
+                    self.pos += 1;
                 }
                 continue;
             }
-            self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+            self.pos += 1;
         }
         self.make_token(TokenType::Esc, start_offset)
     }
@@ -886,8 +1195,8 @@ impl<'src> Lexer<'src> {
         // (`JimParseVar`, jim.c:1728-1732), so the body nests and terminates
         // like `[…]` — but it is an expression, so it gets its own kind.
         //
-        // No build of the Tcl core does this: there `$(` is a variable named
-        // `(`, which is why the axis is a grammar knob rather than a rule.
+        // No build of the Tcl core does this: there `$(` starts an empty-name array
+        // reference, which is why the axis is a grammar knob rather than a rule.
         if self.config.var_syntax.has_expr_sugar() && self.current_byte() == Some(b'(') {
             self.pos += 1; // skip '('
             let content_start = self.pos;
@@ -901,8 +1210,8 @@ impl<'src> Lexer<'src> {
             };
             if has_close {
                 self.pos += 1;
-            } else {
-                self.warn_or_error("missing close-paren for expression substitution")?;
+            } else if self.token_protocol != TokenProtocol::JimNative {
+                self.warn_or_error(crate::ParseIssueKind::MissingExpressionParenthesis)?;
             }
             return Ok(Token::with_content_offset(
                 TokenType::ExprSugar,
@@ -935,8 +1244,8 @@ impl<'src> Lexer<'src> {
             };
             if has_close_brace {
                 self.pos += 1;
-            } else {
-                self.warn_or_error("missing close-brace for variable name")?;
+            } else if self.token_protocol != TokenProtocol::JimNative {
+                self.warn_or_error(crate::ParseIssueKind::MissingVariableBrace)?;
             }
             return Ok(Token::with_content_offset(
                 TokenType::Var,
@@ -952,7 +1261,7 @@ impl<'src> Lexer<'src> {
         // word text, and a `$` before a non-ASCII letter is a literal `$`.
         let name_start = self.pos;
         let name_end = tcl_core_types::naming::scan_var_name_end_with(
-            self.source().as_bytes(),
+            self.source(),
             self.pos as usize,
             self.config.var_syntax.name_allows_high_bytes(),
         );
@@ -969,8 +1278,8 @@ impl<'src> Lexer<'src> {
                 self.skip_jim_paren_body();
                 if self.current_byte() == Some(b')') {
                     self.pos += 1;
-                } else {
-                    self.warn_or_error("missing close-paren for array index")?;
+                } else if self.token_protocol != TokenProtocol::JimNative {
+                    self.warn_or_error(crate::ParseIssueKind::MissingArrayIndexParenthesis)?;
                 }
             } else {
                 self.scan_array_index_body()?;
@@ -985,7 +1294,11 @@ impl<'src> Lexer<'src> {
         // Bare `$`
         if self.pos == name_start {
             return Ok(Token::new(
-                TokenType::Str,
+                if self.token_protocol == TokenProtocol::JimNative {
+                    TokenType::Esc
+                } else {
+                    TokenType::Str
+                },
                 Span::new(dollar_pos, dollar_pos + 1),
             ));
         }
@@ -1013,34 +1326,11 @@ impl<'src> Lexer<'src> {
     /// source. When no `)` was seen at all the scan stops at end of input and
     /// the caller reports the missing close.
     fn skip_jim_paren_body(&mut self) {
-        let bytes = self.source().as_bytes();
-        let mut depth: u32 = 1;
-        let mut last_close: Option<u32> = None;
-        while let Some(&byte) = bytes.get(self.pos as usize) {
-            match byte {
-                b'\\' if self.pos as usize + 1 < bytes.len() => {
-                    // A backslash hides the next byte from the counter.
-                    self.pos += 2;
-                    continue;
-                }
-                b'(' => depth += 1,
-                b')' => {
-                    last_close = Some(self.pos);
-                    depth -= 1;
-                    if depth == 0 {
-                        return; // `self.pos` is the matching `)`.
-                    }
-                }
-                _ => {}
-            }
-            self.pos += 1;
-        }
-        // Ran out while still nested: back up to just after the last `)`,
-        // exactly as Jim does. `self.pos` then sits on a non-`)` byte (or at
-        // end of input) and the caller reports the missing close.
-        if let Some(close) = last_close {
-            self.pos = close + 1;
-        }
+        self.pos = u32::try_from(crate::ranges::jim_parenthesis_body_end(
+            self.source(),
+            self.pos as usize,
+        ))
+        .expect("source offset fits u32");
     }
 
     /// Consume a `(…)` array-index body starting at the `(`.
@@ -1061,14 +1351,14 @@ impl<'src> Lexer<'src> {
     fn scan_array_index_body(&mut self) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
         let scan = crate::scan_array_index(
-            self.source().as_bytes(),
+            self.source(),
             self.pos as usize,
             self.config.array_index,
             self.config.braced_var,
         );
         if let Some(invalid) = scan.invalid {
             self.pos = u32::try_from(invalid).expect("source offset fits u32");
-            self.warn_or_error(crate::INVALID_CHARACTER_IN_ARRAY_INDEX)?;
+            self.warn_or_error(crate::ParseIssueKind::InvalidArrayIndexCharacter)?;
         }
         match scan.end {
             crate::ArrayIndexEnd::Closed(end) => {
@@ -1076,7 +1366,7 @@ impl<'src> Lexer<'src> {
             }
             crate::ArrayIndexEnd::Unterminated => {
                 self.pos = u32::try_from(self.source().len()).expect("source length fits u32");
-                self.warn_or_error("missing )")?;
+                self.warn_or_error(crate::ParseIssueKind::MissingParenthesis)?;
             }
         }
         Ok(())
@@ -1085,10 +1375,7 @@ impl<'src> Lexer<'src> {
     /// Return the byte at `self.pos + offset`, if any.
     #[inline]
     fn peek_byte(&self, offset: u32) -> Option<u8> {
-        self.source()
-            .as_bytes()
-            .get((self.pos + offset) as usize)
-            .copied()
+        self.source().get((self.pos + offset) as usize).copied()
     }
 
     /// Parse a quoted-string `ESC` token.
@@ -1142,11 +1429,15 @@ impl<'src> Lexer<'src> {
         if opening {
             self.pos += 1; // skip opening `"`
             self.in_quote = true;
+            self.jim_missing_line = self.jim_token_start;
         }
         let content_start = self.pos;
         let mut closed = false;
 
         while let Some(ch) = self.current_char() {
+            if self.jim_parenthesis_fragment(content_start) {
+                break;
+            }
             match ch {
                 '"' => {
                     closed = true;
@@ -1160,11 +1451,16 @@ impl<'src> Lexer<'src> {
                     // text). `\<newline>` inside a quote is NOT a
                     // word break — it's just another pair of
                     // literal bytes.
+                    if self.token_protocol == TokenProtocol::JimNative
+                        && self.peek_byte(1).is_none()
+                    {
+                        self.jim_missing = Some(b'\\');
+                    }
                     let end = self.source_backslash_escape_end();
                     self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                    self.pos += 1;
                 }
             }
         }
@@ -1209,13 +1505,16 @@ impl<'src> Lexer<'src> {
                         || after == b']'
                         || is_bs_nl;
                     if !ok {
-                        self.warn_or_error(crate::EXTRA_AFTER_CLOSE_QUOTE)?;
+                        self.warn_or_error(crate::ParseIssueKind::ExtraAfterQuote)?;
                     }
                 }
             }
         } else if self.current_char().is_none() {
             // EOF without closing quote.
-            self.warn_or_error("missing \"")?;
+            if self.token_protocol == TokenProtocol::JimNative {
+                self.jim_missing = Some(b'"');
+            }
+            self.warn_or_error(crate::ParseIssueKind::MissingQuote)?;
         }
 
         let content_offset: u8 = if !opening && content_empty && closed {
@@ -1265,7 +1564,8 @@ impl<'src> Lexer<'src> {
     ///     and text[pos+3] is a non-separator
     /// ```
     fn parse_brace_or_expand(&mut self) -> Result<Token, LexError> {
-        if self.config.expand_syntax
+        if self.token_protocol != TokenProtocol::JimNative
+            && self.config.expand_syntax
             && self.peek_byte(1) == Some(b'*')
             && self.peek_byte(2) == Some(b'}')
             && let Some(after) = self.peek_byte(3)
@@ -1319,6 +1619,7 @@ impl<'src> Lexer<'src> {
         let content_start = self.pos;
 
         let mut level: u32 = 1;
+        self.max_brace_word_nesting = self.max_brace_word_nesting.max(level);
         let mut span_end: u32 = self.pos;
 
         while let Some(ch) = self.current_char() {
@@ -1330,6 +1631,7 @@ impl<'src> Lexer<'src> {
                 }
                 '{' => {
                     level += 1;
+                    self.max_brace_word_nesting = self.max_brace_word_nesting.max(level);
                     self.pos += 1;
                 }
                 '}' => {
@@ -1344,7 +1646,7 @@ impl<'src> Lexer<'src> {
                     self.pos += 1;
                 }
                 _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                    self.pos += 1;
                 }
             }
         }
@@ -1388,12 +1690,16 @@ impl<'src> Lexer<'src> {
                         // that turns this recoverable warning into C's hard
                         // error (`runtime/rust`, via
                         // `script::WordSpan::welded_after_close`).
-                        self.warn_or_error(crate::word_parts::EXTRA_AFTER_CLOSE_BRACE)?;
+                        self.warn_or_error(crate::ParseIssueKind::ExtraAfterBrace)?;
                     }
                 }
             }
         } else {
-            self.warn_or_error("missing close-brace")?;
+            if self.token_protocol == TokenProtocol::JimNative {
+                self.jim_missing = Some(b'{');
+                self.jim_missing_line = Some(brace_pos);
+            }
+            self.warn_or_error(crate::ParseIssueKind::MissingBrace)?;
         }
 
         Ok(Token::with_content_offset(
@@ -1460,7 +1766,7 @@ impl<'src> Lexer<'src> {
     /// runs the name to end-of-input. The evaluating engines raise instead.
     fn skip_braced_var_name_body(&mut self) {
         let end = match crate::ranges::braced_var_name_end(
-            self.source().as_bytes(),
+            self.source(),
             self.pos as usize,
             self.config.braced_var,
         ) {
@@ -1486,7 +1792,7 @@ impl<'src> Lexer<'src> {
                 false
             }
             _ => {
-                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                self.pos += 1;
                 false
             }
         }
@@ -1531,7 +1837,11 @@ impl<'src> Lexer<'src> {
         } else if has_close_bracket {
             self.pos += 1;
         } else {
-            self.warn_or_error("missing close-bracket")?;
+            if self.token_protocol == TokenProtocol::JimNative && self.jim_missing != Some(b'"') {
+                self.jim_missing = Some(b'[');
+                self.jim_missing_line = Some(bracket_pos);
+            }
+            self.warn_or_error(crate::ParseIssueKind::MissingBracket)?;
         }
         Ok(Token::with_content_offset(
             TokenType::Cmd,
@@ -1540,10 +1850,86 @@ impl<'src> Lexer<'src> {
         ))
     }
 
+    fn scan_jim_command_body(&mut self, bracket: u32) {
+        // These modes extend the same source scanner with Jim's bracket grammar.
+        // Quotes are structural at word start; braces are structural everywhere.
+        let mut modes = vec![(b'[', true)];
+        while let Some(byte) = self.current_byte() {
+            let Some(&(mode, start_word)) = modes.last() else {
+                break;
+            };
+            match (mode, byte) {
+                (_, b'\\') => {
+                    self.pos += 1;
+                    if self.current_byte().is_some() {
+                        self.pos += 1;
+                    }
+                }
+                (b'{', b'{') => {
+                    modes.push((b'{', false));
+                    self.pos += 1;
+                }
+                (b'{', b'}') | (b'"', b'"') => {
+                    modes.pop();
+                    if let Some(last) = modes.last_mut() {
+                        last.1 = false;
+                    }
+                    self.pos += 1;
+                }
+                (b'{', _) => self.pos += 1,
+                (b'[', b']') => {
+                    modes.pop();
+                    if modes.is_empty() {
+                        return;
+                    }
+                    if let Some(last) = modes.last_mut() {
+                        last.1 = false;
+                    }
+                    self.pos += 1;
+                }
+                (b'[' | b'"', b'[') => {
+                    if let Some(last) = modes.last_mut() {
+                        last.1 = false;
+                    }
+                    modes.push((b'[', true));
+                    self.pos += 1;
+                }
+                (b'[', b'"') if start_word => {
+                    modes.push((b'"', false));
+                    self.pos += 1;
+                }
+                (b'[', b'{') => {
+                    if let Some(last) = modes.last_mut() {
+                        last.1 = false;
+                    }
+                    modes.push((b'{', false));
+                    self.pos += 1;
+                }
+                _ => {
+                    if let Some(last) = modes.last_mut() {
+                        last.1 = byte.is_ascii_whitespace();
+                    }
+                    self.pos += 1;
+                }
+            }
+        }
+        let marker = if modes.iter().any(|&(mode, _)| mode == b'"') {
+            b'"'
+        } else {
+            b'['
+        };
+        self.jim_missing = Some(marker);
+        self.jim_missing_line = Some(bracket);
+    }
+
     fn parse_command(&mut self) -> Result<Token, LexError> {
         let bracket_pos = self.pos;
         self.pos += 1; // skip '['
         let content_start = self.pos;
+        if self.token_protocol == TokenProtocol::JimNative {
+            self.scan_jim_command_body(bracket_pos);
+            return self.finish_command_token(bracket_pos, content_start);
+        }
 
         let mut level: u32 = 1;
         let mut blevel: u32 = 0;
@@ -1646,7 +2032,7 @@ impl<'src> Lexer<'src> {
                 }
                 _ => {
                     at_command_start = false;
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                    self.pos += 1;
                 }
             }
         }
@@ -1671,6 +2057,9 @@ impl Iterator for Lexer<'_> {
 
         // EOF: emit a trailing ghost EOL (once) then stop.
         if self.pos as usize >= self.source().len() {
+            if self.token_protocol == TokenProtocol::JimNative && self.in_quote {
+                self.jim_missing = Some(b'"');
+            }
             if self.last_kind == TokenType::Eol {
                 self.done = true;
                 return None;
@@ -1731,6 +2120,18 @@ impl Iterator for Lexer<'_> {
                         // Preserve current value.
                     }
                     _ => self.at_command_start = false,
+                }
+                if self.token_protocol == TokenProtocol::JimNative && tok.kind != TokenType::Comment
+                {
+                    self.jim_token_start = Some(tok.span.start());
+                    self.jim_preceding_token = if tok.kind == TokenType::Var
+                        && (tok.content_offset == 2
+                            || !self.source_map.token_bytes(tok).contains(&b'('))
+                    {
+                        JimPrecedingToken::ScalarVariable
+                    } else {
+                        JimPrecedingToken::Other
+                    };
                 }
                 self.last_kind = tok.kind;
                 // Tag the token with the current `in_quote` state.
@@ -1825,7 +2226,7 @@ mod tests {
     #[test]
     fn empty_source_produces_no_tokens() {
         let lexed = Lexed::run("");
-        assert!(lexed.tokens.is_empty());
+        assert_eq!(lexed.tokens, [] as [Token; 0]);
     }
 
     #[test]
@@ -1947,6 +2348,74 @@ mod tests {
         let lexed = Lexed::run("foo\n");
         assert_eq!(lexed.kinds(), vec![TokenType::Esc, TokenType::Eol]);
         assert_eq!(lexed.source_map.text(lexed.tokens[1].span), "\n");
+    }
+
+    #[test]
+    fn brace_word_budget_uses_lexical_context_and_escape_boundaries() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        let one = tcl_core_types::RecursionLimit(1);
+        assert_eq!(
+            Lexer::new("set value {a {b}}").braced_word_nesting_within(one),
+            Ok(false)
+        );
+        assert_eq!(
+            Lexer::new(r"set value {\{ \{ \} \}}").braced_word_nesting_within(one),
+            Ok(true)
+        );
+        let zero = tcl_core_types::RecursionLimit(0);
+        for source in [
+            "# {{{{\nset value plain",
+            "set value \"{{{{\"",
+            "set value data{{{{",
+        ] {
+            assert_eq!(
+                Lexer::new(source).braced_word_nesting_within(zero),
+                Ok(true),
+                "{source}"
+            );
+        }
+        assert_eq!(
+            Lexer::new("{a {b}}")
+                .as_quoted_body()
+                .braced_word_nesting_within(zero),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn brace_word_budget_retains_full_config_and_strict_errors() {
+        // Implementation contract: naming.editor.original-source-formatting-budget
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting-budget.md
+        let zero = tcl_core_types::RecursionLimit(0);
+        let core = LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap().grammar,
+        );
+        let jim = LexerConfig::for_file_grammar(tcl_dialect::grammar_of_dialect_name(Some("jim")));
+        let source = "set value\u{000b}{{nested}}";
+        assert_eq!(
+            Lexer::with_config(source, core).braced_word_nesting_within(zero),
+            Ok(false)
+        );
+        assert_eq!(
+            Lexer::with_config(source, jim).braced_word_nesting_within(zero),
+            Ok(true)
+        );
+        let malformed = "set value {ok}tail";
+        assert_eq!(
+            Lexer::with_config(malformed, core)
+                .braced_word_nesting_within(tcl_core_types::RecursionLimit(1)),
+            Ok(true)
+        );
+        let strict = LexerConfig {
+            strict_quoting: true,
+            ..core
+        };
+        assert!(
+            Lexer::with_config(malformed, strict)
+                .braced_word_nesting_within(tcl_core_types::RecursionLimit(1))
+                .is_err()
+        );
     }
 
     #[test]
@@ -2125,7 +2594,7 @@ mod tests {
         let tokens = Lexer::with_source_map(map, LexerConfig::default())
             .tokenise_all()
             .unwrap();
-        assert!(!tokens.is_empty());
+        assert_ne!(tokens, [] as [Token; 0]);
     }
 
     // Variable substitution
@@ -3780,6 +4249,45 @@ mod grammar_carriage_tests {
         assert_eq!(c.var_syntax, g.var_syntax);
         assert_eq!(c.brace_backslash_newline, g.brace_backslash_newline);
         assert_eq!(c.list_parse, g.list_parse);
+    }
+
+    #[test]
+    fn native_grammar_selection_preserves_source_coordinates_and_parser_modes() {
+        let original = LexerConfig {
+            base_offset: 123,
+            base_line: 7,
+            base_col: 11,
+            strict_quoting: false,
+            leading_bom: super::LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
+        let selected = original.with_grammar(grammar(Family::Jim, Release::JIM_0_84));
+        assert_eq!(
+            selected.normalized(),
+            LexerConfig {
+                strict_quoting: original.strict_quoting,
+                leading_bom: original.leading_bom,
+                ..LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84))
+            }
+        );
+        assert_eq!(selected.base_offset, original.base_offset);
+        assert_eq!(selected.base_line, original.base_line);
+        assert_eq!(selected.base_col, original.base_col);
+    }
+
+    #[test]
+    fn lexical_overlay_preserves_independently_selected_semantic_axes() {
+        let jim = grammar(Family::Jim, Release::JIM_0_84);
+        let c = LexerConfig::from_grammar(jim);
+        let base = tcl_dialect::LexerGrammar::default();
+        let overlaid = c.grammar_over(base);
+        assert_eq!(LexerConfig::from_grammar(overlaid), c);
+        assert_eq!(overlaid.numbers, base.numbers);
+        assert_eq!(overlaid.expr_comments, base.expr_comments);
+        assert_eq!(
+            overlaid.script_skips_leading_bom,
+            base.script_skips_leading_bom
+        );
     }
 
     /// The four hand-written copies of the 9.x grammar — `LexerGrammar::

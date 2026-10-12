@@ -16,277 +16,210 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! W001 / E002 / E003 for Tk widget *instance* dispatch (`.t instate …`,
-//! `$w tag configure …`) — the receiver-typed sibling of `validity.rs`'s
-//! ordinary registry-command checks and `var_command.rs`'s `TclOO`
-//! `$obj method` checks
-//! (`docs/design/analysis/tk-widget-instance-typing.md`).
-//!
-//! Two-phase, mirroring [`super::var_command`]'s cross-function post-pass
-//! (not `tk_checks.rs`'s in-file buffering): a candidate is *recorded*
-//! during the main walk wherever the ordinary registry-command resolution
-//! in [`super::validity::emit_w001_unknown_subcommand`] already gives up on
-//! `cmd_name` (so this module changes no existing control flow, only adds a
-//! branch at an existing abstention point), then *resolved* after the
-//! whole file has been walked, in [`Analyser::flush_widget_dispatch_diagnostics`].
-//! The two-phase split is required, not stylistic: a helper proc that
-//! dispatches `.t instate …` may be *defined* — and so walked — textually
-//! before the `ttk::treeview .t` call that creates `.t`, even though the
-//! proc cannot run until after it (e.g. `proc setup {} { .t instate … };
-//! ttk::treeview .t; setup`) — so `instance_classes` is not reliably
-//! complete until the walk is done.
-//!
-//! ## Soundness
-//!
-//! `AnalysisResult::instance_classes` is whole-file and name-keyed, exactly
-//! the "any var named x is treated as one everywhere" shape
-//! `docs/design/analysis/tcloo-object-typing.md` calls unsound for diagnostics — with
-//! one difference that makes it safe to use here: `Analyser::bind_registry_instance_class`
-//! (`commands.rs`) is collision-aware, so a name bound to two *different*
-//! classes anywhere in the file is dropped from the map entirely rather than
-//! silently keeping whichever write happened last. A dropped/absent name
-//! simply fails resolution below (silent abstention, never a wrong answer).
-//! The `$var` case additionally inherits the registry-command arity check's
-//! `{*}`-expansion abstention (recorded once, in [`WidgetDispatchSite::has_expand`]).
-
-use tcl_core_types::DiagCode;
-use tcl_lexer::{Span, Token};
-use tcl_registry::{CommandRegistry, SubCommand};
+//! Widget/registered-instance diagnostics from exact original factory receipts.
+//! Human-readable class maps remain reporting data and never select a schema.
 
 use super::super::state::Analyser;
-use super::super::types::Severity;
-use super::validity::arity_verdict;
+use super::super::types::{Diagnostic, Severity};
+use super::super::{
+    DiagnosticSubject, RegisteredInstanceSourceDiagnosticKind as Kind,
+    RegisteredInstanceSourceDiagnosticSubject,
+};
+use super::validity::{
+    ScannedInvocation, SeenOption, SeenPositional, arity_verdict, option_relation_diagnostics,
+};
+use crate::command_binding::OriginalSourceRegisteredInstanceWords;
+use std::sync::Arc;
+use tcl_core_types::DiagCode;
+use tcl_lexer::{Span, Token};
+use tcl_registry::CommandRegistry;
 
-/// `configure`/`cget` are universal on every Tk widget instance (baked into
-/// Tk's C-level `Tk_ConfigureWidget`) but modelled nowhere in any widget's
-/// `subcommands` — each widget's own `-option` table is what would drive
-/// their *value* completion/arity, which no widget spec declares today.
-/// Treating them as unconditionally known (not arity-checked) is the
-/// conservative choice: `docs/design/analysis/tk-widget-instance-typing.md` chose
-/// silence over guessing at the pair/single-option arity shape.
-fn is_universal_widget_subcommand(word: &str) -> bool {
-    !word.is_empty() && ("configure".starts_with(word) || "cget".starts_with(word))
-}
-
-/// One buffered `.w <subcommand> …` / `$w <subcommand> …` dispatch site
-/// whose head the ordinary registry-command resolution could not resolve —
-/// recorded so it can be re-checked once `instance_classes` is complete.
+/// An original occurrence to join to the completed immutable source owner.
+/// This offset is never sufficient without the whole source/tape correspondence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WidgetDispatchSite {
-    /// The receiver text as written: a bareword widget path (`.t`, no
-    /// leading `$`) or a `$var` reference (`w`, `$`/`${}` already
-    /// stripped) — paired with `is_dollar` to disambiguate.
-    pub receiver: String,
-    pub is_dollar: bool,
-    /// The subcommand word (`args[0]` at the dispatch site).
-    pub subcommand: String,
-    pub subcommand_span: Span,
-    /// Positional argument count *after* the subcommand word.
-    pub argc_after_subcommand: usize,
-    /// The words after the subcommand, their tokens, and their `{*}` flags —
-    /// what the E-R14 option-relation check reads. Recorded here because the
-    /// receiver's class is not known until the post-walk flush, by which time
-    /// the source words are gone.
-    pub args_after_subcommand: Vec<String>,
-    pub arg_tokens_after_subcommand: Vec<Token>,
-    pub arg_expand_after_subcommand: Vec<bool>,
-    /// `true` when the subcommand word or any argument after it is
-    /// `{*}`-expanded — the runtime count is then unknowable, so arity
-    /// abstains entirely (the unknown-subcommand check still runs: a
-    /// literal subcommand word is still a literal regardless of what
-    /// follows it).
-    pub has_expand: bool,
-    /// Whole-command span (E002 "too few" / W001 anchor).
+    /// Original whole command extent, without reconstructed argv or class labels.
     pub cmd_span: Span,
 }
 
+fn subject(words: &Arc<OriginalSourceRegisteredInstanceWords>, kind: Kind) -> DiagnosticSubject {
+    DiagnosticSubject::RegisteredInstanceSource(Arc::new(
+        RegisteredInstanceSourceDiagnosticSubject::new(Arc::clone(words), kind),
+    ))
+}
+
+fn source_text(words: &OriginalSourceRegisteredInstanceWords, ordinal: usize) -> Option<String> {
+    std::str::from_utf8(words.argument_bytes(ordinal)?)
+        .ok()
+        .map(str::to_owned)
+}
+
+fn method_relations(
+    words: &Arc<OriginalSourceRegisteredInstanceWords>,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    display: &str,
+    extent: Span,
+) -> Vec<Diagnostic> {
+    let Some(relations) = schema.authored_source_option_relationships() else {
+        return Vec::new();
+    };
+    let options = relations
+        .scan
+        .options
+        .iter()
+        .filter_map(|option| {
+            let span = words.argument_word(option.argument)?.span();
+            let value = option
+                .values
+                .as_ref()
+                .and_then(|values| source_text(words, values.start));
+            Some(SeenOption {
+                name: option.option.name,
+                span,
+                value,
+            })
+        })
+        .collect();
+    let positionals = relations
+        .positionals
+        .iter()
+        .filter_map(|&ordinal| {
+            Some(SeenPositional {
+                value: source_text(words, ordinal),
+                span: words.argument_word(ordinal)?.span(),
+            })
+        })
+        .collect();
+    let call = ScannedInvocation {
+        options,
+        positionals,
+        complete: relations.complete,
+    };
+    option_relation_diagnostics(
+        display,
+        &relations.relations,
+        relations.constraints,
+        &call,
+        extent,
+    )
+    .into_iter()
+    .map(|(_, diagnostic)| diagnostic.with_subject(subject(words, Kind::OptionRelation)))
+    .collect()
+}
+
+fn source_method_diagnostics(
+    words: &Arc<OriginalSourceRegisteredInstanceWords>,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<Diagnostic> {
+    let Some(method) = words.argument_word(0) else {
+        return Vec::new();
+    };
+    let Some(spelling) = source_text(words, 0) else {
+        return Vec::new();
+    };
+    let Some(factory) = words.instance().descriptor(context) else {
+        return Vec::new();
+    };
+    let extent = Span::new(
+        words.original_words()[0].span().start(),
+        words.original_words().last().unwrap().span().end(),
+    );
+    match words.method_selection(context) {
+        Some(tcl_registry::abbrev::KeywordMatch::Unknown)
+            if !factory.object_class.unwrap().allow_unknown_methods =>
+        {
+            return vec![
+                Diagnostic::new(
+                    DiagCode::W001,
+                    method.span(),
+                    format!(
+                        "Unknown subcommand '{spelling}' for widget '{}'",
+                        factory.name
+                    ),
+                    Severity::Warning,
+                )
+                .with_subject(subject(words, Kind::MethodName)),
+            ];
+        }
+        Some(tcl_registry::abbrev::KeywordMatch::Unique(_)) => {}
+        _ => return Vec::new(),
+    }
+    words
+        .with_source_schema(context, |schema| {
+            let display = format!("{} {spelling}", factory.name);
+            let mut diagnostics = method_relations(words, schema, &display, extent);
+            if let Some(selected) = schema.authored_source_arity() {
+                let floor = factory
+                    .required_package
+                    .and_then(|package| context.context().placement_floor(package))
+                    .map(tcl_dialect::model::Version::as_str);
+                let arity = tcl_registry::arity::ArityWindow::select(selected.windows, floor)
+                    .map_or(selected.arity, |window| window.arity);
+                if let Some(count) = schema.authored_source_count_for_arity(arity)
+                    && let Some(diagnostic) = arity_verdict(
+                        &display,
+                        arity,
+                        usize::from(count.minimum),
+                        count.indeterminate,
+                        extent,
+                        None,
+                        selected.synopsis,
+                    )
+                {
+                    diagnostics.push(diagnostic.with_subject(subject(words, Kind::Arity)));
+                }
+            }
+            diagnostics
+        })
+        .unwrap_or_default()
+}
+
 impl Analyser {
-    /// Record a widget-dispatch candidate — called from
-    /// [`super::validity::emit_w001_unknown_subcommand`] at the point it
-    /// would otherwise silently abstain because `cmd_name` isn't a
-    /// registered command. Cheap pre-filter: only a shape that could
-    /// possibly be a tracked instance receiver (a `.`-prefixed bareword —
-    /// [`super::super::tk_checks::is_widget_path`] — or any `$var`) is worth
-    /// buffering; anything else is either a genuine unknown-command typo
-    /// (W123's job) or cannot resolve regardless.
+    /// Buffer only an occurrence; the retained source owner supplies all words.
     pub(in crate::analyser) fn record_widget_dispatch_candidate(
         &mut self,
-        cmd_name: &str,
+        _cmd_name: &str,
         args: &[String],
         cmd_tok: Token,
-        arg_tokens: &[Token],
-        arg_expand_in: &[bool],
+        _arg_tokens: &[Token],
+        _arg_expand_in: &[bool],
     ) {
-        let (receiver, is_dollar) = if let Some(rest) = cmd_name.strip_prefix('$') {
-            (
-                rest.strip_prefix('{')
-                    .and_then(|r| r.strip_suffix('}'))
-                    .unwrap_or(rest),
-                true,
-            )
-        } else if super::super::tk_checks::is_widget_path(cmd_name) {
-            (cmd_name, false)
-        } else {
-            return;
-        };
-        let Some(subcommand) = args.first() else {
-            return;
-        };
-        let Some(subcommand_tok) = arg_tokens.first() else {
-            return;
-        };
-        // `arg_expand_in` is parallel to the full argv (head at index 0);
-        // the subcommand is index 1, its trailing args start at index 2.
-        let has_expand = arg_expand_in.get(1..).is_some_and(|e| e.iter().any(|&x| x));
-        self.widget_dispatch_sites.push(WidgetDispatchSite {
-            receiver: receiver.to_string(),
-            is_dollar,
-            subcommand: subcommand.clone(),
-            subcommand_span: subcommand_tok.span,
-            argc_after_subcommand: args.len().saturating_sub(1),
-            args_after_subcommand: args.get(1..).unwrap_or(&[]).to_vec(),
-            arg_tokens_after_subcommand: arg_tokens.get(1..).unwrap_or(&[]).to_vec(),
-            // `arg_expand_in` is parallel to the full argv (head at index 0),
-            // so the words after the subcommand start at index 2.
-            arg_expand_after_subcommand: arg_expand_in.get(2..).unwrap_or(&[]).to_vec(),
-            has_expand,
-            cmd_span: cmd_tok.span,
-        });
-    }
-
-    /// **W147 / W152 on an object-instance method** (E-R14).
-    ///
-    /// The instance-dispatch path is where `struct::tree`'s
-    /// `walk -order in -type bfs` lives, so it needs the same option-relation
-    /// evaluation as the ordinary command path. It uses the same shared, native
-    /// one ([`super::validity::option_relation_diagnostics`]); only the walk
-    /// that finds the words differs, because a method's words start after the
-    /// method name.
-    fn emit_instance_option_relations(
-        &mut self,
-        class: &str,
-        site: &WidgetDispatchSite,
-        sub: &'static SubCommand,
-    ) {
-        if sub.option_relations.is_empty() && sub.constraints.is_none() {
-            return;
-        }
-        let source = self.source.clone();
-        let call = super::validity::scan_invocation_words(
-            &sub.option_specs(None, None),
-            sub.option_placement,
-            &site.args_after_subcommand,
-            &site.arg_tokens_after_subcommand,
-            &site.arg_expand_after_subcommand,
-            &source,
-            site.cmd_span,
-        );
-        let display_name = format!("{class} {}", site.subcommand);
-        let relations: Vec<&'static tcl_registry::OptionRelation> =
-            sub.option_relations.iter().collect();
-        for (_, diagnostic) in super::validity::option_relation_diagnostics(
-            &display_name,
-            &relations,
-            sub.constraints,
-            &call,
-            site.cmd_span,
-        ) {
-            self.result.diagnostics.push(diagnostic);
+        if !args.is_empty() {
+            self.widget_dispatch_sites.push(WidgetDispatchSite {
+                cmd_span: cmd_tok.span,
+            });
         }
     }
 
-    /// Post-walk: resolve every buffered [`WidgetDispatchSite`] against the
-    /// (now-complete) `instance_classes`/`created_instance_commands` and
-    /// emit W001 / E002 / E003. A receiver that never resolves to a widget
-    /// class (untracked, ambiguous, or a `TclOO`/tcllib registry class
-    /// instead — those are `var_command.rs`'s job) is silently dropped, not
-    /// diagnosed: this pass only *adds* checks for widget instance
-    /// dispatch, it never re-litigates a call some other emitter already
-    /// covers or intentionally abstains on.
+    /// Query genuine source-order factory/handle receipts under the actual
+    /// `ContextRegistry`, preserving known shadow, deletion and alias barriers.
     pub(in crate::analyser) fn flush_widget_dispatch_diagnostics(
         &mut self,
         registry: &CommandRegistry,
     ) {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         let sites = std::mem::take(&mut self.widget_dispatch_sites);
+        let Some(input) = &self.result.resolved_input else {
+            return;
+        };
+        let context = input.context_registry();
+        if context.commands().snapshot().semantic_key() != registry.snapshot().semantic_key() {
+            return;
+        }
         for site in sites {
-            let is_dollar = site.is_dollar;
-            let Some(class) = self
-                .result
-                .instance_classes
-                .get(&site.receiver)
-                .filter(|_| {
-                    is_dollar
-                        || self
-                            .result
-                            .created_instance_commands
-                            .contains(&site.receiver)
-                })
+            let Some(words) =
+                crate::registry_invocation::source_structure::source_registered_instance_words_at(
+                    &self.source,
+                    &self.result,
+                    site.cmd_span.start(),
+                )
             else {
                 continue;
             };
-            // Self-referential widgets have no `ObjectClassSpec` distinct
-            // from their own `CommandSpec` — `registry.instance_method`
-            // already resolves this (`object_class` → same `subcommands`
-            // slice), so a class that resolves via the registry at all but
-            // isn't a widget (a tcllib factory, `superclasses` non-empty,
-            // …) is handled identically; nothing here is Tk-specific beyond
-            // the receiver-tracking that fed `class`.
-            let Some(spec) = registry.get(class) else {
-                continue;
-            };
-            if is_universal_widget_subcommand(&site.subcommand) {
-                continue;
-            }
-            // A class whose methods live on an `ObjectClassSpec` (every
-            // tcllib factory: `struct::tree`, `struct::graph`, …) declares
-            // them there, not in the creator command's own `subcommands`.
-            // Reading only the latter would report every such method as
-            // unknown, and would leave the option-relation check below unable
-            // to reach an instance method at all.
-            let object_class = registry.object_class(class);
-            let resolved = spec
-                .subcommands
-                .iter()
-                .find(|s: &&SubCommand| s.name == site.subcommand)
-                .or_else(|| {
-                    registry
-                        .instance_methods(class)
-                        .into_iter()
-                        .find(|s| s.name == site.subcommand)
-                });
-            let Some(sub) = resolved else {
-                if object_class.is_some_and(|class| class.allow_unknown_methods) {
-                    continue;
-                }
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W001,
-                        site.subcommand_span,
-                        format!(
-                            "Unknown subcommand '{}' for widget '{class}'",
-                            site.subcommand
-                        ),
-                        Severity::Warning,
-                    ));
-                continue;
-            };
-            if site.has_expand {
-                continue;
-            }
-            let class = class.clone();
-            self.emit_instance_option_relations(&class, &site, sub);
-            if let Some(diag) = arity_verdict(
-                &format!("{class} {}", site.subcommand),
-                sub.arity,
-                site.argc_after_subcommand,
-                false,
-                site.cmd_span,
-                None,
-                sub.primary_synopsis(),
-            ) {
-                self.result.diagnostics.push(diag);
-            }
+            self.result
+                .diagnostics
+                .extend(source_method_diagnostics(&Arc::new(words), &context));
         }
     }
 }
@@ -310,12 +243,16 @@ mod tests {
 
     #[test]
     fn w001_fires_for_unknown_widget_subcommand_bareword() {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         let src = "ttk::treeview .t\n.t bogus\n";
         assert!(has(src, "W001"), "{:?}", codes(src));
     }
 
     #[test]
     fn w001_fires_for_unknown_widget_subcommand_var() {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         let src = "set lb [listbox .l]\n$lb bogus\n";
         assert!(has(src, "W001"), "{:?}", codes(src));
     }
@@ -328,14 +265,15 @@ mod tests {
 
     #[test]
     fn w001_silent_for_configure_and_cget_though_unmodelled() {
-        // `configure`/`cget` are universal on every widget but appear in no
-        // widget's `subcommands` table — must never be flagged.
+        // The selected Registry instance table supplies both methods.
         let src = "ttk::treeview .t\n.t configure -show tree\n.t cget -show\n";
         assert!(!has(src, "W001"), "{:?}", codes(src));
     }
 
     #[test]
     fn e002_fires_for_widget_subcommand_arity() {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         // `curselection` takes no further arguments.
         let src = "set lb [listbox .l]\n$lb curselection extra\n";
         assert!(has(src, "E003"), "{:?}", codes(src));
@@ -343,6 +281,8 @@ mod tests {
 
     #[test]
     fn e002_fires_for_too_few_widget_subcommand_args() {
+        // naming.source.original-registered-instance-words
+        // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         // `move` requires exactly 3 args (item parent index).
         let src = "ttk::treeview .t\n.t move onlyone\n";
         assert!(has(src, "E002"), "{:?}", codes(src));

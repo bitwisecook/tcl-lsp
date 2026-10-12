@@ -1,0 +1,673 @@
+{
+  "original_output_directory": "/workspace/.proofs/native-method-lifetime506",
+  "outer_receipt": {
+    "path": "/workspace/.proofs/native-method-lifetime506-outer.json",
+    "sha256": "fed398db442c91ebc767d85f8e5406ad5b1d9191b50426d11d44fd6f99f58b55",
+    "exit_code": -9
+  },
+  "outer_streams": [
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506-outer.stdout",
+      "sha256": "bb3712f2670142e77cd219eeb756426faa38a9ffffb483279db54b01ebc98246"
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506-outer.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "closed_process_scope": [
+    {
+      "provider": "8.4.20",
+      "processes": {
+        "dependencies": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/dependencies.receipt.json",
+          "sha256": "bacdf24503553ac2b055150b1fc11fc86d3b97da7159e7503f482765e971576a",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "compile": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/compile.receipt.json",
+          "sha256": "914d958dcb7fd1d6d165870f47c34088485e7b1a8fde932aa6c25c63dd9d52cb",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "cli-version": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/cli-version.receipt.json",
+          "sha256": "39056f4b094e821b5393ffa8e37081f1444cd7c042b1c1c8d71bc439a27b7a52",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "execute": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/execute.receipt.json",
+          "sha256": "0c374a2379591d067a324876eb25029f7a4320db2ba8bdb2d45665faf8a77cf8",
+          "exit": 0,
+          "inputs_unchanged": true
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "processes": {
+        "dependencies": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/dependencies.receipt.json",
+          "sha256": "b15e8b83004cf1c8fd86364bd8a2ab9afc85b3c52af7d1942bb9d8cff6dfb110",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "compile": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/compile.receipt.json",
+          "sha256": "1332bd9b6cc805b17f1714943bed3dc09a5f62f1406479a29c5d3f2a6a1d78f6",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "cli-version": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/cli-version.receipt.json",
+          "sha256": "99f605e19f4cf0abc9cf62da0db68ff335c1ea68595b81b188d2f040e3864946",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "execute": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/execute.receipt.json",
+          "sha256": "c45975999b554328916dba9d6c26564b0b4f95efafed980b356341c4dda547f2",
+          "exit": 0,
+          "inputs_unchanged": true
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "processes": {
+        "dependencies": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/dependencies.receipt.json",
+          "sha256": "855ebbd759c290aecef4123cba4afead1fe3927b9f3cc7c98d1958d4e0d51c2b",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "compile": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/compile.receipt.json",
+          "sha256": "95841a01321cd65d82c865a4f785f68274046b6e6f95b563d19275494f3780f3",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "cli-version": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/cli-version.receipt.json",
+          "sha256": "0d33ca1b52709f4b1a0b990a75d0421158b47ca3ff77e3deb8eaa4fa15de9d88",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "execute": {
+          "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/execute.receipt.json",
+          "sha256": "18c7a36515a6fdd9a92178b3ecd8898e4a9b1346cf02eb2135dd526c4194c67a",
+          "exit": 0,
+          "inputs_unchanged": true
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "processes": {
+        "dependencies": {
+          "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/dependencies.receipt.json",
+          "sha256": "2ff1e67919f1bde534f24c453ef41c16fde34dca60adb3acd26d064afbf2b81e",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "compile": {
+          "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/compile.receipt.json",
+          "sha256": "6cf12498985746beb21ed72a8922706f39c2a2c33c8ca905e1fe8218d7f63e4b",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "cli-version": {
+          "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/cli-version.receipt.json",
+          "sha256": "f87659de6ed1ddab652c6d311c28b9b8b208af839006d8bee5677223a8244418",
+          "exit": 0,
+          "inputs_unchanged": true
+        },
+        "execute": {
+          "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/execute.receipt.json",
+          "sha256": "afabea441fffee5a8ebef71e07f874144d37c1be8a9bcfa33e9b7487ee048551",
+          "exit": 0,
+          "inputs_unchanged": true
+        }
+      }
+    }
+  ],
+  "remaining_scope": {
+    "9.1.0": "directory present; no reached process receipts",
+    "jim": "not reached"
+  },
+  "aggregate": "No six-provider summary or aggregate success was produced. The original capture and streams remain unchanged. Increased OOM kills in the interval do not identify a particular victim or cause.",
+  "original_output_inventory": [
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/actual-header-inputs.json",
+      "sha256": "e37208d717605e0887af4af71b486c4b73ab2861aa32951149a0f22c6dea2467",
+      "bytes": 4120
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/cli-version.receipt.json",
+      "sha256": "39056f4b094e821b5393ffa8e37081f1444cd7c042b1c1c8d71bc439a27b7a52",
+      "bytes": 64913
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/cli-version.stdout",
+      "sha256": "69ac44f60c54e7cdf017237ed3b5a03948186faf298cd6334b12185230691ad9",
+      "bytes": 51
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/compile.receipt.json",
+      "sha256": "914d958dcb7fd1d6d165870f47c34088485e7b1a8fde932aa6c25c63dd9d52cb",
+      "bytes": 64631
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/compile.stdout",
+      "sha256": "c92967bae293ee863496dfacc5997f4b28b3ac1c5d8b88195f8eaba557c88056",
+      "bytes": 1306
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/dependencies.receipt.json",
+      "sha256": "bacdf24503553ac2b055150b1fc11fc86d3b97da7159e7503f482765e971576a",
+      "bytes": 56931
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/execute.receipt.json",
+      "sha256": "0c374a2379591d067a324876eb25029f7a4320db2ba8bdb2d45665faf8a77cf8",
+      "bytes": 64909
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/execute.stdout",
+      "sha256": "06174ebe0db7d0c5c863bf0a8a44e4d948ad8c1016d89a51625b738e2e3bcb4e",
+      "bytes": 324
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/probe.dependencies",
+      "sha256": "99da08a016c34f80a4680385e3d9489810dd907222d27831074455002b08a0a3",
+      "bytes": 1664
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/probe.elf",
+      "sha256": "a95d655a93be191f90796449b1d0a7193cc8a76548aa9825f4fb222ed1554e84",
+      "bytes": 859144
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.4.20/receipt.json",
+      "sha256": "f2087738b0dca365dac24ae523b6f62422f0b5e19b7799c785c4c8f9d44c3fcb",
+      "bytes": 332429
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/actual-header-inputs.json",
+      "sha256": "04cc654c18fab7fe2cebef9809e2ef62aa17de7612993977652d833d97a79eea",
+      "bytes": 4120
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/cli-version.receipt.json",
+      "sha256": "99f605e19f4cf0abc9cf62da0db68ff335c1ea68595b81b188d2f040e3864946",
+      "bytes": 65948
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/cli-version.stdout",
+      "sha256": "fa8218083a6c4772a38aef334f963db57b782fb147b081a4e54029ac12979753",
+      "bytes": 51
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/compile.receipt.json",
+      "sha256": "1332bd9b6cc805b17f1714943bed3dc09a5f62f1406479a29c5d3f2a6a1d78f6",
+      "bytes": 65666
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/compile.stdout",
+      "sha256": "fc17ba73e25a091b7bb0981ca55ad3fedab4bab3d97efb525ac321cfde8d7cb2",
+      "bytes": 1306
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/dependencies.receipt.json",
+      "sha256": "b15e8b83004cf1c8fd86364bd8a2ab9afc85b3c52af7d1942bb9d8cff6dfb110",
+      "bytes": 57966
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/execute.receipt.json",
+      "sha256": "c45975999b554328916dba9d6c26564b0b4f95efafed980b356341c4dda547f2",
+      "bytes": 65944
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/execute.stdout",
+      "sha256": "eefcd2d65d1cd8eba98ff239141ada164aba465c3e438384f74ab408ff4d6796",
+      "bytes": 324
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/probe.dependencies",
+      "sha256": "d0d7274bb8870f5cba11a617e304e59e2e16438cc44ad7a94bb3e5cdf1f245ff",
+      "bytes": 1664
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/probe.elf",
+      "sha256": "6a2a66c92f16ab4e82e545f7b3871ba01f5b5eae4c5b6e3c18ddd13f3df7a5cf",
+      "bytes": 1254192
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.5.19/receipt.json",
+      "sha256": "ae18b88f7447ab86b8ee2a698b6830ba0f0035539961e53233ba740e8d3c9861",
+      "bytes": 337150
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/actual-header-inputs.json",
+      "sha256": "e4e56c603199582e3471719900c38c7d5e8642455eaa36008f188f01b5c32771",
+      "bytes": 4369
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/cli-version.receipt.json",
+      "sha256": "0d33ca1b52709f4b1a0b990a75d0421158b47ca3ff77e3deb8eaa4fa15de9d88",
+      "bytes": 67998
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/cli-version.stdout",
+      "sha256": "309b0a811ccac2be1e22a17442a72d66263f39df7119f4e4430d912f257f67c9",
+      "bytes": 51
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/compile.receipt.json",
+      "sha256": "95841a01321cd65d82c865a4f785f68274046b6e6f95b563d19275494f3780f3",
+      "bytes": 67727
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/compile.stdout",
+      "sha256": "0f78212541a5960d1f084edf47c7ec4d1baab817365cab84e8ca165662430d59",
+      "bytes": 1373
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/dependencies.receipt.json",
+      "sha256": "855ebbd759c290aecef4123cba4afead1fe3927b9f3cc7c98d1958d4e0d51c2b",
+      "bytes": 60016
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/execute.receipt.json",
+      "sha256": "18c7a36515a6fdd9a92178b3ecd8898e4a9b1346cf02eb2135dd526c4194c67a",
+      "bytes": 67993
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/execute.stdout",
+      "sha256": "9475381f48109d3d441f648731701dfa54e1934a10df8e6b431e3efca139587c",
+      "bytes": 56808
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/probe.dependencies",
+      "sha256": "63dd75c8708f3a6e3eeb7d6b5b489096be86becb650e2633747edb8ccfe1b523",
+      "bytes": 1823
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/probe.elf",
+      "sha256": "1a6f13bdb489df8a19f3518ac2552e8781a0f4deb01992d1e3d030b8513e63b6",
+      "bytes": 1871608
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/8.6.18/receipt.json",
+      "sha256": "0ee127d8bc7ba273d99e8479081390f5139b60f89a89d07e345c6e25e0f7a1e2",
+      "bytes": 346662
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/actual-header-inputs.json",
+      "sha256": "fdd403b0cfcc815fda33603335cd48f5f59f9764af9da76da59e9d022495b6b5",
+      "bytes": 4364
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/cli-version.receipt.json",
+      "sha256": "f87659de6ed1ddab652c6d311c28b9b8b208af839006d8bee5677223a8244418",
+      "bytes": 69706
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/cli-version.stdout",
+      "sha256": "d730ef57fc09d7a447b9d43f142eaa52a6b1d7c756e152d8e457366c22f8f3b0",
+      "bytes": 49
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/compile.receipt.json",
+      "sha256": "6cf12498985746beb21ed72a8922706f39c2a2c33c8ca905e1fe8218d7f63e4b",
+      "bytes": 69435
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/compile.stdout",
+      "sha256": "ea490b4ae2a0ef8577d94f3ef07747df12741ef02e119947fb4a85a88c5b103b",
+      "bytes": 1372
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/dependencies.receipt.json",
+      "sha256": "2ff1e67919f1bde534f24c453ef41c16fde34dca60adb3acd26d064afbf2b81e",
+      "bytes": 61724
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/execute.receipt.json",
+      "sha256": "afabea441fffee5a8ebef71e07f874144d37c1be8a9bcfa33e9b7487ee048551",
+      "bytes": 69703
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/execute.stdout",
+      "sha256": "a1594ea1ba9f44b96dc99d2b78eaf92739837ea34ef28452d057a4ae247a4b6a",
+      "bytes": 56810
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/probe.dependencies",
+      "sha256": "0f6486d3bc562e7684169b3940b699ae066797ebf98ece67d8a62d0026e6933e",
+      "bytes": 1817
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/probe.elf",
+      "sha256": "c6703db008c3c93cbd16b03cab304091a97cf6044d086cad43a09d579cdc8fc3",
+      "bytes": 2279272
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/9.0.4/receipt.json",
+      "sha256": "aedfae9a28a36e8168f1ede7d0cfc187faceb5aa0cd2cfcbec03d6bc3d65057e",
+      "bytes": 354459
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/compiler-version.receipt.json",
+      "sha256": "1e8226839783257af47522bf431400759f594580651e3fd0b0c251c56cca4137",
+      "bytes": 40546
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/active-next.tcl",
+      "sha256": "107ae05a15eb6f92ae0a5cce5028ba6ce5cbf7ea4c726b4367f9f95595d240b8",
+      "bytes": 249
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/availability.tcl",
+      "sha256": "e96cb98ed4321ee2c4994574d95f992d0a50f8ffec480e0c1db11bb394a11e6e",
+      "bytes": 85
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/c-version.tcl",
+      "sha256": "0e4973e37df90a3d43c7863a53fbbd057dde507b54eadfcfa6e66b641bfde0f9",
+      "bytes": 54
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/capture.py",
+      "sha256": "86b75642600294b4e1384bd2a2207ac9562564f42bffc3b9d52b0476b4cb58b0",
+      "bytes": 7962
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/delete-method.tcl",
+      "sha256": "93d94f4f89f6a8c35d22f8e81d2f68591524c744bd3be1e231407bdbc9bf6f4a",
+      "bytes": 39
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/destroy-class.tcl",
+      "sha256": "c35f47bbfc236da928fe98085b7b6290aa39538a40a383089fa30da806214e34",
+      "bytes": 21
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/jim-version-probe.tcl",
+      "sha256": "06da7d50c8fbc4dad05c55acff7ab4692095879b112996b75cfd4f7adb393437",
+      "bytes": 44
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/jim-version.tcl",
+      "sha256": "7ac778f7f7d6a8b7a6b655858676620395ff7f2c0817cdc34a46124d7e0643de",
+      "bytes": 51
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/launch-plan.json",
+      "sha256": "d2c17d6354e90c62c9618714fae8fac76a2ff3c478e9ac34d717159a163c096f",
+      "bytes": 85528
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/manifest.json",
+      "sha256": "bcf46f180d8c6afbe281c089cb079c144b1ce7226cdc2a570f18b002b7a84a9d",
+      "bytes": 7030
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/probe.c",
+      "sha256": "f9a0297497e166c9700cbd4fddc3f86e6492e028ed3bbc9691ea2be76c5328e6",
+      "bytes": 13432
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/request.json",
+      "sha256": "6a48902aed3ba0f246c64f3bb7bb29078715ee838a35b486f6464cf3ac3617f9",
+      "bytes": 80218
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/setup.tcl",
+      "sha256": "8918ec00359c0cd67010b7226050e0490c9b9c0962a5979929b2abaac03cbfff",
+      "bytes": 127
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.4.20/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "bytes": 84169
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "bytes": 203688
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.5.19/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "bytes": 86963
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "bytes": 203084
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.6.18/tclOO.h",
+      "sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "bytes": 4284
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.6.18/tclOOCall.c",
+      "sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "bytes": 47228
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.6.18/tclOODecls.h",
+      "sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "bytes": 9677
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "bytes": 70128
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.6.18/tclOOInt.h",
+      "sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "bytes": 24191
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/8.6.18/tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "bytes": 50906
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.0.4/tclOO.h",
+      "sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "bytes": 5663
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.0.4/tclOOCall.c",
+      "sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "bytes": 63872
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.0.4/tclOODecls.h",
+      "sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "bytes": 11299
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "bytes": 115346
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.0.4/tclOOInt.h",
+      "sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "bytes": 30426
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.0.4/tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "bytes": 58997
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.1.0/tclOO.h",
+      "sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "bytes": 5729
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.1.0/tclOOCall.c",
+      "sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "bytes": 64701
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.1.0/tclOODecls.h",
+      "sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "bytes": 12613
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "bytes": 111662
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.1.0/tclOOInt.h",
+      "sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "bytes": 32133
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/9.1.0/tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "bytes": 60880
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "bytes": 56502
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/source-windows.json",
+      "sha256": "3cc32b210120d60c2a2099c32d8bc79bcaea838db3aba158a9111c7bc72a440b",
+      "bytes": 62888
+    },
+    {
+      "path": "/workspace/.proofs/native-method-lifetime506/original-request/version-probe.tcl",
+      "sha256": "7c7dd5703a0b7dd07cc1b060be0263d994d17e1bbe6a58719fdb43d846a88905",
+      "bytes": 38
+    }
+  ]
+}

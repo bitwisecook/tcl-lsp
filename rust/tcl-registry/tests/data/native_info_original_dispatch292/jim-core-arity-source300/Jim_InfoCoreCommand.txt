@@ -1,0 +1,85 @@
+/* [info] */
+static int Jim_InfoCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    Jim_Obj *objPtr;
+    int mode = 1;
+
+    /* Must be kept in order with the array below */
+    enum {
+        INFO_ALIAS,
+        INFO_ALIASES,
+        INFO_ARGS,
+        INFO_BODY,
+        INFO_CHANNELS,
+        INFO_COMMANDS,
+        INFO_COMPLETE,
+        INFO_EXISTS,
+        INFO_FRAME,
+        INFO_GLOBALS,
+        INFO_HELP,
+        INFO_HOSTNAME,
+        INFO_LEVEL,
+        INFO_LOCALS,
+        INFO_NAMEOFEXECUTABLE,
+        INFO_PATCHLEVEL,
+        INFO_PROCS,
+        INFO_REFERENCES,
+        INFO_RETURNCODES,
+        INFO_SCRIPT,
+        INFO_SOURCE,
+        INFO_STACKTRACE,
+        INFO_STATICS,
+        INFO_TAINTED,
+        INFO_USAGE,
+        INFO_VARS,
+        INFO_VERSION,
+        INFO_COUNT
+    };
+    static const jim_subcmd_type cmds[INFO_COUNT + 1] = {
+        JIM_DEF_SUBCMD("alias", "command", 1, 1),
+        JIM_DEF_SUBCMD("aliases", "?-all? ?pattern?", 0, 2),
+        JIM_DEF_SUBCMD("args", "procname", 1, 1),
+        JIM_DEF_SUBCMD("body", "procname", 1, 1),
+        JIM_DEF_SUBCMD("channels", "?-all? ?pattern?", 0, 2),
+        JIM_DEF_SUBCMD("commands", "?-all? ?pattern?", 0, 2),
+        JIM_DEF_SUBCMD("complete", "script ?missing?", 1, 2),
+        JIM_DEF_SUBCMD("exists", "varName", 1, 1),
+        JIM_DEF_SUBCMD("frame", "?levelNum?", 0, 1),
+        JIM_DEF_SUBCMD("globals", "?pattern?", 0, 1),
+        JIM_DEF_SUBCMD("help", "command", 1, 1),
+        JIM_DEF_SUBCMD("hostname", NULL, 0, 0),
+        JIM_DEF_SUBCMD("level", "?levelNum?", 0, 1),
+        JIM_DEF_SUBCMD("locals", "?pattern?", 0, 1),
+        JIM_DEF_SUBCMD("nameofexecutable", NULL, 0, 0),
+        JIM_DEF_SUBCMD("patchlevel", NULL, 0, 0),
+        JIM_DEF_SUBCMD("procs", "?-all? ?pattern?", 0, 2),
+        JIM_DEF_SUBCMD("references", NULL, 0, 0),
+        JIM_DEF_SUBCMD("returncodes", "?code?", 0, 1),
+        JIM_DEF_SUBCMD("script", "?filename?", 0, 1),
+        JIM_DEF_SUBCMD("source", "source ?filename line?", 1, 3),
+        JIM_DEF_SUBCMD("stacktrace", NULL, 0, 0),
+        JIM_DEF_SUBCMD("statics", "procname", 1, 1),
+        JIM_DEF_SUBCMD("tainted", "value", 1, 1),
+        JIM_DEF_SUBCMD("usage", "command", 1, 1),
+        JIM_DEF_SUBCMD("vars", "?pattern?", 0, 1),
+        JIM_DEF_SUBCMD("version", NULL, 0, 0),
+        { NULL }
+    };
+    const jim_subcmd_type *ct;
+#ifdef jim_ext_namespace
+    int nons = 0;
+
+    if (argc > 2 && Jim_CompareStringImmediate(interp, argv[1], "-nons")) {
+        /* This is for internal use only */
+        argc--;
+        argv++;
+        nons = 1;
+    }
+#endif
+    ct = Jim_ParseSubCmd(interp, cmds, argc, argv);
+    if (!ct) {
+        return JIM_ERR;
+    }
+    if (ct->function) {
+        /* This is -help or -commands */
+        return ct->function(interp, argc, argv);

@@ -1,0 +1,165 @@
+Invoked as: ./configure --prefix=/workspace/.proofs/native-providers/jimtcl/install
+Tclsh: /usr/bin/tclsh
+Failed: cc -c conftest__.c -o conftest__.o
+conftest__.c:1:10: fatal error: util.h: No such file or directory
+    1 | #include <util.h>
+      |          ^~~~~~~~
+compilation terminated.
+child process exited abnormally
+============
+The failed code was:
+#include <util.h>
+int main(void) {
+
+return 0;
+}
+============
+Failed: cc -c conftest__.c -o conftest__.o
+conftest__.c:1:10: fatal error: crt_externs.h: No such file or directory
+    1 | #include <crt_externs.h>
+      |          ^~~~~~~~~~~~~~~
+compilation terminated.
+child process exited abnormally
+============
+The failed code was:
+#include <crt_externs.h>
+int main(void) {
+
+return 0;
+}
+============
+Failed: cc -c conftest__.c -o conftest__.o
+conftest__.c: In function ‘main’:
+conftest__.c:3:12: error: size of array ‘_x’ is negative
+    3 | static int _x[sizeof(time_t) == 4 ? 1 : -1] = { 1 };
+      |            ^~
+child process exited abnormally
+============
+The failed code was:
+#include <time.h>
+int main(void) {
+static int _x[sizeof(time_t) == 4 ? 1 : -1] = { 1 };
+return 0;
+}
+============
+Failed: cc conftest__.c -o conftest__
+/usr/bin/ld: /tmp/cc0kD16K.o: in function `main':
+conftest__.c:(.text+0x5): undefined reference to `sys_signame'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void sys_signame(void);
+int main(void) {
+sys_signame();
+return 0;
+}
+============
+Failed: cc conftest__.c -o conftest__
+/usr/bin/ld: /tmp/ccyfMqPg.o: in function `main':
+conftest__.c:(.text+0x5): undefined reference to `sys_siglist'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void sys_siglist(void);
+int main(void) {
+sys_siglist();
+return 0;
+}
+============
+Failed: cc -c conftest__.c -o conftest__.o
+conftest__.c: In function ‘main’:
+conftest__.c:4:40: error: ‘struct stat’ has no member named ‘st_mtimespec’
+    4 | static struct stat _s; return sizeof(_s.st_mtimespec);
+      |                                        ^
+child process exited abnormally
+============
+The failed code was:
+#include <sys/types.h>
+#include <sys/stat.h>
+int main(void) {
+static struct stat _s; return sizeof(_s.st_mtimespec);
+return 0;
+}
+============
+Failed: cc -c conftest__.c -o conftest__.o
+conftest__.c: In function ‘main’:
+conftest__.c:3:12: error: size of array ‘_x’ is negative
+    3 | static int _x[sizeof(off_t) == 4 ? 1 : -1] = { 1 };
+      |            ^~
+child process exited abnormally
+============
+The failed code was:
+#include <sys/types.h>
+int main(void) {
+static int _x[sizeof(off_t) == 4 ? 1 : -1] = { 1 };
+return 0;
+}
+============
+Failed: cc conftest__.c -o conftest__
+/usr/bin/ld: /tmp/ccftMpCr.o: in function `main':
+conftest__.c:(.text+0x5): undefined reference to `_NSGetEnviron'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void _NSGetEnviron(void);
+int main(void) {
+_NSGetEnviron();
+return 0;
+}
+============
+Failed: cc -c conftest__.c -o conftest__.o
+conftest__.c: In function ‘main’:
+conftest__.c:4:1: error: too few arguments to function ‘mkdir’
+    4 | mkdir("/dummy");
+      | ^~~~~
+In file included from conftest__.c:2:
+/usr/include/x86_64-linux-gnu/sys/stat.h:389:12: note: declared here
+  389 | extern int mkdir (const char *__path, __mode_t __mode)
+      |            ^~~~~
+child process exited abnormally
+============
+The failed code was:
+#include <sys/types.h>
+#include <sys/stat.h>
+int main(void) {
+mkdir("/dummy");
+return 0;
+}
+============
+Failed: cc conftest__.c -o conftest__
+conftest__.c:1:13: warning: conflicting types for built-in function ‘sin’; expected ‘double(double)’ [-Wbuiltin-declaration-mismatch]
+    1 | extern void sin(void);
+      |             ^~~
+conftest__.c:1:1: note: ‘sin’ is declared in header ‘<math.h>’
+  +++ |+#include <math.h>
+    1 | extern void sin(void);
+/usr/bin/ld: /tmp/ccbNIkJm.o: in function `main':
+conftest__.c:(.text+0x5): undefined reference to `sin'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void sin(void);
+int main(void) {
+sin();
+return 0;
+}
+============
+pkg-config --modversion openssl : 3.5.7
+Failed: cc conftest__.c -o conftest__ -lm
+/usr/bin/ld: /tmp/cc5pnsrn.o: in function `main':
+conftest__.c:(.text+0x5): undefined reference to `TLS_method'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void TLS_method(void);
+int main(void) {
+TLS_method();
+return 0;
+}
+============
+pkg-config --modversion zlib : 1.3.1

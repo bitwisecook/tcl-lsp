@@ -24,6 +24,9 @@ command foreach {
     # command's name (issue #1185).
     repeat LoopVarList -from 0 -stride 2 -exclude-trailing 1
 
+    # Evaluated cardinality is independent of literal list-value availability.
+    arg_role_count_resolver -native foreach::arg_role_count_resolver
+
     # The binder groups are the layout above — the group row cites it rather
     # than restating the stride — and the body, the last word, runs once per
     # iteration.  At least one whole group is needed, so the body is the last

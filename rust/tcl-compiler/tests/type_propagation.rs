@@ -171,8 +171,17 @@ fn command_return_types() {
     assert_eq!(tcl_type("set x [join {a b c} ,]", "x"), TclType::String);
     // tclsh: `string length hello` -> 5, `string is integer 5` = 1 => Int
     assert_eq!(tcl_type("set x [string length hello]", "x"), TclType::Int);
-    // tclsh: `concat {a b} {c d}` -> "a b c d", `string is list` = 1 => List
-    assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::List);
+    // Native C8.4–9.1 concat windows retain NULL/String result headers.
+    // `string is list` can convert these bytes; it does not prove a List header.
+    assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::String);
+}
+
+#[test]
+fn concat_string_results_do_not_donate_list_representations() {
+    // Real C Tcl accepts this concatenation, then rejects it as a list.
+    assert_eq!(tcl_type("set x [concat \\{ foo]", "x"), TclType::String);
+    // A valid list value also retains the selected String result classification.
+    assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::String);
 }
 
 // expr known int

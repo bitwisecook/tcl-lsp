@@ -1,0 +1,23 @@
+{
+  "provider_key": "jim",
+  "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+  "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+  ],
+  "invoked_file": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "invoked_file_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "exit": 1,
+  "seconds": 0.00911837798776105,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "91daf4b9065a360f5cb67415b12004217807028447ecb8d5f0937be3b61e5a06",
+  "version_command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/property-report-native335/version.tcl"
+  ],
+  "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+  "version_exit": 0,
+  "version_stdout_sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+  "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

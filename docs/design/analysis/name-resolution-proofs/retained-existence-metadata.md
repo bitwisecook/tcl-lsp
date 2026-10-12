@@ -1,0 +1,92 @@
+# naming.compiler.retained-existence-metadata
+
+Kind: `implementation-contract`
+
+## Problem statement
+
+A conditional source existence query can name a dependency without establishing current runtime presence. Positioned original queries and unpositioned Logical syntax require independent supplied-input admission, not a nominal catalogue label.
+
+## Question
+
+How do existence consumers retain complete actual availability while keeping genuine positioned source queries, name dependencies and positively retained Logical unpositioned syntax separate from Native presence?
+
+## Conclusion
+
+The existence-query metadata siblings consume actual borrowed availability and genuine original tokens/site/config. A positioned source diagnostic query can retain an existence name dependency while the independent Native query proof remains unavailable. Missing or foreign metadata is terminal. Unpositioned expression recognition additionally requires InvocationMetadataContext::permits_logical_source_names from a positive actual ResolvedAnalysisInput; availability-only ContextRegistry, missing input, Native input and dynamic name expressions cannot donate that Logical source purpose. Conditional SCCP existence branches retain the same actual owner and their independent store/read-absence premises. None of this metadata or source recognition proves current variable/command presence, a closed read, physical cell/cache/header identity, entered handler/frame or a completed branch result. QueryReading carries the complete actual CFG metadata producer, source lexer policy, original parent tokens and expression base into conditional consumers. Positioned supplied expression/token queries retain each original nested lookup horizon; missing source geometry, foreign metadata or incompatible grammar refuses. Detached text recognition is available only to explicitly standalone CFGs. SuppliedMissing and availability without the original source carrier cannot select that fallback. This source dependency transport supplies no evaluated query, Native presence, closed read or branch erasure.
+
+## Scope
+
+Marked source/API controls exercise genuine positioned dependency advice versus absent Native query proof, missing/foreign store refusal, and unpositioned positive Logical input versus availability-only/Native/dynamic refusal. All seven providers are not tested for these API assertions. Existing original native existence/name/header observations and separate closed presence/read-absence owners retain their own scopes. Diagnostic collect_existence_guards uses actual FunctionUnit metadata with exact selected lexer-policy agreement. Genuine positioned queries retain original source context and an independent canonical place join; unpositioned syntax requires positive retained Logical input. A custom descriptor availability control retains one conditional guard under actual C9.0 and withdraws it under same-store C8.4, missing or foreign input. Guard blocks and name dependencies provide source branch advice only, not an executed query result, current contents or Native presence. The unpositioned control defines the CFG-reading boundary: explicit standalone syntax can be recognised, while independently positive supplied Logical input still needs positioned original geometry and missing supplied ownership remains unavailable. These are software assertion definitions, not executed test or provider results.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+### tcl8.5
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+### tcl8.6
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+### tcl9.0
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+### tcl9.1
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+
+No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
+
+## Exact evidence
+
+- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-existence_query.rs` (implementation): [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs). SHA-256 `a8aa40ae91bf84400722a17b2fe9614069c697ba7db8b04b2d5b8d6da90457f2`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
+- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-registry_invocation-metadata_context.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). SHA-256 `d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `in_tokens_for_diagnostics_with_metadata_context`: Retain genuine positioned source query/name dependency under actual availability and original tokens without issuing current Native presence.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `in_tokens_with_metadata_context`: Require the independent original query purpose in addition to supplied actual metadata; source name advice does not substitute.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `in_expr_with_metadata_context`: Recognise unpositioned source existence syntax only with positive retained Logical input and selected source grammar.
+- [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs), `InvocationMetadataContext::permits_logical_source_names`: Require actual retained positive Logical input independently of metadata availability or any Native presence/contents grant.
+- [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs), `collect_existence_guards`: Join actual FunctionUnit metadata and retained lexer policy with genuine positioned query/name dependencies or separately admitted Logical syntax; no executed query or presence grant.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `QueryReading`: Retain complete actual CFG input, metadata, selected lexer policy, authentic parent tokens and expression base; supplied missing/foreign/configuration refusal is terminal, while detached text remains explicitly standalone.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `QueryReading::original_command`: Retain the original nested command and its own lookup horizon using exact parent geometry and expression base; supplied input is not a detached parser or evaluated-argv receipt.
+- [rust/tcl-compiler/src/sccp.rs](../../../../rust/tcl-compiler/src/sccp.rs), `query_only_places`: Select genuine original expression leaves and lifted nested command tokens under per-site CFG ownership, preserving actual source grammar and separate existence dependencies rather than relexing with a donor profile.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `existence_query::tests::original_existence_metadata_keeps_genuine_advice_and_declines_missing_foreign_input` (linked): A genuine original info-exists token retains the conditional name dependency under current metadata, while Native query proof stays absent; missing and foreign actual owners refuse both interpretations.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs), `existence_query::tests::original_unpositioned_existence_requires_retained_logical_input` (linked): Actual positive Logical input recognises exact source existence syntax; availability-only context, missing input, Native input and dynamic name operands refuse. The CFG-reading control distinguishes explicitly standalone text recognition from supplied original-site requirements: positive input alone cannot replace missing positioned source geometry, and SuppliedMissing cannot reopen standalone parsing. No physical presence, executed query or completed branch is asserted.
+- [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs), `analyser::diagnostics::helpers::exact_cell_diagnostic_tests::original_existence_guards_use_retained_availability_and_refuse_missing_foreign` (linked): A genuinely retained Logical query with exact scalar(open name yields one conditional source guard under current custom descriptor availability. Same-store older availability, missing input and foreign store withhold it; no actual query result or current contents is asserted.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.

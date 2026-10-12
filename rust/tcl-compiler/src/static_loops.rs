@@ -43,6 +43,14 @@ use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_shapes::is_static_var_word;
 use crate::value_transfer::{LatticeDriver, StateStep};
 
+mod original_simulation;
+pub use original_simulation::{
+    StaticExpressionObligation, StaticIncrementObligation, StaticLoopAnalysis, StaticLoopSummary,
+    analyse_for_statement_with_dependencies, evaluate_expr_with_constants,
+    evaluate_expr_with_constants_and_math_bindings, parse_literal_value,
+    summarise_for_statement_with_dependencies, summarise_for_statement_with_math_bindings,
+};
+
 /// Default cap on iteration count — beyond this we give up and
 /// return `None` rather than simulate any further.
 pub const DEFAULT_MAX_STATIC_LOOP_ITERS: u64 = 4096;

@@ -33,10 +33,11 @@ const TCL9_SCALAR_STRING_SEMANTICS: u32 = 2;
 /// answers 2. Appended rather than renumbered, because these variants are
 /// stable.
 const TCL84_BMP_STRING_SEMANTICS: u32 = 3;
+const JIM084_UTF8_STRING_SEMANTICS: u32 = 4;
 
 /// Width of the release-variant field, the low bits of a guarded semantics
 /// key.
-const VARIANT_BITS: u32 = 2;
+const VARIANT_BITS: u32 = 3;
 /// Width of the revision field, above the release variant.
 const REVISION_BITS: u32 = 14;
 /// Where a member's own [`IntrinsicId::stable_id`] sits in its keys: the
@@ -58,7 +59,7 @@ const MAX_MEMBER_ID: u32 = u32::MAX >> MEMBER_SHIFT;
 /// One explicit row per member, matched by [`IntrinsicId::stable_id`] and
 /// never by declaration order; the length is the catalogue's, so a member
 /// added without a row fails to compile.
-const SEMANTICS_REVISION: [(IntrinsicId, u32); 28] = [
+const SEMANTICS_REVISION: [(IntrinsicId, u32); 34] = [
     (IntrinsicId::ListAssign, 0),
     (IntrinsicId::ListLength, 0),
     (IntrinsicId::ListIndex, 0),
@@ -87,6 +88,12 @@ const SEMANTICS_REVISION: [(IntrinsicId, u32); 28] = [
     (IntrinsicId::ArraySize, 0),
     (IntrinsicId::Concat, 0),
     (IntrinsicId::ChannelWrite, 0),
+    (IntrinsicId::InfoCommandsResolve, 0),
+    (IntrinsicId::InfoLevel, 0),
+    (IntrinsicId::ProcedureNoOp, 0),
+    (IntrinsicId::NamespaceCurrent, 0),
+    (IntrinsicId::NamespaceOrigin, 0),
+    (IntrinsicId::NamespaceCode, 0),
 ];
 
 /// One `'static` list of a member's keys, one per release variant it may
@@ -146,6 +153,10 @@ pub enum IntrinsicId {
     Regexp,
     /// Test whether a variable exists.
     InfoExists,
+    /// Resolve an absolute literal command name and return its singleton list, or an empty list.
+    InfoCommandsResolve,
+    /// Native stack-level introspection.
+    InfoLevel,
     /// Test whether an array variable exists.
     ArrayExists,
     /// Return array element names.
@@ -160,6 +171,14 @@ pub enum IntrinsicId {
     /// still select only invocation forms whose option and channel shape they
     /// implement directly.
     ChannelWrite,
+    /// Native compiler result for an empty non-precompiled variadic procedure.
+    ProcedureNoOp,
+    /// Return the namespace of the currently executing activation.
+    NamespaceCurrent,
+    /// Resolve a command's original imported identity in the current namespace.
+    NamespaceOrigin,
+    /// Build a prefix that captures the runtime namespace around a literal script.
+    NamespaceCode,
 }
 
 /// The contract family of an intrinsic: what state a fast path for it may
@@ -175,12 +194,13 @@ pub enum IntrinsicFamily {
     /// A function of its argument values alone, computed by a shared core in
     /// `tcl-cmd-core`: it reaches no variable, array, or channel state.
     Value,
-    /// An operation over a runtime's variable-store or channel adapter, which
-    /// each runtime owns and which re-enters script through traces.
+    /// An operation over a runtime-owned state adapter. Variable and channel
+    /// operations can re-enter script through traces; namespace and activation
+    /// reads retain their own independent entry proofs.
     FamilyB {
-        /// The domain a guard for the member must cover beyond the dispatch
+        /// The domains a guard for the member must cover beyond the dispatch
         /// dependencies of its command.
-        domain: GuardDomain,
+        domains: GuardDomains,
         /// Whether the operation runs a variable's traces while only
         /// observing it: `info exists` a read trace, the array queries an
         /// array trace. An operation that stores runs its write traces as
@@ -192,13 +212,13 @@ pub enum IntrinsicFamily {
 impl IntrinsicFamily {
     /// A Family-B member that stores through an adapter.
     const STORES: Self = Self::FamilyB {
-        domain: GuardDomain::VariableTrace,
+        domains: GuardDomains::one(GuardDomain::VariableTrace),
         fires_traces: false,
     };
 
     /// A Family-B member that observes a variable and runs its traces.
     const OBSERVES_AND_FIRES: Self = Self::FamilyB {
-        domain: GuardDomain::VariableTrace,
+        domains: GuardDomains::one(GuardDomain::VariableTrace),
         fires_traces: true,
     };
 
@@ -207,7 +227,7 @@ impl IntrinsicFamily {
     pub const fn guard_domains(self) -> GuardDomains {
         match self {
             Self::Value => GuardDomains::EMPTY,
-            Self::FamilyB { domain, .. } => GuardDomains::one(domain),
+            Self::FamilyB { domains, .. } => domains,
         }
     }
 
@@ -250,11 +270,17 @@ impl IntrinsicId {
         Self::StringIs,
         Self::Regexp,
         Self::InfoExists,
+        Self::InfoCommandsResolve,
+        Self::InfoLevel,
         Self::ArrayExists,
         Self::ArrayNames,
         Self::ArraySize,
         Self::Concat,
         Self::ChannelWrite,
+        Self::ProcedureNoOp,
+        Self::NamespaceCurrent,
+        Self::NamespaceOrigin,
+        Self::NamespaceCode,
     ];
 
     /// Explicit stable scalar identity for offline artefacts and runtime guards.
@@ -287,11 +313,17 @@ impl IntrinsicId {
             Self::StringIs => 0x0307,
             Self::Regexp => 0x0401,
             Self::InfoExists => 0x0501,
+            Self::InfoCommandsResolve => 0x0502,
+            Self::InfoLevel => 0x0503,
             Self::ArrayExists => 0x0601,
             Self::ArrayNames => 0x0602,
             Self::ArraySize => 0x0603,
             Self::Concat => 0x0701,
             Self::ChannelWrite => 0x0801,
+            Self::ProcedureNoOp => 0x0901,
+            Self::NamespaceCurrent => 0x0A01,
+            Self::NamespaceOrigin => 0x0A02,
+            Self::NamespaceCode => 0x0A03,
         }
     }
 
@@ -329,6 +361,22 @@ impl IntrinsicId {
             | Self::StringIs
             | Self::Regexp
             | Self::ChannelWrite => IntrinsicFamily::STORES,
+            Self::ProcedureNoOp => IntrinsicFamily::Value,
+            Self::InfoCommandsResolve | Self::NamespaceOrigin | Self::NamespaceCode => {
+                IntrinsicFamily::FamilyB {
+                    domains: GuardDomains::one(GuardDomain::CommandEnvironment)
+                        .with(GuardDomain::Namespace),
+                    fires_traces: false,
+                }
+            }
+            Self::NamespaceCurrent => IntrinsicFamily::FamilyB {
+                domains: GuardDomains::one(GuardDomain::Namespace),
+                fires_traces: false,
+            },
+            Self::InfoLevel => IntrinsicFamily::FamilyB {
+                domains: GuardDomains::one(GuardDomain::Interpreter),
+                fires_traces: false,
+            },
             Self::InfoExists | Self::ArrayExists | Self::ArrayNames | Self::ArraySize => {
                 IntrinsicFamily::OBSERVES_AND_FIRES
             }
@@ -387,13 +435,14 @@ impl IntrinsicId {
         (self.stable_id() << MEMBER_SHIFT) | (revision << VARIANT_BITS) | release_variant
     }
 
-    /// The release variant this member's guarded contract has on `runtime`.
-    const fn release_variant(self, runtime: TclVersion) -> u32 {
+    /// Select the character-model facet; activation proof is independent.
+    const fn character_variant(self, characters: StringCharacterModel) -> u32 {
         match self {
-            Self::StringLength => match runtime.string_character_model() {
+            Self::StringLength => match characters {
                 StringCharacterModel::BmpCharsElseUtf8Bytes => TCL84_BMP_STRING_SEMANTICS,
                 StringCharacterModel::Utf16CodeUnits => TCL8_UTF16_STRING_SEMANTICS,
                 StringCharacterModel::UnicodeScalars => TCL9_SCALAR_STRING_SEMANTICS,
+                StringCharacterModel::Jim084Utf8 => JIM084_UTF8_STRING_SEMANTICS,
             },
             _ => RUNTIME_INVARIANT_SEMANTICS,
         }
@@ -412,11 +461,17 @@ impl IntrinsicId {
     /// values.
     #[must_use]
     pub const fn guard_semantics_key(self, runtime: TclVersion) -> u32 {
-        self.semantics_key(self.release_variant(runtime), &SEMANTICS_REVISION)
+        self.guard_semantics_key_for_characters(runtime.string_character_model())
+    }
+
+    /// Key for an independently selected native character model, including Jim.
+    #[must_use]
+    pub const fn guard_semantics_key_for_characters(self, characters: StringCharacterModel) -> u32 {
+        self.semantics_key(self.character_variant(characters), &SEMANTICS_REVISION)
     }
 
     /// Every guarded runtime-semantics key this intrinsic may attest, across
-    /// every release: one for a release-invariant member, three for
+    /// every selected model: one for an invariant member, four for
     /// `StringLength`.
     ///
     /// Matched per member with no wildcard arm, like [`Self::stable_id`], so
@@ -457,6 +512,7 @@ impl IntrinsicId {
                 TCL8_UTF16_STRING_SEMANTICS,
                 TCL9_SCALAR_STRING_SEMANTICS,
                 TCL84_BMP_STRING_SEMANTICS,
+                JIM084_UTF8_STRING_SEMANTICS,
             ),
             Self::StringIs => member_keys!(Self::StringIs; RUNTIME_INVARIANT_SEMANTICS),
             Self::Regexp => member_keys!(Self::Regexp; RUNTIME_INVARIANT_SEMANTICS),
@@ -466,6 +522,18 @@ impl IntrinsicId {
             Self::ArraySize => member_keys!(Self::ArraySize; RUNTIME_INVARIANT_SEMANTICS),
             Self::Concat => member_keys!(Self::Concat; RUNTIME_INVARIANT_SEMANTICS),
             Self::ChannelWrite => member_keys!(Self::ChannelWrite; RUNTIME_INVARIANT_SEMANTICS),
+            Self::InfoCommandsResolve => {
+                member_keys!(Self::InfoCommandsResolve; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::InfoLevel => member_keys!(Self::InfoLevel; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ProcedureNoOp => member_keys!(Self::ProcedureNoOp; RUNTIME_INVARIANT_SEMANTICS),
+            Self::NamespaceCurrent => {
+                member_keys!(Self::NamespaceCurrent; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::NamespaceOrigin => {
+                member_keys!(Self::NamespaceOrigin; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::NamespaceCode => member_keys!(Self::NamespaceCode; RUNTIME_INVARIANT_SEMANTICS),
         }
     }
 
@@ -536,11 +604,17 @@ impl IntrinsicId {
             Self::StringIs => "string-is",
             Self::Regexp => "regexp",
             Self::InfoExists => "info-exists",
+            Self::InfoCommandsResolve => "info-commands-resolve",
+            Self::InfoLevel => "info-level",
             Self::ArrayExists => "array-exists",
             Self::ArrayNames => "array-names",
             Self::ArraySize => "array-size",
             Self::Concat => "concat",
             Self::ChannelWrite => "channel-write",
+            Self::ProcedureNoOp => "procedure-noop",
+            Self::NamespaceCurrent => "namespace-current",
+            Self::NamespaceOrigin => "namespace-origin",
+            Self::NamespaceCode => "namespace-code",
         }
     }
 
@@ -567,7 +641,8 @@ impl IntrinsicId {
             | CodegenHookId::Upvar
             | CodegenHookId::Dict
             | CodegenHookId::Array
-            | CodegenHookId::Namespace => None,
+            | CodegenHookId::Namespace
+            | CodegenHookId::Uplevel => None,
         }
     }
 
@@ -578,6 +653,11 @@ impl IntrinsicId {
     pub const fn from_legacy_inline_codegen(hook: InlineCodegenHookId) -> Option<Self> {
         match hook {
             InlineCodegenHookId::InfoExists => Some(Self::InfoExists),
+            InlineCodegenHookId::InfoCommandsResolve => Some(Self::InfoCommandsResolve),
+            InlineCodegenHookId::InfoLevel => Some(Self::InfoLevel),
+            InlineCodegenHookId::NamespaceCurrent => Some(Self::NamespaceCurrent),
+            InlineCodegenHookId::NamespaceOrigin => Some(Self::NamespaceOrigin),
+            InlineCodegenHookId::NamespaceCode => Some(Self::NamespaceCode),
             InlineCodegenHookId::Lindex => Some(Self::ListIndex),
             InlineCodegenHookId::Lrange => Some(Self::ListRange),
             InlineCodegenHookId::Lreplace => Some(Self::ListReplace),
@@ -592,6 +672,8 @@ impl IntrinsicId {
             | InlineCodegenHookId::Error
             | InlineCodegenHookId::Break
             | InlineCodegenHookId::Continue
+            | InlineCodegenHookId::Yield
+            | InlineCodegenHookId::YieldTo
             | InlineCodegenHookId::Try
             | InlineCodegenHookId::String
             | InlineCodegenHookId::Array => None,
@@ -616,11 +698,11 @@ fn table_digest(rows: impl IntoIterator<Item = TableRow>) -> [u8; 32] {
         match row.family {
             IntrinsicFamily::Value => hasher.update([0_u8]),
             IntrinsicFamily::FamilyB {
-                domain,
+                domains,
                 fires_traces,
             } => {
                 hasher.update([1_u8]);
-                hasher.update(GuardDomains::one(domain).bits().to_le_bytes());
+                hasher.update(domains.bits().to_le_bytes());
                 hasher.update([u8::from(fires_traces)]);
             }
         }
@@ -733,20 +815,13 @@ mod tests {
         );
     }
 
-    /// #2140: `docs/design/compiler/wasm-native-lowering-plan.md` § 2.5
-    /// note 4 quotes this catalogue's size to make its point — one
-    /// `execute_intrinsic` arm against the whole declared set. It said
-    /// "about twenty" while the enum held twenty-eight.
-    ///
-    /// Growing the catalogue is expected; leaving the plan quoting the old
-    /// number is not. This fails until the note is updated with it.
+    /// The current execution-surface document names the complete catalogue.
     #[test]
     fn the_intrinsic_catalogue_is_the_size_this_plan_quotes_issue_2140() {
         assert_eq!(
             IntrinsicId::ALL.len(),
-            28,
-            "update `docs/design/compiler/wasm-native-lowering-plan.md` \u{a7} 2.5 note 4, \
-             which quotes this count, then update this assertion"
+            34,
+            "update the current intrinsic catalogue count in \"docs/design/compiler/wasm-native-lowering.md\""
         );
     }
 
@@ -776,8 +851,32 @@ mod tests {
         );
     }
 
+    /// Guard identity partitions the selected character models; it does not
+    /// attest an entered command, frame or native object.
+    #[test]
+    fn string_length_character_model_keys_do_not_collide() {
+        let models = [
+            StringCharacterModel::BmpCharsElseUtf8Bytes,
+            StringCharacterModel::Utf16CodeUnits,
+            StringCharacterModel::UnicodeScalars,
+            StringCharacterModel::Jim084Utf8,
+        ];
+        let keys = models
+            .into_iter()
+            .map(|model| IntrinsicId::StringLength.guard_semantics_key_for_characters(model))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(keys.len(), 4);
+        for key in keys {
+            assert!(
+                IntrinsicId::StringLength
+                    .guard_semantics_variants()
+                    .contains(&key)
+            );
+        }
+    }
+
     /// A bumped `revisions` row for `member`, every other row as it was.
-    fn bumped(member: IntrinsicId, revision: u32) -> [(IntrinsicId, u32); 28] {
+    fn bumped(member: IntrinsicId, revision: u32) -> [(IntrinsicId, u32); 34] {
         let mut table = SEMANTICS_REVISION;
         for row in &mut table {
             if row.0 == member {
@@ -787,15 +886,20 @@ mod tests {
         table
     }
 
-    /// Every key `member` answers across the five releases under `revisions`.
+    /// Every key `member` answers across the C Tcl and Jim character models.
     fn keys_under(
         member: IntrinsicId,
         revisions: &[(IntrinsicId, u32)],
     ) -> std::collections::BTreeSet<u32> {
-        tcl_dialect::TclVersion::ALL
-            .iter()
-            .map(|&release| member.semantics_key(member.release_variant(release), revisions))
-            .collect()
+        [
+            StringCharacterModel::BmpCharsElseUtf8Bytes,
+            StringCharacterModel::Utf16CodeUnits,
+            StringCharacterModel::UnicodeScalars,
+            StringCharacterModel::Jim084Utf8,
+        ]
+        .into_iter()
+        .map(|characters| member.semantics_key(member.character_variant(characters), revisions))
+        .collect()
     }
 
     #[test]
@@ -852,7 +956,7 @@ mod tests {
         }
         assert_eq!(
             IntrinsicId::StringLength.guard_semantics_variants().len(),
-            3
+            4
         );
         assert_eq!(IntrinsicId::ListLength.guard_semantics_variants().len(), 1);
     }
@@ -954,6 +1058,7 @@ mod tests {
                 StringReplace,
                 StringLength,
                 Concat,
+                ProcedureNoOp,
             ]
         );
         assert_eq!(
@@ -969,17 +1074,30 @@ mod tests {
                 StringIs,
                 Regexp,
                 InfoExists,
+                InfoCommandsResolve,
+                InfoLevel,
                 ArrayExists,
                 ArrayNames,
                 ArraySize,
                 ChannelWrite,
+                NamespaceCurrent,
+                NamespaceOrigin,
+                NamespaceCode,
             ]
         );
         for member in family_b {
-            let IntrinsicFamily::FamilyB { domain, .. } = member.family() else {
+            let IntrinsicFamily::FamilyB { domains, .. } = member.family() else {
                 unreachable!("partitioned as Family B");
             };
-            assert_eq!(domain, GuardDomain::VariableTrace, "{member:?}");
+            let expected = match member {
+                InfoCommandsResolve | NamespaceOrigin | NamespaceCode => {
+                    GuardDomains::one(GuardDomain::CommandEnvironment).with(GuardDomain::Namespace)
+                }
+                NamespaceCurrent => GuardDomains::one(GuardDomain::Namespace),
+                InfoLevel => GuardDomains::one(GuardDomain::Interpreter),
+                _ => GuardDomains::one(GuardDomain::VariableTrace),
+            };
+            assert_eq!(domains, expected, "{member:?}");
         }
     }
 
@@ -1003,7 +1121,7 @@ mod tests {
             assert_eq!(
                 member.family(),
                 IntrinsicFamily::FamilyB {
-                    domain: GuardDomain::VariableTrace,
+                    domains: GuardDomains::one(GuardDomain::VariableTrace),
                     fires_traces: true,
                 },
                 "{member:?}"
@@ -1013,7 +1131,6 @@ mod tests {
 
     #[test]
     fn a_guard_request_must_cover_its_members_family_domains() {
-        let variable = GuardDomains::one(GuardDomain::VariableTrace);
         for &member in IntrinsicId::ALL {
             let required = member.family().guard_domains();
             let bare = GuardIdentity::registry_intrinsic(member.stable_id());
@@ -1028,9 +1145,9 @@ mod tests {
                 assert_eq!(IntrinsicId::required_guard_domains(packed), required);
             }
             assert_eq!(
-                required == variable,
-                member.family() != IntrinsicFamily::Value,
-                "{member:?}: a Family-B member requires the variable-trace domain, a Value member none"
+                required == GuardDomains::EMPTY,
+                member.family() == IntrinsicFamily::Value,
+                "{member:?}: a state-reading member requires its declared domain"
             );
         }
         let foreign = GuardIdentity::new(7, u64::from(IntrinsicId::DictSet.stable_id()));

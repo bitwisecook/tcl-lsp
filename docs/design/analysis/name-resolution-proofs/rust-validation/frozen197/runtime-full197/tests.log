@@ -1,0 +1,1472 @@
+
+running 1240 tests
+test bignum::tests::a_produced_nan_is_a_domain_error_but_an_infinity_is_a_value ... ok
+test bignum::tests::big_value_stays_bignum_and_stringifies ... ok
+test bignum::tests::bignum_floor_div ... ok
+test bignum::tests::bignum_times_bignum ... ok
+test bignum::tests::bitwise_ops ... ok
+test bignum::tests::compares_across_rungs ... ok
+test bignum::tests::divide_by_zero_errors ... ok
+test bignum::tests::double_promotion_and_neg ... ok
+test bignum::tests::exponentiation ... ok
+test bignum::tests::fits_wide_demotes_to_int ... ok
+test bignum::tests::floor_div_and_mod ... ok
+test bignum::tests::hex_radix_and_dup ... ok
+test bignum::tests::huge_shift_counts ... ok
+test bignum::tests::negative_bignum_round_trips ... ok
+test bignum::tests::reads_numeric_strings_via_grammar ... ok
+test bignum::tests::shifts ... ok
+test bignum::tests::tower_conformance_libtommath ... ok
+test bignum::tests::wide_fast_path_stays_wide ... ok
+test bignum::tests::wide_overflows_to_bignum_then_demotes ... ok
+test builtins::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls ... ok
+test builtins::native_subst_operand_tests::original_subst_options_match_counted_native_families ... ok
+test builtins::tests::a_cached_expression_is_revalidated_when_the_release_changes ... ok
+test builtins::tests::a_condition_object_caches_its_ast_and_keeps_its_spelling ... ok
+test builtins::tests::a_loop_condition_parses_once_for_the_whole_loop ... ok
+test builtins::tests::expression_arguments_use_native_concatenation_and_selected_cardinality ... ok
+test builtins::tests::expression_source_preparation_replaces_actual_typed_storage ... ok
+test builtins::tests::expression_variable_references_preserve_literal_indices_and_fire_traces ... ok
+test builtins::tests::interp_debug_option_uses_c_noun_and_abbreviates ... ok
+test builtins::tests::interp_limit_option_words_resolve_like_tcl_get_index_from_obj ... ok
+test builtins::tests::interp_limit_type_word_resolves_like_tcl_get_index_from_obj ... ok
+test builtins::tests::jim_expression_preparation_uses_native_cache_action ... ok
+test builtins::tests::jim_safe_integer_expression_matches_54_original_native_objects ... ok
+test builtins::tests::logical_expression_materialises_original_storage_under_its_actual_host ... ok
+test builtins::tests::logical_parser_host_changes_retire_cached_policy_without_rebinding_objects ... ok
+test builtins::tests::logical_parser_requires_an_independent_host_and_separate_cache_policy ... ok
+test builtins::tests::measured_bare_matches_runtime_requires_independent_authored_policy ... ok
+test builtins::tests::native_expression_and_increment_follow_selected_numeric_towers ... ok
+test builtins::tests::original_expression_objects_preserve_opaque_source_and_values ... ok
+test builtins::tests::raw_cr_escapes_match_tcl9 ... ok
+test builtins::tests::source_word_simulation_is_independent_of_expression_parser_installation ... ok
+test builtins::tests::subst_option_words_resolve_like_tcl_get_index_from_obj ... ok
+test builtins::tests::subst_variable_colon_runs_match_tcl ... ok
+test builtins::tests::subst_variables_commands_backslashes ... ok
+test builtins::tests::unset_nocomplain_and_dashdash ... ok
+test builtins::tests::unterminated_braced_var_raises_missing_close_brace ... ok
+test bytearray::tests::byte_array_keeps_raw_payload_while_generating_a_unicode_string_rep ... ok
+test bytearray::tests::byte_array_updater_retains_engine_recipe_and_actual_empty_storage_identity ... ok
+test bytearray::tests::canonical_and_allocated_empty_buffers_have_distinct_lifetimes ... ok
+test bytearray::tests::resident_byte_array_string_bytes_are_never_regenerated ... ok
+test bytearray::tests::unavailable_byte_array_factory_refuses_without_replacing_guest_result ... ok
+test bytearray::tests::unicode_string_to_byte_conversion_is_release_gated ... ok
+test cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables ... ok
+test cmd_alias::tests::a_longer_alias_cycle_is_refused_at_its_closing_hop ... ok
+test cmd_alias::tests::a_mutual_alias_pair_is_refused_at_the_closing_alias ... ok
+test cmd_alias::tests::a_refused_rename_leaves_the_destination_command_intact ... ok
+test cmd_alias::tests::a_rename_that_would_close_a_loop_is_refused_and_rolled_back ... ok
+test cmd_alias::tests::a_self_alias_is_refused_and_destroys_the_command_it_displaced ... ok
+test cmd_alias::tests::alias_create_and_dispatch ... ok
+test cmd_alias::tests::alias_delete_unbinds ... ok
+test cmd_alias::tests::alias_does_not_follow_target_rename ... ok
+test cmd_alias::tests::alias_prepends_frozen_prefix ... ok
+test cmd_alias::tests::alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api ... ok
+test cmd_alias::tests::alias_query_returns_target_and_prefix ... ok
+test cmd_alias::tests::alias_to_deleted_target_errors_lazily ... ok
+test cmd_alias::tests::aliases_lists_every_alias ... ok
+test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... FAILED
+test cmd_alias::tests::child_interpreters ... ok
+test cmd_alias::tests::child_shorthand_visibility_ops_are_leak_free ... ok
+test cmd_alias::tests::cross_interp_aliases ... ok
+test cmd_alias::tests::hidden_commands_and_safe ... ok
+test cmd_alias::tests::interp_abbreviated_operations_dispatch_in_root_and_child ... ok
+test cmd_alias::tests::interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj ... ok
+test cmd_alias::tests::jim_alias_owner_replaces_canonical_root_slots_and_keeps_local_competition ... ok
+test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... FAILED
+test cmd_alias::tests::jim_interpreter_handle_isolation ... FAILED
+test cmd_alias::tests::legitimate_alias_chains_and_late_binding_still_work ... ok
+test cmd_alias::tests::original_interpreter_paths_preserve_child_keys_and_create_result_objects ... ok
+test cmd_alias::tests::rename_and_hide_error_shapes_and_lifecycle ... ok
+test cmd_alias::tests::rename_builtin_return_is_allowed ... ok
+test cmd_alias::tests::rename_missing_is_an_error ... ok
+test cmd_alias::tests::rename_moves_a_command ... ok
+test cmd_alias::tests::rename_to_empty_deletes ... ok
+test cmd_alias::tests::trailing_separator_definitions_match_resolution ... ok
+test cmd_alias::tests::visibility_failures_match_direct_and_child_oracles ... ok
+test cmd_array::tests::array_default_matches_all_native_state_and_callback_controls ... ok
+test cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries ... ok
+test cmd_array::tests::array_ensemble_and_default_option_resolve_like_tclsh ... ok
+test cmd_array::tests::array_get_preserves_parentheses_in_the_array_base ... ok
+test cmd_array::tests::array_set_get_names_size ... ok
+test cmd_array::tests::array_unset ... ok
+test cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage ... ok
+test cmd_array::tests::jim_array_byte_keys_count_and_unset_without_unicode_projection ... ok
+test cmd_array::tests::jim_dictionary_array_reads_keep_static_copies_and_selected_frames ... ok
+test cmd_array::tests::jim_dictionary_worker_requires_explicit_distribution_initialisation ... ok
+test cmd_array::tests::native_search_lifecycle_keeps_shell_gc_and_invalidates_real_mutations ... ok
+test cmd_array::tests::original_search_handle_cache_matches_all_native_columns ... ok
+test cmd_array::tests::search_absence_and_original_root_retirement_are_guest_observations ... ok
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... ok
+test cmd_array::tests::whole_array_unset_preserves_constant_error_identity ... ok
+test cmd_binary::tests::actual_usage_rewrite_retains_byte_values_and_requires_the_full_prefix ... ok
+test cmd_binary::tests::binary_ensembles_resolve_like_tclsh ... ok
+test cmd_binary::tests::binary_objects_and_decoders_follow_actual_native_input_policies ... ok
+test cmd_binary::tests::binary_usage_retains_actual_names_and_native_prefix_quoting ... ok
+test cmd_binary::tests::byte_array_string_shimmer_uses_the_release_selected_byte_policy ... ok
+test cmd_binary::tests::encode_decode_and_unsigned_scan ... ok
+test cmd_binary::tests::format_and_scan_roundtrip ... ok
+test cmd_binary::tests::scan_values_and_count ... ok
+test cmd_chan::tests::chan_ensemble_forwards_and_reports ... ok
+test cmd_chan::tests::open_write_read_gets_eof ... ok
+test cmd_chan::tests::seek_origin_resolves_like_tcl_get_index_from_obj ... ok
+test cmd_chan::tests::unknown_channel_errors ... ok
+test cmd_clock::tests::clock_format_add_and_timing ... ok
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_120_original_native_completions ... ok
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows ... ok
+test cmd_control::tests::break_and_continue ... ok
+test cmd_control::tests::foreach_single_multi_var_and_parallel ... ok
+test cmd_control::tests::if_elseif_else ... ok
+test cmd_control::tests::lmap_collects_results ... ok
+test cmd_control::tests::tailcall_resolves_after_issuer_leave_in_the_callers_variable_frame ... ok
+test cmd_control::tests::tailcall_returns_the_invoked_result_from_the_proc ... ok
+test cmd_control::tests::time_reports_microseconds_and_propagates ... ok
+test cmd_control::tests::time_retains_original_list_body_and_result_objects ... ok
+test cmd_control::tests::timerate_options_calibrate_and_errors ... ok
+test cmd_control::tests::timerate_reports_the_eight_word_list_and_honours_limits ... ok
+test cmd_control::tests::while_and_for_accumulate ... ok
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries ... ok
+test cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_objects ... ok
+test cmd_coro::tests::a_coroutine_can_rename_itself_and_keep_running ... ok
+test cmd_coro::tests::a_rename_carries_a_live_coroutine_to_its_new_name ... ok
+test cmd_coro::tests::a_suspended_coroutine_holds_the_namespace_it_parked_in ... ok
+test cmd_coro::tests::coroinject_runs_on_next_resume ... FAILED
+test cmd_coro::tests::coroprobe_reads_and_mutates_suspended_context ... ok
+test cmd_coro::tests::corotype_reports_active_and_yield ... ok
+test cmd_coro::tests::coroutine_yield_resume_and_info ... ok
+test cmd_coro::tests::deleting_a_suspended_coroutine_abandons_its_retained_namespace ... ok
+test cmd_coro::tests::deleting_a_suspended_coroutine_is_clean ... ok
+test cmd_coro::tests::probe_handoff_preserves_the_original_jim_trace_object ... ok
+test cmd_dict::native_scope_trace_tests::dictionary_scope_read_returns_the_same_original_dictionary_header ... ok
+test cmd_dict::native_scope_trace_tests::dictionary_scope_reads_match_64_native_callback_windows ... ok
+test cmd_dict::tests::create_get_size ... ok
+test cmd_dict::tests::deeply_nested_dict_path_set_and_unset_survive ... ok
+test cmd_dict::tests::dict_ensemble_and_filter_type_resolve_like_tclsh ... ok
+test cmd_dict::tests::dict_for_iterates_in_order ... ok
+test cmd_dict::tests::dict_lappend_validation_is_unaffected_by_shimmering ... ok
+test cmd_dict::tests::dict_lappend_validation_matches_c_tcl_for_every_non_dict_shape ... ok
+test cmd_dict::tests::dictionary_receiver_and_defaults_match_original_native_scripts ... ok
+test cmd_dict::tests::filter_key_value_via_shared_core ... ok
+test cmd_dict::tests::get_missing_key_errors ... ok
+test cmd_dict::tests::getdef_returns_default_on_miss ... ok
+test cmd_dict::tests::info_uses_the_shared_hash_statistics_owner ... ok
+test cmd_dict::tests::keys_values_insertion_order ... ok
+test cmd_dict::tests::merge_later_wins_first_position_kept ... ok
+test cmd_dict::tests::moderately_nested_dict_path_set_unset_unaffected ... ok
+test cmd_dict::tests::read_only_dict_path_uses_the_dict_noun_fragment_and_error_code ... ok
+test cmd_dict::tests::replace_and_remove ... ok
+test cmd_dict::tests::selected_dictionary_completion_and_scripted_worker_lookup ... ok
+test cmd_dict::tests::set_and_unset_variable_cow ... ok
+test cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter ... ok
+test cmd_error::tests::body_frame_commands ... ok
+test cmd_error::tests::catch_arity_rejects_before_body_under_legacy_c ... ok
+test cmd_error::tests::catch_options_dict ... ok
+test cmd_error::tests::catch_preserves_custom_return_options_on_legacy_releases ... ok
+test cmd_error::tests::catch_success_and_error_codes ... ok
+test cmd_error::tests::dynamic_catch_resets_error_state_in_all_six_native_engines ... ok
+test cmd_error::tests::error_info_stack_traces ... ok
+test cmd_error::tests::error_stamps_globals ... ok
+test cmd_error::tests::exit_records_code_and_is_uncatchable ... ok
+test cmd_error::tests::explicit_errorinfo_retains_the_prior_error_stack ... ok
+test cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding ... ok
+test cmd_error::tests::jim_catch_switches_and_process_exit_use_native_completion_protocol ... ok
+test cmd_error::tests::native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals ... ok
+test cmd_error::tests::throw_sets_errorcode ... ok
+test cmd_error::tests::try_handler_type_resolves_like_tcl_get_index_from_obj ... ok
+test cmd_error::tests::try_on_and_trap_and_finally ... ok
+test cmd_eval::native_frame_reference_tests::frame_reference_cache_refuses_foreign_issuers_and_retired_headers ... ok
+test cmd_eval::native_frame_reference_tests::level_reference_reselects_current_frames_in_thirty_native_windows ... ok
+test cmd_eval::tests::eval_compiles_original_counted_opaque_string_source ... ok
+test cmd_eval::tests::eval_runs_in_current_scope ... ok
+test cmd_eval::tests::original_list_eval_retains_members_and_does_not_generate_source ... ok
+test cmd_eval::tests::uplevel_bad_level ... ok
+test cmd_eval::tests::uplevel_object_dispatch_preserves_release_specific_list_entry ... ok
+test cmd_eval::tests::uplevel_runs_in_callers_scope ... ok
+test cmd_event::native_original_tests::original_event_scripts_global_waits_and_timer_turns_match_native_controls ... ok
+test cmd_event::native_original_tests::original_list_event_scripts_retain_counted_name_objects ... ok
+test cmd_event::native_original_tests::original_vwait_extended_forms_decline_before_global_observers_or_callbacks ... ok
+test cmd_event::tests::update_and_after_words_resolve_like_tcl_get_index_from_obj ... ok
+test cmd_format::tests::alternate_decimal_uses_shared_tcl9_semantics ... ok
+test cmd_format::tests::format_bignum_modifier_is_rejected_in_tcl84_issue_2162 ... ok
+test cmd_format::tests::format_bignums_issue_2162 ... ok
+test cmd_format::tests::format_conversions_flags_width ... ok
+test cmd_format::tests::format_overflow_width_errors_not_panics ... ok
+test cmd_format::tests::integer_conversions_honour_width_and_signedness_issue_1782 ... ok
+test cmd_fs::tests::file_ensemble_miss_carries_the_full_option_list ... ok
+test cmd_fs::tests::file_extended_subcommands_cover_native_host_surface ... ok
+test cmd_fs::tests::file_mkdir_size_type_delete ... ok
+test cmd_fs::tests::file_path_ops ... ok
+test cmd_fs::tests::file_surface_and_permissions_follow_the_runtime_profile ... ok
+test cmd_fs::tests::file_worker_runtime_headers_match_all_190_original_native_snapshots ... ok
+test cmd_fs::tests::glob_finds_files ... ok
+test cmd_fs::tests::glob_option_words_resolve_like_tcl_get_index_from_obj ... ok
+test cmd_fs::tests::source_evaluates_a_file ... ok
+test cmd_fs::tests::source_uses_actual_argument_and_return_protocols ... ok
+test cmd_fs::tests::tempdir_template_honours_its_parent_and_requires_it_to_exist ... ok
+test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... ok
+test cmd_info::native_jim::tests::current_lsort_failure_is_reported_by_the_selected_jim_parser ... ok
+test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+test cmd_info::native_oo::tests::original_tcloo_info_bootstrap_preserves_private_ensemble_targets ... ok
+test cmd_info::tests::fresh_interp_exposes_c_create_interp_versions ... ok
+test cmd_info::tests::info_cmdtype_loaded_functions ... ok
+test cmd_info::tests::info_commands_procs_namespaced ... ok
+test cmd_info::tests::info_commands_qualified_pattern ... ok
+test cmd_info::tests::info_complete_balances ... ok
+test cmd_info::tests::info_consts_enumerates_bindings_and_namespace_global_fallback ... ok
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... FAILED
+test cmd_info::tests::info_ensemble_miss_carries_the_full_option_list ... ok
+test cmd_info::tests::info_exists_scalar_and_array ... ok
+test cmd_info::tests::info_frame_stack ... ok
+test cmd_info::tests::info_frame_uplevel_is_eval_typed_without_level ... ok
+test cmd_info::tests::info_level_and_vars ... ok
+test cmd_info::tests::info_level_reports_call_words ... ok
+test cmd_info::tests::info_patchlevel_still_errors_after_global_is_unset ... ok
+test cmd_info::tests::info_proc_introspection_errors ... ok
+test cmd_info::tests::info_procs ... ok
+test cmd_info::tests::info_vars_locals_globals ... ok
+test cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface ... ok
+test cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers ... ok
+test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... ok
+test cmd_list::native_jim_lsearch_controls::jim_lsearch_preserves_all_24_original_native_option_and_callback_controls ... ok
+test cmd_list::tests::duplicate_preserves_string_rep ... ok
+test cmd_list::tests::empty_append_native_contracts_preserve_bytes_and_selected_validation ... ok
+test cmd_list::tests::errors ... ok
+test cmd_list::tests::hex_indices_and_counts_accepted ... ok
+test cmd_list::tests::lappend_builds_and_cow ... ok
+test cmd_list::tests::lappend_read_trace_fires_but_swallows_error ... ok
+test cmd_list::tests::lappend_shared_core_parity ... ok
+test cmd_list::tests::lappend_write_trace_unset_and_rewrite ... ok
+test cmd_list::tests::lassign_assigns_and_returns_rest ... ok
+test cmd_list::tests::ledit_errors ... ok
+test cmd_list::tests::ledit_replaces_in_place ... ok
+test cmd_list::tests::lindex_and_lrange ... ok
+test cmd_list::tests::list_and_llength ... ok
+test cmd_list::tests::lrepeat_linsert_lreplace ... ok
+test cmd_list::tests::lreverse_concat_join_split ... ok
+test cmd_list::tests::lsearch_errors ... ok
+test cmd_list::tests::lsearch_modes ... ok
+test cmd_list::tests::lsearch_shared_core ... ok
+test cmd_list::tests::lset_bounds_follow_real_c_releases_and_current_jim ... ok
+test cmd_list::tests::lset_errors ... ok
+test cmd_list::tests::lset_sets_and_appends ... ok
+test cmd_list::tests::lsort_errors ... ok
+test cmd_list::tests::lsort_options ... ok
+test cmd_list::tests::lsort_shared_core ... ok
+test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... FAILED
+test cmd_list::tests::native_index_grammar_matches_real_c_and_jim_observations ... ok
+test cmd_list::tests::string_rep_survives_shimmer ... ok
+test cmd_list::tests::var_read_miss_three_way ... ok
+test cmd_lseq::tests::lseq_double_precision ... ok
+test cmd_lseq::tests::lseq_errors ... ok
+test cmd_lseq::tests::lseq_integer_forms ... ok
+test cmd_lseq::tests::lseq_materialization_refusal_bypasses_guest_capture_and_finally ... ok
+test cmd_lseq::tests::lseq_numeric_arguments_do_not_evaluate_expressions ... ok
+test cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release ... FAILED
+test cmd_mathfunc::tests::domain_error_surfaces ... ok
+test cmd_mathfunc::tests::expr_routes_through_the_command_table ... ok
+test cmd_mathfunc::tests::mathfunc_callable_as_command ... ok
+test cmd_mathfunc::tests::namespace_local_mathfunc_shadows_in_expr ... ok
+test cmd_mathfunc::tests::override_via_alias_wins_in_expr ... ok
+test cmd_mathfunc::tests::renamed_and_aliased_builtin_retains_installed_function_identity ... ok
+test cmd_mathfunc::tests::tcl84_expr_uses_the_fixed_math_table_not_a_command_wrapper ... ok
+test cmd_mathfunc::tests::tip745_mathfunc_commands_follow_the_runtime_release_and_arity ... ok
+test cmd_mathfunc::tests::unknown_function_reports_invalid_command ... ok
+test cmd_mathop::tests::arithmetic_folds_and_identities ... ok
+test cmd_mathop::tests::binaries_and_unaries ... ok
+test cmd_mathop::tests::comparisons_chained_and_binary ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... ok
+test cmd_mathop::tests::pow_is_right_associative ... ok
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... FAILED
+test cmd_mathop::tests::sub_and_div ... ok
+test cmd_misc::tests::clock_ensemble_resolves_like_tclsh ... ok
+test cmd_misc::tests::encoding_ensemble_resolves_like_tclsh ... ok
+test cmd_namespace::native_ensemble_tests::counted_map_collision_preserves_native_unreleased_reference_after_teardown ... ok
+test cmd_namespace::native_ensemble_tests::reached_original_prefix_survives_custom_head_retiring_the_ensemble ... ok
+test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... FAILED
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... FAILED
+test cmd_namespace::native_upvar_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame ... ok
+test cmd_namespace::native_upvar_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results ... ok
+test cmd_namespace::native_upvar_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows ... ok
+test cmd_namespace::tests::a_deferred_namespace_is_unpublished_for_every_caller ... ok
+test cmd_namespace::tests::a_namespace_eval_frame_defers_its_own_deletion ... ok
+test cmd_namespace::tests::a_recreated_namespace_is_a_distinct_token_from_the_retained_one ... ok
+test cmd_namespace::tests::a_refused_alias_rename_keeps_the_command_tables_growth ... ok
+test cmd_namespace::tests::a_retained_token_and_its_recreation_fire_separate_command_traces ... ok
+test cmd_namespace::tests::a_retained_token_keeps_its_children ... ok
+test cmd_namespace::tests::a_retained_token_keeps_its_variables ... ok
+test cmd_namespace::tests::a_retained_token_reports_its_own_name_and_commands ... ok
+test cmd_namespace::tests::a_retained_token_takes_relative_definitions_only ... ok
+test cmd_namespace::tests::active_child_retains_its_oo_state_during_parent_deletion ... ok
+test cmd_namespace::tests::an_active_child_defers_while_its_parent_tears_down ... ok
+test cmd_namespace::tests::an_owned_ensemble_dies_while_its_namespace_is_retained ... ok
+test cmd_namespace::tests::braced_defining_word_binds_in_the_current_namespace ... ok
+test cmd_namespace::tests::braced_defining_word_defines_the_unbraced_name ... ok
+test cmd_namespace::tests::braced_defining_word_leaves_builtin_dispatch_intact ... ok
+test cmd_namespace::tests::build_info_queries ... ok
+test cmd_namespace::tests::byte_valued_command_names_resolve_without_a_utf8_round_trip ... ok
+test cmd_namespace::tests::byte_valued_namespace_navigation_uses_the_embedder_bytes_verbatim ... ok
+test cmd_namespace::tests::code_preserves_original_argument_objects_for_all_native_prefix_fixtures ... ok
+test cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy ... FAILED
+test cmd_namespace::tests::code_uses_the_explicit_f5_logical_provider ... ok
+test cmd_namespace::tests::command_delete_traces_wait_for_the_last_activation ... ok
+test cmd_namespace::tests::configuring_an_imported_ensemble_updates_the_origin ... ok
+test cmd_namespace::tests::current_and_code_wrong_arity_preserve_native_header_bytes ... ok
+test cmd_namespace::tests::current_is_global_at_top_level ... ok
+test cmd_namespace::tests::deleting_the_running_namespace_retains_it_for_the_frame ... ok
+test cmd_namespace::tests::dispatch_matches_every_conformance_vector ... ok
+test cmd_namespace::tests::ensemble_command_is_qualified_relative_to_current_ns ... ok
+test cmd_namespace::tests::ensemble_command_option_and_prefixes_off ... ok
+test cmd_namespace::tests::ensemble_configuration_preserves_native_raw_byte_list_words ... ok
+test cmd_namespace::tests::ensemble_configuration_refuses_an_unselected_list_updater ... ok
+test cmd_namespace::tests::ensemble_configure_and_origin_error_codes ... ok
+test cmd_namespace::tests::ensemble_configure_uses_the_config_table ... ok
+test cmd_namespace::tests::ensemble_create_checks_pair_arity_first ... ok
+test cmd_namespace::tests::ensemble_default_dispatches_to_namespace_commands ... ok
+test cmd_namespace::tests::ensemble_default_miss_preserves_custom_unknown_options ... ok
+test cmd_namespace::tests::ensemble_exists ... ok
+test cmd_namespace::tests::ensemble_issue_1583_oracle_vectors ... ok
+test cmd_namespace::tests::ensemble_map_and_subcommands ... ok
+test cmd_namespace::tests::ensemble_map_preserves_dict_order_and_collapses_repeats ... ok
+test cmd_namespace::tests::ensemble_option_tables_match_c ... ok
+test cmd_namespace::tests::ensemble_original_map_queries_do_not_extend_native_owner_lifetime ... ok
+test cmd_namespace::tests::ensemble_prefix_match_and_ambiguity ... ok
+test cmd_namespace::tests::ensemble_prefixes_accepts_every_boolean_spelling_tclsh_does ... ok
+test cmd_namespace::tests::ensemble_unknown_normalizes_bad_results ... ok
+test cmd_namespace::tests::ensemble_unknown_prefix_uses_live_parameter_layout ... ok
+test cmd_namespace::tests::ensemble_unknown_retains_the_live_command_token ... ok
+test cmd_namespace::tests::eval_switches_current_and_defines_in_ns ... ok
+test cmd_namespace::tests::exists_and_parent_and_children ... ok
+test cmd_namespace::tests::explicit_ensemble_members_and_unknown_relative_context_match_native_c ... ok
+test cmd_namespace::tests::export_clear_resets_the_pattern_list ... ok
+test cmd_namespace::tests::export_import_forget_roundtrip ... ok
+test cmd_namespace::tests::export_query_returns_patterns ... ok
+test cmd_namespace::tests::forced_import_replacement_runs_command_lifecycle ... ok
+test cmd_namespace::tests::import_follows_source_rename_but_not_delete ... ok
+test cmd_namespace::tests::import_only_takes_exported_commands ... ok
+test cmd_namespace::tests::import_redefinition_rename_reexport_and_retirement_follow_dialect ... ok
+test cmd_namespace::tests::imported_delete_trace_observes_and_can_replace_the_binding ... ok
+test cmd_namespace::tests::imported_ensemble_retains_source_token_identity ... ok
+test cmd_namespace::tests::inscope_and_apply_frames_defer_their_own_deletion ... ok
+test cmd_namespace::tests::inscope_tail_args_become_list_elements_not_joined_words ... ok
+test cmd_namespace::tests::inscope_uses_a_byte_arrays_string_rep_in_both_arms ... ok
+test cmd_namespace::tests::inscope_zero_tail_args_evaluates_script_verbatim ... ok
+test cmd_namespace::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias ... ok
+test cmd_namespace::tests::namespace_delete_removes_subtree ... ok
+test cmd_namespace::tests::namespace_delete_retires_hidden_ensemble_token ... ok
+test cmd_namespace::tests::namespace_ensemble_miss_comes_from_the_owner ... ok
+test cmd_namespace::tests::namespace_import_rejects_a_cycle_before_mutating_the_graph ... ok
+test cmd_namespace::tests::namespace_issue_1584_oracle_vectors ... ok
+test cmd_namespace::tests::namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass ... ok
+test cmd_namespace::tests::namespace_teardown_follows_command_table_hash_order ... ok
+test cmd_namespace::tests::namespace_teardown_hash_order_moves_a_redefined_command ... ok
+test cmd_namespace::tests::namespace_teardown_hash_order_records_table_growth ... ok
+test cmd_namespace::tests::namespace_teardown_hash_order_retains_capacity_across_deletions ... ok
+test cmd_namespace::tests::namespace_teardown_places_imports_at_their_hash_positions ... ok
+test cmd_namespace::tests::namespace_teardown_retires_each_sources_import_tree_before_the_next_entry ... ok
+test cmd_namespace::tests::namespace_teardown_skips_a_command_a_callback_already_deleted ... ok
+test cmd_namespace::tests::namespace_teardown_visits_a_callback_created_command_in_the_next_pass ... ok
+test cmd_namespace::tests::namespace_unknown_keeps_reached_prefix_members_after_handler_reset ... ok
+test cmd_namespace::tests::namespace_unknown_retains_the_original_root_and_validates_before_replacement ... ok
+test cmd_namespace::tests::namespace_upvar_links_local_to_ns_var ... ok
+test cmd_namespace::tests::only_the_first_word_is_the_export_or_import_flag ... ok
+test cmd_namespace::tests::oo_created_by_delete_trace_joins_dying_generation ... ok
+test cmd_namespace::tests::origin_and_which_command_preserve_byte_valued_names ... ok
+test cmd_namespace::tests::origin_follows_import_chains ... ok
+test cmd_namespace::tests::origin_refuses_a_stringless_original_namespace_name_before_lookup ... ok
+test cmd_namespace::tests::origin_reuses_the_original_stringless_command_cache ... ok
+test cmd_namespace::tests::original_ensemble_options_use_actual_release_tables ... ok
+test cmd_namespace::tests::original_namespace_origin_matches_five_native_import_chains ... ok
+test cmd_namespace::tests::path_fallback_resolves_unqualified ... ok
+test cmd_namespace::tests::path_query_returns_list ... ok
+test cmd_namespace::tests::qualified_command_falls_back_to_global ... ok
+test cmd_namespace::tests::qualifier_namespace_existing_does_not_commit_resolution ... ok
+test cmd_namespace::tests::qualifiers_and_tail ... ok
+test cmd_namespace::tests::recreated_namespace_keeps_old_and_new_object_identities_distinct ... ok
+test cmd_namespace::tests::reimport_same_source_is_idempotent ... ok
+test cmd_namespace::tests::renaming_onto_a_hidden_root_name_keeps_the_replacement_live ... ok
+test cmd_namespace::tests::replacement_import_source_adopts_the_fresh_generation ... ok
+test cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct ... ok
+test cmd_namespace::tests::retained_import_origin_chain_ignores_a_recreated_same_fqn_command ... ok
+test cmd_namespace::tests::retained_object_teardown_preserves_recreated_method_dispatch ... ok
+test cmd_namespace::tests::same_fqn_different_generation_reimport_is_not_idempotent ... ok
+test cmd_namespace::tests::subcommand_prefix_abbreviation ... ok
+test cmd_namespace::tests::taking_a_hidden_root_name_works_through_copy_and_rename ... ok
+test cmd_namespace::tests::tcloo_roots_follow_their_introducing_release ... ok
+test cmd_namespace::tests::the_deferred_teardown_keeps_tcl_hash_order ... ok
+test cmd_namespace::tests::transitive_import_retains_intermediate_binding_lifecycle ... ok
+test cmd_namespace::tests::true_source_deletion_purges_generic_import_origins ... ok
+test cmd_namespace::tests::which_resolves_command_fqn ... ok
+test cmd_namespace::tests::which_variable_never_answers_with_a_proc_local ... ok
+test cmd_namespace::tests::which_variable_preserves_byte_valued_names ... ok
+test cmd_namespace::tests::which_variable_resolves_namespace_var_fqn ... ok
+test cmd_oo::native_context::tests::cached_self_name_is_the_same_header_and_nested_procs_have_no_context ... ok
+test cmd_oo::native_context::tests::definition_namespace_owns_its_scope_and_original_workers ... ok
+test cmd_oo::native_context::tests::dynamic_self_subcommands_use_the_original_native_index_table ... ok
+test cmd_oo::native_context::tests::helper_artifact_executes_only_the_actual_method_frame_and_original_words ... ok
+test cmd_oo::native_context::tests::nested_definitions_retain_actual_caller_frames_and_qualified_workers ... ok
+test cmd_oo::native_context::tests::self_call_uses_the_selected_uplevel_activation_and_restores_its_caller ... ok
+test cmd_oo::native_eval_tests::object_eval_retains_original_script_and_concat_children ... ok
+test cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls ... ok
+test cmd_oo::native_info_option_tests::variable_info_matches_original_native_option_and_target_failures ... ok
+test cmd_oo::native_info_option_tests::variable_info_validates_original_options_before_target_lookup ... ok
+test cmd_oo::native_method_cache::tests::compiled_private_name_and_self_helper_omit_unused_public_head_literals ... ok
+test cmd_oo::native_method_cache::tests::original_method_primary_and_table_keys_share_the_actual_chain ... ok
+test cmd_oo::native_method_cache::tests::reached_method_records_distinguish_replacement_from_recreation ... ok
+test cmd_oo::native_method_cache::tests::replacement_retires_old_client_data_after_the_actual_entered_method ... ok
+test cmd_oo::native_method_info_tests::method_info_matches_original_counted_option_and_scope_controls ... ok
+test cmd_oo::native_private_tests::method_option_layout_and_private_scope_match_original_native_controls ... ok
+test cmd_oo::native_private_tests::private_query_and_opaque_original_bodies_match_native_c9_controls ... ok
+test cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary ... ok
+test cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members ... ok
+test cmd_oo::native_properties::tests::property_epochs_follow_mutations_before_definition_failure ... ok
+test cmd_oo::native_properties::tests::property_headers_and_temporary_tables_retain_original_members ... ok
+test cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access ... ok
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... ok
+test cmd_oo::original_call_argv_tests::constructor_call_frame_borrows_the_original_create_invocation ... ok
+test cmd_oo::original_call_argv_tests::method_next_call_lists_retain_same_original_native_argument_objects ... ok
+test cmd_oo::original_call_argv_tests::native_destructor_frame_has_no_original_call_arguments_or_call_stack_entry ... ok
+test cmd_oo::tests::builtin_slot_objects_present ... ok
+test cmd_oo::tests::class_destroy_cascades_to_mixin_users ... ok
+test cmd_oo::tests::class_method_constructor_instance_var ... ok
+test cmd_oo::tests::class_methods_via_self ... ok
+test cmd_oo::tests::classvariable_context_and_name_errors ... ok
+test cmd_oo::tests::classvariable_shares_state_per_declaring_class ... ok
+test cmd_oo::tests::configure_property_word_abbreviates ... ok
+test cmd_oo::tests::create_with_namespace_and_copy_targetns ... ok
+test cmd_oo::tests::deeply_nested_mixin_chain_survives_linearisation_and_property_gathering ... ok
+test cmd_oo::tests::define_context_is_frame_scoped ... ok
+test cmd_oo::tests::define_context_self_arity ... ok
+test cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages ... FAILED
+test cmd_oo::tests::define_single_command_wrong_args_names_whole_command ... ok
+test cmd_oo::tests::define_subcommand_abbrev_and_extras ... ok
+test cmd_oo::tests::definitionnamespace_semantics ... ok
+test cmd_oo::tests::destructor_error_goes_to_bgerror ... ok
+test cmd_oo::tests::destructor_error_propagation_and_renamed_my_teardown ... ok
+test cmd_oo::tests::destructors_fire_on_rename_destroy_and_namespace_delete ... ok
+test cmd_oo::tests::filters_wrap_method_calls ... ok
+test cmd_oo::tests::foundation_abstract_singleton_classes ... ok
+test cmd_oo::tests::hidden_class_and_private_dispatchers_retire_by_owner_identity ... ok
+test cmd_oo::tests::hidden_object_destruction_retires_identity_and_preserves_result ... ok
+test cmd_oo::tests::hidden_object_imports_follow_and_retire_with_the_source_token ... ok
+test cmd_oo::tests::info_call_and_self_call ... ok
+test cmd_oo::tests::info_call_chain_rendering ... ok
+test cmd_oo::tests::info_class_introspection_and_abbrev ... ok
+test cmd_oo::tests::info_frame_method_body_lines_are_relative ... ok
+test cmd_oo::tests::info_frame_reports_method_context ... ok
+test cmd_oo::tests::info_methods_all_and_object_vars_pattern ... ok
+test cmd_oo::tests::info_methods_scope_and_export_reclassifies ... ok
+test cmd_oo::tests::info_object_isa_enforces_the_per_category_arity ... ok
+test cmd_oo::tests::info_oo_ensemble_resolution_and_release_gates_match_tcl ... ok
+test cmd_oo::tests::inheritance_and_next ... ok
+test cmd_oo::tests::isa_follows_import_and_unknown_list_excludes_bare_export ... ok
+test cmd_oo::tests::isa_typeof_traverses_mixins_and_subclass_pattern ... ok
+test cmd_oo::tests::metaclass_instantiation ... ok
+test cmd_oo::tests::method_body_errorinfo_frames ... ok
+test cmd_oo::tests::method_definition_retains_original_default_objects_without_rendering ... ok
+test cmd_oo::tests::mixin_of_mixin_methods_are_reachable ... ok
+test cmd_oo::tests::moderately_nested_mixin_chain_still_behaves_identically ... ok
+test cmd_oo::tests::my_command_invoked_directly ... ok
+test cmd_oo::tests::my_create_reaches_class_factory ... ok
+test cmd_oo::tests::my_variable_rejects_array_element ... ok
+test cmd_oo::tests::namespaced_define_command_context_error ... ok
+test cmd_oo::tests::next_shares_caller_frame_level ... ok
+test cmd_oo::tests::nextto_resumes_chain_at_class ... ok
+test cmd_oo::tests::no_method_forces_user_unknown ... ok
+test cmd_oo::tests::objdefine_forward_mixin_unexport_copy ... ok
+test cmd_oo::tests::object_builtin_variable_varname_eval ... ok
+test cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles ... ok
+test cmd_oo::tests::object_command_roles_precede_variables_after_asymmetric_move ... ok
+test cmd_oo::tests::object_command_roles_retire_public_myclass_my ... ok
+test cmd_oo::tests::object_creationid_and_definitionnamespace ... ok
+test cmd_oo::tests::object_deleted_in_constructor ... ok
+test cmd_oo::tests::object_retirement_preserves_hidden_name_replacement_traces ... ok
+test cmd_oo::tests::object_retirement_preserves_private_dispatcher_replacement_traces ... ok
+test cmd_oo::tests::object_retirement_preserves_visible_replacement_traces ... ok
+test cmd_oo::tests::oo_copy_clones_classes ... ok
+test cmd_oo::tests::oo_copy_clones_namespace_contents ... ok
+test cmd_oo::tests::oo_option_tables_resolve_like_tcl_get_index_from_obj ... ok
+test cmd_oo::tests::oo_package_is_provided ... ok
+test cmd_oo::tests::oo_slot_base_class ... ok
+test cmd_oo::tests::ordinary_command_replacement_runs_displaced_oo_lifecycle ... ok
+test cmd_oo::tests::precedence_ordering_c3_and_mixins ... ok
+test cmd_oo::tests::private_method_scope_and_unknown_listing ... ok
+test cmd_oo::tests::private_variable_cross_class_mangling ... ok
+test cmd_oo::tests::private_variable_introspection ... ok
+test cmd_oo::tests::public_delete_callback_can_relocate_a_private_dispatcher ... ok
+test cmd_oo::tests::rename_to_empty_frees_object_and_class_names ... ok
+test cmd_oo::tests::self_class_in_object_method_errors ... ok
+test cmd_oo::tests::tip558_configurable_configure ... ok
+test cmd_oo::tests::tip558_property_and_info_options_match_tcl_prefix_diagnostics ... ok
+test cmd_oo::tests::tip558_property_custom_accessors_and_kinds ... ok
+test cmd_oo::tests::tip558_property_storage_and_introspection ... ok
+test cmd_oo::tests::unknown_scope_survives_provider_rename ... ok
+test cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object ... FAILED
+test cmd_oo::tests::variable_slot_operations ... ok
+test cmd_package::tests::core_require_and_provide ... ok
+test cmd_package::tests::ifneeded_and_unknown ... ok
+test cmd_package::tests::jim_direct_packages_use_global_source_and_preserve_partial_effects ... ok
+test cmd_package::tests::package_completion_matches_all_six_native_84_controls ... ok
+test cmd_package::tests::package_files_headers_match_all_native_10_windows_and_scope_lifetimes ... ok
+test cmd_package::tests::package_option_word_resolves_like_tcl_get_index_from_obj ... ok
+test cmd_package::tests::package_versions_use_the_pinned_shared_release_policy ... ok
+test cmd_package::tests::provided_version_headers_match_all_native_30_windows ... ok
+test cmd_package::tests::shared_package_files_append_is_an_outer_native_fatal_condition ... ok
+test cmd_package::tests::vsatisfies_and_vcompare ... ok
+test cmd_proc::native_apply_original_tests::apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler ... ok
+test cmd_proc::native_apply_original_tests::apply_returns_original_counted_argument_objects ... ok
+test cmd_proc::native_apply_original_tests::original_lambda_namespace_objects_match_constructor_and_getter_controls ... ok
+test cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries ... ok
+test cmd_proc::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames ... ok
+test cmd_proc::native_name_tests::legacy_name_rejection_precedes_original_formal_default_and_body_access ... ok
+test cmd_proc::native_name_tests::original_procedure_colon_names_match_all_18_native_home_and_error_controls ... ok
+test cmd_proc::native_static_original_tests::original_jim_static_links_match_native_frame_storage_reuse_boundaries ... ok
+test cmd_proc::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture ... ok
+test cmd_proc::tests::apply_lambda ... ok
+test cmd_proc::tests::break_continue_escaping_a_proc_is_an_error ... ok
+test cmd_proc::tests::infinite_recursion_is_caught ... ok
+test cmd_proc::tests::info_queries_preserve_the_retained_default_object ... ok
+test cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement ... ok
+test cmd_proc::tests::native_formals_keep_storage_keys_and_original_default_objects ... ok
+test cmd_proc::tests::ordinary_c_definition_keeps_the_body_chosen_before_formal_parsing ... ok
+test cmd_proc::tests::proc_args_catch_all ... ok
+test cmd_proc::tests::proc_basic_args_defaults_and_locals ... ok
+test cmd_proc::tests::proc_default_arity_edges_dont_panic ... ok
+test cmd_proc::tests::proc_in_namespace_uses_its_ns ... ok
+test cmd_proc::tests::proc_parameter_parser_preserves_byte_errors ... ok
+test cmd_proc::tests::proc_recursion_fib ... ok
+test cmd_proc::tests::proc_wrong_args ... ok
+test cmd_proc::tests::puts_runs ... hello
+ok
+test cmd_proc::tests::unqualified_proc_in_namespace_eval_binds_in_that_ns ... ok
+test cmd_regex::original_object_tests::jim_original_regexp_cache_ranges_and_unsafe_lifecycles_match_native_controls ... ok
+test cmd_regex::original_object_tests::jim_original_start_indices_use_actual_safe_expression_owner_for_all_17_native_controls ... ok
+test cmd_regex::original_object_tests::jim_regsub_duplicate_and_match_consumers_preserve_original_dispatch ... ok
+test cmd_regex::original_object_tests::jim_regsub_original_objects_match_all_nine_completed_native_controls ... ok
+test cmd_regex::original_object_tests::native_boolean_regexp_glob_preserves_subject_storage_and_cached_pattern ... ok
+test cmd_regex::original_object_tests::native_regexp_cache_hit_precedes_getter_and_duplicate_keeps_artifact ... ok
+test cmd_regex::original_object_tests::native_regexp_ranges_preserve_selected_original_units_and_storage ... ok
+test cmd_regex::original_object_tests::native_regsub_mapping_and_regexp_keep_distinct_original_primaries ... ok
+test cmd_regex::original_object_tests::original_regex_unmatched_target_and_quiet_write_match_native_controls ... ok
+test cmd_regex::original_object_tests::original_regexp_each_match_and_first_failure_match_native_controls ... ok
+test cmd_regex::original_object_tests::original_regsub_prefix_and_unicode_arguments_match_native_c9_controls ... ok
+test cmd_regex::tests::bad_pattern_errors ... ok
+test cmd_regex::tests::compile_error_prefix_follows_the_release ... ok
+test cmd_regex::tests::regexp_all_inline_indices_nocase ... ok
+test cmd_regex::tests::regexp_match_and_captures ... ok
+test cmd_regex::tests::regexp_nomatch_leaves_vars_untouched ... ok
+test cmd_regex::tests::regsub_basic_all_and_backrefs ... ok
+test cmd_regex::tests::regsub_command_error_appends_the_c_error_info_trailer ... ok
+test cmd_regex::tests::regsub_command_evaluates_the_prefix ... ok
+test cmd_regex::tests::regsub_command_is_a_9_0_option ... ok
+test cmd_regex::tests::regsub_command_non_error_code_propagates_untouched ... ok
+test cmd_regex::tests::start_option ... ok
+test cmd_regex::tests::z_anchor_is_a_9_1_escape ... ok
+test cmd_scan::tests::scan_basic_conversions ... ok
+test cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window ... ok
+test cmd_string::native_append_tests::native_cat_preserves_all_original_cache_and_identity_windows ... ok
+test cmd_string::native_append_tests::native_cat_preserves_raw_nul_invalid_bytes_and_surrogate_windows ... ok
+test cmd_string::tests::append_array_element ... ok
+test cmd_string::tests::append_builds_in_place ... ok
+test cmd_string::tests::append_shared_core_parity ... ok
+test cmd_string::tests::append_shimmers_typed_var ... ok
+test cmd_string::tests::append_write_trace_unset ... ok
+test cmd_string::tests::selected_jim_string_ownership_and_byte_protocols_match_native ... ok
+test cmd_string::tests::string_and_prefix_ensembles_resolve_like_tclsh ... ok
+test cmd_string::tests::string_case_trim_first_last ... ok
+test cmd_string::tests::string_compare_equal_cat_repeat_reverse ... ok
+test cmd_string::tests::string_compare_equal_options ... ok
+test cmd_string::tests::string_first_last_honour_index ... ok
+test cmd_string::tests::string_length_index_range ... ok
+test cmd_string::tests::string_match_map_is ... ok
+test cmd_string::tests::string_replace_insert_word ... ok
+test cmd_string::tests::tcl_prefix ... ok
+test cmd_string::tests::utf8_char_indexing ... ok
+test cmd_switch::native_jim::tests::same_case_list_is_refetched_in_all_12_native_ownership_windows ... ok
+test cmd_switch::native_jim::tests::switch_matches_all_192_original_native_option_and_callback_results ... ok
+test cmd_switch::tests::regexp_compile_error_prefix_follows_the_release ... ok
+test cmd_switch::tests::switch_arg_errors ... ok
+test cmd_switch::tests::switch_exact_glob_default_fallthrough ... ok
+test cmd_switch::tests::switch_integer_errors_match_tcl91 ... ok
+test cmd_switch::tests::switch_integer_is_refused_before_tcl91 ... ok
+test cmd_switch::tests::switch_integer_matches_by_value_on_tcl91 ... ok
+test cmd_switch::tests::switch_option_prefixes_and_double_mode ... ok
+test cmd_switch::tests::switch_propagates_body_code ... ok
+test cmd_switch::tests::switch_regexp_and_matchvars ... ok
+test cmd_trace::native_command_tests::command_trace_info_refuses_a_stringless_original_name ... ok
+test cmd_trace::native_command_tests::command_trace_reaches_original_prefix_before_a_refused_name ... ok
+test cmd_trace::native_command_tests::legacy_operation_objects_match_native_counted_and_cstring_controls ... ok
+test cmd_trace::native_command_tests::original_command_traces_match_ten_native_byte_windows ... ok
+test cmd_trace::native_command_tests::variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls ... ok
+test cmd_trace::tests::a_delete_callbacks_own_trace_dies_with_the_dying_token ... ok
+test cmd_trace::tests::a_replacements_trace_survives_the_deletion_that_created_it ... ok
+test cmd_trace::tests::active_trace_does_not_suppress_an_unrelated_variable_trace ... ok
+test cmd_trace::tests::active_trace_suppresses_every_trace_on_its_variable_cell ... ok
+test cmd_trace::tests::cmd_trace_info_op_order_is_rename_then_delete ... ok
+test cmd_trace::tests::command_trace_callback_error_is_ignored ... ok
+test cmd_trace::tests::command_trace_fires_on_rename_and_delete ... ok
+test cmd_trace::tests::command_traces_fire_newest_first ... ok
+test cmd_trace::tests::descendant_delete_callback_creates_a_fresh_visible_namespace_tree ... ok
+test cmd_trace::tests::exec_trace_enter_error_aborts_leave_error_overrides ... ok
+test cmd_trace::tests::exec_trace_enter_leave_fire ... ok
+test cmd_trace::tests::exec_trace_order_and_live_result ... ok
+test cmd_trace::tests::exec_trace_register_info_remove_roundtrip ... ok
+test cmd_trace::tests::execution_trace_epochs_follow_only_native_hook_boundaries ... ok
+test cmd_trace::tests::hidden_and_visible_same_name_traces_remain_isolated ... ok
+test cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces ... FAILED
+test cmd_trace::tests::legacy_letter_survives_namespace_teardown ... ok
+test cmd_trace::tests::legacy_variable_trace_forms_follow_the_release ... ok
+test cmd_trace::tests::legacy_variable_trace_forms_match_c ... ok
+test cmd_trace::tests::namespace_teardown_does_not_resurrect_a_dying_namespace ... ok
+test cmd_trace::tests::namespace_teardown_fires_command_delete_traces_newest_first ... ok
+test cmd_trace::tests::namespace_teardown_fires_unset_traces_newest_first ... ok
+test cmd_trace::tests::namespace_teardown_grouping_survives_a_re_entrant_callback ... ok
+test cmd_trace::tests::namespace_teardown_groups_interleaved_command_traces ... ok
+test cmd_trace::tests::namespace_teardown_groups_interleaved_variable_traces ... ok
+test cmd_trace::tests::namespace_teardown_sweeps_callback_created_commands_and_imports ... ok
+test cmd_trace::tests::parent_teardown_reaches_each_child_after_parent_commands ... ok
+test cmd_trace::tests::read_trace_error_propagates ... ok
+test cmd_trace::tests::read_trace_fires ... ok
+test cmd_trace::tests::recreated_namespace_does_not_revive_a_retained_dead_token ... ok
+test cmd_trace::tests::redefining_a_proc_clears_and_fires_delete_traces ... ok
+test cmd_trace::tests::retained_dying_namespace_handle_is_not_publicly_live ... ok
+test cmd_trace::tests::retained_namespace_handle_remains_dead_after_deletion_returns ... ok
+test cmd_trace::tests::step_trace_fires_for_body_commands ... ok
+test cmd_trace::tests::step_trace_recursion_installs_once ... ok
+test cmd_trace::tests::teardown_op_word_is_the_full_word_at_9x ... ok
+test cmd_trace::tests::trace_array_element_vivifies_array ... ok
+test cmd_trace::tests::trace_errors_match_c ... ok
+test cmd_trace::tests::trace_info_renders_ops_in_cs_fixed_order ... ok
+test cmd_trace::tests::trace_registration_vivifies_only_on_add_and_uses_canonical_sets ... ok
+test cmd_trace::tests::trace_remove_drops_the_newest_duplicate ... ok
+test cmd_trace::tests::unset_keeps_a_callers_local_trace_when_a_callee_uses_the_same_name ... ok
+test cmd_trace::tests::unset_keeps_traces_on_same_named_variables_in_other_namespaces ... ok
+test cmd_trace::tests::unset_trace_error_is_ignored ... ok
+test cmd_trace::tests::unsetting_a_variable_clears_its_traces ... ok
+test cmd_trace::tests::variable_traces_fire_newest_first ... ok
+test cmd_trace::tests::whole_array_traces_fire_before_element_traces ... ok
+test cmd_trace::tests::write_trace_error_propagates ... ok
+test cmd_trace::tests::write_trace_fires_and_records ... ok
+test cmd_var::tests::alias_cell_lifetimes_follow_real_c_and_jim_policies ... ok
+test cmd_var::tests::captured_increment_receivers_match_actual_native_releases ... ok
+test cmd_var::tests::global_is_noop_at_top_level ... ok
+test cmd_var::tests::global_namespace_destinations_follow_real_engine_activation_rules ... ok
+test cmd_var::tests::jim_activation_variables ... ok
+test cmd_var::tests::jim_flat_absolute_variable_names ... ok
+test cmd_var::tests::jim_namespace_delete_retires_flat_variable_cells ... ok
+test cmd_var::tests::jim_namespace_root_is_local_activation ... ok
+test cmd_var::tests::jim_relative_qualified_proc_variable ... ok
+test cmd_var::tests::jim_upvar_targets_selected_activation ... ok
+test cmd_var::tests::jim_variable_declaration_preserves_colon_runs ... ok
+test cmd_var::tests::legacy_upvar_level_presence_rejects_numeric_variable_pair ... ok
+test cmd_var::tests::namespace_upvar_is_explicit_in_both_releases ... ok
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... ok
+test cmd_var::tests::procedure_qualified_target_links_the_actual_local_tail ... ok
+test cmd_var::tests::qualified_variable_fallback_depends_on_cell_and_release ... ok
+test cmd_var::tests::the_emulated_release_is_reported_without_init ... ok
+test cmd_var::tests::the_fallback_governs_every_relative_name_resolution ... ok
+test cmd_var::tests::the_fallback_is_selected_by_the_emulated_release ... ok
+test cmd_var::tests::the_fallback_never_walks_intermediate_parents ... ok
+test cmd_var::tests::the_fallback_resolves_per_interpreter ... ok
+test cmd_var::tests::traces_fire_on_the_resolved_variable_not_the_spelling ... ok
+test cmd_var::tests::upvar_at_global_links_to_namespace_var ... ok
+test cmd_var::tests::upvar_errors ... ok
+test cmd_var::tests::upvar_qualified_scalar_and_element_use_selected_frame ... ok
+test cmd_var::tests::upvar_relative_zero_in_namespace_eval_aliases_ns_var ... ok
+test cmd_var::tests::upvar_validates_semantic_homes_and_error_precedence ... ok
+test cmd_var::tests::variable_in_namespace_eval_initialises_ns_var ... ok
+test cmd_var::tests::variable_into_missing_namespace_errors ... ok
+test cmd_var::tests::variable_qualified_target ... ok
+test cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes ... FAILED
+test cmd_zlib::tests::checksum_commands ... ok
+test cmd_zlib::tests::checksums_match_zlib_vectors ... ok
+test cmd_zlib::tests::compression_round_trips_all_framings ... ok
+test cmd_zlib::tests::decodes_real_tclsh_vectors ... ok
+test cmd_zlib::tests::errors ... ok
+test cmd_zlib::tests::zlib_option_words_resolve_like_tcl_get_index_from_obj ... ok
+test codegen_abi::tests::a_compiled_return_records_the_state_the_return_command_records ... ok
+test codegen_abi::tests::a_declining_entry_falls_back_to_the_source_body_observably_unchanged ... ok
+test codegen_abi::tests::a_live_step_trace_forces_the_source_body ... ok
+test codegen_abi::tests::a_logged_command_is_truncated_and_deduplicated_like_an_interpreted_one ... ok
+test codegen_abi::tests::a_logged_statement_site_preserves_the_source_trace_without_instruction_identity ... ok
+test codegen_abi::tests::a_native_entry_runs_instead_of_the_source_body_and_is_counted ... ok
+test codegen_abi::tests::a_native_entry_that_writes_no_result_answers_with_the_empty_string ... ok
+test codegen_abi::tests::actual_cached_getter_preserves_private_c85_code_and_exact_result_extent ... ok
+test codegen_abi::tests::an_error_from_the_native_body_unwinds_through_the_procedure_frame ... ok
+test codegen_abi::tests::an_indexed_slot_survives_unset_and_stays_the_named_cell ... ok
+test codegen_abi::tests::byte_guest_error_metadata_is_captured_without_host_refusal ... ok
+test codegen_abi::tests::call_frames_are_reentrant_and_layout_checked ... ok
+test codegen_abi::tests::compiled_abrupt_completions_release_every_partial_word ... ok
+test codegen_abi::tests::compiled_activation_declines_without_a_current_interpreter ... ok
+test codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read ... FAILED
+test codegen_abi::tests::compiled_leaf_statement_round_trip_is_leak_free ... ok
+test codegen_abi::tests::compiled_nested_word_round_trip_is_leak_free ... ok
+test codegen_abi::tests::compiled_puts_uses_channel_conversion_and_balances_its_owned_value ... ok
+test codegen_abi::tests::compiled_slots_and_named_access_share_one_cell ... ok
+test codegen_abi::tests::eval_box_release_round_trip ... ok
+test codegen_abi::tests::eval_code_reports_completion_and_side_effects ... ok
+test codegen_abi::tests::expr_bool_true_and_false ... ok
+test codegen_abi::tests::guarded_intrinsic_guards_fail_after_rename_or_trace_registration ... ok
+test codegen_abi::tests::guarded_intrinsic_jim_character_identity_ignores_the_c_assistance_release ... ok
+test codegen_abi::tests::guarded_intrinsic_string_length_hits_and_releases_exact_completion_and_token ... ok
+test codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version ... ok
+test codegen_abi::tests::guarded_intrinsic_unsupported_form_declines_without_completion_or_source_replay ... ok
+test codegen_abi::tests::invoke_argv_catch_reads_the_raised_errorcode_at_compiled_top_level ... ok
+test codegen_abi::tests::invoke_argv_dispatches_builtin_without_adopting_words ... ok
+test codegen_abi::tests::invoke_argv_follows_interp_alias ... ok
+test codegen_abi::tests::invoke_argv_follows_renamed_command ... ok
+test codegen_abi::tests::invoke_argv_preserves_custom_completion_code ... ok
+test codegen_abi::tests::invoke_argv_publishes_uncaught_error_globals ... ok
+test codegen_abi::tests::invoke_argv_reports_unknown_error_with_options ... ok
+test codegen_abi::tests::invoke_argv_validates_boundary_inputs_without_leaking ... ok
+test codegen_abi::tests::named_element_store_runs_its_observer_before_reporting_the_error ... ok
+test codegen_abi::tests::native_double_and_boolean_values_are_owned_and_typed ... ok
+test codegen_abi::tests::native_wide_int_value_is_owned_and_keeps_its_internal_rep_after_shimmering ... ok
+test codegen_abi::tests::nested_add_propagates_the_inner_arithmetic_error ... ok
+test codegen_abi::tests::no_current_interp_is_leak_safe ... ok
+test codegen_abi::tests::owned_string_constructor_has_one_releasable_reference ... ok
+test codegen_abi::tests::proc_register_is_proc_define_native_with_no_entry ... ok
+test codegen_abi::tests::reached_refusal_bypasses_capture_finally_and_rmw_read_error_recovery ... ok
+test codegen_abi::tests::reached_unicode_refusal_keeps_argv_completion_output_untouched ... ok
+test codegen_abi::tests::redefining_the_proc_drops_the_native_entry ... ok
+test codegen_abi::tests::rename_carries_the_native_entry_and_deleting_the_proc_drops_it ... ok
+test codegen_abi::tests::slot_read_modify_write_runs_the_real_commands_on_the_same_cell ... ok
+test codegen_abi::tests::the_dispatch_counter_reports_a_missing_interpreter_distinctly ... ok
+test codegen_abi::tests::the_native_entry_runs_in_the_call_frame_run_proc_prepared ... ok
+test codegen_abi::tests::the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound ... ok
+test codegen_abi::tests::the_slot_trace_bit_is_revalidated_when_the_trace_set_changes ... ok
+test codegen_abi::tests::the_trace_barrier_tracks_adds_removes_links_and_frame_teardown ... ok
+test codegen_abi::tests::typed_value_boolean_read_uses_the_shared_word_table ... ok
+test codegen_abi::tests::typed_value_reads_cache_the_parsed_rep_and_keep_the_spelling ... ok
+test codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c ... ok
+test codegen_abi::tests::var_get_element_reads_an_array_element ... ok
+test codegen_abi::tests::var_get_named_preserves_a_literal_element_key ... ok
+test codegen_abi::tests::word_concat_borrows_its_parts ... ok
+test codegen_abi::tests::wrong_number_of_arguments_never_reaches_the_native_entry ... ok
+test codegen_native::tests::a_compiled_incr_returns_the_value_a_write_trace_left ... ok
+test codegen_native::tests::element_writes_and_appends_run_the_runtime_commands ... ok
+test codegen_native::tests::expr_eval_writes_the_value_or_the_exact_error ... ok
+test codegen_native::tests::incr_result_survives_a_generic_puts_invocation_in_a_loop ... 1
+2
+3
+4
+ok
+test codegen_native::tests::mathop_and_mathfunc_write_exact_completions ... ok
+test codegen_native::tests::speculative_getter_keeps_missing_engine_out_of_guest_state ... ok
+test codegen_native::tests::speculative_getter_retains_failure_cache_without_changing_guest_state ... ok
+test codegen_native::tests::try_reads_answer_without_setting_an_error ... ok
+test codegen_native::tests::var_incr_creates_and_increments_with_full_incr_semantics ... ok
+test codegen_native::tests::wide_arithmetic_admission_preserves_big_primitive_cache ... ok
+test dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache ... ok
+test dict::tests::backslash_newline_absorbs_the_following_space_run ... ok
+test dict::tests::build_get_size ... ok
+test dict::tests::delimiter_errors_keep_their_dict_wording_and_fragment ... ok
+test dict::tests::duplicate_keys_canonicalise_like_the_shared_owner ... ok
+test dict::tests::insertion_order_in_string_rep ... ok
+test dict::tests::odd_length_string_is_an_error ... ok
+test dict::tests::set_overwrites_in_place_preserving_order ... ok
+test dict::tests::string_to_dict_shimmer ... ok
+test dict::tests::unset_preserves_order_and_frees ... ok
+test expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call ... ok
+test expr::float_error_tests::c84_normalization_matches_six_original_float_error_windows ... ok
+test expr::tests::arithmetic_and_precedence ... ok
+test expr::tests::bitwise_and_shifts ... ok
+test expr::tests::boolean_prefixes_share_the_canonical_converter ... ok
+test expr::tests::c84_reached_expression_matches_seven_original_cache_controls ... ok
+test expr::tests::checked_comparison_separates_jim_bytes_counts_and_storage_refusal ... ok
+test expr::tests::comparisons_numeric_and_string ... ok
+test expr::tests::errors ... ok
+test expr::tests::expression_refusal_bypasses_guest_capture_and_finally ... ok
+test expr::tests::jim_explicit_double_getter_keeps_exact_integer_and_lazy_string_cache ... ok
+test expr::tests::math_functions ... ok
+test expr::tests::selected_numeric_input_preserves_original_bytes_and_caches_the_actual_object ... ok
+test expr::tests::short_circuit_and_ternary ... ok
+test expr::tests::variables_and_membership ... ok
+test frame::destruction::tests::search_keys_keep_undefined_members_and_selected_incarnation ... ok
+test frame::destruction::tests::weak_search_tracks_native_invalidation_without_retaining_the_array ... ok
+test frame::native_array_target::tests::current_alias_receiver_and_captured_search_keep_distinct_array_generations ... ok
+test frame::native_array_target::tests::scalar_alias_array_operations_keep_the_selected_duplicate_declaration ... ok
+test frame::native_element_entry::tests::c84_element_entries_own_bytes_without_an_object_key ... ok
+test frame::native_element_entry::tests::element_aliases_share_one_original_key_and_refill_the_same_entry ... ok
+test frame::native_element_entry::tests::retired_generation_releases_its_key_before_the_final_real_alias ... ok
+test frame::native_inventory_tests::array_entry_ledgers_match_all_320_native_table_controls ... ok
+test frame::native_inventory_tests::c_declared_cells_preserve_duplicates_before_dynamic_hash_inventory ... ok
+test frame::native_inventory_tests::declared_undefined_namespace_cells_remain_visible_without_becoming_defined ... ok
+test frame::native_inventory_tests::trace_member_identity_selects_original_duplicate_root_allocations ... ok
+test frame::native_inventory_tests::trace_shells_grow_table_without_becoming_defined_inventory ... ok
+test frame::native_scalar_alias::tests::alias_hold_retains_exact_key_through_unset_and_recreate ... ok
+test frame::native_scalar_alias::tests::namespace_table_retirement_does_not_remain_owned_by_alias ... ok
+test frame::native_variable_names::indexed_receiver_tests::duplicate_formal_indices_keep_distinct_read_write_unset_and_alias_receivers ... ok
+test frame::native_variable_names::indexed_receiver_tests::unnamed_native_locals_retain_original_values_without_dynamic_entries ... ok
+test frame::rmw::tests::failed_receivers_retire_only_their_original_unused_entries ... ok
+test frame::rmw::tests::initial_default_is_dynamic_and_does_not_replace_publication_result ... ok
+test frame::rmw::tests::native_get_creates_elements_only_with_an_existing_array_root ... ok
+test frame::rmw::tests::retired_array_default_cannot_follow_same_name_recreation ... ok
+test frame::rmw::tests::trace_shell_definition_survives_trace_removal_without_leaking ... ok
+test interp::execution_name_policy::tests::counted_array_root_and_scalar_queries_use_normal_source_dispatch ... ok
+test interp::execution_name_policy::tests::counted_dynamic_cell_does_not_collide_with_declared_cstring_prefix ... ok
+test interp::execution_name_policy::tests::measured_names_use_actual_frame_and_retire_on_error_completion ... ok
+test interp::execution_name_policy::tests::observed_counted_set_dispatch_uses_actual_entered_frame ... ok
+test interp::execution_name_policy::tests::observed_trace_and_upvar_purposes_are_unavailable_in_source_dispatch ... ok
+test interp::execution_name_policy::tests::original_object_assignments_use_the_current_observed_receiver ... ok
+test interp::execution_name_policy::tests::original_observed_substitutions_keep_counted_cells_and_input_forms_separate ... ok
+test interp::execution_name_policy::tests::replacement_activation_and_changed_profile_do_not_inherit_capability ... ok
+test interp::execution_name_policy::tests::scoped_policy_restores_after_error_completion ... ok
+test interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage ... ok
+test interp::jim_teardown::tests::ordinary_jim_activation_owns_the_original_declaration_objects ... ok
+test interp::native_body_artifact::control_expression_tests::c84_logical_storage_and_short_circuit_match_eight_native_controls ... ok
+test interp::native_body_artifact::control_expression_tests::c91_catch_reset_releases_the_original_global_syntax_message ... ok
+test interp::native_body_artifact::control_expression_tests::catch_publication_and_store_order_match_six_native_engines ... ok
+test interp::native_body_artifact::control_expression_tests::compiled_catch_store_order_matches_four_native_alias_controls ... ok
+test interp::native_body_artifact::control_expression_tests::compiled_expression_storage_matches_40_original_native_windows ... ok
+test interp::native_body_artifact::control_expression_tests::compiled_return_context_retains_original_operands_without_annotation ... ok
+test interp::native_body_artifact::control_expression_tests::compiled_syntax_context_retains_same_native_message_and_options ... ok
+test interp::native_body_artifact::control_expression_tests::compound_expression_programs_match_40_native_controls ... ok
+test interp::native_body_artifact::control_expression_tests::folded_logical_literal_ownership_matches_eight_native_collisions ... ok
+test interp::native_body_artifact::control_expression_tests::registered_control_artifacts_match_75_native_controls ... ok
+test interp::native_body_artifact::namespace_tests::original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes ... ok
+test interp::native_body_artifact::namespace_tests::original_c85_namespace_upvar_artifact_preserves_native_pools_and_locals ... ok
+test interp::native_body_artifact::namespace_tests::original_namespace_artifacts_match_native_instruction_and_local_matrix ... ok
+test interp::native_body_artifact::namespace_tests::original_namespace_declined_attempt_retains_native_pool_order_and_private_headers ... ok
+test interp::native_body_artifact::native_compiler_pass::tests::compiler_pass_environment_uses_actual_parent_limits_and_command_owner ... ok
+test interp::native_body_artifact::native_compiler_pass::tests::enabling_native_limit_preserves_warm_original_bytecode_and_local_table ... ok
+test interp::native_body_artifact::native_coroutine::tests::original_coroutine_artifacts_match_native_namespace_and_completion_controls ... ok
+test interp::native_body_artifact::native_coroutine::tests::original_coroutine_channel_retains_yield_resume_and_creation_headers ... ok
+test interp::native_body_artifact::native_coroutine::tests::tailcall_cancellation_releases_original_headers_before_continuation ... ok
+test interp::native_body_artifact::native_each::tests::original_each_artifacts_match_all_95_native_execution_and_layout_windows ... ok
+test interp::native_body_artifact::native_error::tests::original_error_artifacts_match_native_guest_result_and_local_order ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_array_make_preserves_the_native_write_array_error_category ... ok
+test interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... FAILED
+test interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows ... FAILED
+test interp::native_body_artifact::native_introspection::tests::generic_array_existence_preserves_six_legacy_native_original_header_windows ... ok
+test interp::native_body_artifact::native_list_index::original_objects::original_index_getters_match_45_native_header_and_result_windows ... ok
+test interp::native_body_artifact::native_list_index::original_objects::original_index_list_and_returned_child_have_independent_real_owners ... ok
+test interp::native_body_artifact::native_list_index::tests::original_list_index_artifact_preserves_95_native_header_and_completion_windows ... ok
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... FAILED
+test interp::native_body_artifact::native_named::tests::compiled_named_invocations_retain_original_headers_and_late_lookup ... ok
+test interp::native_body_artifact::native_namespace_string::tests::original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows ... ok
+test interp::native_body_artifact::native_namespace_string::tests::original_namespace_tail_matches_one_hundred_counted_native_windows ... ok
+test interp::native_body_artifact::native_scalar::tests::compiled_scalars_preserve_forty_one_native_original_header_windows ... ok
+test interp::native_body_artifact::native_string::tests::compiled_match_results_retain_actual_pattern_or_execution_constant_owners ... ok
+test interp::native_body_artifact::native_string::tests::compiled_string_match_headers_match_33_original_native_windows ... ok
+test interp::native_body_artifact::native_string::tests::original_match_artifact_preserves_renamed_registration_and_withdraws_replaced_target ... ok
+test interp::native_body_artifact::native_string::tests::original_string_match_artifacts_preserve_operand_order_and_selected_matcher ... ok
+test interp::native_body_artifact::native_string_trim::tests::original_string_trim_matches_all_216_native_header_windows ... ok
+test interp::native_body_artifact::native_substitution::compiler_currency_tests::substitution_does_not_recover_an_unknown_original_compiler_epoch ... ok
+test interp::native_body_artifact::native_substitution::tests::original_compiled_substitution_matches_native_template_windows ... ok
+test interp::native_body_artifact::native_switch::tests::registered_switch_artifacts_match_56_native_branch_controls ... ok
+test interp::native_body_artifact::native_switch::tests::registered_switch_artifacts_match_56_native_controls ... ok
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... ok
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_exists_quiet_trace_semantics_preserve_15_native_result_windows ... ok
+test interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers ... FAILED
+test interp::native_body_artifact::object_info_tests::compiled_object_info_preserves_original_lookup_and_execution_constants ... ok
+test interp::native_body_artifact::object_info_tests::nested_info_artifact_retains_original_maps_and_late_worker_binding ... ok
+test interp::native_body_artifact::tests::original_append_artifacts_keep_registered_operands_and_native_local_layout ... ok
+test interp::native_body_artifact::tests::original_artifact_empty_source_and_parse_failure_keep_native_publication_policy ... ok
+test interp::native_body_artifact::tests::original_artifact_keeps_opcode_selection_before_argument_mutation ... ok
+test interp::native_body_artifact::tests::original_artifact_legacy_recompilation_uses_actual_roles_and_fresh_body ... ok
+test interp::native_body_artifact::tests::original_artifact_recompiles_for_physical_compiler_mutation ... ok
+test interp::native_body_artifact::tests::original_body_word_parts_match_native_concatenation_windows ... ok
+test interp::native_body_artifact::tests::original_c91_uplevel_artifact_selects_frame_then_enters_original_script ... ok
+test interp::native_body_artifact::tests::original_index_getter_follows_later_store_and_increment_operands ... ok
+test interp::native_body_artifact::tests::original_procedure_artifact_executes_indexed_slots_and_reuses_original_cache ... ok
+test interp::native_body_artifact::tests::procedure_done_in_bracket_exits_without_return_option_state ... ok
+test interp::native_body_artifact::tests::registered_append_artifacts_match_43_native_callback_controls ... ok
+test interp::native_body_artifact::tests::registered_return_artifacts_match_44_native_controls ... ok
+test interp::native_body_artifact::tests::syntax_instruction_reuses_same_stringless_options_dictionary ... ok
+test interp::native_children::tests::child_commands_keep_namespace_and_allocation_through_rename_and_recreation ... ok
+test interp::native_children::tests::child_constructor_uses_the_explicit_parent_profile_recipe ... ok
+test interp::native_children::tests::child_source_controls_match_native_creation_and_retirement_windows ... ok
+test interp::native_children::tests::replacing_or_deleting_child_command_retires_only_its_actual_interpreter ... ok
+test interp::native_command_names::tests::absolute_c84_getter_reuses_global_reference_inside_a_namespace ... ok
+test interp::native_command_names::tests::command_name_receipt_does_not_keep_retired_procedure_worker_alive ... ok
+test interp::native_command_names::tests::current_original_command_cache_needs_no_resident_string ... ok
+test interp::native_command_names::tests::duplicate_objects_and_foreign_interpreters_do_not_share_hit_authority ... ok
+test interp::native_command_names::tests::failed_lookup_applies_release_selected_primary_without_erasing_c9_cache ... ok
+test interp::native_command_names::tests::hide_expose_and_rename_keep_node_identity_with_native_epoch_windows ... ok
+test interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics ... FAILED
+test interp::native_command_names::tests::origin_string_result_requires_actual_native_core_issuer ... ok
+test interp::native_command_names::tests::original_namespace_origin_tracks_native_import_renames_and_replacement ... ok
+test interp::native_command_names::tests::original_namespace_origin_uses_current_stringless_cache_and_refuses_stale_cache ... ok
+test interp::native_command_names::tests::same_original_object_rebases_and_local_shadowing_invalidates_global_cache ... ok
+test interp::native_command_rename::tests::alias_rename_diagnostic_matches_all_five_original_native_bindings ... ok
+test interp::native_compilation::tests::compiled_native_selection_precedes_argv_in_procedures_but_direct_eval_remains_late ... ok
+test interp::native_compilation::tests::execution_traces_decline_native_selection_and_custom_host_handlers_never_gain_stock_proof ... ok
+test interp::native_compilation::tests::legacy_compilation_rejects_the_entire_chunk_before_arity_and_prunes_only_literal_booleans ... ok
+test interp::native_compilation::tests::legacy_error_contexts_preserve_inline_annotations_and_source_word_delimiters ... ok
+test interp::native_compilation::tests::native_runtime_matches_all_six_compiler_traversal_oracles ... ok
+test interp::native_compilation::tests::safe_index_missing_fixed_table_stays_an_outer_refusal ... ok
+test interp::native_compilation::tests::selected_error_preserves_native_handler_across_argument_mutation ... ok
+test interp::native_compilation::tests::unpresented_native_rejection_is_a_host_obligation_before_any_effects ... ok
+test interp::native_compilation::tests::variable_output_addresses_follow_the_selected_native_write_order ... ok
+test interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls ... ok
+test interp::native_error_headers::tests::explicit_stack_preserves_original_member_primary_without_string_getters ... ok
+test interp::native_error_headers::tests::private_headers_save_without_duplicate_member_references ... ok
+test interp::native_error_log_tests::reached_logs_match_15_native_frame_and_dictionary_windows ... ok
+test interp::native_error_log_tests::special_and_nested_frames_match_12_native_command_logs ... ok
+test interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver ... FAILED
+test interp::native_error_variables::tests::c84_explicit_error_code_setter_retains_the_same_original_header ... ok
+test interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls ... ok
+test interp::native_error_variables::tests::c84_nonempty_error_info_publication_matches_original_callback_controls ... ok
+test interp::native_error_variables::tests::c85_error_options_rearm_publication_of_the_restored_original_header ... ok
+test interp::native_error_variables::tests::command_logging_publishes_same_private_header_only_to_user_traced_cells ... ok
+test interp::native_error_variables::tests::error_info_byte_append_preserves_seed_primary_until_nonempty_mutation ... ok
+test interp::native_error_variables::tests::hidden_error_reads_and_unsets_match_original_native_objects ... ok
+test interp::native_error_variables::tests::hidden_trace_survives_script_removal_array_unset_and_root_teardown ... ok
+test interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers ... ok
+test interp::native_error_variables::tests::outermost_native_error_retains_private_objects_until_the_next_evaluation ... ok
+test interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_interpreter_two_table_errors_match_all_native_15_windows ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_jim_enum_matches_all_native_14_windows ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_static_option_facades_keep_jim_counted_enum_currency ... ok
+test interp::native_index_lookup::tests::core_original_option_door_preserves_cached_absent_string_for_all_c_versions ... ok
+test interp::native_index_lookup::tests::foreign_index_origin_refuses_before_getter ... ok
+test interp::native_index_lookup::tests::original_index_cache_matches_all_native_25_windows ... ok
+test interp::native_index_lookup::tests::original_index_flags_and_offsets_match_all_native_31_windows ... ok
+test interp::native_jim_increment::tests::original_dictionary_sugar_increment_matches_native_publication_windows ... ok
+test interp::native_jim_increment::tests::original_dictionary_unset_matches_nine_native_jim_controls ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... ok
+test interp::native_jim_lookup::tests::foreign_jim_lookup_receipts_refuse_without_mutating_the_original ... ok
+test interp::native_jim_lookup::tests::jim_cache_namespace_equality_uses_counted_original_objects_not_c_arena_tokens ... ok
+test interp::native_jim_lookup::tests::jim_deleted_active_original_head_hits_only_until_the_real_invocation_retires ... ok
+test interp::native_jim_lookup::tests::jim_original_command_replacement_and_rename_preserve_miss_primary ... ok
+test interp::native_jim_lookup::tests::jim_original_variable_frame_miss_and_unrelated_unset_match_native_controls ... ok
+test interp::native_jim_lookup::tests::original_jim_lookup_primaries_match_native_key_and_cache_ownership ... ok
+test interp::native_jim_namespace::tests::canonical_construction_and_query_use_actual_jim_holder_without_c_tree ... ok
+test interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls ... ok
+test interp::native_jim_namespace::tests::jim_root_command_context_requires_its_live_original_top_object ... ok
+test interp::native_jim_namespace::tests::jim_top_namespace_owns_the_original_context_empty_object ... ok
+test interp::native_jim_namespace::tests::namespace_body_dispatch_retains_original_list_members ... ok
+test interp::native_jim_namespace::tests::root_relative_canonicalisation_and_activation_retain_original_opaque_object ... ok
+test interp::native_literal_pool::tests::added_original_literal_keeps_the_same_header_and_exact_local_reference ... ok
+test interp::native_literal_pool::tests::c85_folded_logical_original_shares_only_a_live_registration ... ok
+test interp::native_literal_pool::tests::c85_hidden_one_word_literal_duplicates_then_unregisters_before_source_publication ... ok
+test interp::native_literal_pool::tests::c85_refuses_a_non_native_self_producer_without_changing_original_storage ... ok
+test interp::native_literal_pool::tests::c91_constant_concat_retains_private_allocated_string_headers ... ok
+test interp::native_literal_pool::tests::empty_literal_world_capture_has_actual_owner_epoch_and_retirement ... ok
+test interp::native_literal_pool::tests::native_arrays_share_registered_headers_and_release_global_before_local ... ok
+test interp::native_literal_pool::tests::private_list_members_are_fresh_originals_not_global_string_registrations ... ok
+test interp::native_literal_pool::tests::source_finalization_uses_original_pointer_and_all_c84_registered_slots ... ok
+test interp::native_literal_pool::tests::syntax_compiler_reset_publishes_original_without_a_global_literal_owner ... ok
+test interp::native_namespace_names::tests::current_namespace_results_match_current_jim_original_producers ... ok
+test interp::native_namespace_names::tests::namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks ... ok
+test interp::native_namespace_names::tests::native_namespace_cache_cannot_authenticate_a_same_number_replacement ... ok
+test interp::native_namespace_names::tests::opaque_children_match_20_native_query_and_primary_windows ... ok
+test interp::native_namespace_names::tests::original_namespace_lifetime_survives_retirement_without_owning_the_interpreter ... ok
+test interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows ... ok
+test interp::native_object_vector::tests::absent_handler_produces_string_but_real_handler_preserves_original_result ... ok
+test interp::native_object_vector::tests::empty_public_vectors_reset_original_result_owners_without_dispatch ... ok
+test interp::native_object_vector::tests::jim_public_vector_error_retains_original_argv_after_frame_pop ... ok
+test interp::native_object_vector::tests::original_public_vectors_and_source_commands_match_all_60_native_windows ... ok
+test interp::native_object_vector::tests::public_original_return_matches_all_six_native_completion_boundaries ... ok
+test interp::native_procedure_body::tests::c_interpreter_shutdown_retires_visible_and_hidden_bindings_despite_query_views ... ok
+test interp::native_procedure_body::tests::chosen_body_copies_shared_cache_and_keeps_unshared_original ... ok
+test interp::native_procedure_body::tests::native_liveness_getters_accept_fresh_unowned_headers ... ok
+test interp::native_procedure_body::tests::original_c_frame_retains_deleted_declaration_until_raw_body_finishes ... ok
+test interp::native_procedure_body::tests::rejected_native_formal_binding_acquires_no_execution_reference ... ok
+test interp::native_procedure_body::tests::retired_native_procedure_views_refuse_getters_without_regenerating_headers ... ok
+test interp::native_procedure_relocation_tests::relocation_of_original_counted_names_matches_native_binding_identity ... ok
+test interp::native_procedure_relocation_tests::relocation_retains_native_binding_and_declaration_with_separate_active_namespace ... ok
+test interp::native_procedure_resources::callable_tests::commandless_roles_share_snapshots_but_duplicate_real_lambda_and_method_owners ... ok
+test interp::native_procedure_resources::callable_tests::entered_method_client_data_and_proc_execution_retire_separately_from_queries ... ok
+test interp::native_procedure_resources::callable_tests::original_lambda_primary_reuses_its_proc_and_compiled_body_without_a_command_binding ... ok
+test interp::native_return_instruction::tests::direct_instruction_retains_original_headers_and_unmaterialized_code ... ok
+test interp::native_return_instruction::tests::syntax_options_capture_uses_native_info_header_copy_and_numerical_controls ... ok
+test interp::native_script::tests::jim_control_body_preserves_original_source_in_error_frames ... ok
+test interp::native_script::tests::jim_original_lookup_error_keeps_live_procedure_and_script_frames ... ok
+test interp::native_script::tests::normal_original_script_does_not_materialise_its_borrowed_filename ... ok
+test interp::native_script::tests::sourced_jim_body_tokens_keep_original_lines_and_unlocated_objects_stay_unlocated ... ok
+test interp::native_trace_result::tests::c84_script_purposes_preserve_different_return_state ... ok
+test interp::native_trace_result::tests::modern_state_restores_original_private_objects_and_shared_options ... ok
+test interp::native_trace_result::tests::selected_callback_save_transfers_the_original_result_owner ... ok
+test interp::native_variable_names::native_unset::tests::original_unset_execution_matches_85_native_completion_windows ... ok
+test interp::native_variable_names::native_unset::tests::original_unset_options_match_66_native_results ... ok
+test interp::native_variable_names::native_unset::tests::original_unset_traces_and_operand_order_match_36_native_results ... ok
+test interp::native_variable_names::tests::active_read_unset_probe_preserves_actual_jim_unsupported_setup ... PATCHLEVEL 0.84
+ok
+test interp::native_variable_names::tests::active_read_unset_retires_old_registrations_matches_five_native_source_controls ... ok
+test interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners ... ok
+test interp::native_variable_names::tests::array_root_write_diagnostics_match_five_original_source_controls ... ok
+test interp::native_variable_names::tests::array_root_write_preserves_current_jim_dictionary_replacement ... ok
+test interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache ... ok
+test interp::native_variable_names::tests::element_entry_lifecycle_matches_all_70_actual_c_windows ... ok
+test interp::native_variable_names::tests::element_table_and_var_roles_match_all_25_actual_callback_windows ... ok
+test interp::native_variable_names::tests::generic_namespace_declarations_match_all_25_native_execution_results ... ok
+test interp::native_variable_names::tests::list_assignment_arity_matches_current_jim_original_source_controls ... ok
+test interp::native_variable_names::tests::list_assignment_arity_matches_five_original_source_controls ... ok
+test interp::native_variable_names::tests::namespace_alias_settlement_matches_all_15_native_callback_and_error_results ... ok
+test interp::native_variable_names::tests::namespace_opcodes_bypass_original_local_cache_and_retain_the_namespace_cell ... ok
+test interp::native_variable_names::tests::original_link_lookup_and_unset_preserve_target_name_cache ... ok
+test interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths ... ok
+test interp::native_variable_names::tests::original_parsed_headers_match_all_150_actual_c_windows ... ok
+test interp::native_variable_names::tests::qualified_variable_scope_matches_all_six_native_sequences ... ok
+test interp::native_variable_names::tests::recreated_element_read_trace_matches_five_original_source_controls ... ok
+test interp::native_variable_names::tests::recreated_element_trace_probe_preserves_actual_jim_unsupported_setup ... PATCHLEVEL 0.84
+ok
+test interp::native_variable_names::tests::scalar_alias_entries_and_array_parts_match_all_95_native_windows ... ok
+test interp::native_variable_names::tests::search_free_slots_match_all_20_actual_c_windows ... ok
+test interp::native_variable_names::tests::variable_read_diagnostics_match_five_original_source_controls ... ok
+test interp::native_variable_names::tests::variable_read_input_preserves_current_jim_dictionary_results ... ok
+test interp::native_variable_observers::tests::direct_native_registration_is_hidden_and_retires_with_the_actual_cell ... ok
+test interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch ... FAILED
+test interp::stock_ensembles::tests::actual_private_families_follow_native_release_floors ... ok
+test interp::stock_ensembles::tests::jim_binary_uses_actual_procedure_and_mutable_compound_helpers ... ok
+test interp::stock_ensembles::tests::jim_scripted_binary_preserves_host_helpers_and_later_replacements ... ok
+test interp::stock_ensembles::tests::parser_usage_adapter_preserves_callback_reset_and_original_header_identity ... ok
+test interp::stock_ensembles::tests::worker_usage_retains_public_and_private_invocation_headers ... ok
+test interp::tests::a_fresh_interp_reinstalls_the_number_grammar_after_an_8_6_interp ... ok
+test interp::tests::a_planted_alias_cycle_errors_instead_of_exhausting_the_stack ... ok
+test interp::tests::absolute_qualified_command_resolves ... ok
+test interp::tests::an_empty_numeral_errors_instead_of_panicking_on_every_release ... ok
+test interp::tests::an_imported_hidden_builtin_keeps_its_release_gate ... ok
+test interp::tests::array_element_via_set_and_subst ... ok
+test interp::tests::build_info_follows_the_pinned_release ... ok
+test interp::tests::c84_direct_invalid_expression_preserves_code_until_eval ... ok
+test interp::tests::child_and_safe_platform_schemas_come_from_the_shared_owner ... ok
+test interp::tests::child_parent_association_stales_interpreter_guard ... ok
+test interp::tests::clock_remains_callable_in_a_safe_child ... ok
+test interp::tests::command_error_default_and_explicit_updates_replace_seeded_code ... ok
+test interp::tests::command_guard_checks_identity_and_exact_lifecycle ... ok
+test interp::tests::command_identity_survives_unrelated_mutation_and_follows_its_actual_generation ... ok
+test interp::tests::command_mutation_invalidates_guards_and_preserves_unrelated_identity ... ok
+test interp::tests::command_substitution_closes_the_seam ... ok
+test interp::tests::command_substitution_propagates_non_error_codes ... ok
+test interp::tests::command_trace_stales_the_string_intrinsic_guard ... ok
+test interp::tests::completion_code_integers_follow_the_release_selected_number_grammar ... ok
+test interp::tests::core_package_provides_follow_the_pinned_release ... ok
+test interp::tests::counted_syntax_failures_keep_direct_code_and_apply_eval_update ... ok
+test interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit ... ok
+test interp::tests::direct_dispatch_resets_the_prior_result_at_the_central_boundary ... ok
+test interp::tests::execution_policy_and_runtime_version_mutations_stale_interpreter_guards ... ok
+test interp::tests::expand_marker_splits_arguments ... ok
+test interp::tests::expand_split_error_names_the_right_failure ... ok
+test interp::tests::expr_command_end_to_end ... ok
+test interp::tests::expr_numerals_follow_the_release_selected_number_grammar ... ok
+test interp::tests::expression_policy_keeps_native_dispatch_separate_from_authored_parser ... ok
+test interp::tests::fresh_interp_installs_the_shared_platform_schema_before_init ... ok
+test interp::tests::grammar_and_command_surface_follow_the_selected_release ... ok
+test interp::tests::incr_arithmetic ... ok
+test interp::tests::incr_element_and_const_via_seam ... ok
+test interp::tests::incr_promotes_to_bignum ... ok
+test interp::tests::jim_diagnostic_argv_borrows_preserve_sharing_and_lazy_string_representation ... ok
+test interp::tests::jim_expression_sugar_bypasses_command_lookup_and_keeps_original_expression ... ok
+test interp::tests::jim_raw_expression_comparisons_errors_and_numeric_nul_match_native ... ok
+test interp::tests::literal_element_references_match_the_selected_native_interpreter ... ok
+test interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards ... FAILED
+test interp::tests::missing_alias_target_preserves_prefix_arguments_for_unknown ... ok
+test interp::tests::missing_alias_target_selects_the_native_handler_context ... ok
+test interp::tests::missing_alias_target_uses_custom_unknown_with_target_and_args ... ok
+test interp::tests::missing_alias_target_without_unknown_preserves_target_error_identity ... ok
+test interp::tests::missing_alias_unknown_cycle_is_bounded ... ok
+test interp::tests::missing_arity_protocol_refuses_before_guest_state_changes ... FAILED
+test interp::tests::moderately_nested_foreach_still_runs ... ok
+test interp::tests::multi_command_script ... ok
+test interp::tests::namespace_eval_body_set_is_a_namespace_var ... ok
+test interp::tests::native_core_root_cells_match_six_original_constructor_inventories ... ok
+test interp::tests::native_jim_core_keeps_only_constructor_empty_roles ... ok
+test interp::tests::numeric_nul_expression_observations_match_every_selected_native_engine ... ok
+test interp::tests::object_dispatch_remains_poisoned_but_interpreter_is_guardable ... ok
+test interp::tests::original_command_getter_uses_the_retained_lookup_namespace ... ok
+test interp::tests::original_variable_word_vectors_match_the_selected_native_interpreter ... ok
+test interp::tests::primitive_getter_preserves_seeded_code_until_script_propagation ... ok
+test interp::tests::qualified_global_aliases_plain_at_top_level ... ok
+test interp::tests::qualified_set_into_missing_namespace_errors ... ok
+test interp::tests::qualified_var_resolves_through_namespace_table ... ok
+test interp::tests::release_hidden_alias_target_uses_unknown_under_tcl84 ... ok
+test interp::tests::renaming_spec_registered_string_stales_its_intrinsic_guard ... ok
+test interp::tests::return_code_word_reads_its_integer_in_the_emulated_release ... ok
+test interp::tests::return_sets_code ... ok
+test interp::tests::safe_interp_hidden_set_matches_the_measured_tclsh_sets ... ok
+test interp::tests::scalar_read_of_array_reports_variable_is_array ... ok
+test interp::tests::selected_host_bootstrap_and_rebind_replace_all_host_globals ... ok
+test interp::tests::set_and_read_back ... ok
+test interp::tests::string_length_guard_accepts_irreducible_base_domains ... ok
+test interp::tests::string_length_intrinsic_uses_the_selected_runtime_character_model ... ok
+test interp::tests::tailcall_retired_namespace_relookup_observes_deletion_and_recreation ... ok
+test interp::tests::tailcall_selected_miss_does_not_relookup_the_callers_command ... ok
+test interp::tests::the_release_command_surface_gates_alias_and_import_dispatch ... ok
+test interp::tests::the_release_command_surface_gates_rename_and_hide ... ok
+test interp::tests::trace_registration_invalidates_matching_guard_domains ... ok
+test interp::tests::unbounded_proc_recursion_errors_instead_of_crashing ... ok
+test interp::tests::undefined_variable_is_an_error ... ok
+test interp::tests::unknown_command_is_an_error ... ok
+test interp::tests::visibility_safety_and_topology_mutations_stale_interpreter_guards ... ok
+test interp::variable_names::tests::combined_and_separate_element_extents_select_different_physical_keys ... ok
+test interp::variable_names::tests::jim_namespace_and_scalar_keys_keep_original_nonunicode_bytes ... ok
+test interp::variable_names::tests::original_root_qualification_precedes_byte_cell_lookup ... ok
+test jim_try::tests::explicit_stacktrace_and_error_code_keep_original_objects ... ok
+test jim_try::tests::native_finally_uses_live_private_state_and_original_result ... ok
+test list::native_list_storage::tests::runtime_list_ranges_preserve_all_five_native_shared_header_windows ... ok
+test list::tests::append_invalidates_string_rep ... ok
+test list::tests::build_index_length ... ok
+test list::tests::compound_updater_matches_all_six_native_original_object_fixtures ... ok
+test list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow ... FAILED
+test list::tests::list_backing_canonical_flags_match_original_native_operations ... ok
+test list::tests::list_element_quoting_modes ... ok
+test list::tests::list_to_string_quotes ... ok
+test list::tests::native_c_list_copy_shares_backing_until_first_mutation ... ok
+test list::tests::native_dictionary_list_conversion_keeps_members_and_resident_spelling ... ok
+test list::tests::original_backing_survives_shimmer_without_extra_child_owners ... ok
+test list::tests::selected_double_updaters_match_all_native_nonfinite_payloads ... ok
+test list::tests::selected_empty_compound_updaters_install_native_allocation_identity ... ok
+test list::tests::string_to_list_shimmer ... ok
+test mem_fs::tests::files_and_implied_dirs ... ok
+test mem_fs::tests::norm_collapses ... ok
+test mem_fs::tests::write_then_remove ... ok
+test namespace::original_variable_geometry_tests::namespace_variable_roots_keep_qualification_before_zero_and_counted_simple_keys ... ok
+test namespace::tests::c85_obj_creation_invalidates_reverse_paths_before_delete_callback_window ... ok
+test namespace::tests::command_reference_epochs_follow_shadow_trails_and_reverse_path_entries ... ok
+test namespace::tests::compiler_and_resolver_epochs_match_original_native_mutation_rows ... ok
+test namespace::tests::constructed_path_and_lookup_stay_on_detached_original_token ... ok
+test namespace::tests::imported_raw_compiler_attachment_is_copied_once ... ok
+test namespace::tests::imported_raw_compiler_recipe_is_independent_of_future_origin_header ... ok
+test namespace::tests::namespace_path_fallback ... ok
+test namespace::tests::qualified_registration_and_resolution ... ok
+test namespace::tests::unqualified_resolves_in_global ... ok
+test native_arithseries::tests::arithmetic_elements_and_string_refusals_preserve_original_lazy_header ... ok
+test native_arithseries::tests::original_arithmetic_series_matches_all_196_native_storage_windows ... ok
+test native_arithseries::tests::original_lazy_foreach_matches_all_36_native_windows_including_huge_break ... ok
+test native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series ... FAILED
+test native_return_merge::physical_tests::private_return_merger_preserves_four_native_nested_option_results ... ok
+test native_return_merge::physical_tests::private_return_options_factory_preserves_136_native_storage_windows ... ok
+test native_script::execution_tests::original_script_execution_matches_51_native_callback_windows ... ok
+test native_script::tests::original_script_storage_matches_156_native_windows ... ok
+test native_source::tests::last_list_header_retires_source_filename_before_lifetime_view ... ok
+test native_source::tests::source_owned_list_conversion_matches_222_native_windows ... ok
+test native_source::tests::weak_context_does_not_own_objects_and_cannot_be_reissued ... ok
+test native_substitution::tests::original_substitution_storage_matches_205_native_windows ... ok
+test obj::double_precision_tests::binary_scan_doubles_materialise_only_at_the_selected_precision ... ok
+test obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings ... FAILED
+test obj::double_precision_tests::native_fixed_double_policies_ignore_ordinary_precision_variables ... ok
+test obj::double_precision_tests::native_precision_array_elements_share_the_hidden_trace_state ... ok
+test obj::native_property_name::tests::original_property_name_duplicate_reuses_and_releases_accessor_children ... ok
+test obj::script_location_tests::retained_source_follows_object_lifetime_and_revokes_on_value_mutation ... ok
+test parse::tests::a_concatenating_dialect_welds_instead_of_raising ... ok
+test parse::tests::a_welded_close_quote_is_a_parse_error_part ... ok
+test parse::tests::array_index_source_mask_follows_the_release ... ok
+test parse::tests::array_ref_index_components ... ok
+test parse::tests::braced_word_is_literal ... ok
+test parse::tests::bracket_subst_decomposes_in_one_word ... ok
+test parse::tests::command_line_numbers_are_body_relative ... ok
+test parse::tests::command_source_slice_matches_c ... ok
+test parse::tests::comment_is_not_a_command ... ok
+test parse::tests::deeply_nested_array_index_survives_scan_parts ... ok
+test parse::tests::expand_marker_sets_flag_and_strips ... ok
+test parse::tests::expand_only_when_immediately_followed ... ok
+test parse::tests::line_continuation_joins_logical_line ... ok
+test parse::tests::literal_word_is_zero_copy ... ok
+test parse::tests::mixed_text_and_variable ... ok
+test parse::tests::moderately_nested_array_index_still_scans_fully ... ok
+test parse::tests::opaque_counted_words_keep_original_source_and_shared_delimiters ... ok
+test parse::tests::quoted_word_strips_quotes ... ok
+test parse::tests::script_drops_empty_commands ... ok
+test parse::tests::semicolon_ends_command ... ok
+test parse::tests::split_list_delegates_to_tcl_syntax ... ok
+test parse::tests::two_word_command ... ok
+test parse::tests::word_escapes_decode_for_the_emulated_release ... ok
+test regex_capi::tests::capi_roundtrip ... ok
+test regex_capi::tests::z_anchor_follows_the_pinned_release ... ok
+test return_options::tests::duplicate_controls_validate_only_selected_value_on_modern_tcl ... ok
+test return_options::tests::return_and_catch_keep_original_custom_option_objects ... ok
+test state_traits::tests::command_ids_do_not_rebind_to_same_named_replacements ... ok
+test state_traits::tests::commands_dispatch_builtin_and_unknown ... ok
+test state_traits::tests::commands_dispatch_id_composes ... ok
+test state_traits::tests::frames_push_pop_current_link ... ok
+test state_traits::tests::introspect_level_and_argv ... ok
+test state_traits::tests::namespaces_current_and_find_command ... ok
+test state_traits::tests::traces_fire_ok_and_error ... ok
+test state_traits::tests::varstore_array_elements ... ok
+test state_traits::tests::varstore_honours_frame_id ... ok
+test state_traits::tests::varstore_set_get_unset_exists ... ok
+test subst::tests::array_index_is_itself_substituted ... ok
+test subst::tests::backslash_decoding ... ok
+test subst::tests::braced_var_close_rule_follows_the_emulated_release ... ok
+test subst::tests::command_substitution ... ok
+test subst::tests::deeply_nested_array_index_survives_resolve_parts ... ok
+test subst::tests::dollar_not_a_name_is_literal ... ok
+test subst::tests::flags_disable_kinds ... ok
+test subst::tests::literal_passthrough ... ok
+test subst::tests::moderately_nested_array_index_resolves_correctly ... ok
+test subst::tests::subst_backslashes_follow_the_release ... ok
+test subst::tests::variable_simple_and_braced ... ok
+test tests::double_free_is_detected ... ok
+test tests::fresh_zero_incr_decr_frees ... ok
+test tests::int_min_shimmers ... ok
+test tests::int_shimmers_to_string ... ok
+test tests::round_trip_zero_residual ... ok
+test tests::string_obj_owns_and_frees_buffer ... ok
+test typed_value::native_number_tests::measured::original_number_bignum_and_increment_match_all_192_native_windows ... ok
+test typed_value::tests::bytearray_materialization_keeps_modified_nul_distinct_from_raw_string ... ok
+test typed_value::tests::cached_numeric_boolean_uses_its_own_string_materialization_obligation ... ok
+test typed_value::tests::command_cache_duplicate_origin_and_retirement_preserve_original_storage ... ok
+test typed_value::tests::command_cache_getters_match_all_native_original_object_rows ... ok
+test typed_value::tests::command_cache_priming_matches_every_native_original_object_row ... ok
+test typed_value::tests::failed_double_getter_keeps_nan_cache_and_payload ... ok
+test typed_value::tests::jim_completion_cache_has_no_string_updater ... ok
+test typed_value::tests::jim_double_cache_retains_exact_integer_and_wide_restores_it ... ok
+test typed_value::tests::jim_missing_range_state_and_vendor_engine_are_host_refusals ... ok
+test typed_value::tests::native_string_count_keeps_exact_units_origin_and_duplicate_cache ... ok
+test typed_value::tests::native_word_boolean_descriptor_retains_release_specific_string_contract ... ok
+test typed_value::tests::neutral_probe_preserves_absent_string_and_original_nan_bits ... ok
+test typed_value::tests::physical_fresh_getters_match_measured_c_values_and_original_caches ... ok
+test typed_value::tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures ... ok
+test typed_value::tests::primitive_int_matches_native_width_cache_and_failure_on_original_objects ... ok
+test typed_value::tests::reached_boolean_cache_changes_shared_container_on_the_original_object ... ok
+test value_ops::native_concat_tests::compiled_concat_expansion_preserves_all_48_original_native_windows ... ok
+test value_ops::native_concat_tests::compiled_concat_preserves_all_eight_original_c_result_headers ... ok
+test value_ops::native_concat_tests::concat_uses_original_abstract_index_before_element_materialisation ... ok
+test value_ops::native_concat_tests::original_concat_matches_all_twenty_native_windows_per_engine ... ok
+test value_ops::native_concat_tests::string_concat_does_not_issue_a_canonical_list_guarantee ... ok
+test value_ops::tests::byte_producing_commands_share_the_dual_port_representation ... ok
+test value_ops::tests::bytes_to_str_preserves_valid_utf8 ... ok
+test value_ops::tests::jim_raw_string_operations_preserve_native_extents_and_cached_count ... ok
+test value_ops::tests::native_length_preserves_nan_payload_and_dictionary_member_identity ... ok
+test value_ops::tests::native_safe_index_preparation_keeps_eager_functions_and_lazy_substitutions ... ok
+test value_ops::tests::physical_list_length_matches_all_204_native_storage_rows ... ok
+test value_ops::tests::resident_dictionary_spelling_preserves_duplicate_keys_for_list_conversion ... ok
+test value_ops::tests::str_to_bytes_keeps_unicode_string_representation ... ok
+test value_ops::tests::str_to_bytes_keeps_utf8_for_real_latin1_text ... ok
+test value_ops::tests::str_to_bytes_keeps_utf8_for_wide_chars ... ok
+test value_ops::tests::string_case_mapping_of_a_byte_array_uses_the_tcl_release_byte_policy ... ok
+test value_ops::tests::string_subcommands_ascii_unaffected ... ok
+test value_ops::tests::string_subcommands_preserve_binary_bytes ... ok
+test value_ops::tests::string_subcommands_wide_unicode_unaffected ... ok
+test value_ops::tests::string_toupper_on_binary_uses_the_checked_tcl9_byte_conversion ... ok
+test value_ops::tests::tcl9_length_preserves_complete_bignum_storage_without_materializing ... ok
+test value_ops::tests::unicode_door_refuses_invalid_utf8_without_replacing_bytes ... ok
+test vars::tests::absent_name_recipe_refuses_publication_before_any_cell_is_created ... ok
+test vars::tests::followed_alias_keeps_its_selected_byte_key_when_fresh_name_recipe_changes ... ok
+test vars::tests::global_at_top_level_is_a_noop ... ok
+test vars::tests::global_in_proc_links_to_global ... ok
+test vars::tests::global_scalar_set_get_unset ... ok
+test vars::tests::plain_and_global_qualified_alias_the_same_var ... ok
+test vars::tests::qualified_array_element ... ok
+test vars::tests::qualified_set_into_existing_namespace ... ok
+test vars::tests::qualified_set_into_missing_namespace_errors ... ok
+test vars::tests::unqualified_in_proc_is_frame_local ... ok
+test vars::tests::upvar_links_local_to_namespace_var ... ok
+test vars::tests::variable_in_proc_links_to_namespace_var ... ok
+
+failures:
+
+---- cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis stdout ----
+
+thread 'cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis' (726850) panicked at src/cmd_alias.rs:1148:13:
+assertion `left == right` failed: jim: []
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion stdout ----
+
+thread 'cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion' (726858) panicked at src/cmd_alias.rs:1347:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+
+---- cmd_alias::tests::jim_interpreter_handle_isolation stdout ----
+
+thread 'cmd_alias::tests::jim_interpreter_handle_isolation' (726859) panicked at src/cmd_alias.rs:1361:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+
+---- cmd_coro::tests::coroinject_runs_on_next_resume stdout ----
+
+thread 'cmd_coro::tests::coroinject_runs_on_next_resume' (727292) panicked at src/cmd_coro.rs:1047:9:
+assertion `left == right` failed: eval failed: [100, 32, 104, 101, 108, 108, 111]
+  left: Error
+ right: Ok
+
+---- cmd_info::tests::info_consts_includes_only_tcloo_instance_links stdout ----
+
+thread 'cmd_info::tests::info_consts_includes_only_tcloo_instance_links' (727472) panicked at src/cmd_info.rs:974:9:
+assertion `left == right` failed: eval "const G 9; oo::class create C {variable X; constructor {} {const X 1}; method inspect {} {global G; upvar #0 ::G U; list [info consts] [info constant G] [info constant U]}; method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; method shadow {X} {list $X [info consts]}}; set o [C new]; oo::object create O; oo::objdefine O {variable P; method init {} {const P 2}; method inspect {} {info consts}}; O init; oo::class create CA {variable X; method inspect {} {list [info consts] [info constant X] $X}}; set oa [CA new]; namespace eval [info object namespace $oa] {namespace upvar :: G X}; oo::class create CP {method inspect {} {info consts}}; CP create op; oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] [$oa inspect] [op inspect] [info constant [info object namespace op]::Q]"
+  left: Error
+ right: Ok
+
+---- cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation stdout ----
+
+thread 'cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation' (727525) panicked at src/cmd_list.rs:1165:17:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+
+---- cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release stdout ----
+
+thread 'cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release' (727534) panicked at src/cmd_mathfunc.rs:316:13:
+assertion `left == right` failed
+  left: None
+ right: Some([84, 67, 76, 32, 80, 65, 82, 83, 69, 32, 69, 88, 80, 82, 32, 66, 65, 82, 69, 87, 79, 82, 68])
+
+---- cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls stdout ----
+
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (727549) panicked at src/cmd_mathop.rs:173:13:
+assertion `left == right` failed: tcl8.5/9
+  left: [53, 32, 53]
+ right: [53, 32, 79, 86, 69, 82, 82, 73, 68, 69]
+
+---- cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers stdout ----
+
+thread 'cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers' (727555) panicked at src/cmd_namespace/native_holder_routing.rs:114:5:
+assertion `left == right` failed: tcl8.4/2/QUERY
+  left: [115, 105, 120, 32, 115, 105, 120, 32, 102, 111, 117, 114, 32, 116, 104, 114, 101, 101, 32, 101, 105, 103, 104, 116, 32, 115, 101, 118, 101, 110, 32, 110, 105, 110, 101, 32, 102, 105, 118, 101, 32, 116, 119, 111, 32, 111, 110, 101, 32, 116, 101, 110, 32, 122, 122]
+ right: [115, 105, 120, 32, 115, 105, 120, 32, 122, 122, 32, 102, 111, 117, 114, 32, 116, 104, 114, 101, 101, 32, 101, 105, 103, 104, 116, 32, 115, 101, 118, 101, 110, 32, 110, 105, 110, 101, 32, 102, 105, 118, 101, 32, 116, 119, 111, 32, 111, 110, 101, 32, 116, 101, 110]
+
+---- cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers stdout ----
+
+thread 'cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers' (727556) panicked at src/cmd_namespace/native_holder_routing.rs:101:5:
+jim/ensemble/0/ORIGINAL: refusal=Some(CommandProtocolUnavailable("ensemble configuration options")), admission=None
+
+---- cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy stdout ----
+
+thread 'cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy' (727579) panicked at src/cmd_namespace.rs:2545:13:
+assertion `left == right` failed
+  left: None
+ right: Some(CommandProtocolUnavailable("variable naming"))
+
+---- cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages stdout ----
+
+thread 'cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages' (727796) panicked at src/cmd_oo.rs:8603:13:
+assertion `left == right` failed
+  left: [111, 110, 108, 121, 32, 97, 32, 99, 108, 97, 115, 115, 32, 99, 97, 110, 32, 98, 101, 32, 97, 32, 109, 105, 120, 105, 110]
+ right: [109, 97, 121, 32, 111, 110, 108, 121, 32, 109, 105, 120, 32, 105, 110, 32, 99, 108, 97, 115, 115, 101, 115]
+
+---- cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object stdout ----
+
+thread 'cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object' (727887) panicked at src/cmd_oo.rs:7552:13:
+assertion `left == right` failed
+  left: [0x7f8d62aab2c0]
+ right: [0x7f8d62b76150]
+
+---- cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces stdout ----
+
+thread 'cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces' (728495) panicked at src/cmd_trace.rs:1009:9:
+assertion `left == right` failed: eval "set log {}\n                        proc cb args {global log; lappend log $args}\n                        proc foo {} {set x 1; return ok}\n                        trace add execution foo {enter leave enterstep leavestep} cb\n                        interp hide {} foo h\n                        set result [interp invokehidden {} h]\n                        interp expose {} h visible\n                        list $result $log [trace info execution visible]" → ""
+  left: Error
+ right: Ok
+
+---- cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes stdout ----
+
+thread 'cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes' (728718) panicked at src/cmd_var.rs:487:21:
+assertion `left == right` failed: V8_4: variable_array_unset_live_member_read_trace_fires
+  left: [48, 32, 123, 88, 32, 82, 79, 79, 84, 85, 78, 83, 69, 84, 125]
+ right: [48, 32, 123, 88, 32, 123, 82, 79, 79, 84, 85, 78, 83, 69, 84, 32, 69, 76, 69, 77, 69, 78, 84, 82, 69, 65, 68, 125, 125]
+
+---- codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read stdout ----
+
+thread 'codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read' (728771) panicked at src/codegen_abi.rs:3523:18:
+the public Read reaches the published native trace: Error
+
+---- interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows stdout ----
+
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows' (729065) panicked at src/interp/native_body_artifact/native_introspection.rs:320:21:
+assertion `left == right` failed: tcl8.6/17: compiled locals
+  left: "2"
+ right: "3"
+
+---- interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows stdout ----
+
+thread 'interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows' (729066) panicked at src/interp/native_body_artifact/native_introspection.rs:281:17:
+assertion `left == right` failed: tcl8.6/13
+  left: "none"
+ right: "string"
+
+---- interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs stdout ----
+
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (729071) panicked at src/interp/native_body_artifact/native_list_operations.rs:282:9:
+assertion `left == right` failed: tcl8.5/lassign $name: result header
+  left: ["none", "1", "1"]
+ right: ["string", "1", "1"]
+
+---- interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers stdout ----
+
+thread 'interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers' (729125) panicked at src/interp/native_body_artifact/native_upvar_info_exists_tests.rs:182:13:
+assertion `left == right` failed: tcl8.4/8 result
+  left: [98, 97, 100, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 110, 97, 109, 101, 32, 34, 58, 58, 97, 108, 105, 97, 115, 34, 58, 32, 99, 97, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 116, 104, 97, 116, 32, 114, 101, 102, 101, 114, 115, 32, 116, 111, 32, 112, 114, 111, 99, 101, 100, 117, 114, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+ right: [98, 97, 100, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 110, 97, 109, 101, 32, 34, 58, 58, 97, 108, 105, 97, 115, 34, 58, 32, 117, 112, 118, 97, 114, 32, 119, 111, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 116, 104, 97, 116, 32, 114, 101, 102, 101, 114, 115, 32, 116, 111, 32, 112, 114, 111, 99, 101, 100, 117, 114, 101, 32, 118, 97, 114, 105, 97, 98, 108, 101]
+
+---- interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics stdout ----
+
+thread 'interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics' (729162) panicked at src/interp/native_command_names.rs:318:13:
+assertion `left == right` failed: V8_4
+  left: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 192, 128, 195, 191, 34, 125, 32, 78, 79, 78, 69]
+ right: [49, 32, 123, 105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 109, 105, 115, 115, 0, 255, 34, 125, 32, 78, 79, 78, 69]
+
+---- interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver stdout ----
+
+thread 'interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver' (729433) panicked at src/interp/native_error_variables.rs:918:13:
+assertion failed: !interp.exc.borrow().already_logged
+
+---- interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch stdout ----
+
+thread 'interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch' (729698) panicked at src/interp/stock_ensembles.rs:803:9:
+assertion `left == right` failed
+  left: (Ok, [82, 69, 80, 76, 65, 67, 69, 68])
+ right: (Ok, [81, 81, 61, 61])
+
+---- interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards stdout ----
+
+thread 'interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards' (729925) panicked at src/interp.rs:15361:22:
+called `Result::unwrap()` on an `Err` value: IdentityUnavailable
+
+---- interp::tests::missing_arity_protocol_refuses_before_guest_state_changes stdout ----
+
+thread 'interp::tests::missing_arity_protocol_refuses_before_guest_state_changes' (729931) panicked at src/interp.rs:14580:13:
+assertion `left == right` failed
+  left: None
+ right: Some(CommandProtocolUnavailable("variable naming"))
+
+---- list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow stdout ----
+
+thread 'list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow' (730259) panicked at src/list.rs:1443:35:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("changed native List member vector")
+
+---- native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series stdout ----
+
+thread 'native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series' (730298) panicked at src/native_arithseries/tests.rs:305:13:
+assertion `left == right` failed: [108, 105, 110, 100, 101, 120, 32, 36, 115, 101, 113, 117, 101, 110, 99, 101, 32, 123, 48, 32, 48, 125]
+  left: Error
+ right: Ok
+
+---- obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings stdout ----
+
+thread 'obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings' (730308) panicked at src/obj.rs:2391:13:
+assertion `left == right` failed
+  left: "0 12"
+ right: "1 12"
+
+
+failures:
+    cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis
+    cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion
+    cmd_alias::tests::jim_interpreter_handle_isolation
+    cmd_coro::tests::coroinject_runs_on_next_resume
+    cmd_info::tests::info_consts_includes_only_tcloo_instance_links
+    cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation
+    cmd_mathfunc::tests::builtin_mathfunc_surface_tracks_the_registry_selected_release
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+    cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers
+    cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers
+    cmd_namespace::tests::code_retains_non_unicode_bytes_and_refuses_unknown_native_policy
+    cmd_oo::tests::define_script_errorinfo_and_super_mixin_messages
+    cmd_oo::tests::variable_declaration_introspection_retains_original_counted_object
+    cmd_trace::tests::invokehidden_runs_the_hidden_commands_execution_traces
+    cmd_var::tests::whole_array_destruction_preserves_staged_native_member_lifetimes
+    codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read
+    interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows
+    interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::native_body_artifact::native_upvar_info_exists_tests::original_upvar_and_exists_artifact_preserves_140_native_completions_and_20_name_headers
+    interp::native_command_names::tests::native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics
+    interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver
+    interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch
+    interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards
+    interp::tests::missing_arity_protocol_refuses_before_guest_state_changes
+    list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow
+    native_arithseries::tests::public_arithmetic_length_and_index_do_not_materialize_huge_series
+    obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings
+
+test result: FAILED. 1212 passed; 28 failed; 0 ignored; 0 measured; 0 filtered out; finished in 249.13s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows ... 
+thread 'interp::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows' (1360944) panicked at rust/tcl-vm/src/interp/native_introspection.rs:154:9:
+assertion `left == right` failed: tcl8.6/23
+  left: "none"
+ right: "parsedVarName"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 10.07s
+

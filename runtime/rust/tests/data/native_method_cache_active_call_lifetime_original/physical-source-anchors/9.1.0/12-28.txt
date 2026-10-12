@@ -1,0 +1,98 @@
+	if (hPtr != NULL) {
+	    Method *mPtr = (Method *) Tcl_GetHashValue(hPtr);
+
+	    if (IS_PRIVATE(mPtr)) {
+		AddMethodToCallChain(mPtr, cbPtr, doneFilters, filterDecl,
+			flags);
+		return true;
+	    }
+	}
+    }
+
+    switch (classPtr->superclasses.num) {
+    case 1:
+	classPtr = classPtr->superclasses.list[0];
+	goto tailRecurse;
+    default:
+	FOREACH(superPtr, classPtr->superclasses) {
+	    if (AddPrivatesFromClassChainToCallContext(superPtr, contextCls,
+		    methodName, cbPtr, doneFilters, flags, filterDecl)) {
+		return true;
+	    }
+	}
+	TCL_FALLTHROUGH();
+    case 0:
+	return false;
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * AddSimpleClassChainToCallContext --
+ *
+ *	Construct a call-chain from a class hierarchy.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static bool
+AddSimpleClassChainToCallContext(
+    Class *classPtr,		/* Class to add the call chain entries for. */
+    Tcl_Obj *const methodNameObj,
+				/* Name of method to add the call chain
+				 * entries for. */
+    ChainBuilder *const cbPtr,	/* Where to add the call chain entries. */
+    Tcl_HashTable *const doneFilters,
+				/* Where to record what call chain entries
+				 * have been processed. */
+    int flags,			/* What sort of call chain are we building. */
+    Class *const filterDecl)	/* The class that declared the filter. If
+				 * NULL, either the filter was declared by the
+				 * object or this isn't a filter. */
+{
+    Tcl_Size i;
+    bool privateDanger = false;
+    Class *superPtr;
+
+    /*
+     * We hard-code the tail-recursive form. It's by far the most common case
+     * *and* it is much more gentle on the stack.
+     *
+     * Note that mixins must be processed before the main class hierarchy.
+     * [Bug 1998221]
+     */
+
+  tailRecurse:
+    if (classPtr == NULL) {
+	return privateDanger;
+    }
+    FOREACH(superPtr, classPtr->mixins) {
+	privateDanger |= AddSimpleClassChainToCallContext(superPtr,
+		methodNameObj, cbPtr, doneFilters, flags | TRAVERSED_MIXIN,
+		filterDecl);
+    }
+
+    if (flags & CONSTRUCTOR) {
+	AddMethodToCallChain(classPtr->constructorPtr, cbPtr, doneFilters,
+		filterDecl, flags);
+    } else if (flags & DESTRUCTOR) {
+	AddMethodToCallChain(classPtr->destructorPtr, cbPtr, doneFilters,
+		filterDecl, flags);
+    } else {
+	Tcl_HashEntry *hPtr = Tcl_FindHashEntry(&classPtr->classMethods,
+		methodNameObj);
+
+	if (classPtr->flags & HAS_PRIVATE_METHODS) {
+	    privateDanger |= true;
+	}
+	if (hPtr != NULL) {
+	    Method *mPtr = (Method *) Tcl_GetHashValue(hPtr);
+
+	    if (!IS_PRIVATE(mPtr)) {
+		if (!(flags & KNOWN_STATE)) {
+		    if (flags & PUBLIC_METHOD) {
+			if (!IS_PUBLIC(mPtr)) {
+			    return privateDanger;
+			}
+			flags |= DEFINITE_PUBLIC;

@@ -1,0 +1,2274 @@
+[
+  {
+    "id": "naming.literal.numeric-registration-sharing",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-numeric-registration-sharing.md",
+    "problem_statement": "A numeric literal may be shared between compiled procedures and retain a conversion primary, while a later procedure may allocate a different object after the registrations are removed. Equal bytes cannot establish that ownership lifetime.",
+    "question": "Does original literal 17 share one object across p, repeated p and q, and what primary remains when r is defined after deleting p and q?",
+    "conclusion": "All five C releases share the original 17 object for the second p and q callbacks. The later r callback has a different object even though the harness still holds the first. C8.4 begins with int and the explicit Wide getter changes it to wideInt; later C begins untyped and the getter changes it to int. These four snapshots do not prove an unobserved registration count or actual cleanup of the retained first object.",
+    "scope": "The exact public C object callback records primary before/after its selected observer, original pointer equality, child equality, reference count and byte hex. Numeric/list callbacks enter ASCII Tcl_Eval source; opaque and eleven initial-number sources use counted Tcl_NewStringObj/Tcl_EvalObjEx flags0. The held first object and held first child are deliberate harness references. Capture metadata identifies five C releases; runtime patchlevel, compiler version and configure flags are unqueried. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=2e36c1f22e543c069293ab674839e02743fed5a630b01482a5c063384c43c546; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nnumber\t0\tint\twideInt\t-1\t-1\t-1\t3\t3137\nnumber\t1\twideInt\twideInt\t1\t-1\t-1\t4\t3137\nnumber\t2\twideInt\twideInt\t1\t-1\t-1\t5\t3137\nnumber\t3\tint\twideInt\t0\t-1\t-1\t3\t3137. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=4bbf2251cca4964cdacab4696a43d38a8eb4b01aaa4311945f1d6d680e9852cf; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nnumber\t0\tnone\tint\t-1\t-1\t-1\t3\t3137\nnumber\t1\tint\tint\t1\t-1\t-1\t4\t3137\nnumber\t2\tint\tint\t1\t-1\t-1\t5\t3137\nnumber\t3\tnone\tint\t0\t-1\t-1\t3\t3137. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ba6e843571f3451ebe34c628beb9e7284f7dcfcbff612711b0d400c839560d75; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nnumber\t0\tnone\tint\t-1\t-1\t-1\t3\t3137\nnumber\t1\tint\tint\t1\t-1\t-1\t4\t3137\nnumber\t2\tint\tint\t1\t-1\t-1\t5\t3137\nnumber\t3\tnone\tint\t0\t-1\t-1\t3\t3137. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=810dc9b9f342ef8731b90f73c83c206cff75deddc9652bdc73e03f7efefbff69; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nnumber\t0\tnone\tint\t-1\t-1\t-1\t3\t3137\nnumber\t1\tint\tint\t1\t-1\t-1\t4\t3137\nnumber\t2\tint\tint\t1\t-1\t-1\t5\t3137\nnumber\t3\tnone\tint\t0\t-1\t-1\t3\t3137. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ca10a9ebb82d48d01fabc0356ec91dd6d0e0f8cb0baeecb1252e7a76e702eb43; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nnumber\t0\tnone\tint\t-1\t-1\t-1\t3\t3137\nnumber\t1\tint\tint\t1\t-1\t-1\t4\t3137\nnumber\t2\tint\tint\t1\t-1\t-1\t5\t3137\nnumber\t3\tnone\tint\t0\t-1\t-1\t3\t3137. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/probe.c",
+        "sha256": "8ad5d50dae3f2264c99cb88d8ba9c73fdabfb9ad97d191a0aacb581b0e5f2919",
+        "description": "Exact source programs, counted opaque/numeric byte lengths and before-observer pointer/type sampling."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/manifest.json",
+        "sha256": "1f11c8c83bc5b9abaaf42c82332bed847f87bb9454ff0df5c874944d3ecc7545",
+        "description": "Original successful compile/run association, source/library/header/executable hashes and full output digests."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv",
+        "sha256": "6f9a2f02a57fcb5b97cae21cddcf784fa01587f1c866fcabce842bb8e4c33b41",
+        "description": "Full 21-row original output. Relevant one-based lines [1, 2, 3, 4]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv",
+        "sha256": "ba3263a820095a02cecc835fdffbe27302f61039be98364532d1eb69a60fb558",
+        "description": "Full 21-row original output. Relevant one-based lines [1, 2, 3, 4]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [1, 2, 3, 4]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [1, 2, 3, 4]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [1, 2, 3, 4]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "selector": "literal_pool::tests::local_array_lease_preserves_global_cache_and_retires_registration_before_guest_object",
+        "assertion": "Checks cache/identity sharing under local registration leases and distinct new registration after retirement; no native reference count is inferred from the retained guest handle.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Retains selected native allocation, registration and original object-array ownership separately from bytes."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.literal.static-and-dynamic-list-identity",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-static-and-dynamic-list-identity.md",
+    "problem_statement": "A compiler-created constant List and a List assembled from repeated runtime arguments can have the same bytes while owning different container and child identities. Deduplicating members from spelling would change those windows.",
+    "question": "Do static list A A and dynamic list $x $x reuse containers and equal-member objects across two calls?",
+    "conclusion": "C8.4/8.5 produce different static List containers on the two calls and both members are the same object. C8.6–9.1 reuse the static container while its two A members are distinct objects. All tested C releases produce different dynamic containers with shared Q members and retain the first child identity across calls. The pointer comparisons sample these original callbacks; they do not grant identity to a independently reconstructed List.",
+    "scope": "The exact public C object callback records primary before/after its selected observer, original pointer equality, child equality, reference count and byte hex. Numeric/list callbacks enter ASCII Tcl_Eval source; opaque and eleven initial-number sources use counted Tcl_NewStringObj/Tcl_EvalObjEx flags0. The held first object and held first child are deliberate harness references. Capture metadata identifies five C releases; runtime patchlevel, compiler version and configure flags are unqueried. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=2e36c1f22e543c069293ab674839e02743fed5a630b01482a5c063384c43c546; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nstatic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t412041\nstatic-list\t1\tlist\tlist\t0\t1\t1\t1\t412041\ndynamic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t512051\ndynamic-list\t1\tlist\tlist\t0\t1\t1\t1\t512051. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=4bbf2251cca4964cdacab4696a43d38a8eb4b01aaa4311945f1d6d680e9852cf; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nstatic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t412041\nstatic-list\t1\tlist\tlist\t0\t1\t1\t1\t412041\ndynamic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t512051\ndynamic-list\t1\tlist\tlist\t0\t1\t1\t1\t512051. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ba6e843571f3451ebe34c628beb9e7284f7dcfcbff612711b0d400c839560d75; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nstatic-list\t0\tlist\tlist\t-1\t0\t-1\t2\t412041\nstatic-list\t1\tlist\tlist\t1\t0\t1\t3\t412041\ndynamic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t512051\ndynamic-list\t1\tlist\tlist\t0\t1\t1\t1\t512051. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=810dc9b9f342ef8731b90f73c83c206cff75deddc9652bdc73e03f7efefbff69; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nstatic-list\t0\tlist\tlist\t-1\t0\t-1\t2\t412041\nstatic-list\t1\tlist\tlist\t1\t0\t1\t3\t412041\ndynamic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t512051\ndynamic-list\t1\tlist\tlist\t0\t1\t1\t1\t512051. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ca10a9ebb82d48d01fabc0356ec91dd6d0e0f8cb0baeecb1252e7a76e702eb43; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nstatic-list\t0\tlist\tlist\t-1\t0\t-1\t2\t412041\nstatic-list\t1\tlist\tlist\t1\t0\t1\t3\t412041\ndynamic-list\t0\tlist\tlist\t-1\t1\t-1\t1\t512051\ndynamic-list\t1\tlist\tlist\t0\t1\t1\t1\t512051. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/probe.c",
+        "sha256": "8ad5d50dae3f2264c99cb88d8ba9c73fdabfb9ad97d191a0aacb581b0e5f2919",
+        "description": "Exact source programs, counted opaque/numeric byte lengths and before-observer pointer/type sampling."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/manifest.json",
+        "sha256": "1f11c8c83bc5b9abaaf42c82332bed847f87bb9454ff0df5c874944d3ecc7545",
+        "description": "Original successful compile/run association, source/library/header/executable hashes and full output digests."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv",
+        "sha256": "6f9a2f02a57fcb5b97cae21cddcf784fa01587f1c866fcabce842bb8e4c33b41",
+        "description": "Full 21-row original output. Relevant one-based lines [5, 6, 7, 8]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv",
+        "sha256": "ba3263a820095a02cecc835fdffbe27302f61039be98364532d1eb69a60fb558",
+        "description": "Full 21-row original output. Relevant one-based lines [5, 6, 7, 8]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [5, 6, 7, 8]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [5, 6, 7, 8]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [5, 6, 7, 8]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "selector": "literal_pool::tests::private_constant_list_retains_distinct_original_members_and_declines_older_compiler",
+        "assertion": "Checks retained C8.6 constant List container with distinct equal-valued original children; older compiler recipe is independently declined.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Retains selected native allocation, registration and original object-array ownership separately from bytes."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.literal.counted-opaque-source-object",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-counted-opaque-source-object.md",
+    "problem_statement": "A counted source can contain raw FF and a zero byte that an ordinary C string would truncate. Reconstructing its literal from display bytes would lose the original counted value and sharing observation.",
+    "question": "Does a compiled opaque literal FF 00 tail retain exact bytes and reuse the original callback object on its second call?",
+    "conclusion": "All five C captures return the exact six bytes FF 00 74 61 69 6C with an untyped primary, and the second callback receives the same original object. The source is a counted Tcl_NewStringObj evaluated with Tcl_EvalObjEx flags0; this observation is separate from CString grammar, UTF character ingress and every consumer lookup key.",
+    "scope": "The exact public C object callback records primary before/after its selected observer, original pointer equality, child equality, reference count and byte hex. Numeric/list callbacks enter ASCII Tcl_Eval source; opaque and eleven initial-number sources use counted Tcl_NewStringObj/Tcl_EvalObjEx flags0. The held first object and held first child are deliberate harness references. Capture metadata identifies five C releases; runtime patchlevel, compiler version and configure flags are unqueried. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=2e36c1f22e543c069293ab674839e02743fed5a630b01482a5c063384c43c546; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nopaque\t0\tnone\tnone\t-1\t-1\t-1\t3\tff007461696c\nopaque\t1\tnone\tnone\t1\t-1\t-1\t4\tff007461696c. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=4bbf2251cca4964cdacab4696a43d38a8eb4b01aaa4311945f1d6d680e9852cf; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nopaque\t0\tnone\tnone\t-1\t-1\t-1\t3\tff007461696c\nopaque\t1\tnone\tnone\t1\t-1\t-1\t4\tff007461696c. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ba6e843571f3451ebe34c628beb9e7284f7dcfcbff612711b0d400c839560d75; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nopaque\t0\tnone\tnone\t-1\t-1\t-1\t3\tff007461696c\nopaque\t1\tnone\tnone\t1\t-1\t-1\t4\tff007461696c. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=810dc9b9f342ef8731b90f73c83c206cff75deddc9652bdc73e03f7efefbff69; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nopaque\t0\tnone\tnone\t-1\t-1\t-1\t3\tff007461696c\nopaque\t1\tnone\tnone\t1\t-1\t-1\t4\tff007461696c. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ca10a9ebb82d48d01fabc0356ec91dd6d0e0f8cb0baeecb1252e7a76e702eb43; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\nopaque\t0\tnone\tnone\t-1\t-1\t-1\t3\tff007461696c\nopaque\t1\tnone\tnone\t1\t-1\t-1\t4\tff007461696c. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/probe.c",
+        "sha256": "8ad5d50dae3f2264c99cb88d8ba9c73fdabfb9ad97d191a0aacb581b0e5f2919",
+        "description": "Exact source programs, counted opaque/numeric byte lengths and before-observer pointer/type sampling."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/manifest.json",
+        "sha256": "1f11c8c83bc5b9abaaf42c82332bed847f87bb9454ff0df5c874944d3ecc7545",
+        "description": "Original successful compile/run association, source/library/header/executable hashes and full output digests."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv",
+        "sha256": "6f9a2f02a57fcb5b97cae21cddcf784fa01587f1c866fcabce842bb8e4c33b41",
+        "description": "Full 21-row original output. Relevant one-based lines [9, 10]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv",
+        "sha256": "ba3263a820095a02cecc835fdffbe27302f61039be98364532d1eb69a60fb558",
+        "description": "Full 21-row original output. Relevant one-based lines [9, 10]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [9, 10]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [9, 10]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [9, 10]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "selector": "literal_pool::tests::native_opaque_literal_bytes_and_c84_initial_cache_match_captured_producers",
+        "assertion": "Checks exact opaque byte retention independently from initial numeric-primary rules.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Retains selected native allocation, registration and original object-array ownership separately from bytes."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.literal.initial-number-primary",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-initial-number-primary.md",
+    "problem_statement": "Compiler allocation can prime a numeric primary before any explicit getter, and raw-zero suffixes can affect that producer differently from a later numeric consumer. Assuming every numeric-looking spelling is preconverted would conflate compilation and conversion.",
+    "question": "Which of eleven original counted numeric-looking literals arrive at the callback with an initial numeric primary before a getter runs?",
+    "conclusion": "Only C8.4 arrives with int for 17, 0, -17, 17 followed by raw zero and suffix, 17 followed by raw zero, and positive i64 maximum. It arrives untyped for +17, 017, -0, negative i64 minimum and positive overflow. C8.5–9.1 arrive untyped for all eleven. Initial mode does not invoke a numeric getter, so this answers compiler allocation, not successful arithmetic or complete numeric grammar.",
+    "scope": "The exact public C object callback records primary before/after its selected observer, original pointer equality, child equality, reference count and byte hex. Numeric/list callbacks enter ASCII Tcl_Eval source; opaque and eleven initial-number sources use counted Tcl_NewStringObj/Tcl_EvalObjEx flags0. The held first object and held first child are deliberate harness references. Capture metadata identifies five C releases; runtime patchlevel, compiler version and configure flags are unqueried. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=2e36c1f22e543c069293ab674839e02743fed5a630b01482a5c063384c43c546; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\ninitial\t0\tint\tint\t-1\t-1\t-1\t3\t3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2b3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t303137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d30\ninitial\t0\tint\tint\t-1\t-1\t-1\t3\t30\ninitial\t0\tint\tint\t-1\t-1\t-1\t3\t2d3137\ninitial\t0\tint\tint\t-1\t-1\t-1\t3\t313700737566666978\ninitial\t0\tint\tint\t-1\t-1\t-1\t3\t313700\ninitial\t0\tint\tint\t-1\t-1\t-1\t3\t39323233333732303336383534373735383037\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d39323233333732303336383534373735383038\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=4bbf2251cca4964cdacab4696a43d38a8eb4b01aaa4311945f1d6d680e9852cf; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2b3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t303137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700737566666978\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383037\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d39323233333732303336383534373735383038\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ba6e843571f3451ebe34c628beb9e7284f7dcfcbff612711b0d400c839560d75; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2b3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t303137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700737566666978\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383037\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d39323233333732303336383534373735383038\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=810dc9b9f342ef8731b90f73c83c206cff75deddc9652bdc73e03f7efefbff69; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2b3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t303137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700737566666978\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383037\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d39323233333732303336383534373735383038\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=ca10a9ebb82d48d01fabc0356ec91dd6d0e0f8cb0baeecb1252e7a76e702eb43; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows, in original column order:\n\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2b3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t303137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t30\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d3137\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700737566666978\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t313700\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383037\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t2d39323233333732303336383534373735383038\ninitial\t0\tnone\tnone\t-1\t-1\t-1\t3\t39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/probe.c",
+        "sha256": "8ad5d50dae3f2264c99cb88d8ba9c73fdabfb9ad97d191a0aacb581b0e5f2919",
+        "description": "Exact source programs, counted opaque/numeric byte lengths and before-observer pointer/type sampling."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/manifest.json",
+        "sha256": "1f11c8c83bc5b9abaaf42c82332bed847f87bb9454ff0df5c874944d3ecc7545",
+        "description": "Original successful compile/run association, source/library/header/executable hashes and full output digests."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv",
+        "sha256": "6f9a2f02a57fcb5b97cae21cddcf784fa01587f1c866fcabce842bb8e4c33b41",
+        "description": "Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv",
+        "sha256": "ba3263a820095a02cecc835fdffbe27302f61039be98364532d1eb69a60fb558",
+        "description": "Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv",
+        "sha256": "06c8eeefe0491993248ff66311efbb1866a3c7fbfbae98f475e036e16437b142",
+        "description": "Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "selector": "literal_pool::tests::native_opaque_literal_bytes_and_c84_initial_cache_match_captured_producers",
+        "assertion": "Checks selected initial C8.4 numeric cache and negative-minimum decline; this does not cover every native row.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Retains selected native allocation, registration and original object-array ownership separately from bytes."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.literal.command-action.ordered-primary",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-command-action-ordered-primary.md",
+    "problem_statement": "A data occurrence before a command and the same data occurrence after a command can enter different compiler allocation paths. Equal literal bytes do not prove one original cache.",
+    "question": "Does the retained data literal head or ::head arrive with cmdName after data-first versus command-first compilation?",
+    "conclusion": "C8.4 data callbacks always retain cmdName. C8.5 data-first callbacks retain cmdName but command-first callbacks are untyped. C8.6–9.1 initially retain cmdName for all four controls. These original role/order windows do not establish a callable token from typePtr alone.",
+    "scope": "Compiled public original-object callbacks sample the exact four source-order/qualification controls for command actions, or the exact eight namespace/command/data callbacks for registration. The probe prints object primary and, for registration only, pointer equality against the retained first original. Source is ASCII Tcl_Eval; no opaque key, dispatch body or native variable frame is inferred. Metadata records C release association/library/executable hashes. Runtime patchlevel, compiler version and full flags are unqueried; action compile status and registration header digest are not recorded. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=967b5f8fbe53600a82e24d2c4fd619623c036fc9ab26302a011838ba89d33093; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tprobe\tcmdName\ncommand-relative\tprobe\tcmdName\ndata-absolute\tprobe\tcmdName\ncommand-absolute\tprobe\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=d274a114a3408f5269edc7c8bec88178e403d3aaf72b3aaed69be6a59ae07df4; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tprobe\tcmdName\ncommand-relative\tprobe\tnone\ndata-absolute\tprobe\tcmdName\ncommand-absolute\tprobe\tnone. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=c70f7d8b7c2ee00ffbac9ff94b511ee0059b4c61464dea406e504f3f3c9f3819; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tprobe\tcmdName\ncommand-relative\tprobe\tcmdName\ndata-absolute\tprobe\tcmdName\ncommand-absolute\tprobe\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=7e60c7a0dcebc951eba066b617c15515bb7ce21ab4105d402813726c31836628; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tprobe\tcmdName\ncommand-relative\tprobe\tcmdName\ndata-absolute\tprobe\tcmdName\ncommand-absolute\tprobe\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=324632a0274597cb9222f35e5c017de25d67c3813a3231784b45f1887ce7add9; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tprobe\tcmdName\ncommand-relative\tprobe\tcmdName\ndata-absolute\tprobe\tcmdName\ncommand-absolute\tprobe\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/probe.c",
+        "sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+        "description": "Exact original command/data role and source-order programs."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json",
+        "sha256": "0dad3f8b7aa1e5d82d14766412ffaef6f1e5f7578ee395f1194978585f37e2ed",
+        "description": "Original full stream digest, release association and recorded build fields; absence of compile status/header fields is not repaired from current builds."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt",
+        "sha256": "8afe2e9e967f23f2972f9eb088c67c299245202260304d845a7f28f6d6c1ada9",
+        "description": "Full exact captured stream; relevant stages ['probe']."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt",
+        "sha256": "be8bc459681ef04aa6da6b3238eaece719d6a76a296922cd2d6d7bf56d070f3e",
+        "description": "Full exact captured stream; relevant stages ['probe']."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt",
+        "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+        "description": "Full exact captured stream; relevant stages ['probe']."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt",
+        "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+        "description": "Full exact captured stream; relevant stages ['probe']."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt",
+        "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+        "description": "Full exact captured stream; relevant stages ['probe']."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+        "selector": "interp::native_command_names::tests::ordered_literal_actions_match_sixty_original_native_observations",
+        "assertion": "Checks the exact retained sixty original primary snapshots independently from actual original lookup currency.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Selects original allocation and chronological effects from the retained compiler recipe."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.literal.command-action.replacement-primary",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-command-action-replacement-primary.md",
+    "problem_statement": "Deleting and recreating the command can retire a command-cache primary on only some retained original literals. Preserving bytes or merely observing cmdName cannot establish current worker currency.",
+    "question": "Which retained literal cache primary changes after deleting and recreating head?",
+    "conclusion": "All deleted-stage snapshots retain the previous primary. On recreation C8.6–9.1 change only the command-first relative retained data literal from cmdName to untyped; the absolute counterpart and both data-first literals retain cmdName. C8.4 changes none; C8.5 command-first literals were already untyped and remain so. The probe does not perform a new lookup through these held objects.",
+    "scope": "Compiled public original-object callbacks sample the exact four source-order/qualification controls for command actions, or the exact eight namespace/command/data callbacks for registration. The probe prints object primary and, for registration only, pointer equality against the retained first original. Source is ASCII Tcl_Eval; no opaque key, dispatch body or native variable frame is inferred. Metadata records C release association/library/executable hashes. Runtime patchlevel, compiler version and full flags are unqueried; action compile status and registration header digest are not recorded. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=967b5f8fbe53600a82e24d2c4fd619623c036fc9ab26302a011838ba89d33093; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tdeleted\tcmdName\ndata-relative\trecreated\tcmdName\ncommand-relative\tdeleted\tcmdName\ncommand-relative\trecreated\tcmdName\ndata-absolute\tdeleted\tcmdName\ndata-absolute\trecreated\tcmdName\ncommand-absolute\tdeleted\tcmdName\ncommand-absolute\trecreated\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=d274a114a3408f5269edc7c8bec88178e403d3aaf72b3aaed69be6a59ae07df4; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tdeleted\tcmdName\ndata-relative\trecreated\tcmdName\ncommand-relative\tdeleted\tnone\ncommand-relative\trecreated\tnone\ndata-absolute\tdeleted\tcmdName\ndata-absolute\trecreated\tcmdName\ncommand-absolute\tdeleted\tnone\ncommand-absolute\trecreated\tnone. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=c70f7d8b7c2ee00ffbac9ff94b511ee0059b4c61464dea406e504f3f3c9f3819; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tdeleted\tcmdName\ndata-relative\trecreated\tcmdName\ncommand-relative\tdeleted\tcmdName\ncommand-relative\trecreated\tnone\ndata-absolute\tdeleted\tcmdName\ndata-absolute\trecreated\tcmdName\ncommand-absolute\tdeleted\tcmdName\ncommand-absolute\trecreated\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=7e60c7a0dcebc951eba066b617c15515bb7ce21ab4105d402813726c31836628; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tdeleted\tcmdName\ndata-relative\trecreated\tcmdName\ncommand-relative\tdeleted\tcmdName\ncommand-relative\trecreated\tnone\ndata-absolute\tdeleted\tcmdName\ndata-absolute\trecreated\tcmdName\ncommand-absolute\tdeleted\tcmdName\ncommand-absolute\trecreated\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=324632a0274597cb9222f35e5c017de25d67c3813a3231784b45f1887ce7add9; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\ndata-relative\tdeleted\tcmdName\ndata-relative\trecreated\tcmdName\ncommand-relative\tdeleted\tcmdName\ncommand-relative\trecreated\tnone\ndata-absolute\tdeleted\tcmdName\ndata-absolute\trecreated\tcmdName\ncommand-absolute\tdeleted\tcmdName\ncommand-absolute\trecreated\tcmdName. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/probe.c",
+        "sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+        "description": "Exact original command/data role and source-order programs."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json",
+        "sha256": "0dad3f8b7aa1e5d82d14766412ffaef6f1e5f7578ee395f1194978585f37e2ed",
+        "description": "Original full stream digest, release association and recorded build fields; absence of compile status/header fields is not repaired from current builds."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt",
+        "sha256": "8afe2e9e967f23f2972f9eb088c67c299245202260304d845a7f28f6d6c1ada9",
+        "description": "Full exact captured stream; relevant stages ['deleted', 'recreated']."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt",
+        "sha256": "be8bc459681ef04aa6da6b3238eaece719d6a76a296922cd2d6d7bf56d070f3e",
+        "description": "Full exact captured stream; relevant stages ['deleted', 'recreated']."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt",
+        "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+        "description": "Full exact captured stream; relevant stages ['deleted', 'recreated']."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt",
+        "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+        "description": "Full exact captured stream; relevant stages ['deleted', 'recreated']."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt",
+        "sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+        "description": "Full exact captured stream; relevant stages ['deleted', 'recreated']."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+        "selector": "interp::native_command_names::tests::ordered_literal_actions_match_sixty_original_native_observations",
+        "assertion": "Checks the exact retained sixty original primary snapshots independently from actual original lookup currency.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Selects original allocation and chronological effects from the retained compiler recipe."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.literal.command-registration.namespace-and-role-sharing",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-command-registration-namespace-and-role-sharing.md",
+    "problem_statement": "Unqualified command literals belong to namespace lookup while fully qualified command literals and ordinary data may share a different interpreter registration. Reusing a cache by spelling would erase release and role boundaries.",
+    "question": "Which original head and ::head command/data objects share the first procedure head across root and N procedure contexts?",
+    "conclusion": "C8.4 shares both spellings across repeated root command, N command and data. C8.5 splits relative N and data objects but shares absolute command and data. C8.6–9.1 split relative N/data and absolute data, while absolute commands share across namespaces. Distinct data objects are untyped. These pointer/type observations do not prove resolution after command replacement.",
+    "scope": "Compiled public original-object callbacks sample the exact four source-order/qualification controls for command actions, or the exact eight namespace/command/data callbacks for registration. The probe prints object primary and, for registration only, pointer equality against the retained first original. Source is ASCII Tcl_Eval; no opaque key, dispatch body or native variable frame is inferred. Metadata records C release association/library/executable hashes. Runtime patchlevel, compiler version and full flags are unqueried; action compile status and registration header digest are not recorded. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=963fcaac048ddd95a264472a372925a5ab1b6c838372268aa90de54d31f74854; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\nrelative\t0\tcmdName\t-1\nrelative\t1\tcmdName\t1\nrelative\t2\tcmdName\t1\nrelative\t3\tcmdName\t1\nabsolute\t0\tcmdName\t-1\nabsolute\t1\tcmdName\t1\nabsolute\t2\tcmdName\t1\nabsolute\t3\tcmdName\t1. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a59f22ac1a2f0158b42bd6455964eab239bda149a127dacc62fb8865a9df8659; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\nrelative\t0\tcmdName\t-1\nrelative\t1\tcmdName\t1\nrelative\t2\tcmdName\t0\nrelative\t3\tnone\t0\nabsolute\t0\tcmdName\t-1\nabsolute\t1\tcmdName\t1\nabsolute\t2\tcmdName\t1\nabsolute\t3\tcmdName\t1. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=da5d2c067774e7af0e6752ef0a3f768e340fe1073aad20572a704917164d9dc8; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\nrelative\t0\tcmdName\t-1\nrelative\t1\tcmdName\t1\nrelative\t2\tcmdName\t0\nrelative\t3\tnone\t0\nabsolute\t0\tcmdName\t-1\nabsolute\t1\tcmdName\t1\nabsolute\t2\tcmdName\t1\nabsolute\t3\tnone\t0. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=e9e4a9cacd2d4384fa4e5fda3f7039ecb259524d2deba6843e4768a0afcfb022; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\nrelative\t0\tcmdName\t-1\nrelative\t1\tcmdName\t1\nrelative\t2\tcmdName\t0\nrelative\t3\tnone\t0\nabsolute\t0\tcmdName\t-1\nabsolute\t1\tcmdName\t1\nabsolute\t2\tcmdName\t1\nabsolute\t3\tnone\t0. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=6a06406634d07dfd3be81ebafa52e8c809075f2b1f84f62d96f75ceb3e2fb7e4; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original-object callbacks reached from ASCII Tcl_Eval procedure source.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact relevant rows:\n\nrelative\t0\tcmdName\t-1\nrelative\t1\tcmdName\t1\nrelative\t2\tcmdName\t0\nrelative\t3\tnone\t0\nabsolute\t0\tcmdName\t-1\nabsolute\t1\tcmdName\t1\nabsolute\t2\tcmdName\t1\nabsolute\t3\tnone\t0. A cmdName type is an observed primary, not proof of current command lookup.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/probe.c",
+        "sha256": "b64302d8c005f89684beb89ec5f8afc7188eb81feecc50ed6b0f387c115b20bc",
+        "description": "Exact original command/data role and source-order programs."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/manifest.json",
+        "sha256": "ce389c324a0c5330130baec3b0f4c848dd13c2f6694339dad69b42d5de2df5d1",
+        "description": "Original full stream digest, release association and recorded build fields; absence of compile status/header fields is not repaired from current builds."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/8.4.20.tsv",
+        "sha256": "ba407e004ce9b4965d709cf9b94c7277309642bc5e858118bde76cf3be081605",
+        "description": "Full exact captured stream; relevant stages None."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/8.5.19.tsv",
+        "sha256": "d01ee4f9499bb8c6cc5ff5a80fbef2f296db21f288bcab7246a195db9f14f5de",
+        "description": "Full exact captured stream; relevant stages None."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/8.6.18.tsv",
+        "sha256": "e5bca009b9a69589da46cf015db32790494f51a2a0178b6e4b8d0480b1c3f7d6",
+        "description": "Full exact captured stream; relevant stages None."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/9.0.4.tsv",
+        "sha256": "e5bca009b9a69589da46cf015db32790494f51a2a0178b6e4b8d0480b1c3f7d6",
+        "description": "Full exact captured stream; relevant stages None."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_literal_pools/command-registration/9.1.0.tsv",
+        "sha256": "e5bca009b9a69589da46cf015db32790494f51a2a0178b6e4b8d0480b1c3f7d6",
+        "description": "Full exact captured stream; relevant stages None."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "selector": "literal_pool::tests::command_registration_partitions_match_the_five_native_engines",
+        "assertion": "Checks the independently issued namespace/qualification/data registration identity partitions across five releases.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "symbol": "NativeLiteralPool",
+        "purpose": "Selects original allocation and chronological effects from the retained compiler recipe."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.import.compiler-hook-copy",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/import-compiler-hook-copy.md",
+    "problem_statement": "Imported callables have their own compiler attachment and can remain different from the source after source hook mutation. Reading the source hook at dispatch time would donate a later compiler recipe to an old import.",
+    "question": "Does each import retain the compileProc selected at import creation across source attach/detach, rename/hide/expose and deletion?",
+    "conclusion": "C8.5–9.1 old remains unhooked after source attachment and fresh copies the hooked source. Source detachment leaves fresh hooked; later source reattachment does not change old. Rename/hide/expose preserves the visible attachment once exposed, and source deletion removes source/old/fresh. C8.4 measures only the ordinary unhooked procedure import and its visibility/deletion controls; no ensemble attachment operation is executed there. Same columns compare compileProc pointers, not command-object identity.",
+    "scope": "Exact private C Command.compileProc and Interp.compileEpoch observer after completed public source/rename/hide/expose operations. The same source TU conditionally runs an ordinary procedure-only sequence in C8.4 and ensemble attachment mutations in C8.5–9.1; compile-out operations are not guest rejections. The observer selects currently visible command records and compares compiler function pointers only. Five original compile0/run0 captures with empty stderr and private-header/library/executable hashes are retained; runtime patchlevel and complete configure/compiler flags are unqueried. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=996d24a53c8585d75f2c0b9d532d76d1d0376d8fd8737c9610acd25d32d0749a; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t0\t0\t0\t-1\t1\t-1\nrename_old\t0\t0\t0\t0\t-1\t1\t-1\nhide_old\t0\t0\t0\t-1\t-1\t-1\t-1\nexpose_old\t0\t0\t0\t0\t-1\t1\t-1\ndelete_source\t0\t0\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=31b39cad2e990f95e96678f95c71e76e09b8a702e175ace4784546364873297f; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t3\t0\t0\t-1\t1\t-1\nattach_source\t0\t4\t1\t0\t-1\t0\t-1\nimport_present\t0\t5\t1\t0\t1\t0\t1\ndetach_source\t0\t6\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t6\t0\t0\t1\t1\t0\nreattach_source\t0\t7\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t9\t1\t0\t1\t0\t1\nrename_old\t0\t9\t1\t0\t1\t0\t1\nhide_old\t0\t9\t1\t-1\t1\t-1\t1\nexpose_old\t0\t9\t1\t0\t1\t0\t1\nhide_fresh\t0\t10\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t11\t1\t0\t1\t0\t1\ndelete_source\t0\t13\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=e95c73f4907354ac36a87cde10f8b0a4c199ab5bda497fd6929803c72a630d97; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t17\t0\t0\t-1\t1\t-1\nattach_source\t0\t18\t1\t0\t-1\t0\t-1\nimport_present\t0\t19\t1\t0\t1\t0\t1\ndetach_source\t0\t20\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t20\t0\t0\t1\t1\t0\nreattach_source\t0\t21\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t24\t1\t0\t1\t0\t1\nrename_old\t0\t24\t1\t0\t1\t0\t1\nhide_old\t0\t24\t1\t-1\t1\t-1\t1\nexpose_old\t0\t24\t1\t0\t1\t0\t1\nhide_fresh\t0\t25\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t26\t1\t0\t1\t0\t1\ndelete_source\t0\t28\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a8713802ec9c6210dc42bd85f19dc66fc300e5edc15dd1067fcae922cb203e40; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t20\t0\t0\t-1\t1\t-1\nattach_source\t0\t21\t1\t0\t-1\t0\t-1\nimport_present\t0\t22\t1\t0\t1\t0\t1\ndetach_source\t0\t23\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t23\t0\t0\t1\t1\t0\nreattach_source\t0\t24\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t27\t1\t0\t1\t0\t1\nrename_old\t0\t27\t1\t0\t1\t0\t1\nhide_old\t0\t27\t1\t-1\t1\t-1\t1\nexpose_old\t0\t27\t1\t0\t1\t0\t1\nhide_fresh\t0\t28\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t29\t1\t0\t1\t0\t1\ndelete_source\t0\t31\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=7c9fd0ed1953f8abe1c69c1a772e3834fa7cfa9e33c1b1927f11b8a58ed4b083; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t24\t0\t0\t-1\t1\t-1\nattach_source\t0\t25\t1\t0\t-1\t0\t-1\nimport_present\t0\t26\t1\t0\t1\t0\t1\ndetach_source\t0\t27\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t27\t0\t0\t1\t1\t0\nreattach_source\t0\t28\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t31\t1\t0\t1\t0\t1\nrename_old\t0\t31\t1\t0\t1\t0\t1\nhide_old\t0\t31\t1\t-1\t1\t-1\t1\nexpose_old\t0\t31\t1\t0\t1\t0\t1\nhide_fresh\t0\t32\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t33\t1\t0\t1\t0\t1\ndelete_source\t0\t35\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/probe.c",
+        "sha256": "44ba80880460fc01c2a9c0bb2df4718275b9ef2872296973333c5d5eeb72b603",
+        "description": "Exact private fields, conditional release-specific program and compiler pointer comparison."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json",
+        "sha256": "e7cebed2c614dd2dfd4871f3562918a605551b5ad262ee8237eee73b981615fb",
+        "description": "Original full per-release observations, empty stderr, compile/run status and actual private-header/library/executable hashes."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv",
+        "sha256": "565269918c18df7e1f91f4b1d196bc45207e69be2450feb7bb5420aa3700fca5",
+        "description": "Full 5-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv",
+        "sha256": "5cf8cd085069606ccd191888076f5c71631057858c185e68098bca9a30f068a9",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv",
+        "sha256": "5396fc9c593cd950945b2f77c590ca84b4eb8eae7044ca0d94c0954b1cbd6f34",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv",
+        "sha256": "a084d8dfd8d54bf77ec89a3ba9e106d19b629ce0a3ebd831f04b2ca146aef217",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv",
+        "sha256": "d7bdc8a76235e5fcf1c52c278e1cc36ea6d13366af9912c9e34f0eaaa4fcb6eb",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_cache_tests.rs",
+        "selector": "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+        "assertion": "Checks all 57 reached snapshots, copied attachments and relative compiler epoch deltas; Rust native token/implementation assertions remain additional implementation obligations.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "native_compiler_binding_at_lookup",
+        "purpose": "Reissues the imported compiler selection and callable implementation independently from source attachment."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe. Retained run.py is an original capture writer with hardcoded external paths and a non-existing-manifest assertion, not a portable reconfirmation runner; it must not overwrite this evidence."
+    }
+  },
+  {
+    "id": "naming.import.compiler-hook-mutation-epoch",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/import-compiler-hook-mutation-epoch.md",
+    "problem_statement": "A compiler epoch must reflect the reached original compiler attachment and mutation, rather than the callable source alone. Over-invalidating an unhooked import or ignoring a hooked visibility mutation loses the measured release-specific deltas.",
+    "question": "Which import/source hook and visibility mutations advance the private interpreter compileEpoch in this sequence?",
+    "conclusion": "C8.5–9.1 source attach/import/detach/reattach each advance compileEpoch by1. Configuring unhooked source changes none; configuring hooked source advances by2 in C8.5 and by3 in C8.6–9.1. Unhooked old rename/hide/expose changes none; hooked fresh hide and expose each advance by1; source deletion advances by2. C8.4 ordinary procedure import/rename/hide/expose/delete keeps compileEpoch0. Absolute starting epochs differ and are not current runtime currency.",
+    "scope": "Exact private C Command.compileProc and Interp.compileEpoch observer after completed public source/rename/hide/expose operations. The same source TU conditionally runs an ordinary procedure-only sequence in C8.4 and ensemble attachment mutations in C8.5–9.1; compile-out operations are not guest rejections. The observer selects currently visible command records and compares compiler function pointers only. Five original compile0/run0 captures with empty stderr and private-header/library/executable hashes are retained; runtime patchlevel and complete configure/compiler flags are unqueried. Jim and BIG-IP are not tested.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=996d24a53c8585d75f2c0b9d532d76d1d0376d8fd8737c9610acd25d32d0749a; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t0\t0\t0\t-1\t1\t-1\nrename_old\t0\t0\t0\t0\t-1\t1\t-1\nhide_old\t0\t0\t0\t-1\t-1\t-1\t-1\nexpose_old\t0\t0\t0\t0\t-1\t1\t-1\ndelete_source\t0\t0\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=31b39cad2e990f95e96678f95c71e76e09b8a702e175ace4784546364873297f; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t3\t0\t0\t-1\t1\t-1\nattach_source\t0\t4\t1\t0\t-1\t0\t-1\nimport_present\t0\t5\t1\t0\t1\t0\t1\ndetach_source\t0\t6\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t6\t0\t0\t1\t1\t0\nreattach_source\t0\t7\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t9\t1\t0\t1\t0\t1\nrename_old\t0\t9\t1\t0\t1\t0\t1\nhide_old\t0\t9\t1\t-1\t1\t-1\t1\nexpose_old\t0\t9\t1\t0\t1\t0\t1\nhide_fresh\t0\t10\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t11\t1\t0\t1\t0\t1\ndelete_source\t0\t13\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=e95c73f4907354ac36a87cde10f8b0a4c199ab5bda497fd6929803c72a630d97; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t17\t0\t0\t-1\t1\t-1\nattach_source\t0\t18\t1\t0\t-1\t0\t-1\nimport_present\t0\t19\t1\t0\t1\t0\t1\ndetach_source\t0\t20\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t20\t0\t0\t1\t1\t0\nreattach_source\t0\t21\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t24\t1\t0\t1\t0\t1\nrename_old\t0\t24\t1\t0\t1\t0\t1\nhide_old\t0\t24\t1\t-1\t1\t-1\t1\nexpose_old\t0\t24\t1\t0\t1\t0\t1\nhide_fresh\t0\t25\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t26\t1\t0\t1\t0\t1\ndelete_source\t0\t28\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a8713802ec9c6210dc42bd85f19dc66fc300e5edc15dd1067fcae922cb203e40; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t20\t0\t0\t-1\t1\t-1\nattach_source\t0\t21\t1\t0\t-1\t0\t-1\nimport_present\t0\t22\t1\t0\t1\t0\t1\ndetach_source\t0\t23\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t23\t0\t0\t1\t1\t0\nreattach_source\t0\t24\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t27\t1\t0\t1\t0\t1\nrename_old\t0\t27\t1\t0\t1\t0\t1\nhide_old\t0\t27\t1\t-1\t1\t-1\t1\nexpose_old\t0\t27\t1\t0\t1\t0\t1\nhide_fresh\t0\t28\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t29\t1\t0\t1\t0\t1\ndelete_source\t0\t31\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=7c9fd0ed1953f8abe1c69c1a772e3834fa7cfa9e33c1b1927f11b8a58ed4b083; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact event snapshots:\n\nevent\tcode\tcompiler\tsource_hook\told_hook\tfresh_hook\told_same\tfresh_same\nimport_absent\t0\t24\t0\t0\t-1\t1\t-1\nattach_source\t0\t25\t1\t0\t-1\t0\t-1\nimport_present\t0\t26\t1\t0\t1\t0\t1\ndetach_source\t0\t27\t0\t0\t1\t1\t0\nconfigure_unhooked\t0\t27\t0\t0\t1\t1\t0\nreattach_source\t0\t28\t1\t0\t1\t0\t1\nconfigure_hooked\t0\t31\t1\t0\t1\t0\t1\nrename_old\t0\t31\t1\t0\t1\t0\t1\nhide_old\t0\t31\t1\t-1\t1\t-1\t1\nexpose_old\t0\t31\t1\t0\t1\t0\t1\nhide_fresh\t0\t32\t1\t0\t-1\t0\t-1\nexpose_fresh\t0\t33\t1\t0\t1\t0\t1\ndelete_source\t0\t35\t-1\t-1\t-1\t-1\t-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/probe.c",
+        "sha256": "44ba80880460fc01c2a9c0bb2df4718275b9ef2872296973333c5d5eeb72b603",
+        "description": "Exact private fields, conditional release-specific program and compiler pointer comparison."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json",
+        "sha256": "e7cebed2c614dd2dfd4871f3562918a605551b5ad262ee8237eee73b981615fb",
+        "description": "Original full per-release observations, empty stderr, compile/run status and actual private-header/library/executable hashes."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv",
+        "sha256": "565269918c18df7e1f91f4b1d196bc45207e69be2450feb7bb5420aa3700fca5",
+        "description": "Full 5-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv",
+        "sha256": "5cf8cd085069606ccd191888076f5c71631057858c185e68098bca9a30f068a9",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv",
+        "sha256": "5396fc9c593cd950945b2f77c590ca84b4eb8eae7044ca0d94c0954b1cbd6f34",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv",
+        "sha256": "a084d8dfd8d54bf77ec89a3ba9e106d19b629ce0a3ebd831f04b2ca146aef217",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv",
+        "sha256": "d7bdc8a76235e5fcf1c52c278e1cc36ea6d13366af9912c9e34f0eaaa4fcb6eb",
+        "description": "Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_cache_tests.rs",
+        "selector": "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+        "assertion": "Checks all 57 reached snapshots, copied attachments and relative compiler epoch deltas; Rust native token/implementation assertions remain additional implementation obligations.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "native_compiler_binding_at_lookup",
+        "purpose": "Reissues the imported compiler selection and callable implementation independently from source attachment."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe. Retained run.py is an original capture writer with hardcoded external paths and a non-existing-manifest assertion, not a portable reconfirmation runner; it must not overwrite this evidence."
+    }
+  },
+  {
+    "id": "naming.compiled-local-inventory.duplicate-and-counted-zero",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/compiled-local-inventory-duplicate-and-counted-zero.md",
+    "problem_statement": "Original formal objects can be distinct by counted bytes while procedure validation, binding and enumeration use different release-specific keys. Equal printed prefixes and identical duplicates therefore do not establish the same local inventory or accepted argv count.",
+    "question": "What info locals/info vars inventory is reached for one/two original ordinary, raw-zero and modified-zero formal names?",
+    "conclusion": "All C releases preserve both ordinary duplicate x slots in enumeration when two arguments are supplied. C8.4/8.5 enumerate a raw-zero formal as k and the two raw-zero or identical-zero-formal calls reject two arguments with usage p k; modified-zero names remain counted and two distinct members enumerate. C8.6–9.1 preserve full raw-zero suffixes and enumerate both supplied formal slots, including identical raw-zero duplicates. Jim retains counted distinct raw-zero/modified-zero members, collapses identical duplicate enumeration to one member, and orders extra differently. This is the returned enumeration for these bodies, not a complete allocation/refcount/compiled-name lookup proof.",
+    "scope": "Original counted String formal members and an original List parameter object enter public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector. The body is exactly set extra EXTRA;info exists absent;list [info locals] [info vars]. One/two-formal axes and definition/invocation outcomes are captured before later error observers; the source retains result/return-options and uses the C8.4 private error-storage observer. originalA/originalB callbacks are registered but not called by this body. The manifest observation_window boilerplate mentions braced/dynamic substitution; this exact probe has only the stated enumeration body. Forty original rows per provider, full output/source/library/header/executable hashes and compile/run status are retained; Jim patchlevel/revision/configure flags and all launched C patchlevels are unqueried. BIG-IP is not tested; manifest vm_comparisons is0.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a9e2dc097dc90448328c3f047670ce1e7b1fc7eec67a8f69faa1851d1d6a5ade; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: ordinary-duplicate/one-original-formal/original-definition: code0 result_hex=; ordinary-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b782065787472617d207b782065787472617d; nul-equal-length/one-original-formal/original-definition: code0 result_hex=; nul-equal-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; nul-different-length/one-original-formal/original-definition: code0 result_hex=; nul-different-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; modified-nul/one-original-formal/original-definition: code0 result_hex=; modified-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bc080612065787472617d207b6bc080612065787472617d; identical-duplicate/one-original-formal/original-definition: code0 result_hex=; identical-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; ordinary-duplicate/two-original-formals/original-definition: code0 result_hex=; ordinary-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b7820782065787472617d207b7820782065787472617d; nul-equal-length/two-original-formals/original-definition: code0 result_hex=; nul-equal-length/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; nul-different-length/two-original-formals/original-definition: code0 result_hex=; nul-different-length/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; modified-nul/two-original-formals/original-definition: code0 result_hex=; modified-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bc08061206bc080622065787472617d207b6bc08061206bc080622065787472617d; identical-duplicate/two-original-formals/original-definition: code0 result_hex=; identical-duplicate/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=0aa54389030e0bfaaded74133d549356b6176f41e0e3fc12ead6dc045e6272ef; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: ordinary-duplicate/one-original-formal/original-definition: code0 result_hex=; ordinary-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b782065787472617d207b782065787472617d; nul-equal-length/one-original-formal/original-definition: code0 result_hex=; nul-equal-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; nul-different-length/one-original-formal/original-definition: code0 result_hex=; nul-different-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; modified-nul/one-original-formal/original-definition: code0 result_hex=; modified-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bc080612065787472617d207b6bc080612065787472617d; identical-duplicate/one-original-formal/original-definition: code0 result_hex=; identical-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; ordinary-duplicate/two-original-formals/original-definition: code0 result_hex=; ordinary-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b7820782065787472617d207b7820782065787472617d; nul-equal-length/two-original-formals/original-definition: code0 result_hex=; nul-equal-length/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; nul-different-length/two-original-formals/original-definition: code0 result_hex=; nul-different-length/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; modified-nul/two-original-formals/original-definition: code0 result_hex=; modified-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bc08061206bc080622065787472617d207b6bc08061206bc080622065787472617d; identical-duplicate/two-original-formals/original-definition: code0 result_hex=; identical-duplicate/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=fed8dfa72e9ed79742551594a18e9b05b16ff91d1782c35b4f98dea68a91a307; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: ordinary-duplicate/one-original-formal/original-definition: code0 result_hex=; ordinary-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b782065787472617d207b782065787472617d; nul-equal-length/one-original-formal/original-definition: code0 result_hex=; nul-equal-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; nul-different-length/one-original-formal/original-definition: code0 result_hex=; nul-different-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; modified-nul/one-original-formal/original-definition: code0 result_hex=; modified-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bc080612065787472617d207b6bc080612065787472617d; identical-duplicate/one-original-formal/original-definition: code0 result_hex=; identical-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; ordinary-duplicate/two-original-formals/original-definition: code0 result_hex=; ordinary-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b7820782065787472617d207b7820782065787472617d; nul-equal-length/two-original-formals/original-definition: code0 result_hex=; nul-equal-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b00622065787472617d207b6b0061206b00622065787472617d; nul-different-length/two-original-formals/original-definition: code0 result_hex=; nul-different-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b0062622065787472617d207b6b0061206b0062622065787472617d; modified-nul/two-original-formals/original-definition: code0 result_hex=; modified-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bc08061206bc080622065787472617d207b6bc08061206bc080622065787472617d; identical-duplicate/two-original-formals/original-definition: code0 result_hex=; identical-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b00612065787472617d207b6b0061206b00612065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=97021470bec5db0338e581cb5487b1245f5c49719163f7ef473496ab8d93084d; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: ordinary-duplicate/one-original-formal/original-definition: code0 result_hex=; ordinary-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b782065787472617d207b782065787472617d; nul-equal-length/one-original-formal/original-definition: code0 result_hex=; nul-equal-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; nul-different-length/one-original-formal/original-definition: code0 result_hex=; nul-different-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; modified-nul/one-original-formal/original-definition: code0 result_hex=; modified-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bc080612065787472617d207b6bc080612065787472617d; identical-duplicate/one-original-formal/original-definition: code0 result_hex=; identical-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; ordinary-duplicate/two-original-formals/original-definition: code0 result_hex=; ordinary-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b7820782065787472617d207b7820782065787472617d; nul-equal-length/two-original-formals/original-definition: code0 result_hex=; nul-equal-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b00622065787472617d207b6b0061206b00622065787472617d; nul-different-length/two-original-formals/original-definition: code0 result_hex=; nul-different-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b0062622065787472617d207b6b0061206b0062622065787472617d; modified-nul/two-original-formals/original-definition: code0 result_hex=; modified-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bc08061206bc080622065787472617d207b6bc08061206bc080622065787472617d; identical-duplicate/two-original-formals/original-definition: code0 result_hex=; identical-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b00612065787472617d207b6b0061206b00612065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=eca352327e1b9768eae049929bc0ab346e60fc35036a124a5282dc0b11d5163b; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: ordinary-duplicate/one-original-formal/original-definition: code0 result_hex=; ordinary-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b782065787472617d207b782065787472617d; nul-equal-length/one-original-formal/original-definition: code0 result_hex=; nul-equal-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; nul-different-length/one-original-formal/original-definition: code0 result_hex=; nul-different-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; modified-nul/one-original-formal/original-definition: code0 result_hex=; modified-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bc080612065787472617d207b6bc080612065787472617d; identical-duplicate/one-original-formal/original-definition: code0 result_hex=; identical-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b00612065787472617d207b6b00612065787472617d; ordinary-duplicate/two-original-formals/original-definition: code0 result_hex=; ordinary-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b7820782065787472617d207b7820782065787472617d; nul-equal-length/two-original-formals/original-definition: code0 result_hex=; nul-equal-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b00622065787472617d207b6b0061206b00622065787472617d; nul-different-length/two-original-formals/original-definition: code0 result_hex=; nul-different-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b0062622065787472617d207b6b0061206b0062622065787472617d; modified-nul/two-original-formals/original-definition: code0 result_hex=; modified-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bc08061206bc080622065787472617d207b6bc08061206bc080622065787472617d; identical-duplicate/two-original-formals/original-definition: code0 result_hex=; identical-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b0061206b00612065787472617d207b6b0061206b00612065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (patchlevel, revision and configure flags not recorded)",
+        "build": "binary_sha256=4cd832174d75d7642c934d13a0521af18e6cd7005d3f95ceb16286e0d02e0509; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: ordinary-duplicate/one-original-formal/original-definition: code0 result_hex=70; ordinary-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b657874726120787d207b657874726120787d; nul-equal-length/one-original-formal/original-definition: code0 result_hex=70; nul-equal-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b00617d207b6578747261206b00617d; nul-different-length/one-original-formal/original-definition: code0 result_hex=70; nul-different-length/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b00617d207b6578747261206b00617d; modified-nul/one-original-formal/original-definition: code0 result_hex=70; modified-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206bc080617d207b6578747261206bc080617d; identical-duplicate/one-original-formal/original-definition: code0 result_hex=70; identical-duplicate/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b00617d207b6578747261206b00617d; ordinary-duplicate/two-original-formals/original-definition: code0 result_hex=70; ordinary-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b657874726120787d207b657874726120787d; nul-equal-length/two-original-formals/original-definition: code0 result_hex=70; nul-equal-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b0061206b00627d207b6578747261206b0061206b00627d; nul-different-length/two-original-formals/original-definition: code0 result_hex=70; nul-different-length/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b0061206b0062627d207b6578747261206b0061206b0062627d; modified-nul/two-original-formals/original-definition: code0 result_hex=70; modified-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206bc08061206bc080627d207b6578747261206bc08061206bc080627d; identical-duplicate/two-original-formals/original-definition: code0 result_hex=70; identical-duplicate/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b00617d207b6578747261206b00617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory.c",
+        "sha256": "ff88b0b741ca96d159071141c26cb97320bd1ece91075fa50c162c8880b1ad0e",
+        "description": "Exact ten counted original names, original List formal installation, body and saved-result/error observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json",
+        "sha256": "3ff34e4d289e2715d25735f638421b16a22b1052f8c3de4aae6cbcf18b6ace83",
+        "description": "Original 240-row association and full output/build hashes. Generic observation-window label is bounded by the actual retained probe body, and zero VM comparisons is explicit."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl",
+        "sha256": "3c44be176df4ebd2bc949f56b74937daf6666d8c63cbb8ead9677e7b9e00f418",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['ordinary-duplicate', 'nul-equal-length', 'nul-different-length', 'modified-nul', 'identical-duplicate']."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl",
+        "sha256": "7c369be3f697d0491c659f540c3c3ea33f33263f42dd6977aa8385c268acc074",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['ordinary-duplicate', 'nul-equal-length', 'nul-different-length', 'modified-nul', 'identical-duplicate']."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['ordinary-duplicate', 'nul-equal-length', 'nul-different-length', 'modified-nul', 'identical-duplicate']."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['ordinary-duplicate', 'nul-equal-length', 'nul-different-length', 'modified-nul', 'identical-duplicate']."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl",
+        "sha256": "4563537efa0cf5f84ad870e698152edacfbf4ed97be1a8e8dccab9aca22d9962",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['ordinary-duplicate', 'nul-equal-length', 'nul-different-length', 'modified-nul', 'identical-duplicate']."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl",
+        "sha256": "60613d12fbda405dbb5db773fda71487a1dff6408a76ceb9bf7cb3487b2dda69",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['ordinary-duplicate', 'nul-equal-length', 'nul-different-length', 'modified-nul', 'identical-duplicate']."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "symbol": "NamePolicyProtocol::formal_enumeration_name_input",
+        "purpose": "Owns release-selected formal enumeration projection independently from validation and storage keys."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "frame_var_name_bytes",
+        "purpose": "Returns exact actual frame member byte names under the selected link-inclusion purpose."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.compiled-local-inventory.qualification-validation",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/compiled-local-inventory-qualification-validation.md",
+    "problem_statement": "Namespace separators before or after raw zero can be reached by formal validation even when the error presenter shows only a prefix. A display string is not the stored formal key or a proof that the procedure was installed.",
+    "question": "Do qualification-before/after-zero original formals install and reach local inventory in each release?",
+    "conclusion": "C8.4/8.5 accept qualification after raw zero, enumerate k with one formal, and reject the two-argument call with usage p k; they reject qualification before zero at definition. C8.6–9.1 reject both qualified-name cases at definition, and the following attempted invocation reports invalid command p. Jim accepts both counted qualified forms and enumerates their complete original members for one/two formals. C error presentation can truncate raw zero independently from validation; exact error bytes are retained.",
+    "scope": "Original counted String formal members and an original List parameter object enter public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector. The body is exactly set extra EXTRA;info exists absent;list [info locals] [info vars]. One/two-formal axes and definition/invocation outcomes are captured before later error observers; the source retains result/return-options and uses the C8.4 private error-storage observer. originalA/originalB callbacks are registered but not called by this body. The manifest observation_window boilerplate mentions braced/dynamic substitution; this exact probe has only the stated enumeration body. Forty original rows per provider, full output/source/library/header/executable hashes and compile/run status are retained; Jim patchlevel/revision/configure flags and all launched C patchlevels are unqueried. BIG-IP is not tested; manifest vm_comparisons is0.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a9e2dc097dc90448328c3f047670ce1e7b1fc7eec67a8f69faa1851d1d6a5ade; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: qualification-after-nul/one-original-formal/original-definition: code0 result_hex=; qualification-after-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; qualification-before-nul/one-original-formal/original-definition: code1 result_hex=70726f636564757265202270222068617320666f726d616c20706172616d6574657220226b3a3a222074686174206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-after-nul/two-original-formals/original-definition: code0 result_hex=; qualification-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; qualification-before-nul/two-original-formals/original-definition: code1 result_hex=70726f636564757265202270222068617320666f726d616c20706172616d6574657220226b3a3a222074686174206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=0aa54389030e0bfaaded74133d549356b6176f41e0e3fc12ead6dc045e6272ef; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: qualification-after-nul/one-original-formal/original-definition: code0 result_hex=; qualification-after-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; qualification-before-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a22206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-after-nul/two-original-formals/original-definition: code0 result_hex=; qualification-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; qualification-before-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a22206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=fed8dfa72e9ed79742551594a18e9b05b16ff91d1782c35b4f98dea68a91a307; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: qualification-after-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b003a3a6122206973206e6f7420612073696d706c65206e616d65; qualification-after-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-before-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a006122206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-after-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b003a3a6122206973206e6f7420612073696d706c65206e616d65; qualification-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-before-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a006122206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=97021470bec5db0338e581cb5487b1245f5c49719163f7ef473496ab8d93084d; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: qualification-after-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b003a3a6122206973206e6f7420612073696d706c65206e616d65; qualification-after-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-before-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a006122206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-after-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b003a3a6122206973206e6f7420612073696d706c65206e616d65; qualification-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-before-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a006122206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=eca352327e1b9768eae049929bc0ab346e60fc35036a124a5282dc0b11d5163b; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: qualification-after-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b22206973206e6f7420612073696d706c65206e616d65; qualification-after-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-before-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a22206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-after-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b22206973206e6f7420612073696d706c65206e616d65; qualification-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; qualification-before-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b3a3a22206973206e6f7420612073696d706c65206e616d65; qualification-before-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (patchlevel, revision and configure flags not recorded)",
+        "build": "binary_sha256=4cd832174d75d7642c934d13a0521af18e6cd7005d3f95ceb16286e0d02e0509; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: qualification-after-nul/one-original-formal/original-definition: code0 result_hex=70; qualification-after-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b003a3a612065787472617d207b6b003a3a612065787472617d; qualification-before-nul/one-original-formal/original-definition: code0 result_hex=70; qualification-before-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b3a3a00612065787472617d207b6b3a3a00612065787472617d; qualification-after-nul/two-original-formals/original-definition: code0 result_hex=70; qualification-after-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b003a3a61206b003a3a622065787472617d207b6b003a3a61206b003a3a622065787472617d; qualification-before-nul/two-original-formals/original-definition: code0 result_hex=70; qualification-before-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6b3a3a0061206b3a3a00622065787472617d207b6b3a3a0061206b3a3a00622065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory.c",
+        "sha256": "ff88b0b741ca96d159071141c26cb97320bd1ece91075fa50c162c8880b1ad0e",
+        "description": "Exact ten counted original names, original List formal installation, body and saved-result/error observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json",
+        "sha256": "3ff34e4d289e2715d25735f638421b16a22b1052f8c3de4aae6cbcf18b6ace83",
+        "description": "Original 240-row association and full output/build hashes. Generic observation-window label is bounded by the actual retained probe body, and zero VM comparisons is explicit."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl",
+        "sha256": "3c44be176df4ebd2bc949f56b74937daf6666d8c63cbb8ead9677e7b9e00f418",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['qualification-after-nul', 'qualification-before-nul']."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl",
+        "sha256": "7c369be3f697d0491c659f540c3c3ea33f33263f42dd6977aa8385c268acc074",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['qualification-after-nul', 'qualification-before-nul']."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['qualification-after-nul', 'qualification-before-nul']."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['qualification-after-nul', 'qualification-before-nul']."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl",
+        "sha256": "4563537efa0cf5f84ad870e698152edacfbf4ed97be1a8e8dccab9aca22d9962",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['qualification-after-nul', 'qualification-before-nul']."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl",
+        "sha256": "60613d12fbda405dbb5db773fda71487a1dff6408a76ceb9bf7cb3487b2dda69",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['qualification-after-nul', 'qualification-before-nul']."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "symbol": "NamePolicyProtocol::formal_enumeration_name_input",
+        "purpose": "Owns release-selected formal enumeration projection independently from validation and storage keys."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "frame_var_name_bytes",
+        "purpose": "Returns exact actual frame member byte names under the selected link-inclusion purpose."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.compiled-local-inventory.array-shaped-formal-validation",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/compiled-local-inventory-array-shaped-formal-validation.md",
+    "problem_statement": "An array-like formal may be rejected during declaration or installed using a different variable receiver. Syntax validation, CString presentation and actual local enumeration are different purposes.",
+    "question": "Which ordinary/after-zero array-shaped original formals install and what local inventory follows?",
+    "conclusion": "All C releases reject ordinary a(q) at definition. C8.4/8.5 accept array syntax after raw zero, enumerate k for one formal and reject the two-argument call with usage p k; C8.6–9.1 reject the after-zero array form at definition. Jim accepts both forms, enumerates full counted k-zero-a(q) members for the after-zero case and a for ordinary a(q)/a(r). Failed C definitions are followed by invalid-command p, not by a body execution.",
+    "scope": "Original counted String formal members and an original List parameter object enter public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector. The body is exactly set extra EXTRA;info exists absent;list [info locals] [info vars]. One/two-formal axes and definition/invocation outcomes are captured before later error observers; the source retains result/return-options and uses the C8.4 private error-storage observer. originalA/originalB callbacks are registered but not called by this body. The manifest observation_window boilerplate mentions braced/dynamic substitution; this exact probe has only the stated enumeration body. Forty original rows per provider, full output/source/library/header/executable hashes and compile/run status are retained; Jim patchlevel/revision/configure flags and all launched C patchlevels are unqueried. BIG-IP is not tested; manifest vm_comparisons is0.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a9e2dc097dc90448328c3f047670ce1e7b1fc7eec67a8f69faa1851d1d6a5ade; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: opaque-array-after-nul/one-original-formal/original-definition: code0 result_hex=; opaque-array-after-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; opaque-array-ordinary/one-original-formal/original-definition: code1 result_hex=70726f636564757265202270222068617320666f726d616c20706172616d6574657220226128712922207468617420697320616e20617272617920656c656d656e74; opaque-array-ordinary/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-after-nul/two-original-formals/original-definition: code0 result_hex=; opaque-array-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; opaque-array-ordinary/two-original-formals/original-definition: code1 result_hex=70726f636564757265202270222068617320666f726d616c20706172616d6574657220226128712922207468617420697320616e20617272617920656c656d656e74; opaque-array-ordinary/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=0aa54389030e0bfaaded74133d549356b6176f41e0e3fc12ead6dc045e6272ef; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: opaque-array-after-nul/one-original-formal/original-definition: code0 result_hex=; opaque-array-after-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6b2065787472617d207b6b2065787472617d; opaque-array-ordinary/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-after-nul/two-original-formals/original-definition: code0 result_hex=; opaque-array-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=77726f6e67202320617267733a2073686f756c64206265202270206b22; opaque-array-ordinary/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=fed8dfa72e9ed79742551594a18e9b05b16ff91d1782c35b4f98dea68a91a307; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: opaque-array-after-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b2220697320616e20617272617920656c656d656e74; opaque-array-after-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-ordinary/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-after-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b2220697320616e20617272617920656c656d656e74; opaque-array-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-ordinary/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=97021470bec5db0338e581cb5487b1245f5c49719163f7ef473496ab8d93084d; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: opaque-array-after-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b2220697320616e20617272617920656c656d656e74; opaque-array-after-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-ordinary/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-after-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b2220697320616e20617272617920656c656d656e74; opaque-array-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-ordinary/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=eca352327e1b9768eae049929bc0ab346e60fc35036a124a5282dc0b11d5163b; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: opaque-array-after-nul/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b2220697320616e20617272617920656c656d656e74; opaque-array-after-nul/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-ordinary/one-original-formal/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/one-original-formal/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-after-nul/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d6574657220226b2220697320616e20617272617920656c656d656e74; opaque-array-after-nul/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022; opaque-array-ordinary/two-original-formals/original-definition: code1 result_hex=666f726d616c20706172616d657465722022612871292220697320616e20617272617920656c656d656e74; opaque-array-ordinary/two-original-formals/compiled-and-dynamic-invocation: code1 result_hex=696e76616c696420636f6d6d616e64206e616d6520227022. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (patchlevel, revision and configure flags not recorded)",
+        "build": "binary_sha256=4cd832174d75d7642c934d13a0521af18e6cd7005d3f95ceb16286e0d02e0509; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: opaque-array-after-nul/one-original-formal/original-definition: code0 result_hex=70; opaque-array-after-nul/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b00612871297d207b6578747261206b00612871297d; opaque-array-ordinary/one-original-formal/original-definition: code0 result_hex=70; opaque-array-ordinary/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b612065787472617d207b612065787472617d; opaque-array-after-nul/two-original-formals/original-definition: code0 result_hex=70; opaque-array-after-nul/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6578747261206b0061287129206b00622871297d207b6578747261206b0061287129206b00622871297d; opaque-array-ordinary/two-original-formals/original-definition: code0 result_hex=70; opaque-array-ordinary/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b612065787472617d207b612065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory.c",
+        "sha256": "ff88b0b741ca96d159071141c26cb97320bd1ece91075fa50c162c8880b1ad0e",
+        "description": "Exact ten counted original names, original List formal installation, body and saved-result/error observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json",
+        "sha256": "3ff34e4d289e2715d25735f638421b16a22b1052f8c3de4aae6cbcf18b6ace83",
+        "description": "Original 240-row association and full output/build hashes. Generic observation-window label is bounded by the actual retained probe body, and zero VM comparisons is explicit."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl",
+        "sha256": "3c44be176df4ebd2bc949f56b74937daf6666d8c63cbb8ead9677e7b9e00f418",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['opaque-array-after-nul', 'opaque-array-ordinary']."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl",
+        "sha256": "7c369be3f697d0491c659f540c3c3ea33f33263f42dd6977aa8385c268acc074",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['opaque-array-after-nul', 'opaque-array-ordinary']."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['opaque-array-after-nul', 'opaque-array-ordinary']."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['opaque-array-after-nul', 'opaque-array-ordinary']."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl",
+        "sha256": "4563537efa0cf5f84ad870e698152edacfbf4ed97be1a8e8dccab9aca22d9962",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['opaque-array-after-nul', 'opaque-array-ordinary']."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl",
+        "sha256": "60613d12fbda405dbb5db773fda71487a1dff6408a76ceb9bf7cb3487b2dda69",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['opaque-array-after-nul', 'opaque-array-ordinary']."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "symbol": "NamePolicyProtocol::formal_enumeration_name_input",
+        "purpose": "Owns release-selected formal enumeration projection independently from validation and storage keys."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "frame_var_name_bytes",
+        "purpose": "Returns exact actual frame member byte names under the selected link-inclusion purpose."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  },
+  {
+    "id": "naming.compiled-local-inventory.opaque-byte-enumeration",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/compiled-local-inventory-opaque-byte-enumeration.md",
+    "problem_statement": "An original FF-containing formal is not a UTF document identifier. Replacing it with decoded display advice would alter the stored and enumerated member even when the procedure accepts its arguments.",
+    "question": "Do original k FF a and k FF b formals retain exact bytes in successful info locals/info vars enumeration?",
+    "conclusion": "All five C releases and Jim install the original opaque formals and return exact k FF a, plus k FF b in the two-formal case. C enumerates formal members before extra; Jim one-formal enumerates extra first and its two-formal hash order is k FF a, extra, k FF b. The observed order and bytes belong to this original object-vector definition and exact body, not source UTF ingress or an arbitrary table walk.",
+    "scope": "Original counted String formal members and an original List parameter object enter public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector. The body is exactly set extra EXTRA;info exists absent;list [info locals] [info vars]. One/two-formal axes and definition/invocation outcomes are captured before later error observers; the source retains result/return-options and uses the C8.4 private error-storage observer. originalA/originalB callbacks are registered but not called by this body. The manifest observation_window boilerplate mentions braced/dynamic substitution; this exact probe has only the stated enumeration body. Forty original rows per provider, full output/source/library/header/executable hashes and compile/run status are retained; Jim patchlevel/revision/configure flags and all launched C patchlevels are unqueried. BIG-IP is not tested; manifest vm_comparisons is0.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=a9e2dc097dc90448328c3f047670ce1e7b1fc7eec67a8f69faa1851d1d6a5ade; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: raw-invalid-byte/one-original-formal/original-definition: code0 result_hex=; raw-invalid-byte/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bff612065787472617d207b6bff612065787472617d; raw-invalid-byte/two-original-formals/original-definition: code0 result_hex=; raw-invalid-byte/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bff61206bff622065787472617d207b6bff61206bff622065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.4"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=0aa54389030e0bfaaded74133d549356b6176f41e0e3fc12ead6dc045e6272ef; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: raw-invalid-byte/one-original-formal/original-definition: code0 result_hex=; raw-invalid-byte/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bff612065787472617d207b6bff612065787472617d; raw-invalid-byte/two-original-formals/original-definition: code0 result_hex=; raw-invalid-byte/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bff61206bff622065787472617d207b6bff61206bff622065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.5"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=fed8dfa72e9ed79742551594a18e9b05b16ff91d1782c35b4f98dea68a91a307; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: raw-invalid-byte/one-original-formal/original-definition: code0 result_hex=; raw-invalid-byte/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bff612065787472617d207b6bff612065787472617d; raw-invalid-byte/two-original-formals/original-definition: code0 result_hex=; raw-invalid-byte/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bff61206bff622065787472617d207b6bff61206bff622065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl8.6"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=97021470bec5db0338e581cb5487b1245f5c49719163f7ef473496ab8d93084d; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: raw-invalid-byte/one-original-formal/original-definition: code0 result_hex=; raw-invalid-byte/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bff612065787472617d207b6bff612065787472617d; raw-invalid-byte/two-original-formals/original-definition: code0 result_hex=; raw-invalid-byte/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bff61206bff622065787472617d207b6bff61206bff622065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.0"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0 (capture association; launched patchlevel unqueried)",
+        "build": "binary_sha256=eca352327e1b9768eae049929bc0ab346e60fc35036a124a5282dc0b11d5163b; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "C Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: raw-invalid-byte/one-original-formal/original-definition: code0 result_hex=; raw-invalid-byte/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bff612065787472617d207b6bff612065787472617d; raw-invalid-byte/two-original-formals/original-definition: code0 result_hex=; raw-invalid-byte/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bff61206bff622065787472617d207b6bff61206bff622065787472617d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-tcl9.1"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "Jim (patchlevel, revision and configure flags not recorded)",
+        "build": "binary_sha256=4cd832174d75d7642c934d13a0521af18e6cd7005d3f95ceb16286e0d02e0509; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.",
+        "input_channel": "Public original object-vector procedure definition and invocation; counted original String/List name inputs.",
+        "dialect": "Jim Tcl",
+        "status": "observed",
+        "answer": "Exact reached rows: raw-invalid-byte/one-original-formal/original-definition: code0 result_hex=70; raw-invalid-byte/one-original-formal/compiled-and-dynamic-invocation: code0 result_hex=7b6bff612065787472617d207b6bff612065787472617d; raw-invalid-byte/two-original-formals/original-definition: code0 result_hex=70; raw-invalid-byte/two-original-formals/compiled-and-dynamic-invocation: code0 result_hex=7b6bff61206578747261206bff627d207b6bff61206578747261206bff627d. Full error/options fields remain in the evidence; invocation after a rejected definition does not enter the body.",
+        "evidence": [
+          "probe",
+          "receipt",
+          "rows-jim"
+        ]
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "No observation of this exact question is attached for this provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "probe",
+        "role": "input",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory.c",
+        "sha256": "ff88b0b741ca96d159071141c26cb97320bd1ece91075fa50c162c8880b1ad0e",
+        "description": "Exact ten counted original names, original List formal installation, body and saved-result/error observer."
+      },
+      {
+        "id": "receipt",
+        "role": "provider",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json",
+        "sha256": "3ff34e4d289e2715d25735f638421b16a22b1052f8c3de4aae6cbcf18b6ace83",
+        "description": "Original 240-row association and full output/build hashes. Generic observation-window label is bounded by the actual retained probe body, and zero VM comparisons is explicit."
+      },
+      {
+        "id": "rows-tcl8.4",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl",
+        "sha256": "3c44be176df4ebd2bc949f56b74937daf6666d8c63cbb8ead9677e7b9e00f418",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['raw-invalid-byte']."
+      },
+      {
+        "id": "rows-tcl8.5",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl",
+        "sha256": "7c369be3f697d0491c659f540c3c3ea33f33263f42dd6977aa8385c268acc074",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['raw-invalid-byte']."
+      },
+      {
+        "id": "rows-tcl8.6",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['raw-invalid-byte']."
+      },
+      {
+        "id": "rows-tcl9.0",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl",
+        "sha256": "07ea1a1e396cbbbab5ad904fb8423b989ab1f041beb6daebfab0a0a6199d17b8",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['raw-invalid-byte']."
+      },
+      {
+        "id": "rows-tcl9.1",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl",
+        "sha256": "4563537efa0cf5f84ad870e698152edacfbf4ed97be1a8e8dccab9aca22d9962",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['raw-invalid-byte']."
+      },
+      {
+        "id": "rows-jim",
+        "role": "observation",
+        "path": "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl",
+        "sha256": "60613d12fbda405dbb5db773fda71487a1dff6408a76ceb9bf7cb3487b2dda69",
+        "description": "Full 40-row original output with saved result/error code/error info/return options. Relevant cases ['raw-invalid-byte']."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "symbol": "NamePolicyProtocol::formal_enumeration_name_input",
+        "purpose": "Owns release-selected formal enumeration projection independently from validation and storage keys."
+      },
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "frame_var_name_bytes",
+        "purpose": "Returns exact actual frame member byte names under the selected link-inclusion purpose."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe."
+    }
+  }
+]

@@ -1,0 +1,11 @@
+ltm rule /R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider_fresh {
+    app-service none
+    partition R2286_r2286m
+proc incarnation {name} {
+    upvar 1 $name cell
+    set cell OLD_WRITE
+    set ns_command [binary format H* 6e616d6573706163652063757272656e74]
+    set ns [eval $ns_command]
+    return [list OLD $ns $cell]
+}
+}

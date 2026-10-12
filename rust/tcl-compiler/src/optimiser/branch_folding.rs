@@ -26,9 +26,9 @@
 //!   it folded to.
 //! - `optimise_branch_proc_calls`: for every branch
 //!   condition SCCP could *not* fold, tries propagation via
-//!   [`substitute_expr_constants`] (from the
+//!   [`substitute_expr_constants_for_execution`] (from the
 //!   [`super::helpers::expr_simplify`] toolkit).
-//!   `propagate_into_branches` runs `substitute_expr_constants`
+//!   `propagate_into_branches` runs `substitute_expr_constants_for_execution`
 //!   first to build a working text, then probes the four AST
 //!   rewriters in priority order — `strength_reduce` (`O113`)
 //!   → `strlen` (`O117`) → `streq` (`O120`) → `instcombine`
@@ -52,7 +52,7 @@ use crate::expr_ast::{BinOp, ExprNode};
 use crate::sccp::{BranchFactKind, ConstantBranch};
 
 use super::helpers::expr_simplify::{
-    OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants,
+    OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants_for_execution,
     try_eq_ne_string_compare_simplify_expr, try_fold_expr, try_strength_reduce_expr_typed,
     try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
@@ -89,7 +89,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
 /// For every branch the SCCP pass *did not* fold, project the
 /// per-function lattice into a constants map and try to rewrite
-/// the condition text via [`substitute_expr_constants`]. Emits
+/// the condition text via [`substitute_expr_constants_for_execution`]. Emits
 /// `O100` on any text change.
 fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Note: `constants` may be empty — the cascade (strength-reduce, streq,
@@ -102,7 +102,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // `run_load_forwarding` (O102) is the one pass that still needs its own
     // check, since it runs an independent def-use-chain scan that never
     // consults `fu.sccp` at all.
-    let constants = sccp_constants_for(fu);
+    let constants = sccp_constants_for(fu, ctx.fold_policy());
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
     let numeric = operand_types(fu);
@@ -133,35 +133,14 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         if is_switch_dispatch_cond(condition) {
             continue;
         }
-        // Terminator span is relative to the unit's `base_offset`; absolutise
-        // before slicing `ctx.source` / emitting.
-        let span = fu.abs_span(*span);
-        // The condition span is the lexer's own word span, so a braced
-        // condition stops one byte short of its closing `}` (`while {1 < 2}`
-        // slices as `{1 < 2`), and the brace unwrap below would then strip an
-        // opener with no matching closer. `word_span_at` owns that widening:
-        // deciding it here from the slice's last byte reads `{$x eq {}}` —
-        // which already ends in the *inner* pair's `}` — as already whole, and
-        // drops the outer brace from the rewrite target.
-        let span = tcl_lexer::word_span_at(ctx.source, span);
-        let range = span.as_range();
-        if range.end > ctx.source.len() {
+        let Some(BranchConditionSource {
+            binding_span,
+            span,
+            inner,
+            braced,
+        }) = branch_condition_source(ctx.source, fu, *bn, *span)
+        else {
             continue;
-        }
-        let cond_text = &ctx.source[range];
-        if cond_text.is_empty() {
-            continue;
-        }
-
-        // Unwrap one level of braces so the substituter sees the
-        // bare expression body; we re-wrap before reporting.
-        let (inner, braced) = if let Some(body) = cond_text
-            .strip_prefix('{')
-            .and_then(|s| s.strip_suffix('}'))
-        {
-            (body, true)
-        } else {
-            (cond_text, false)
         };
         let rewrap = |text: &str| {
             if braced {
@@ -183,6 +162,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         if let Some(unwrapped) = try_unwrap_expr_in_expr(inner)
             && unwrapped != inner
             && ctx.command_mutations.trusts("expr")
+            && branch_execution_equivalent(ctx, inner, &unwrapped, &constants, binding_span)
         {
             ctx.report(Optimisation::new(
                 DiagCode::O115,
@@ -195,7 +175,12 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
         // Cascade: substitute → strength-reduce → strlen → streq →
         // instcombine, with an O101 fold short-circuit.
-        let sub = substitute_expr_constants(inner, &constants, ctx.dialect);
+        let sub = substitute_expr_constants_for_execution(
+            inner,
+            &constants,
+            ctx.dialect,
+            &crate::tcl_expr_eval::NativeOperandProofs::new(),
+        );
         let working = if sub.changed {
             sub.text.clone()
         } else {
@@ -208,6 +193,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         if sub.changed
             && let Some(folded) = try_fold_expr(&working, ctx.rewrite_folds())
             && folded != inner
+            && branch_execution_equivalent(ctx, inner, &folded, &constants, binding_span)
         {
             ctx.report(Optimisation::new(
                 DiagCode::O101,
@@ -223,8 +209,91 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         else {
             continue;
         };
+        if !branch_execution_equivalent(ctx, inner, &final_text, &constants, binding_span) {
+            if code == DiagCode::O120 {
+                ctx.report_prepared_expression_candidate(
+                    code,
+                    "String comparison may use eq/ne after preserving shared-operand conversions",
+                    binding_span,
+                );
+            }
+            continue;
+        }
         ctx.report(Optimisation::new(code, message, span, rewrap(&final_text)));
     }
+}
+
+/// Exact written condition and its native expression binding extent.
+struct BranchConditionSource<'a> {
+    binding_span: tcl_lexer::Span,
+    span: tcl_lexer::Span,
+    inner: &'a str,
+    braced: bool,
+}
+
+fn branch_condition_source<'a>(
+    source: &'a str,
+    fu: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    expected: tcl_lexer::Span,
+) -> Option<BranchConditionSource<'a>> {
+    let edit_span = fu.cfg.terminator_source_edit_span(block)?;
+    debug_assert_eq!(edit_span, expected);
+    let binding_span = fu.abs_span(edit_span);
+    // The lexer owns widening a braced word through its original closer.
+    // An inner closing brace does not establish the outer word's extent.
+    let span = tcl_lexer::word_span_at(source, binding_span);
+    let condition = source.get(span.as_range())?;
+    if condition.is_empty() {
+        return None;
+    }
+    let (inner, braced) = condition
+        .strip_prefix('{')
+        .and_then(|body| body.strip_suffix('}'))
+        .map_or((condition, false), |body| (body, true));
+    Some(BranchConditionSource {
+        binding_span,
+        span,
+        inner,
+        braced,
+    })
+}
+
+fn branch_execution_equivalent(
+    ctx: &PassContext<'_>,
+    original: &str,
+    proposed: &str,
+    constants: &std::collections::HashMap<String, String>,
+    span: tcl_lexer::Span,
+) -> bool {
+    let original = branch_original_expression(ctx, original);
+    let environment = constants
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.clone(),
+                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+            )
+        })
+        .collect();
+    ctx.expression_rewrite_equivalence_at(&original, proposed, &environment, span)
+        .is_ok()
+}
+
+/// Parse source topology under the retained lexical policy. This tree does
+/// not supply native preparation, operand objects or rewrite permission.
+fn branch_original_expression(ctx: &PassContext<'_>, source: &str) -> ExprNode {
+    let profile = ctx
+        .dialect
+        .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl);
+    let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+    if ctx.dialect.is_none() {
+        // The explicit standalone boundary keeps its selected runtime numeral
+        // grammar; source lexer overrides do not choose a numeric policy.
+        parser.lexer_grammar.numbers = tcl_syntax::number::runtime_syntax();
+    }
+    parser.lexer_grammar = ctx.lexer_config().grammar_over(parser.lexer_grammar);
+    crate::expr_parser::parse_expr_with_syntax_context(source, &parser)
 }
 
 /// The branch-condition simplification cascade: the first transform that
@@ -314,7 +383,14 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // unit's `base_offset` (0 for a real-position build, the body offset for
         // a memoised offset-0 unit); recover the absolute span before slicing
         // `ctx.source` or emitting.
-        let span = fu.abs_span(*span);
+        let Some(block_id) = fu.cfg.block_id(&cb.block) else {
+            continue;
+        };
+        let Some(edit_span) = fu.cfg.terminator_source_edit_span(block_id) else {
+            continue;
+        };
+        debug_assert_eq!(edit_span, *span);
+        let span = fu.abs_span(edit_span);
         // The condition span is the lexer's own word span, so a braced
         // condition stops one byte short of its closing `}` (`while {1 < 2}`
         // slices as `{1 < 2`), and the brace unwrap below would then strip an
@@ -390,6 +466,99 @@ mod tests {
     use super::super::{PassContext, PassId};
     use super::run;
 
+    #[test]
+    fn original_branch_source_parser_keeps_retained_grammar_and_numeric_axes() {
+        // naming.optimiser.original-branch-expression-source-grammar
+        // docs/design/analysis/name-resolution-proofs/original-branch-expression-source-grammar.md
+        // Source AST topology only, independent of native preparation/admission.
+        let old = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let new = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut ctx = PassContext {
+            dialect: Some(old),
+            source_lexer_config: Some(tcl_lexer::LexerConfig::for_profile(Some(new))),
+            ..PassContext::default()
+        };
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}c}"),
+            ExprNode::Var { name, .. } if name == "a{b}c"
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}"),
+            ExprNode::Raw { .. }
+        ));
+        ctx.dialect = Some(new);
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(old)));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}"),
+            ExprNode::Var { name, .. } if name == "a{b"
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}c}"),
+            ExprNode::Raw { .. }
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${café}"),
+            ExprNode::Var { name, .. } if name == "café"
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${scalar(open}"),
+            ExprNode::Var { name, .. } if name == "scalar(open"
+        ));
+        // The lexer overlay cannot add Tcl 9 numeral forms to Tcl 8.4.
+        ctx.dialect = tcl_dialect::DialectProfile::find("tcl8.4");
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(new)));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "0d10"),
+            ExprNode::Raw { .. }
+        ));
+        ctx.dialect = Some(new);
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(old)));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "0d10"),
+            ExprNode::Literal { text, .. } if text == "0d10"
+        ));
+    }
+
+    #[test]
+    fn original_branch_source_topology_keeps_equivalence_permission_separate() {
+        // naming.optimiser.original-branch-expression-source-grammar
+        // docs/design/analysis/name-resolution-proofs/original-branch-expression-source-grammar.md
+        // Closed literal policy and missing original variable-object proof are
+        // separate obligations; this is no native execution observation.
+        let mut ctx = PassContext {
+            dialect: tcl_dialect::DialectProfile::find("tcl9.0"),
+            source_lexer_config: Some(tcl_lexer::LexerConfig::for_dialect("tcl8.6")),
+            ..PassContext::default()
+        };
+        assert!(super::branch_execution_equivalent(
+            &ctx,
+            "1 + 2",
+            "1 + 2",
+            &HashMap::new(),
+            Span::new(0, 5)
+        ));
+        let constants = HashMap::from([("scalar(open".to_owned(), "3".to_owned())]);
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${scalar(open}"),
+            ExprNode::Var { name, .. } if name == "scalar(open"
+        ));
+        assert!(!super::branch_execution_equivalent(
+            &ctx,
+            "${scalar(open}",
+            "3",
+            &constants,
+            Span::new(0, 14)
+        ));
+        ctx.dialect = None;
+        assert!(!super::branch_execution_equivalent(
+            &ctx,
+            "1 + 2",
+            "1 + 2",
+            &HashMap::new(),
+            Span::new(0, 5)
+        ));
+    }
+
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
     }
@@ -460,35 +629,58 @@ mod tests {
         ssa: SsaFunction,
         sccp: SccpResult,
     ) -> FunctionUnit {
-        FunctionUnit {
-            name: name.into(),
-            cfg,
-            ssa,
-            def_use: std::sync::Arc::default(),
-            sccp,
-            types: std::sync::Arc::default(),
-            return_type: crate::types::TypeLattice::unknown(),
-            taints: std::sync::Arc::default(),
-            rendered_props: std::sync::Arc::default(),
-            memory_ssa: None,
-            dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
-            complexity_guarded: false,
-            tier: tcl_registry::value_transfer::AnalysisTier::Deep,
-            base_offset: 0,
-            method_facts: None,
-            semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle::unavailable(None),
-        }
+        let mut unit = FunctionUnit::trivial_guarded(name, cfg);
+        unit.ssa = ssa;
+        unit.sccp = sccp;
+        unit.complexity_guarded = false;
+        unit.tier = tcl_registry::value_transfer::AnalysisTier::Deep;
+        unit
     }
 
     /// Wrap a single [`FunctionUnit`] as a [`CompilationUnit`].
-    fn compilation_unit(source: &str, fu: FunctionUnit) -> CompilationUnit {
+    fn compilation_unit(source: &str, mut fu: FunctionUnit) -> CompilationUnit {
+        // These hand-built branches explicitly refer to this authored input.
+        // Production obtains the same ownership from the script/CFG builders.
+        let origin = std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+            &std::sync::Arc::from(source),
+        ));
+        let authored = std::sync::Arc::new(
+            crate::command_binding::ExecutedScriptSource::contiguous(origin, source, 0)
+                .expect("whole authored fixture"),
+        );
+        fu.cfg.executed_source = Some(std::sync::Arc::clone(&authored));
+        for (&id, block) in &fu.cfg.blocks {
+            if block
+                .terminator
+                .as_ref()
+                .and_then(Terminator::span)
+                .is_some()
+            {
+                fu.cfg
+                    .terminator_sources
+                    .insert(id, Some(std::sync::Arc::clone(&authored)));
+            }
+        }
         CompilationUnit {
             source: source.into(),
             ir_module: crate::ir::Module {
+                retained_source_bindings: None,
+                source_metadata_input: None,
+                lexer_config: tcl_lexer::LexerConfig::default(),
+                source_entry: crate::command_binding::SourceAnalysisEntry::default(),
+                future_call_sites: Vec::new(),
+                installed_procedure_body_units: std::collections::BTreeMap::default(),
+                original_declaration_body_units: std::collections::BTreeMap::default(),
+                irules_event_bodies: HashMap::new(),
+                procedure_implementation_bodies: std::sync::Arc::from([]),
                 top_level_kind: crate::ir::TopLevelKind::Script,
-                source: String::new(),
+                source: tcl_lexer::SourceImage::default(),
+                native_namespace: None,
                 top_level_namespace: "::".to_owned(),
+                top_level_namespace_context: None,
                 dialect: None,
+                dialect_profile: None,
+                registry_snapshot: None,
                 plain_command_dispatch: false,
                 top_level: crate::ir::Script::new(),
                 procedures: HashMap::new(),
@@ -515,6 +707,7 @@ mod tests {
                 procedures: HashMap::new(),
             },
             command_mutations: crate::command_binding::ModuleCommandMutations::default(),
+            source_class_facts: None,
             top_level: fu,
             procedures: HashMap::new(),
             methods: HashMap::new(),
@@ -548,6 +741,8 @@ mod tests {
     fn ret_block(name: &str) -> Block {
         let mut b = Block::new(name);
         b.terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -583,6 +778,8 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -660,6 +857,8 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -731,6 +930,8 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -799,6 +1000,8 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -898,6 +1101,8 @@ mod tests {
             LatticeValue::ConstSet(vec![ConstValue::Int(0), ConstValue::Int(1)]),
         );
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -972,6 +1177,8 @@ mod tests {
         let mut values: HashMap<(Symbol, u32), LatticeValue> = HashMap::new();
         values.insert((x, 1), LatticeValue::Overdefined);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -1001,7 +1208,7 @@ mod tests {
         let mut ctx = build_ctx(&cu.source);
         run(&mut ctx, &cu);
 
-        assert!(ctx.optimisations.is_empty());
+        assert_eq!(ctx.optimisations, [] as [crate::optimiser::Optimisation; 0]);
     }
 
     #[test]
@@ -1025,6 +1232,8 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -1092,6 +1301,8 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             explanations: Vec::new(),
             route_tally: crate::value_transfer::RouteTally::default(),
             folded_types: HashMap::new(),
@@ -1129,8 +1340,9 @@ mod tests {
         let mut ctx = build_ctx(&cu.source);
         run(&mut ctx, &cu);
 
-        assert!(
-            ctx.optimisations.is_empty(),
+        assert_eq!(
+            ctx.optimisations.len(),
+            0,
             "switch dispatch branches must not be folded: got {:?}",
             ctx.optimisations,
         );
@@ -1265,6 +1477,20 @@ mod tests {
                 .any(|o| o.code == DiagCode::O101 || o.code == DiagCode::O112),
             "plain condition fold must be unaffected by an unrelated expr rename: {:?}",
             ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn missing_terminator_source_owner_declines_source_rewrite() {
+        let source = "if {2 + 2 == 4} { puts a } else { puts b }";
+        let mut cu = CompilationUnit::build_for(source, &registry(), false);
+        cu.top_level.cfg.terminator_sources.clear();
+        let mut ctx = build_ctx(source);
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.is_empty(),
+            "unknown source ownership must decline: {:?}",
+            ctx.optimisations
         );
     }
 }

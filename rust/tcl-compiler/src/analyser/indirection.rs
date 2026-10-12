@@ -16,76 +16,31 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command-table indirection: the one hop-walk shared by the analyser's
-//! diagnostics and the LSP's navigation providers.
+//! Bounded String reporting for recorded command aliases and renames.
 //!
-//! Tcl's command table is mutable at run time.  `rename OLD NEW` moves a
-//! command to a new name; `interp alias {} ALIAS {} TARGET` installs a second
-//! name that re-resolves to `TARGET` on every invocation (and silently
-//! replaces an existing command of that name).  A call site written after
-//! either statement therefore reaches a *different* definition than its
-//! spelling suggests, and everything that answers "what does this word name?"
-//! — the W307/W308 method checks, go-to-definition, find-references, rename,
-//! call hierarchy — has to follow the same chain, the same way, or they
-//! disagree with each other and with `tclsh`.
+//! [`walk`] follows representable `command_aliases` / `alias_offsets` and
+//! `renamed_commands` / `rename_offsets` under one lexical reporting model.
+//! The latest eligible event selects a hop. A rename retains its reporting
+//! as-of time; an alias retains late target-name lookup. [`Indirection`] is a
+//! target label and comparison projection, not an original Native name input,
+//! current callable, implementation allocation or reached handler receipt.
 //!
-//! This module is that single implementation.
-//! `diagnostics::var_command`'s `class_reachable_by_indirection` consumes it,
-//! so the navigation providers in `tcl-lsp-core` cannot drift from the
-//! diagnostics.
+//! The walk refuses self-aliases and captured-prefix chains that its String-only
+//! result cannot express, and is bounded by [`MAX_COMMAND_NAME_HOPS`]. Original
+//! effective-argv and callback source owners retain captured operands separately.
 //!
-//! # The model
+//! [`in_effect`] and [`in_effect_within`] order events within a written body.
+//! Their convenience for records outside that body is a lexical reporting
+//! assumption. It does not prove that all top-level statements ran before the
+//! body entered: genuine calls can occur before a later source mutation.
 //!
-//! A command *name* is not a definition; it is a slot whose contents change
-//! over the life of the script.  Every statement that writes such a slot —
-//! `proc`, `rename`, `interp alias` — is an event on that name's timeline, and
-//! the question every consumer really asks is *"what does this name hold at
-//! this point, in this execution context?"*.  This module answers it for the
-//! two mutation kinds; [`AnalysisResult::proc_def_in_effect_at`] answers the
-//! `proc` half of the same question, under the same order rules.
-//!
-//! # Rules
-//!
-//! - **Order-gating.**  A hop counts only once the statement that established
-//!   it has run: textual order at top level, and — for a statement written
-//!   *outside* the body now executing — unconditionally inside a proc/class
-//!   body, because the whole file loads, running every top-level statement,
-//!   before any body runs.  A mutation that is itself a statement *of that
-//!   same body* is an ordinary statement of the running script and stays
-//!   order-gated by offset ([`in_effect`]).  Oracle (tclsh 8.6.14/9.0.4):
-//!   with `proc greet {} {…}`, a `hello` written before `rename greet hello`
-//!   raises `invalid command name "hello"`, and one written after returns
-//!   `greet`'s body — while `greet` itself then raises `invalid command name
-//!   "greet"`.
-//! - **Latest binding wins.**  A name may carry both a `rename` record and an
-//!   `interp alias` record; the one written later is the one the slot holds
-//!   ([`latest_binding`]).  Oracle (8.6.14/9.0.4): `proc a {} {return A};
-//!   proc b {} {return B}; rename a x; interp alias {} x {} b; x` → `B` — the
-//!   alias replaced the renamed-in command.  (The reverse order is not a
-//!   reachable program: `rename a x` onto a live `x` aborts with `can't
-//!   rename to "x": command already exists`, so the code after it never runs;
-//!   the same latest-wins rule is applied there for want of a reachable
-//!   alternative.)
-//! - **A rename moves the command object, an alias re-resolves by name.**
-//!   `rename p oldp` hands `oldp` the *object* `p` held at the rename, so a
-//!   later `proc p` does not change what `oldp` runs — oracle (8.6.14/9.0.4):
-//!   `proc p {} {return first}; rename p oldp; proc p {} {return second}` has
-//!   `oldp` → `first` (and `oldp`'s arity is the *first* signature:
-//!   `wrong # args: should be "oldp a"` for `proc p {a}`), while `p` →
-//!   `second`.  An `interp alias`, by contrast, looks its target up by name on
-//!   every invocation, so it sees the table as it stands *at the call*.
-//!   [`Indirection::resolve_at`] carries whichever of the two as-of times
-//!   applies, and consumers resolve the terminal name at that time.
-//! - **Hop cap.**  Eight hops, the same cap the user-call arity resolver
-//!   (`diagnostics::validity`) applies to the identical chains, so a
-//!   `rename a b; rename b c; …` cycle cannot spin.
-//! - **Prepended arguments decline.**  `interp alias {} Cat {} Dog extra`
-//!   binds a leading argument, so `Cat …` is not the call `Dog …` would be
-//!   (tclsh 8.6.14/9.0.4: `interp alias {} withextra {} target pre` makes
-//!   `withextra x` fail `wrong # args: should be "withextra"`).  Such a chain
-//!   is declined outright rather than resolved to the target.
-//! - **Self-alias decline.**  An alias whose canonical target is its own name
-//!   is not a hop.
+//! Native and hosted consumers require the independent original positioned
+//! command-binding or conditional source issuer appropriate to their purpose.
+//! Readonly schema, class, receiver and callback consumers retain complete
+//! original image/configuration/context, canonical declarations and explicit
+//! applicability obligations. A reporting chain cannot restore their known
+//! deletion/replacement refusal or grant execution, Normal completion or edits.
+//! See `docs/design/contracts/command-alias-resolution.md` for the purpose table.
 
 use std::collections::HashMap;
 
@@ -114,6 +69,9 @@ pub enum LastHop {
 pub struct Indirection {
     /// The canonical name the chain terminates on.
     pub target: String,
+    /// Selected authored alias target slot, independent of its reported name.
+    /// This is not an entered lookup or a physical command identity.
+    pub target_source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// The kind of the final hop — see [`LastHop`].
     pub last_hop: LastHop,
     /// The latest offset among the statements the chain crossed: the whole
@@ -132,6 +90,19 @@ pub struct Indirection {
     /// there the as-of time is the call site's own offset and this field
     /// carries the `call_off` the walk was given.
     pub resolve_at: u32,
+}
+
+impl Indirection {
+    /// Checked global spelling for a retained alias target, or the existing
+    /// compatibility key for a legacy rename/interpreter-domain record.
+    /// Retained alias reports never substitute for written lookup input.
+    #[must_use]
+    pub fn lookup_spelling(&self) -> Option<std::borrow::Cow<'_, str>> {
+        match &self.target_source_name {
+            Some(name) => name.source_spelling().map(Into::into),
+            None => Some(self.target.as_str().into()),
+        }
+    }
 }
 
 /// Whether an indirection established at `established` is observably in
@@ -198,7 +169,8 @@ fn latest_binding<'a>(result: &'a AnalysisResult, key: &str, as_of: u32) -> Opti
         .zip(result.rename_offsets.get(key))
         .map(|(old, &at)| Binding {
             kind: LastHop::Rename,
-            source: old.as_str(),
+            source: std::borrow::Cow::Borrowed(old.as_str()),
+            source_name: None,
             at,
             prepends_args: false,
         });
@@ -206,11 +178,17 @@ fn latest_binding<'a>(result: &'a AnalysisResult, key: &str, as_of: u32) -> Opti
         .command_aliases
         .get(key)
         .zip(result.alias_offsets.get(key))
-        .map(|(alias, &at)| Binding {
-            kind: LastHop::Alias,
-            source: alias.target.as_str(),
-            at,
-            prepends_args: !alias.extras.is_empty(),
+        .and_then(|(alias, &at)| {
+            let policy = result.resolved_profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+            });
+            Some(Binding {
+                kind: LastHop::Alias,
+                source: alias.target.reported_global_key(policy)?,
+                source_name: alias.target.selected_global_name(policy),
+                at,
+                prepends_args: !alias.extras.is_empty(),
+            })
         });
     [rename, alias]
         .into_iter()
@@ -224,7 +202,8 @@ struct Binding<'a> {
     kind: LastHop,
     /// Where the name's contents came from: the rename's `OLD` word, or the
     /// alias's target command.
-    source: &'a str,
+    source: std::borrow::Cow<'a, str>,
+    source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Offset of the statement that installed it.
     at: u32,
     /// Whether an alias binds leading arguments (never true for a rename).
@@ -240,8 +219,8 @@ struct Binding<'a> {
 /// own tables by; pass a plain qualifier for command names, or a class-name
 /// resolver for the class tables (which is what
 /// `diagnostics::var_command::class_reachable_by_indirection` does).  The
-/// maps themselves are keyed by the qualified name the scanner resolved, so
-/// every lookup normalises through [`crate::naming::normalise_qualified_name`].
+/// maps and retained hop targets already carry constructed keys. Only the
+/// initial written name is canonicalised; later hops retain literal colons.
 ///
 /// Cost is `O(MAX_COMMAND_NAME_HOPS)` hash lookups — no scan of the
 /// invocation list or of the source, so this is safe on a per-request LSP
@@ -253,7 +232,14 @@ pub fn walk(
     call_off: u32,
     canonicalise: &dyn Fn(&str) -> String,
 ) -> Option<Indirection> {
-    let mut cur = canonicalise(written);
+    walk_constructed(result, canonicalise(written), call_off)
+}
+
+fn walk_constructed(
+    result: &AnalysisResult,
+    mut cur: String,
+    call_off: u32,
+) -> Option<Indirection> {
     let mut hopped = false;
     let mut last_hop = LastHop::Rename;
     let mut established = 0u32;
@@ -262,11 +248,26 @@ pub fn walk(
     // held *then*); an alias releases it back to the call, since it re-resolves
     // its target by name every time it fires.
     let mut as_of = call_off;
+    let mut target_source_name: Option<crate::signature_scan::scope::SignatureSourceCommand> = None;
     for _ in 0..MAX_COMMAND_NAME_HOPS {
-        let key = crate::naming::normalise_qualified_name(&cur);
-        let Some(binding) = latest_binding(result, &key, as_of) else {
+        if let Some(expected) = &target_source_name {
+            if let Some(alias) = result.command_aliases.get(&cur) {
+                // A reported colon boundary can name distinct authored slots.
+                // Only the exact retained publication can continue this hop.
+                if alias.source_name.as_ref() != Some(expected) {
+                    return None;
+                }
+            } else if result.renamed_commands.contains_key(&cur)
+                && expected.source_spelling().is_none()
+            {
+                // The legacy rename inventory carries only reported strings.
+                return None;
+            }
+        }
+        let Some(binding) = latest_binding(result, &cur, as_of) else {
             return hopped.then_some(Indirection {
                 target: cur,
+                target_source_name,
                 last_hop,
                 established,
                 resolve_at: as_of,
@@ -275,7 +276,7 @@ pub fn walk(
         if binding.prepends_args {
             return None;
         }
-        let source = canonicalise(binding.source);
+        let source = binding.source.into_owned();
         if source == cur {
             return None;
         }
@@ -285,6 +286,7 @@ pub fn walk(
             LastHop::Alias => call_off,
         };
         cur = source;
+        target_source_name = binding.source_name;
         // A rename destination is a live command name in its own right — the
         // definition just keeps its original identity — so a chain ending
         // there is back on the rename-chase rule.
@@ -312,6 +314,7 @@ pub struct Reaching {
 
 /// Every written command name whose indirection chain terminates on
 /// `target`, paired with how it gets there ([`Reaching`]).
+/// `target` and the retained mutation-map keys are already constructed keys.
 ///
 /// The reverse of [`walk`], for consumers that start from a definition rather
 /// than from a call site — find-references has to attribute a call spelled
@@ -334,16 +337,16 @@ pub struct Reaching {
 pub fn names_reaching(
     result: &AnalysisResult,
     target: &str,
-    canonicalise: &dyn Fn(&str) -> String,
+    _canonicalise: &dyn Fn(&str) -> String,
 ) -> HashMap<String, Reaching> {
-    let canonical_target = canonicalise(target);
+    let canonical_target = target;
     let mut out = HashMap::new();
     let names = result
         .renamed_commands
         .keys()
         .chain(result.command_aliases.keys());
     for name in names {
-        let Some(hop) = walk(result, name, u32::MAX, canonicalise) else {
+        let Some(hop) = walk_constructed(result, name.clone(), u32::MAX) else {
             continue;
         };
         if hop.target == canonical_target {

@@ -32,6 +32,7 @@
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(cshim_c_tests)");
     println!("cargo:rerun-if-changed=tests/c/pkga.c");
+    println!("cargo:rerun-if-changed=tests/c/index_cache.c");
     println!("cargo:rerun-if-changed=tests/c/doors.c");
     println!("cargo:rerun-if-changed=tests/c/layout.c");
     println!("cargo:rerun-if-changed=../../runtime/rust/include/tcl.h");
@@ -41,6 +42,7 @@ fn main() {
     }
     cc::Build::new()
         .file("tests/c/pkga.c")
+        .file("tests/c/index_cache.c")
         .file("tests/c/doors.c")
         .file("tests/c/layout.c")
         .include("../../runtime/rust/include")

@@ -1,0 +1,43 @@
+{
+  "question_id": "naming.tcloo.original-selected-method-role-report",
+  "status": "Prepared separate Jim-only dependency/version/availability retry; not launched.",
+  "capture_owner": "Root only",
+  "purpose": "Complete Jim ordinary CLI dependency/version/initialized TclOO availability channels withheld in original513 after a real unprepinned zstd dependency. No OO value script executes on this retry.",
+  "providers": [
+    "jim"
+  ],
+  "entry": "Actual original Jim CLI. Separate fresh processes for dependencies, explicit version and initialized TclOO availability, no package load.",
+  "supported_value_providers": [],
+  "value_rows": [],
+  "encoding": "VALUE tag counted ASCII string length and binary scan H* hex. No binary encode dependency.",
+  "absence": "C84/C85/Jim have fresh availability/version/ELF closure receipts only. The availability query does not claim optional packages cannot supply TclOO.",
+  "process_plan": {
+    "dependencies": 1,
+    "version": 1,
+    "availability": 1,
+    "values": 0,
+    "maximum_total": 3
+  },
+  "source_sha256": {
+    "c-version.tcl": "b0d529bfc48a01ac7c363eb0cdc2b2ac2d6c035264754ec6f61f79b5a354aaa4",
+    "jim-version.tcl": "118605c132e6ba1883056716869773b7be82715b7a21616236a5962d1be254fe",
+    "availability.tcl": "77af6fc579c311aeea98c82cc33cd212ca03635658d7d77584af2247449c75a7",
+    "values.tcl": "551780f59e60d5452b6ed108ec95ee4a66809cffe0eaf90fe5822804f102a899",
+    "source-windows.json": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e"
+  },
+  "dependencies": "Actual ldd results must resolve only to input-prepinned library/loader files. Declared provider native source/header/static library/build inputs remain before/after pinned provenance; no C compilation runs.",
+  "limits": [
+    "No header/refcount/Method record/clientData observation.",
+    "No Native compiler, frame, method cache or entry grant.",
+    "No Rust or VM test result.",
+    "Public ordinary CLI values are separate from inspected source/API roles.",
+    "Every child return/status/signal is retained; outer Python exit alone is not aggregate success."
+  ],
+  "predecessor": {
+    "manifest": "/tmp/receiver-native-method-role-report513/manifest.json",
+    "manifest_sha256": "45d4be8a4c776537a5df316dda6069c8c519623d301932bc7f8accbd4bfb18c1",
+    "capture_summary": "/workspace/.proofs/native-method-role-report513/summary.json",
+    "capture_summary_sha256": "429fbc13cc2fbfdcd4e46069ea034a7511fd662bc8e0b4b01ac8ac21bd009578",
+    "measured_boundary": "Original513 Jim ldd exit0 reached libzstd.so.1 absent from before-pin set; version and availability were not launched. All original513 files/capture bytes are preserved."
+  }
+}

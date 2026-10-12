@@ -1,0 +1,40 @@
+{
+  "source_image": "naming224",
+  "executable_sha256": "bf4eacb0fdec7783289da44a91a762251b5870485642118465368ac2ad5eec9f",
+  "selected": [
+    "codegen::wasm::backend::tests::a_substituted_definition_body_is_left_to_the_runtimes_own_proc",
+    "codegen::wasm::backend::tests::a_top_level_written_out_definition_is_registered",
+    "codegen::wasm::backend::tests::a_written_out_definition_body_still_binds",
+    "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+    "codegen::wasm::backend::tests::host_script_admission_boxes_the_complete_original_byte_image",
+    "codegen::wasm::backend::tests::provable_words_select_a_prebuilt_argv_plan",
+    "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+    "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+    "codegen::wasm::backend::tests::unprovable_words_record_their_typed_decline",
+    "common_aot_plan::tests::a_declined_caller_poisons_propagated_actual_types",
+    "common_aot_plan::tests::add_call_and_integer_formals_receive_common_proofs",
+    "common_aot_plan::tests::defaults_variadics_rebinding_aliases_and_traces_decline",
+    "common_aot_plan::tests::dialect_tcloo_and_variable_trace_premises_are_retained",
+    "common_aot_plan::tests::direct_calls_retain_native_argv_expansion_at_the_generic_boundary",
+    "common_aot_plan::tests::direct_formals_consume_native_activation_plan",
+    "common_aot_plan::tests::direct_procedure_selection_preserves_native_preformal_admission",
+    "common_aot_plan::tests::dynamic_binding_transition_still_declines_direct_call_identity",
+    "common_aot_plan::tests::exceptional_edges_decline_direct_and_slot_plans",
+    "common_aot_plan::tests::frame_elision_has_an_independent_default_off_gate",
+    "common_aot_plan::tests::hosted_top_level_state_is_explicitly_observable",
+    "common_aot_plan::tests::internal_operation_rebinding_and_tracing_decline_body_specialisation",
+    "common_aot_plan::tests::known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation",
+    "common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts",
+    "common_aot_plan::tests::passes_are_off_by_default",
+    "common_aot_plan::tests::retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input",
+    "common_aot_plan::tests::sealed_program_proves_exact_top_slots_proc_and_output_boundary",
+    "common_aot_plan::tests::semantic_operation_pass_is_independently_default_off",
+    "common_aot_plan::tests::semantic_operation_rebinding_alias_trace_and_dynamic_mutation_decline",
+    "common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation"
+  ],
+  "filters": [
+    "common_aot_plan::tests::",
+    "codegen::wasm::backend::tests::"
+  ],
+  "zero_matches": []
+}

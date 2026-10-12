@@ -1,0 +1,1380 @@
+case	0	0	61
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	1	0	ff
+compile	0	0	success
+program	-86061043,6,6,8,4,255,0,0,0
+match	0	1
+match	1	0	0,1	-1,-1	-1,-1	-1,-1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	2	0	c080
+compile	0	0	success
+program	-86061043,6,7,8,5,192,128,0,0,0
+match	0	1
+match	1	1
+match	2	0	0,2	-1,-1	-1,-1	-1,-1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	3	0	f09f9880
+compile	0	0	success
+program	-86061043,6,6,8,4,128512,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	0	0,4	-1,-1	-1,-1	-1,-1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	4	0	28
+compile	8	1	parentheses () not balanced
+case	5	0	28617c62292b
+compile	0	1	success
+program	-86061043,6,25,12,23,1000000,1,0,1002,2,6,6,8,10,97,0,6,6,8,4,98,0,2002,2,7,21,0,0
+match	0	0	0,1	0,1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	3,4	-1,-1	-1,-1
+match	5	0	0,3	2,3	-1,-1	-1,-1
+match	6	0	0,4	3,4	-1,-1	-1,-1
+match	7	1
+case	6	0	283f3a6129286229
+compile	0	1	success
+program	-86061043,6,22,1000,2,6,6,8,4,97,0,2000,2,1002,2,6,6,8,4,98,0,2002,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	3,4	-1,-1	-1,-1
+match	5	0	0,2	1,2	-1,-1	-1,-1
+match	6	0	0,2	1,2	-1,-1	-1,-1
+match	7	1
+case	7	0	617b322c337d3f
+compile	0	0	success
+program	-86061043,6,11,11,9,3,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,2	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	8	0	5b7a2d615d
+compile	0	0	success
+program	-86061043,6,9,4,7,26,97,-24,122,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,1	-1,-1	-1,-1	-1,-1
+case	9	0	5c642b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	10	0	5c772b
+compile	0	0	success
+program	-86061043,6,18,10,16,1000000,1,0,4,0,26,97,26,65,10,48,1,95,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	-1,-1	-1,-1	-1,-1
+match	5	0	0,3	-1,-1	-1,-1	-1,-1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	0	0,3	-1,-1	-1,-1	-1,-1
+case	11	0	5c6d666f6f5c4d
+compile	0	0	success
+program	-86061043,6,12,16,2,8,6,102,111,111,0,17,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	9,12	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	12	0	5e6124
+compile	0	0	success
+program	-86061043,6,10,1,2,8,4,97,0,2,2,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	13	0	612e2a62
+compile	0	0	success
+program	-86061043,6,17,8,4,97,0,10,7,1000000,0,0,3,0,8,4,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,7	-1,-1	-1,-1	-1,-1
+match	5	0	0,2	-1,-1	-1,-1	-1,-1
+match	6	0	0,4	-1,-1	-1,-1	-1,-1
+match	7	1
+case	14	0	5b5b3a64696769743a5d5d2b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	15	0	5c7530303631
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	16	0	5c31
+compile	0	0	success
+program	-86061043,6,6,8,4,49,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,14	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	17	0	613f
+compile	0	0	success
+program	-86061043,6,11,10,9,1,0,0,8,0,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	0	0,0	-1,-1	-1,-1	-1,-1
+match	2	0	0,0	-1,-1	-1,-1	-1,-1
+match	3	0	0,0	-1,-1	-1,-1	-1,-1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,0	-1,-1	-1,-1	-1,-1
+case	18	0	5b61
+compile	19	0	brackets [] not balanced
+case	19	0	612a2a
+compile	13	0	nested count
+case	20	0	615c
+compile	0	0	success
+program	-86061043,6,7,8,5,97,92,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	21	0	5c
+compile	16	0	invalid escape \ sequence
+case	22	0	5b5c7830305d
+compile	18	0	contains null char
+case	23	0	617b3130307d
+compile	10	0	invalid repetition count(s)
+case	24	0	617b322c7d
+compile	0	0	success
+program	-86061043,6,11,10,9,1000000,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,3	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	25	0	612e2b622e2a63
+compile	0	0	success
+program	-86061043,6,28,8,4,97,0,10,7,1000000,1,0,3,0,8,4,98,0,10,7,1000000,0,0,3,0,8,4,99,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,8	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	1
+case	26	0	282861293f62292b
+compile	0	2	success
+program	-86061043,6,36,12,34,1000000,1,0,1002,2,6,23,12,17,1,0,0,1003,2,6,6,8,4,97,0,2003,2,7,15,8,4,98,0,2002,2,7,32,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	2,4	2,3	-1,-1
+match	5	0	0,2	0,2	0,1	-1,-1
+match	6	0	0,4	3,4	0,1	-1,-1
+match	7	1
+case	27	0	6120622023636f6d6d656e74
+compile	0	0	success
+program	-86061043,6,17,8,15,97,32,98,32,35,99,111,109,109,101,110,116,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	28	0	615c2062
+compile	0	0	success
+program	-86061043,6,8,8,6,97,32,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	29	0	5b5b3a636e74726c3a5d5d
+compile	0	0	success
+program	-86061043,6,9,4,7,32,0,1,127,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	15,16	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	0	2	61
+compile	0	0	success
+program	-86061043,6,6,8,4,65,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	1	2	ff
+compile	0	0	success
+program	-86061043,6,6,8,4,376,0,0,0
+match	0	1
+match	1	0	0,1	-1,-1	-1,-1	-1,-1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	2	2	c080
+compile	0	0	success
+program	-86061043,6,7,8,5,192,128,0,0,0
+match	0	1
+match	1	1
+match	2	0	0,2	-1,-1	-1,-1	-1,-1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	3	2	f09f9880
+compile	0	0	success
+program	-86061043,6,6,8,4,128512,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	0	0,4	-1,-1	-1,-1	-1,-1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	4	2	28
+compile	8	1	parentheses () not balanced
+case	5	2	28617c62292b
+compile	0	1	success
+program	-86061043,6,25,12,23,1000000,1,0,1002,2,6,6,8,10,65,0,6,6,8,4,66,0,2002,2,7,21,0,0
+match	0	0	0,1	0,1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	3,4	-1,-1	-1,-1
+match	5	0	0,3	2,3	-1,-1	-1,-1
+match	6	0	0,4	3,4	-1,-1	-1,-1
+match	7	1
+case	6	2	283f3a6129286229
+compile	0	1	success
+program	-86061043,6,22,1000,2,6,6,8,4,65,0,2000,2,1002,2,6,6,8,4,66,0,2002,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	3,4	-1,-1	-1,-1
+match	5	0	0,2	1,2	-1,-1	-1,-1
+match	6	0	0,2	1,2	-1,-1	-1,-1
+match	7	1
+case	7	2	617b322c337d3f
+compile	0	0	success
+program	-86061043,6,11,11,9,3,2,0,8,0,65,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,2	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	8	2	5b7a2d615d
+compile	0	0	success
+program	-86061043,6,9,4,7,26,65,-24,90,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,1	-1,-1	-1,-1	-1,-1
+case	9	2	5c642b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	10	2	5c772b
+compile	0	0	success
+program	-86061043,6,16,10,14,1000000,1,0,4,0,26,65,10,48,1,95,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	-1,-1	-1,-1	-1,-1
+match	5	0	0,3	-1,-1	-1,-1	-1,-1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	0	0,3	-1,-1	-1,-1	-1,-1
+case	11	2	5c6d666f6f5c4d
+compile	0	0	success
+program	-86061043,6,12,16,2,8,6,70,79,79,0,17,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	9,12	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	12	2	5e6124
+compile	0	0	success
+program	-86061043,6,10,1,2,8,4,65,0,2,2,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	13	2	612e2a62
+compile	0	0	success
+program	-86061043,6,17,8,4,65,0,10,7,1000000,0,0,3,0,8,4,66,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,7	-1,-1	-1,-1	-1,-1
+match	5	0	0,2	-1,-1	-1,-1	-1,-1
+match	6	0	0,4	-1,-1	-1,-1	-1,-1
+match	7	1
+case	14	2	5b5b3a64696769743a5d5d2b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	15	2	5c7530303631
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	16	2	5c31
+compile	0	0	success
+program	-86061043,6,6,8,4,49,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,14	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	17	2	613f
+compile	0	0	success
+program	-86061043,6,11,10,9,1,0,0,8,0,65,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	0	0,0	-1,-1	-1,-1	-1,-1
+match	2	0	0,0	-1,-1	-1,-1	-1,-1
+match	3	0	0,0	-1,-1	-1,-1	-1,-1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,0	-1,-1	-1,-1	-1,-1
+case	18	2	5b61
+compile	19	0	brackets [] not balanced
+case	19	2	612a2a
+compile	13	0	nested count
+case	20	2	615c
+compile	0	0	success
+program	-86061043,6,7,8,5,65,92,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	21	2	5c
+compile	16	0	invalid escape \ sequence
+case	22	2	5b5c7830305d
+compile	18	0	contains null char
+case	23	2	617b3130307d
+compile	10	0	invalid repetition count(s)
+case	24	2	617b322c7d
+compile	0	0	success
+program	-86061043,6,11,10,9,1000000,2,0,8,0,65,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,3	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	25	2	612e2b622e2a63
+compile	0	0	success
+program	-86061043,6,28,8,4,65,0,10,7,1000000,1,0,3,0,8,4,66,0,10,7,1000000,0,0,3,0,8,4,67,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,8	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	1
+case	26	2	282861293f62292b
+compile	0	2	success
+program	-86061043,6,36,12,34,1000000,1,0,1002,2,6,23,12,17,1,0,0,1003,2,6,6,8,4,65,0,2003,2,7,15,8,4,66,0,2002,2,7,32,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	2,4	2,3	-1,-1
+match	5	0	0,2	0,2	0,1	-1,-1
+match	6	0	0,4	3,4	0,1	-1,-1
+match	7	1
+case	27	2	6120622023636f6d6d656e74
+compile	0	0	success
+program	-86061043,6,17,8,15,65,32,66,32,35,67,79,77,77,69,78,84,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	28	2	615c2062
+compile	0	0	success
+program	-86061043,6,8,8,6,65,32,66,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	29	2	5b5b3a636e74726c3a5d5d
+compile	0	0	success
+program	-86061043,6,9,4,7,32,0,1,127,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	15,16	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	0	4	61
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	1	4	ff
+compile	0	0	success
+program	-86061043,6,6,8,4,255,0,0,0
+match	0	1
+match	1	0	0,1	-1,-1	-1,-1	-1,-1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	2	4	c080
+compile	0	0	success
+program	-86061043,6,7,8,5,192,128,0,0,0
+match	0	1
+match	1	1
+match	2	0	0,2	-1,-1	-1,-1	-1,-1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	3	4	f09f9880
+compile	0	0	success
+program	-86061043,6,6,8,4,128512,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	0	0,4	-1,-1	-1,-1	-1,-1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	4	4	28
+compile	8	1	parentheses () not balanced
+case	5	4	28617c62292b
+compile	0	1	success
+program	-86061043,6,25,12,23,1000000,1,0,1002,2,6,6,8,10,97,0,6,6,8,4,98,0,2002,2,7,21,0,0
+match	0	0	0,1	0,1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	3,4	-1,-1	-1,-1
+match	5	0	0,3	2,3	-1,-1	-1,-1
+match	6	0	0,4	3,4	-1,-1	-1,-1
+match	7	1
+case	6	4	283f3a6129286229
+compile	0	1	success
+program	-86061043,6,22,1000,2,6,6,8,4,97,0,2000,2,1002,2,6,6,8,4,98,0,2002,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	3,4	-1,-1	-1,-1
+match	5	0	0,2	1,2	-1,-1	-1,-1
+match	6	0	0,2	1,2	-1,-1	-1,-1
+match	7	1
+case	7	4	617b322c337d3f
+compile	0	0	success
+program	-86061043,6,11,11,9,3,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,2	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	8	4	5b7a2d615d
+compile	0	0	success
+program	-86061043,6,9,4,7,26,97,-24,122,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,1	-1,-1	-1,-1	-1,-1
+case	9	4	5c642b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	10	4	5c772b
+compile	0	0	success
+program	-86061043,6,18,10,16,1000000,1,0,4,0,26,97,26,65,10,48,1,95,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	-1,-1	-1,-1	-1,-1
+match	5	0	0,3	-1,-1	-1,-1	-1,-1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	0	0,3	-1,-1	-1,-1	-1,-1
+case	11	4	5c6d666f6f5c4d
+compile	0	0	success
+program	-86061043,6,12,16,2,8,6,102,111,111,0,17,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	9,12	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	12	4	5e6124
+compile	0	0	success
+program	-86061043,6,10,1,2,8,4,97,0,2,2,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	13	4	612e2a62
+compile	0	0	success
+program	-86061043,6,17,8,4,97,0,10,7,1000000,0,0,3,0,8,4,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,7	-1,-1	-1,-1	-1,-1
+match	5	0	0,2	-1,-1	-1,-1	-1,-1
+match	6	0	0,4	-1,-1	-1,-1	-1,-1
+match	7	1
+case	14	4	5b5b3a64696769743a5d5d2b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	15	4	5c7530303631
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	16	4	5c31
+compile	0	0	success
+program	-86061043,6,6,8,4,49,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,14	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	17	4	613f
+compile	0	0	success
+program	-86061043,6,11,10,9,1,0,0,8,0,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	0	0,0	-1,-1	-1,-1	-1,-1
+match	2	0	0,0	-1,-1	-1,-1	-1,-1
+match	3	0	0,0	-1,-1	-1,-1	-1,-1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,0	-1,-1	-1,-1	-1,-1
+case	18	4	5b61
+compile	19	0	brackets [] not balanced
+case	19	4	612a2a
+compile	13	0	nested count
+case	20	4	615c
+compile	0	0	success
+program	-86061043,6,7,8,5,97,92,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	21	4	5c
+compile	16	0	invalid escape \ sequence
+case	22	4	5b5c7830305d
+compile	18	0	contains null char
+case	23	4	617b3130307d
+compile	10	0	invalid repetition count(s)
+case	24	4	617b322c7d
+compile	0	0	success
+program	-86061043,6,11,10,9,1000000,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,3	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	25	4	612e2b622e2a63
+compile	0	0	success
+program	-86061043,6,28,8,4,97,0,10,7,1000000,1,0,3,0,8,4,98,0,10,7,1000000,0,0,3,0,8,4,99,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,8	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	1
+case	26	4	282861293f62292b
+compile	0	2	success
+program	-86061043,6,36,12,34,1000000,1,0,1002,2,6,23,12,17,1,0,0,1003,2,6,6,8,4,97,0,2003,2,7,15,8,4,98,0,2002,2,7,32,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	2,4	2,3	-1,-1
+match	5	0	0,2	0,2	0,1	-1,-1
+match	6	0	0,4	3,4	0,1	-1,-1
+match	7	1
+case	27	4	6120622023636f6d6d656e74
+compile	0	0	success
+program	-86061043,6,17,8,15,97,32,98,32,35,99,111,109,109,101,110,116,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	28	4	615c2062
+compile	0	0	success
+program	-86061043,6,8,8,6,97,32,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	29	4	5b5b3a636e74726c3a5d5d
+compile	0	0	success
+program	-86061043,6,9,4,7,32,0,1,127,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	15,16	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	0	8	61
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	1	8	ff
+compile	0	0	success
+program	-86061043,6,6,8,4,255,0,0,0
+match	0	1
+match	1	0	0,1	-1,-1	-1,-1	-1,-1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	2	8	c080
+compile	0	0	success
+program	-86061043,6,7,8,5,192,128,0,0,0
+match	0	1
+match	1	1
+match	2	0	0,2	-1,-1	-1,-1	-1,-1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	3	8	f09f9880
+compile	0	0	success
+program	-86061043,6,6,8,4,128512,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	0	0,4	-1,-1	-1,-1	-1,-1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	4	8	28
+compile	8	1	parentheses () not balanced
+case	5	8	28617c62292b
+compile	0	1	success
+program	-86061043,6,25,12,23,1000000,1,0,1002,2,6,6,8,10,97,0,6,6,8,4,98,0,2002,2,7,21,0,0
+match	0	0	0,1	0,1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	3,4	-1,-1	-1,-1
+match	5	0	0,3	2,3	-1,-1	-1,-1
+match	6	0	0,4	3,4	-1,-1	-1,-1
+match	7	1
+case	6	8	283f3a6129286229
+compile	0	1	success
+program	-86061043,6,22,1000,2,6,6,8,4,97,0,2000,2,1002,2,6,6,8,4,98,0,2002,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	3,4	-1,-1	-1,-1
+match	5	0	0,2	1,2	-1,-1	-1,-1
+match	6	0	0,2	1,2	-1,-1	-1,-1
+match	7	1
+case	7	8	617b322c337d3f
+compile	0	0	success
+program	-86061043,6,11,11,9,3,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,2	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	8	8	5b7a2d615d
+compile	0	0	success
+program	-86061043,6,9,4,7,26,97,-24,122,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,1	-1,-1	-1,-1	-1,-1
+case	9	8	5c642b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	10	8	5c772b
+compile	0	0	success
+program	-86061043,6,18,10,16,1000000,1,0,4,0,26,97,26,65,10,48,1,95,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	-1,-1	-1,-1	-1,-1
+match	5	0	0,3	-1,-1	-1,-1	-1,-1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	0	0,3	-1,-1	-1,-1	-1,-1
+case	11	8	5c6d666f6f5c4d
+compile	0	0	success
+program	-86061043,6,12,16,2,8,6,102,111,111,0,17,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	9,12	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	12	8	5e6124
+compile	0	0	success
+program	-86061043,6,10,1,2,8,4,97,0,2,2,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	13	8	612e2a62
+compile	0	0	success
+program	-86061043,6,17,8,4,97,0,10,7,1000000,0,0,3,0,8,4,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,7	-1,-1	-1,-1	-1,-1
+match	5	0	0,2	-1,-1	-1,-1	-1,-1
+match	6	0	0,4	-1,-1	-1,-1	-1,-1
+match	7	1
+case	14	8	5b5b3a64696769743a5d5d2b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	15	8	5c7530303631
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	16	8	5c31
+compile	0	0	success
+program	-86061043,6,6,8,4,49,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,14	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	17	8	613f
+compile	0	0	success
+program	-86061043,6,11,10,9,1,0,0,8,0,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	0	0,0	-1,-1	-1,-1	-1,-1
+match	2	0	0,0	-1,-1	-1,-1	-1,-1
+match	3	0	0,0	-1,-1	-1,-1	-1,-1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,0	-1,-1	-1,-1	-1,-1
+case	18	8	5b61
+compile	19	0	brackets [] not balanced
+case	19	8	612a2a
+compile	13	0	nested count
+case	20	8	615c
+compile	0	0	success
+program	-86061043,6,7,8,5,97,92,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	21	8	5c
+compile	16	0	invalid escape \ sequence
+case	22	8	5b5c7830305d
+compile	18	0	contains null char
+case	23	8	617b3130307d
+compile	10	0	invalid repetition count(s)
+case	24	8	617b322c7d
+compile	0	0	success
+program	-86061043,6,11,10,9,1000000,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,3	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	25	8	612e2b622e2a63
+compile	0	0	success
+program	-86061043,6,28,8,4,97,0,10,7,1000000,1,0,3,0,8,4,98,0,10,7,1000000,0,0,3,0,8,4,99,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,8	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	1
+case	26	8	282861293f62292b
+compile	0	2	success
+program	-86061043,6,36,12,34,1000000,1,0,1002,2,6,23,12,17,1,0,0,1003,2,6,6,8,4,97,0,2003,2,7,15,8,4,98,0,2002,2,7,32,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	2,4	2,3	-1,-1
+match	5	0	0,2	0,2	0,1	-1,-1
+match	6	0	0,4	3,4	0,1	-1,-1
+match	7	1
+case	27	8	6120622023636f6d6d656e74
+compile	0	0	success
+program	-86061043,6,17,8,15,97,32,98,32,35,99,111,109,109,101,110,116,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	28	8	615c2062
+compile	0	0	success
+program	-86061043,6,8,8,6,97,32,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	29	8	5b5b3a636e74726c3a5d5d
+compile	0	0	success
+program	-86061043,6,9,4,7,32,0,1,127,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	0	32	61
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	1	32	ff
+compile	0	0	success
+program	-86061043,6,6,8,4,255,0,0,0
+match	0	1
+match	1	0	0,1	-1,-1	-1,-1	-1,-1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	2	32	c080
+compile	0	0	success
+program	-86061043,6,7,8,5,192,128,0,0,0
+match	0	1
+match	1	1
+match	2	0	0,2	-1,-1	-1,-1	-1,-1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	3	32	f09f9880
+compile	0	0	success
+program	-86061043,6,6,8,4,128512,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	0	0,4	-1,-1	-1,-1	-1,-1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	4	32	28
+compile	8	1	parentheses () not balanced
+case	5	32	28617c62292b
+compile	0	1	success
+program	-86061043,6,25,12,23,1000000,1,0,1002,2,6,6,8,10,97,0,6,6,8,4,98,0,2002,2,7,21,0,0
+match	0	0	0,1	0,1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	3,4	-1,-1	-1,-1
+match	5	0	0,3	2,3	-1,-1	-1,-1
+match	6	0	0,4	3,4	-1,-1	-1,-1
+match	7	1
+case	6	32	283f3a6129286229
+compile	0	1	success
+program	-86061043,6,22,1000,2,6,6,8,4,97,0,2000,2,1002,2,6,6,8,4,98,0,2002,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	3,4	-1,-1	-1,-1
+match	5	0	0,2	1,2	-1,-1	-1,-1
+match	6	0	0,2	1,2	-1,-1	-1,-1
+match	7	1
+case	7	32	617b322c337d3f
+compile	0	0	success
+program	-86061043,6,11,11,9,3,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,2	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	8	32	5b7a2d615d
+compile	0	0	success
+program	-86061043,6,9,4,7,26,97,-24,122,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,1	-1,-1	-1,-1	-1,-1
+case	9	32	5c642b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	10	32	5c772b
+compile	0	0	success
+program	-86061043,6,18,10,16,1000000,1,0,4,0,26,97,26,65,10,48,1,95,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,4	-1,-1	-1,-1	-1,-1
+match	5	0	0,3	-1,-1	-1,-1	-1,-1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	0	0,3	-1,-1	-1,-1	-1,-1
+case	11	32	5c6d666f6f5c4d
+compile	0	0	success
+program	-86061043,6,12,16,2,8,6,102,111,111,0,17,2,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	9,12	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	12	32	5e6124
+compile	0	0	success
+program	-86061043,6,10,1,2,8,4,97,0,2,2,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	13	32	612e2a62
+compile	0	0	success
+program	-86061043,6,17,8,4,97,0,10,7,1000000,0,0,3,0,8,4,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,7	-1,-1	-1,-1	-1,-1
+match	5	0	0,2	-1,-1	-1,-1	-1,-1
+match	6	0	0,4	-1,-1	-1,-1	-1,-1
+match	7	1
+case	14	32	5b5b3a64696769743a5d5d2b
+compile	0	0	success
+program	-86061043,6,12,10,10,1000000,1,0,4,0,10,48,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,15	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	15	32	5c7530303631
+compile	0	0	success
+program	-86061043,6,6,8,4,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	1
+case	16	32	5c31
+compile	0	0	success
+program	-86061043,6,6,8,4,49,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	13,14	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	17	32	613f
+compile	0	0	success
+program	-86061043,6,11,10,9,1,0,0,8,0,97,0,0,0
+match	0	0	0,1	-1,-1	-1,-1	-1,-1
+match	1	0	0,0	-1,-1	-1,-1	-1,-1
+match	2	0	0,0	-1,-1	-1,-1	-1,-1
+match	3	0	0,0	-1,-1	-1,-1	-1,-1
+match	4	0	0,1	-1,-1	-1,-1	-1,-1
+match	5	0	0,1	-1,-1	-1,-1	-1,-1
+match	6	0	0,1	-1,-1	-1,-1	-1,-1
+match	7	0	0,0	-1,-1	-1,-1	-1,-1
+case	18	32	5b61
+compile	19	0	brackets [] not balanced
+case	19	32	612a2a
+compile	13	0	nested count
+case	20	32	615c
+compile	0	0	success
+program	-86061043,6,7,8,5,97,92,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	21	32	5c
+compile	16	0	invalid escape \ sequence
+case	22	32	5b5c7830305d
+compile	18	0	contains null char
+case	23	32	617b3130307d
+compile	10	0	invalid repetition count(s)
+case	24	32	617b322c7d
+compile	0	0	success
+program	-86061043,6,11,10,9,1000000,2,0,8,0,97,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,3	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1
+case	25	32	612e2b622e2a63
+compile	0	0	success
+program	-86061043,6,28,8,4,97,0,10,7,1000000,1,0,3,0,8,4,98,0,10,7,1000000,0,0,3,0,8,4,99,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	0,8	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	0	0,5	-1,-1	-1,-1	-1,-1
+match	7	1
+case	26	32	282861293f62292b
+compile	0	2	success
+program	-86061043,6,36,12,34,1000000,1,0,1002,2,6,23,12,17,1,0,0,1003,2,6,6,8,4,97,0,2003,2,7,15,8,4,98,0,2002,2,7,32,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	2,4	2,3	-1,-1
+match	5	0	0,2	0,2	0,1	-1,-1
+match	6	0	0,4	3,4	0,1	-1,-1
+match	7	1
+case	27	32	6120622023636f6d6d656e74
+compile	0	0	success
+program	-86061043,6,7,8,5,97,98,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	2,4	-1,-1	-1,-1	-1,-1
+match	5	0	0,2	-1,-1	-1,-1	-1,-1
+match	6	0	0,2	-1,-1	-1,-1	-1,-1
+match	7	1
+case	28	32	615c2062
+compile	0	0	success
+program	-86061043,6,7,8,5,97,8,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	1
+match	5	1
+match	6	1
+match	7	1
+case	29	32	5b5b3a636e74726c3a5d5d
+compile	0	0	success
+program	-86061043,6,9,4,7,32,0,1,127,0,0,0
+match	0	1
+match	1	1
+match	2	1
+match	3	1
+match	4	0	15,16	-1,-1	-1,-1	-1,-1
+match	5	1
+match	6	1
+match	7	1

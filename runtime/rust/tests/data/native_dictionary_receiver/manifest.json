@@ -1,0 +1,12 @@
+{
+  "producer": "original native Tcl executables",
+  "controls": 18,
+  "source": "/workspace/.proofs/2286-runtime-dictionary-get-default-controls.json",
+  "observer": "native stdout contains a final list; backend fixture evaluates that same list without puts; no physical cache claim",
+  "engines": [
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "ordinal": 169,
+  "selector": "cmd_oo::tests::tip558_configurable_configure",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::tip558_configurable_configure",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.4483754390093964,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.43s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/169.log",
+  "log_sha256": "5231ea876d2d7e0910509811410eb8ab3507f4a2101ac7fbb8cb6fc646d621c0"
+}

@@ -1,0 +1,99 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error: method `is_regex_quoting_substitution` is never used
+  --> rust/tcl-compiler/src/analyser/diagnostics/security.rs:58:8
+   |
+40 | impl Analyser {
+   | ------------- method in this implementation
+...
+58 |     fn is_regex_quoting_substitution(&self, word: &str) -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `-D dead-code` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: function `raw_has_live_substitution` is never used
+    --> rust/tcl-compiler/src/analyser/diagnostics/security.rs:1848:4
+     |
+1848 | fn raw_has_live_substitution(raw: &str) -> bool {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: redundant closure
+   --> rust/tcl-compiler/src/analyser/diagnostics/security.rs:186:30
+    |
+186 |                 .with_schema(|schema| schema.authored_source_descriptors())
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_descriptors`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+    = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: unused `self` argument
+   --> rust/tcl-compiler/src/analyser/diagnostics/usage.rs:662:9
+    |
+662 |         &self,
+    |         ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unused_self
+    = note: `-D clippy::unused-self` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unused_self)]`
+
+error: redundant closure
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:2176:26
+     |
+2176 |             .with_schema(|schema| schema.authored_source_clause_shape())
+     |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_clause_shape`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+    --> rust/tcl-compiler/src/analyser/interp_visibility.rs:1182:79
+     |
+1182 |               let (namespace, declared_receiver, source_receiver_declaration) = match self
+     |  _______________________________________________________________________________^
+1183 | |                 .declaration_namespace_scope(scope_path)
+1184 | |             {
+1185 | |                 Some(namespace) => (namespace, None, None),
+...    |
+1199 | |             };
+     | |_____________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#single_match_else
+     = note: `-D clippy::single-match-else` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::single_match_else)]`
+help: try
+     |
+1182 ~             let (namespace, declared_receiver, source_receiver_declaration) = if let Some(namespace) = self
+1183 +                 .declaration_namespace_scope(scope_path) { (namespace, None, None) } else {
+1184 +                 let declared = self.original_interp_declared_receiver_body(&native, scope_path);
+1185 +                 let source_declaration =
+1186 +                     self.original_interp_source_receiver_declaration(&native, scope_path);
+1187 +                 if declared.is_none() && source_declaration.is_none() {
+1188 +                     return None;
+1189 +                 }
+1190 +                 (
+1191 +                     SignatureNamespaceScope::C(tcl_core_types::ByteNamespacePath::root()),
+1192 +                     declared,
+1193 +                     source_declaration,
+1194 +                 )
+1195 ~             };
+     |
+
+error: could not compile `tcl-compiler` (lib) due to 6 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: this function has too many lines (116/100)
+     --> rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16165:1
+      |
+16165 | fn original_shape_advice_keeps_effective_roles_and_whole_written_operands() {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+      = note: `-D clippy::too-many-lines` implied by `-D warnings`
+      = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `tcl-compiler` (lib test) due to 7 previous errors

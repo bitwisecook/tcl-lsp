@@ -1,0 +1,115 @@
+{
+  "source_sha256": "977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a",
+  "observer_scope": "Each separate original index has one external owner from its original construction. Actual C85+ object-key table adds one; C84 string-key table adds none. Both old Var nodes remain alive through actual global scalar aliases. Callbacks inspect independent actual Var flags/refcount and original key refcount; no options/error/global observers. Actual trace activation supplies one Var role only while its own callback runs; keys stay in the actual table until final table deletion. No Rust counts or expectations were substituted.",
+  "columns": [
+    "key_k_refs",
+    "key_j_refs",
+    "old_k_dead",
+    "old_j_dead",
+    "old_k_defined",
+    "old_j_defined",
+    "old_k_refs",
+    "old_j_refs",
+    "current_k_present",
+    "current_j_present"
+  ],
+  "runs": [
+    {
+      "engine": "8.4.20",
+      "compile_exit": 0,
+      "compile_output": "",
+      "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "exit": 0,
+      "binary_sha256": "e636f34dad58b80b740def8ed02587da138a4673d280e78db25fd5bf9e56a999",
+      "observations": [
+        "window|before|1|1|0|0|1|1|1|1|1|1",
+        "window|root|1|1|0|0|1|1|1|1|0|0",
+        "window|element1-j|1|1|0|1|1|1|1|2|0|0",
+        "window|element2-k|1|1|1|1|1|0|2|1|0|0",
+        "unset|0",
+        "window|after|1|1|1|1|0|0|1|1|0|0"
+      ],
+      "log_sha256": "ca7610b553d8a69cccc1b76e6c79acd80dc3057d56583cdb5fe3cfcaf76ccae7",
+      "stderr": ""
+    },
+    {
+      "engine": "8.5.19",
+      "compile_exit": 0,
+      "compile_output": "In file included from /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclUnixPort.h:142,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-element-alias-callbacks/probe.c:2:\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+      "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "exit": 0,
+      "binary_sha256": "8c9bec78445ed9eca46c811ad55a390af468f35e95c0965c8cc00edb055f6d67",
+      "observations": [
+        "window|before|2|2|0|0|1|1|2|2|1|1",
+        "window|root|2|2|0|0|1|1|2|2|0|0",
+        "window|element1-j|2|2|0|1|1|0|2|3|0|0",
+        "window|element2-k|2|2|1|1|0|0|3|2|0|0",
+        "unset|0",
+        "window|after|1|1|1|1|0|0|1|1|0|0"
+      ],
+      "log_sha256": "518b5d543049be9db712fba5ca50563e216156347778b38dac761b6ab7ab46da",
+      "stderr": ""
+    },
+    {
+      "engine": "8.6.18",
+      "compile_exit": 0,
+      "compile_output": "In file included from /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h:161,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-element-alias-callbacks/probe.c:2:\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+      "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "exit": 0,
+      "binary_sha256": "11675cb9388b3156b6ec0e6c521a854c9c12e6aeb4672bf5cce58716573f7dd5",
+      "observations": [
+        "window|before|2|2|0|0|1|1|2|2|1|1",
+        "window|root|2|2|0|0|1|1|2|2|0|0",
+        "window|element1-j|2|2|0|1|1|0|2|3|0|0",
+        "window|element2-k|2|2|1|1|0|0|3|2|0|0",
+        "unset|0",
+        "window|after|1|1|1|1|0|0|1|1|0|0"
+      ],
+      "log_sha256": "518b5d543049be9db712fba5ca50563e216156347778b38dac761b6ab7ab46da",
+      "stderr": ""
+    },
+    {
+      "engine": "9.0.4",
+      "compile_exit": 0,
+      "compile_output": "",
+      "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "exit": 0,
+      "binary_sha256": "f44b6fceb8a8cdbddb1f1ebb9884769e0aad86a601b2569129f0dd850ab19dd4",
+      "observations": [
+        "window|before|2|2|0|0|1|1|2|2|1|1",
+        "window|root|2|2|0|0|1|1|2|2|0|0",
+        "window|element1-j|2|2|0|1|1|0|2|3|0|0",
+        "window|element2-k|2|2|1|1|0|0|3|2|0|0",
+        "unset|0",
+        "window|after|1|1|1|1|0|0|1|1|0|0"
+      ],
+      "log_sha256": "518b5d543049be9db712fba5ca50563e216156347778b38dac761b6ab7ab46da",
+      "stderr": ""
+    },
+    {
+      "engine": "9.1.0",
+      "compile_exit": 0,
+      "compile_output": "",
+      "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "exit": 0,
+      "binary_sha256": "56e82fce014300d9c363509bf986ca62ea9faecd6ec4908cf1553cbefbb48023",
+      "observations": [
+        "window|before|2|2|0|0|1|1|2|2|1|1",
+        "window|root|2|2|0|0|1|1|2|2|0|0",
+        "window|element1-j|2|2|0|1|1|0|2|3|0|0",
+        "window|element2-k|2|2|1|1|0|0|3|2|0|0",
+        "unset|0",
+        "window|after|1|1|1|1|0|0|1|1|0|0"
+      ],
+      "log_sha256": "518b5d543049be9db712fba5ca50563e216156347778b38dac761b6ab7ab46da",
+      "stderr": ""
+    }
+  ],
+  "windows": 25,
+  "source": "element_alias_callbacks.c"
+}

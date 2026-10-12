@@ -1,0 +1,30 @@
+before|shape=missing-namespace|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no
+shape=missing-namespace|purpose=Write|selected=none|visits=|result=can't set "::missing::arr(k)": parent namespace doesn't exist
+after|shape=missing-namespace|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=missing-namespace|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no
+shape=missing-namespace|purpose=QuietWrite|selected=none|visits=|result=SENTINEL
+after|shape=missing-namespace|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=scalar-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no
+shape=scalar-root|purpose=Write|selected=none|visits=|result=can't set "scalar(k)": variable isn't array
+after|shape=scalar-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=scalar-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no
+shape=scalar-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL
+after|shape=scalar-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=array-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no
+shape=array-root|purpose=Write|selected=some|visits=|result=SENTINEL
+after|shape=array-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=array-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no
+shape=array-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL
+after|shape=array-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no
+shape=fresh-combined-root|purpose=Write|selected=some|visits=|result=can't set "arr(inner)(k)": variable isn't array
+after|shape=fresh-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no
+shape=fresh-combined-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL
+after|shape=fresh-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no
+shape=cached-combined-root|purpose=Write|selected=none|visits=|result=can't set "arr(inner)(k)": variable isn't array
+after|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes
+before|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no
+shape=cached-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL
+after|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes

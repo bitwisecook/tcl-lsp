@@ -1,0 +1,97 @@
+    /*
+     * Used to note that a recompilation of the bytecode is believed necessary.
+     * The recompilation may generate the same bytecode sequence, but we can't
+     * prove that without doing it.
+     */
+    TCL_BYTECODE_RECOMPILE = 0x0004
+};
+
+typedef struct ByteCode {
+    TclHandle interpHandle;	/* Handle for interpreter containing the
+				 * compiled code. Commands and their compile
+				 * procs are specific to an interpreter so the
+				 * code emitted will depend on the
+				 * interpreter. */
+    Tcl_Size compileEpoch;	/* Value of iPtr->compileEpoch when this
+				 * ByteCode was compiled. Used to invalidate
+				 * code when, e.g., commands with compile
+				 * procs are redefined. */
+    Namespace *nsPtr;		/* Namespace context in which this code was
+				 * compiled. If the code is executed if a
+				 * different namespace, it must be
+				 * recompiled. */
+    Tcl_Size nsEpoch;		/* Value of nsPtr->resolverEpoch when this
+				 * ByteCode was compiled. Used to invalidate
+				 * code when new namespace resolution rules
+				 * are put into effect. */
+    Tcl_Size refCount;		/* Reference count: set 1 when created plus 1
+				 * for each execution of the code currently
+				 * active. This structure can be freed when
+				 * refCount becomes zero. */
+    unsigned int flags;		/* flags describing state for the codebyte.
+				 * this variable holds OR'ed values from the
+				 * TCL_BYTECODE_ masks defined above */
+    const char *source;		/* The source string from which this ByteCode
+				 * was compiled. Note that this pointer is not
+				 * owned by the ByteCode and must not be freed
+				 * or modified by it. */
+    Proc *procPtr;		/* If the ByteCode was compiled from a
+				 * procedure body, this is a pointer to its
+				 * Proc structure; otherwise NULL. This
+				 * pointer is also not owned by the ByteCode
+				 * and must not be freed by it. */
+    size_t structureSize;	/* Number of bytes in the ByteCode structure
+				 * itself. Does not include heap space for
+				 * literal Tcl objects or storage referenced
+				 * by AuxData entries. */
+    Tcl_Size numCommands;	/* Number of commands compiled. */
+    Tcl_Size numSrcBytes;	/* Number of source bytes compiled. */
+    Tcl_Size numCodeBytes;	/* Number of code bytes. */
+    Tcl_Size numLitObjects;	/* Number of objects in literal array. */
+    Tcl_Size numExceptRanges;	/* Number of ExceptionRange array elems. */
+    Tcl_Size numAuxDataItems;	/* Number of AuxData items. */
+    Tcl_Size numCmdLocBytes;	/* Number of bytes needed for encoded command
+				 * location information. */
+    Tcl_Size maxExceptDepth;	/* Maximum nesting level of ExceptionRanges;
+				 * TCL_INDEX_NONE if no ranges were compiled. */
+    Tcl_Size maxStackDepth;	/* Maximum number of stack elements needed to
+				 * execute the code. */
+    unsigned char *codeStart;	/* Points to the first byte of the code. This
+				 * is just after the final ByteCode member
+				 * cmdMapPtr. */
+    Tcl_Obj **objArrayPtr;	/* Points to the start of the literal object
+				 * array. This is just after the last code
+				 * byte. */
+    ExceptionRange *exceptArrayPtr;
+				/* Points to the start of the ExceptionRange
+				 * array. This is just after the last object
+				 * in the object array. */
+    AuxData *auxDataArrayPtr;	/* Points to the start of the auxiliary data
+				 * array. This is just after the last entry in
+				 * the ExceptionRange array. */
+    unsigned char *codeDeltaStart;
+				/* Points to the first of a sequence of bytes
+				 * that encode the change in the starting
+				 * offset of each command's code. If -127 <=
+				 * delta <= 127, it is encoded as 1 byte,
+				 * otherwise 0xFF (128) appears and the delta
+				 * is encoded by the next 4 bytes. Code deltas
+				 * are always positive. This sequence is just
+				 * after the last entry in the AuxData
+				 * array. */
+    unsigned char *codeLengthStart;
+				/* Points to the first of a sequence of bytes
+				 * that encode the length of each command's
+				 * code. The encoding is the same as for code
+				 * deltas. Code lengths are always positive.
+				 * This sequence is just after the last entry
+				 * in the code delta sequence. */
+    unsigned char *srcDeltaStart;
+				/* Points to the first of a sequence of bytes
+				 * that encode the change in the starting
+				 * offset of each command's source. The
+				 * encoding is the same as for code deltas.
+				 * Source deltas can be negative. This
+				 * sequence is just after the last byte in the
+				 * code length sequence. */
+    unsigned char *srcLengthStart;

@@ -1,0 +1,58 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/native-created-handle-move183/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.00956510700052604,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "0e567db2ed35848ccdb44149ca1d7823804456eeef32c6e305572e027719dade",
+  "runner_sha256": "0b9313058968be3dfc16ed00cd96f61739f16c06bcde14012d6cb302153466f3",
+  "stdout_sha256": "ab2839c4f8cd80349ece51b65054a1b0f12718be84b29c692a7e6725aec6f4cd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "version 8.5.19",
+    "observation create status 0 result s errorCode {}",
+    "observation original-parent-command status 0 result s errorCode {}",
+    "observation move status 0 result {} errorCode {}",
+    "observation old-parent-command status 0 result {} errorCode {}",
+    "observation moved-parent-command status 0 result moved errorCode {}",
+    "observation old-parent-call status 1 result {invalid command name \"s\"} errorCode NONE",
+    "observation moved-parent-value status 0 result moved errorCode {}",
+    "observation original-child-path-value status 0 result moved errorCode {}",
+    "observation original-child-path-exists status 0 result 1 errorCode {}",
+    "observation moved-child-path-exists status 0 result 0 errorCode {}",
+    "observation move-again status 0 result {} errorCode {}",
+    "observation first-moved-parent-command status 0 result {} errorCode {}",
+    "observation second-moved-parent-value status 0 result moved errorCode {}",
+    "observation original-child-path-after-second-move status 0 result moved errorCode {}",
+    "observation delete-original-child-path status 0 result {} errorCode {}",
+    "observation second-moved-parent-after-child-delete status 0 result {} errorCode {}",
+    "observation second-moved-call-after-child-delete status 1 result {invalid command name \"moved_again\"} errorCode NONE",
+    "observation create-delete-by-parent status 0 result d errorCode {}",
+    "observation move-delete-by-parent status 0 result {} errorCode {}",
+    "observation delete-moved-parent status 0 result {} errorCode {}",
+    "observation child-after-parent-delete status 0 result 0 errorCode {}",
+    "observation child-call-after-parent-delete status 1 result {could not find interpreter \"d\"} errorCode {TCL LOOKUP INTERP d}",
+    "observation create-qualified-parent status 0 result q errorCode {}",
+    "observation create-parent-namespace status 0 result {} errorCode {}",
+    "observation move-qualified-parent status 0 result {} errorCode {}",
+    "observation qualified-parent-value status 0 result qualified errorCode {}",
+    "observation original-qualified-child-path-value status 0 result qualified errorCode {}",
+    "observation delete-qualified-child-path status 0 result {} errorCode {}",
+    "observation qualified-parent-after-child-delete status 0 result {} errorCode {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent created-parent move and child-path observations",
+  "boundary": "Question: does renaming a created parent command preserve its child interpreter path and eval semantics, and which parent command disappears after deleting the original child path or moved command? Sequential catch observations retain actual unsupported outcomes. No arbitrary constructor Normal, entered frame, runtime handle token or compiler admission is inferred."
+}

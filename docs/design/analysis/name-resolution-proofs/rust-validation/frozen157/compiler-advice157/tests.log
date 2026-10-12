@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::diagnostics::tests::original_deprecation_advice_preserves_whole_source_words_and_declines_captures ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8203 filtered out; finished in 0.43s
+

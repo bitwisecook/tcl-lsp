@@ -163,7 +163,9 @@ fn command_names(session: &mut Session) -> Result<Vec<String>, DeclineReason> {
     if completion.code != 0 {
         return Err(DeclineReason::Unsupported);
     }
-    let text = String::from_utf8_lossy(&completion.result);
+    // LoadedExtension exposes Unicode names. Refuse an opaque roster rather
+    // than publishing a different command identity through replacement text.
+    let text = String::from_utf8(completion.result).map_err(|_| DeclineReason::NotText)?;
     let names = tcl_syntax::list::split_list(&text).map_err(|_| DeclineReason::MalformedAnswer)?;
     Ok(names.into_iter().map(Cow::into_owned).collect())
 }

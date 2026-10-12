@@ -1,0 +1,16 @@
+
+running 2 tests
+test command_binding::trusted_package_transfer::tests::attested_provider_entry_keeps_original_qualified_and_imported_slots ... 
+thread 'command_binding::trusted_package_transfer::tests::attested_provider_entry_keeps_original_qualified_and_imported_slots' (587664) panicked at rust/tcl-compiler/src/command_binding/trusted_package_transfer.rs:233:13:
+tcl8.4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::trusted_package_transfer::tests::attested_provider_transfer_declines_unknown_revoked_and_shadowed_preludes ... ok
+
+failures:
+
+failures:
+    command_binding::trusted_package_transfer::tests::attested_provider_entry_keeps_original_qualified_and_imported_slots
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 8172 filtered out; finished in 6.59s
+

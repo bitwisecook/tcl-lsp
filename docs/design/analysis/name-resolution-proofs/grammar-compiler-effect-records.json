@@ -1,0 +1,700 @@
+[
+  {
+    "id": "naming.compiler.literal-set-name-effects-source",
+    "kind": "source-anchor",
+    "document": "docs/design/analysis/name-resolution-proofs/literal-set-name-effects-source.md",
+    "problem_statement": "A genuine stock set handler may be selected while its caller compilation mode is unknown. Treating uncertain opcode admission as an arbitrary compiler mutation erases previously installed commands before this invocation evaluates any arguments. The opposing risk is assuming compiler purity from the Set handler footprint: source substitutions can cause nested compilation, and an unrelated or replaced compiler has its own effects. The question is limited to the selected stock Set compiler and a complete substitution-free original vector.",
+    "question": "Do the pinned C8.4 through C9.1 Set compiler paths for substitution-free name and value words perform command or namespace binding operations before runtime argv evaluation?",
+    "conclusion": "The inspected stock Set compiler pushes or registers literal source components, allocates only compiled local-variable metadata when eligible, and emits load/store instructions. Its static variable-name and Text/backslash token paths do not invoke command scripts or mutate command or namespace bindings. Nested command token compilation is a distinct branch and is excluded. This supports a separate tracked-name effect closure for genuine literal Set vectors while opcode admission, variable resolution, literal-object identity and handler completion remain independent.",
+    "scope": "Source inspection of pinned Tcl8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0. Complete Set, variable-word, token compiler and local-allocation excerpts retain original full-file hashes and exact line ranges. No new native execution is claimed. Replacement compilers, nested substitutions, expansions, implementation-path compiler delegation, Jim and BIG-IP are excluded.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "8.4.20",
+        "build": "Pinned release source inspection only; no guest build or execution.",
+        "input_channel": "Exact C source, not guest input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.",
+        "evidence": [
+          "e0",
+          "e1",
+          "e2",
+          "e3"
+        ]
+      },
+      {
+        "id": "tcl8.5",
+        "version": "8.5.19",
+        "build": "Pinned release source inspection only; no guest build or execution.",
+        "input_channel": "Exact C source, not guest input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.",
+        "evidence": [
+          "e4",
+          "e5",
+          "e6",
+          "e7"
+        ]
+      },
+      {
+        "id": "tcl8.6",
+        "version": "8.6.18",
+        "build": "Pinned release source inspection only; no guest build or execution.",
+        "input_channel": "Exact C source, not guest input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.",
+        "evidence": [
+          "e8",
+          "e9",
+          "e10",
+          "e11"
+        ]
+      },
+      {
+        "id": "tcl9.0",
+        "version": "9.0.4",
+        "build": "Pinned release source inspection only; no guest build or execution.",
+        "input_channel": "Exact C source, not guest input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.",
+        "evidence": [
+          "e12",
+          "e13",
+          "e14",
+          "e15"
+        ]
+      },
+      {
+        "id": "tcl9.1",
+        "version": "9.1.0",
+        "build": "Pinned release source inspection only; no guest build or execution.",
+        "input_channel": "Exact C source, not guest input.",
+        "dialect": "Tcl",
+        "status": "inspected",
+        "answer": "Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.",
+        "evidence": [
+          "e16",
+          "e17",
+          "e18",
+          "e19"
+        ]
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "e0",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileSetCmd.txt",
+        "sha256": "a67197c79da42a0467050b5fdb76930a8d8b502ef2e8ca68d787b4ad45a3a76f",
+        "description": "Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e1",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclPushVarName.txt",
+        "sha256": "b9fd87d654b758367c00fbd16fe8394e91c5f95dedc6b681d9ba699468b45107",
+        "description": "Exact full TclPushVarName definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e2",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileTokens.txt",
+        "sha256": "28cc01627a3f5190822bbbf9a864d45696cb8727a2cfbf3def2c7f09da492afa",
+        "description": "Exact full TclCompileTokens definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e3",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclFindCompiledLocal.txt",
+        "sha256": "c719316f477c7007c60b313b7ca0b00b12bf22372981a3819bdbf232eb3dde79",
+        "description": "Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e4",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileSetCmd.txt",
+        "sha256": "ef1e582aeeed894fe50713e0f8ce8a99a06c94f2466e1f94cd9f4e1c5d849dcf",
+        "description": "Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e5",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-PushVarName.txt",
+        "sha256": "93765f759ed489263582d7d4f2b86f58fab7e0a7cf1232323fb9dcef835c0210",
+        "description": "Exact full PushVarName definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e6",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileTokens.txt",
+        "sha256": "f6f5b99e924c9008a95360d1e7a247721f85fbd997611560b5fe350837a4a3a5",
+        "description": "Exact full TclCompileTokens definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e7",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclFindCompiledLocal.txt",
+        "sha256": "917731c247b97d3ce1ec4f6331879334c90f0eb0d1cc37c9ec2194b5954c00ff",
+        "description": "Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e8",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileSetCmd.txt",
+        "sha256": "ec6366d9632f55a840c255b1cb09270653daeba0155e462257ef175f3b0e84e9",
+        "description": "Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e9",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclPushVarName.txt",
+        "sha256": "414e0c602ecd47ea0909bc2af3016540dd61de38a199e3512377e4b06a328fba",
+        "description": "Exact full TclPushVarName definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e10",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileTokens.txt",
+        "sha256": "0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7",
+        "description": "Exact full TclCompileTokens definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e11",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclFindCompiledLocal.txt",
+        "sha256": "b4c836c0f9b9e6e7cf8515b2d2b32b4ab04e6442a41ef69a02ef5ded83dc134f",
+        "description": "Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e12",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileSetCmd.txt",
+        "sha256": "34baed7dde71e469973938c03e11e8b92217cd3cf56e7430109715edb6e61098",
+        "description": "Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e13",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclPushVarName.txt",
+        "sha256": "26b20fe759673164bffb8c6201656258f3eba27f3200c3d7fadf21af5e6b5d30",
+        "description": "Exact full TclPushVarName definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e14",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileTokens.txt",
+        "sha256": "2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33",
+        "description": "Exact full TclCompileTokens definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e15",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclFindCompiledLocal.txt",
+        "sha256": "a87ffe2b6f62282e8c4c51da0e7e6b045d3470c4c40c9e44ceef8a3519f4f347",
+        "description": "Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e16",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileSetCmd.txt",
+        "sha256": "9ab577969f25ab94cd5720caff9bc0e85081472c78b0ac071eb24d2475cf41bf",
+        "description": "Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e17",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclPushVarName.txt",
+        "sha256": "8c671c78715232e3ba32aa25ded0482b4c4b7644f96bb23d5eceab79c589ea45",
+        "description": "Exact full TclPushVarName definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e18",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileTokens.txt",
+        "sha256": "0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba",
+        "description": "Exact full TclCompileTokens definition; source full-file hash and line range retained independently."
+      },
+      {
+        "id": "e19",
+        "role": "source-anchor",
+        "path": "rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclFindCompiledLocal.txt",
+        "sha256": "49bb8900d55b9cd0c4bec628d60e387147c71948cac15462778a850635653ab2",
+        "description": "Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently."
+      }
+    ],
+    "source_anchors": [
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclCompCmds.c",
+        "function": "TclCompileSetCmd",
+        "lines": [
+          2585,
+          2684
+        ],
+        "source_sha256": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214",
+        "snippet": "TclCompileSetCmd(interp, parsePtr, envPtr)\n    Tcl_Interp *interp;\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr;\t/* Points to a parse structure for the\n\t\t\t\t * command created by Tcl_ParseCommand. */\n    CompileEnv *envPtr;\t\t/* Holds resulting instructions. */\n{\n    Tcl_Token *varTokenPtr, *valueTokenPtr;\n    int isAssignment, isScalar, simpleVarName, localIndex, numWords;\n    int code = TCL_OK;\n\n    DefineLineInformation;\n\n    numWords = parsePtr->numWords;\n    if ((numWords != 2) && (numWords != 3)) {\n\tTcl_ResetResult(interp);\n\tTcl_AppendToObj(Tcl_GetObjResult(interp),\n\t        \"wrong # args: should be \\\"set varName ?newValue?\\\"\", -1);\n        return TCL_ERROR;\n    }\n    isAssignment = (numWords == 3);\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we\n     * need to emit code to compute and push the name at runtime. We use a\n     * frame slot (entry in the array of local vars) if we are compiling a\n     * procedure body and if the name is simple text that does not include\n     * namespace qualifiers. \n     */\n\n    varTokenPtr = parsePtr->tokenPtr\n\t    + (parsePtr->tokenPtr->numComponents + 1);\n\n    code = TclPushVarNameWord(interp, varTokenPtr, envPtr, TCL_CREATE_VAR,\n\t    &localIndex, &simpleVarName, &isScalar, 1);\n    if (code != TCL_OK) {\n\tgoto done;\n    }\n\n    /*\n     * If we are doing an assignment, push the new value.\n     */\n\n    if (isAssignment) {\n\tvalueTokenPtr = varTokenPtr + (varTokenPtr->numComponents + 1);\n\tif (valueTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {\n\t    TclEmitPush(TclRegisterNewLiteral(envPtr, valueTokenPtr[1].start,\n\t\t    valueTokenPtr[1].size), envPtr);\n\t} else {\n\t    SetLineInformation (2);\n\t    code = TclCompileTokens(interp, valueTokenPtr+1,\n\t            valueTokenPtr->numComponents, envPtr);\n\t    if (code != TCL_OK) {\n\t\tgoto done;\n\t    }\n\t}\n    }\n\n    /*\n     * Emit instructions to set/get the variable.\n     */\n\n    if (simpleVarName) {\n\tif (isScalar) {\n\t    if (localIndex >= 0) {\n\t\tif (localIndex <= 255) {\n\t\t    TclEmitInstInt1((isAssignment?\n\t\t            INST_STORE_SCALAR1 : INST_LOAD_SCALAR1),\n\t\t\t    localIndex, envPtr);\n\t\t} else {\n\t\t    TclEmitInstInt4((isAssignment?\n\t\t\t    INST_STORE_SCALAR4 : INST_LOAD_SCALAR4),\n\t\t\t    localIndex, envPtr);\n\t\t}\n\t    } else {\n\t\tTclEmitOpcode((isAssignment?\n\t\t        INST_STORE_SCALAR_STK : INST_LOAD_SCALAR_STK), envPtr);\n\t    }\n\t} else {\n\t    if (localIndex >= 0) {\n\t\tif (localIndex <= 255) {\n\t\t    TclEmitInstInt1((isAssignment?\n\t\t            INST_STORE_ARRAY1 : INST_LOAD_ARRAY1),\n\t\t\t    localIndex, envPtr);\n\t\t} else {\n\t\t    TclEmitInstInt4((isAssignment?\n\t\t\t    INST_STORE_ARRAY4 : INST_LOAD_ARRAY4),\n\t\t\t    localIndex, envPtr);\n\t\t}\n\t    } else {\n\t\tTclEmitOpcode((isAssignment?\n\t\t        INST_STORE_ARRAY_STK : INST_LOAD_ARRAY_STK), envPtr);\n\t    }\n\t}\n    } else {\n\tTclEmitOpcode((isAssignment? INST_STORE_STK : INST_LOAD_STK), envPtr);\n    }\n\t\n    done:\n    return code;\n}\n",
+        "snippet_sha256": "a67197c79da42a0467050b5fdb76930a8d8b502ef2e8ca68d787b4ad45a3a76f",
+        "evidence": "e0"
+      },
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclCompCmds.c",
+        "function": "TclPushVarName",
+        "lines": [
+          3225,
+          3464
+        ],
+        "source_sha256": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214",
+        "snippet": "TclPushVarName(interp, varTokenPtr, envPtr, flags, localIndexPtr,\n#ifndef TCL_TIP280\n\tsimpleVarNamePtr, isScalarPtr)\n#else\n\tsimpleVarNamePtr, isScalarPtr, line, clNext)\n#endif\n    Tcl_Interp *interp;\t\t/* Used for error reporting. */\n    Tcl_Token *varTokenPtr;\t/* Points to a variable token. */\n    CompileEnv *envPtr;\t\t/* Holds resulting instructions. */\n    int flags;\t\t\t/* takes TCL_CREATE_VAR or\n\t\t\t\t * TCL_NO_LARGE_INDEX */\n    int *localIndexPtr;\t\t/* must not be NULL */\n    int *simpleVarNamePtr;\t/* must not be NULL */\n    int *isScalarPtr;\t\t/* must not be NULL */\n#ifdef TCL_TIP280\n    int line;                   /* line the token starts on */\n    int* clNext;\n#endif\n{\n    register CONST char *p;\n    CONST char *name, *elName;\n    register int i, n;\n    int nameChars, elNameChars, simpleVarName, localIndex;\n    int code = TCL_OK;\n\n    Tcl_Token *elemTokenPtr = NULL;\n    int elemTokenCount = 0;\n    int allocedTokens = 0;\n    int removedParen = 0;\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we\n     * need to emit code to compute and push the name at runtime. We use a\n     * frame slot (entry in the array of local vars) if we are compiling a\n     * procedure body and if the name is simple text that does not include\n     * namespace qualifiers. \n     */\n\n    simpleVarName = 0;\n    name = elName = NULL;\n    nameChars = elNameChars = 0;\n    localIndex = -1;\n\n    /*\n     * Check not only that the type is TCL_TOKEN_SIMPLE_WORD, but whether\n     * curly braces surround the variable name.\n     * This really matters for array elements to handle things like\n     *    set {x($foo)} 5\n     * which raises an undefined var error if we are not careful here.\n     */\n\n    if ((varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) &&\n\t    (varTokenPtr->start[0] != '{')) {\n\t/*\n\t * A simple variable name. Divide it up into \"name\" and \"elName\"\n\t * strings. If it is not a local variable, look it up at runtime.\n\t */\n\tsimpleVarName = 1;\n\n\tname = varTokenPtr[1].start;\n\tnameChars = varTokenPtr[1].size;\n\tif ( *(name + nameChars - 1) == ')') {\n\t    /* \n\t     * last char is ')' => potential array reference.\n\t     */\n\n\t    for (i = 0, p = name;  i < nameChars;  i++, p++) {\n\t\tif (*p == '(') {\n\t\t    elName = p + 1;\n\t\t    elNameChars = nameChars - i - 2;\n\t\t    nameChars = i ;\n\t\t    break;\n\t\t}\n\t    }\n\n\t    if ((elName != NULL) && elNameChars) {\n\t\t/*\n\t\t * An array element, the element name is a simple\n\t\t * string: assemble the corresponding token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *) ckalloc(sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = elNameChars;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = 1;\n\t    }\n\t}\n    } else if (((n = varTokenPtr->numComponents) > 1)\n\t    && (varTokenPtr[1].type == TCL_TOKEN_TEXT)\n            && (varTokenPtr[n].type == TCL_TOKEN_TEXT)\n            && (varTokenPtr[n].start[varTokenPtr[n].size - 1] == ')')) {\n\n        /*\n\t * Check for parentheses inside first token\n\t */\n\n        simpleVarName = 0;\n        for (i = 0, p = varTokenPtr[1].start; \n\t     i < varTokenPtr[1].size; i++, p++) {\n            if (*p == '(') {\n                simpleVarName = 1;\n                break;\n            }\n        }\n        if (simpleVarName) {\n\t    int remainingChars;\n\n\t    /*\n\t     * Check the last token: if it is just ')', do not count\n\t     * it. Otherwise, remove the ')' and flag so that it is\n\t     * restored at the end.\n\t     */\n\n\t    if (varTokenPtr[n].size == 1) {\n\t\t--n;\n\t    } else {\n\t\t--varTokenPtr[n].size;\n\t\tremovedParen = n;\n\t    }\n\n            name = varTokenPtr[1].start;\n            nameChars = p - varTokenPtr[1].start;\n            elName = p + 1;\n            remainingChars = (varTokenPtr[2].start - p) - 1;\n            elNameChars = (varTokenPtr[n].start - p) + varTokenPtr[n].size - 2;\n\n\t    if (remainingChars) {\n\t\t/*\n\t\t * Make a first token with the extra characters in the first \n\t\t * token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *) ckalloc(n * sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = remainingChars;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = n;\n\t\t\n\t\t/*\n\t\t * Copy the remaining tokens.\n\t\t */\n\t\t\n\t\tmemcpy((void *) (elemTokenPtr+1), (void *) (&varTokenPtr[2]),\n\t\t       ((n-1) * sizeof(Tcl_Token)));\n\t    } else {\n\t\t/*\n\t\t * Use the already available tokens.\n\t\t */\n\t\t\n\t\telemTokenPtr = &varTokenPtr[2];\n\t\telemTokenCount = n - 1;\t    \n\t    }\n\t}\n    }\n\n    if (simpleVarName) {\n\t/*\n\t * See whether name has any namespace separators (::'s).\n\t */\n\n\tint hasNsQualifiers = 0;\n\tfor (i = 0, p = name;  i < nameChars;  i++, p++) {\n\t    if ((*p == ':') && ((i+1) < nameChars) && (*(p+1) == ':')) {\n\t\thasNsQualifiers = 1;\n\t\tbreak;\n\t    }\n\t}\n\n\t/*\n\t * Look up the var name's index in the array of local vars in the\n\t * proc frame. If retrieving the var's value and it doesn't already\n\t * exist, push its name and look it up at runtime.\n\t */\n\n\tif ((envPtr->procPtr != NULL) && !hasNsQualifiers) {\n\t    localIndex = TclFindCompiledLocal(name, nameChars,\n\t\t    /*create*/ (flags & TCL_CREATE_VAR),\n                    /*flags*/ ((elName==NULL)? VAR_SCALAR : VAR_ARRAY),\n\t\t    envPtr->procPtr);\n\t    if ((flags & TCL_NO_LARGE_INDEX) && (localIndex > 255)) {\n\t\t/* we'll push the name */\n\t\tlocalIndex = -1;\n\t    }\n\t}\n\tif (localIndex < 0) {\n\t    TclEmitPush(TclRegisterNewLiteral(envPtr, name, nameChars), envPtr);\n\t}\n\n\t/*\n\t * Compile the element script, if any.\n\t */\n\n\tif (elName != NULL) {\n\t    if (elNameChars) {\n#ifdef TCL_TIP280\n\t        envPtr->line   = line;\n\t        envPtr->clNext = clNext;\n#endif\n\t\tcode = TclCompileTokens(interp, elemTokenPtr,\n                        elemTokenCount, envPtr);\n\t\tif (code != TCL_OK) {\n\t\t    goto done;\n\t\t}\n\t    } else {\n\t\tTclEmitPush(TclRegisterNewLiteral(envPtr, \"\", 0), envPtr);\n\t    }\n\t}\n    } else {\n\t/*\n\t * The var name isn't simple: compile and push it.\n\t */\n\n#ifdef TCL_TIP280\n        envPtr->line   = line;\n        envPtr->clNext = clNext;\n#endif\n\tcode = TclCompileTokens(interp, varTokenPtr+1,\n\t\tvarTokenPtr->numComponents, envPtr);\n\tif (code != TCL_OK) {\n\t    goto done;\n\t}\n    }\n\n    done:\n    if (removedParen) {\n\t++varTokenPtr[removedParen].size;\n    }\n    if (allocedTokens) {\n        ckfree((char *) elemTokenPtr);\n    }\n    *localIndexPtr\t= localIndex;\n    *simpleVarNamePtr\t= simpleVarName;\n    *isScalarPtr\t= (elName == NULL);\n    return code;\n}\n",
+        "snippet_sha256": "b9fd87d654b758367c00fbd16fe8394e91c5f95dedc6b681d9ba699468b45107",
+        "evidence": "e1"
+      },
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileTokens",
+        "lines": [
+          1519,
+          1809
+        ],
+        "source_sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+        "snippet": "TclCompileTokens(interp, tokenPtr, count, envPtr)\n    Tcl_Interp *interp;\t\t/* Used for error and status reporting. */\n    Tcl_Token *tokenPtr;\t/* Pointer to first in an array of tokens\n\t\t\t\t * to compile. */\n    int count;\t\t\t/* Number of tokens to consider at tokenPtr.\n\t\t\t\t * Must be at least 1. */\n    CompileEnv *envPtr;\t\t/* Holds the resulting instructions. */\n{\n    Tcl_DString textBuffer;\t/* Holds concatenated chars from adjacent\n\t\t\t\t * TCL_TOKEN_TEXT, TCL_TOKEN_BS tokens. */\n    char buffer[TCL_UTF_MAX];\n    CONST char *name, *p;\n    int numObjsToConcat, nameBytes, localVarName, localVar;\n    int length, i, code;\n    unsigned char *entryCodeNext = envPtr->codeNext;\n#ifdef TCL_TIP280\n#define NUM_STATIC_POS 20\n    int isLiteral, maxNumCL, numCL;\n    int* clPosition = NULL;\n\n    /*\n     * For the handling of continuation lines in literals we first check if\n     * this is actually a literal. For if not we can forego the additional\n     * processing. Otherwise we pre-allocate a small table to store the\n     * locations of all continuation lines we find in this literal, if\n     * any. The table is extended if needed.\n     *\n     * Note: Different to the equivalent code in function\n     * 'EvalTokensStandard()' (see file \"tclBasic.c\") we do not seem to need\n     * the 'adjust' variable. We also do not seem to need code which merges\n     * continuation line information of multiple words which concat'd at\n     * runtime. Either that or I have not managed to find a test case for\n     * these two possibilities yet. It might be a difference between compile-\n     * versus runtime processing.\n     */\n\n    numCL     = 0;\n    maxNumCL  = 0;\n    isLiteral = 1;\n    for (i=0 ; i < count; i++) {\n\tif ((tokenPtr[i].type != TCL_TOKEN_TEXT) &&\n\t    (tokenPtr[i].type != TCL_TOKEN_BS)) {\n\t    isLiteral = 0;\n\t    break;\n\t}\n    }\n\n    if (isLiteral) {\n\tmaxNumCL   = NUM_STATIC_POS;\n\tclPosition = (int*) ckalloc (maxNumCL*sizeof(int));\n    }\n#endif\n\n    Tcl_DStringInit(&textBuffer);\n    numObjsToConcat = 0;\n    for ( ;  count > 0;  count--, tokenPtr++) {\n\tswitch (tokenPtr->type) {\n\t    case TCL_TOKEN_TEXT:\n\t\tTcl_DStringAppend(&textBuffer, tokenPtr->start,\n\t\t\ttokenPtr->size);\n\t\tbreak;\n\n\t    case TCL_TOKEN_BS:\n\t\tlength = TclParseBackslash(tokenPtr->start, tokenPtr->size,\n\t\t\t(int *) NULL, buffer);\n\t\tTcl_DStringAppend(&textBuffer, buffer, length);\n\n#ifdef TCL_TIP280\n\t\t/*\n\t\t * If the backslash sequence we found is in a literal, and\n\t\t * represented a continuation line, we compute and store its\n\t\t * location (as char offset to the beginning of the _result_\n\t\t * script). We may have to extend the table of locations.\n\t\t *\n\t\t * Note that the continuation line information is relevant\n\t\t * even if the word we are processing is not a literal, as it\n\t\t * can affect nested commands. See the branch for\n\t\t * TCL_TOKEN_COMMAND below, where the adjustment we are\n\t\t * tracking here is taken into account. The good thing is that\n\t\t * we do not need a table of everything, just the number of\n\t\t * lines we have to add as correction.\n\t\t */\n\n\t\tif ((length == 1) && (buffer[0] == ' ') &&\n\t\t    (tokenPtr->start[1] == '\\n')) {\n\t\t    if (isLiteral) {\n\t\t\tint clPos = Tcl_DStringLength (&textBuffer);\n\n\t\t\tif (numCL >= maxNumCL) {\n\t\t\t    maxNumCL *= 2;\n\t\t\t    clPosition = (int*) ckrealloc ((char*)clPosition,\n\t\t\t\t\t\t\t   maxNumCL*sizeof(int));\n\t\t\t}\n\t\t\tclPosition[numCL] = clPos;\n\t\t\tnumCL ++;\n\t\t    }\n\t\t}\n#endif\n\t\tbreak;\n\n\t    case TCL_TOKEN_COMMAND:\n\t\t/*\n\t\t * Push any accumulated chars appearing before the command.\n\t\t */\n\t\t\n\t\tif (Tcl_DStringLength(&textBuffer) > 0) {\n\t\t    int literal;\n\t\t    \n\t\t    literal = TclRegisterLiteral(envPtr,\n\t\t\t    Tcl_DStringValue(&textBuffer),\n\t\t\t    Tcl_DStringLength(&textBuffer), /*onHeap*/ 0);\n\t\t    TclEmitPush(literal, envPtr);\n\t\t    numObjsToConcat++;\n\t\t    Tcl_DStringFree(&textBuffer);\n#ifdef TCL_TIP280\n\t\t    if (numCL) {\n\t\t\tTclContinuationsEnter(envPtr->literalArrayPtr[literal].objPtr,\n\t\t\t\t\t      numCL, clPosition);\n\t\t    }\n\t\t    numCL = 0;\n#endif\n\t\t}\n\t\t\n\t\tcode = TclCompileScript(interp, tokenPtr->start+1,\n\t\t\ttokenPtr->size-2, /*nested*/ 0,\tenvPtr);\n\t\tif (code != TCL_OK) {\n\t\t    goto error;\n\t\t}\n\t\tnumObjsToConcat++;\n\t\tbreak;\n\n\t    case TCL_TOKEN_VARIABLE:\n\t\t/*\n\t\t * Push any accumulated chars appearing before the $<var>.\n\t\t */\n\t\t\n\t\tif (Tcl_DStringLength(&textBuffer) > 0) {\n\t\t    int literal;\n\t\t    \n\t\t    literal = TclRegisterLiteral(envPtr,\n\t\t\t    Tcl_DStringValue(&textBuffer),\n\t\t\t    Tcl_DStringLength(&textBuffer), /*onHeap*/ 0);\n\t\t    TclEmitPush(literal, envPtr);\n\t\t    numObjsToConcat++;\n\t\t    Tcl_DStringFree(&textBuffer);\n\t\t}\n\t\t\n\t\t/*\n\t\t * Determine how the variable name should be handled: if it contains \n\t\t * any namespace qualifiers it is not a local variable (localVarName=-1);\n\t\t * if it looks like an array element and the token has a single component, \n\t\t * it should not be created here [Bug 569438] (localVarName=0); otherwise, \n\t\t * the local variable can safely be created (localVarName=1).\n\t\t */\n\t\t\n\t\tname = tokenPtr[1].start;\n\t\tnameBytes = tokenPtr[1].size;\n\t\tlocalVarName = -1;\n\t\tif (envPtr->procPtr != NULL) {\n\t\t    localVarName = 1;\n\t\t    for (i = 0, p = name;  i < nameBytes;  i++, p++) {\n\t\t\tif ((*p == ':') && (i < (nameBytes-1))\n\t\t\t        && (*(p+1) == ':')) {\n\t\t\t    localVarName = -1;\n\t\t\t    break;\n\t\t\t} else if ((*p == '(')\n\t\t\t        && (tokenPtr->numComponents == 1) \n\t\t\t\t&& (*(name + nameBytes - 1) == ')')) {\n\t\t\t    localVarName = 0;\n\t\t\t    break;\n\t\t\t}\n\t\t    }\n\t\t}\n\n\t\t/*\n\t\t * Either push the variable's name, or find its index in\n\t\t * the array of local variables in a procedure frame. \n\t\t */\n\n\t\tlocalVar = -1;\n\t\tif (localVarName != -1) {\n\t\t    localVar = TclFindCompiledLocal(name, nameBytes, \n\t\t\t        localVarName, /*flags*/ 0, envPtr->procPtr);\n\t\t}\n\t\tif (localVar < 0) {\n\t\t    TclEmitPush(TclRegisterNewLiteral(envPtr, name, nameBytes),\n\t\t\t    envPtr); \n\t\t}\n\n\t\t/*\n\t\t * Emit instructions to load the variable.\n\t\t */\n\t\t\n\t\tif (tokenPtr->numComponents == 1) {\n\t\t    if (localVar < 0) {\n\t\t\tTclEmitOpcode(INST_LOAD_SCALAR_STK, envPtr);\n\t\t    } else if (localVar <= 255) {\n\t\t\tTclEmitInstInt1(INST_LOAD_SCALAR1, localVar,\n\t\t\t        envPtr);\n\t\t    } else {\n\t\t\tTclEmitInstInt4(INST_LOAD_SCALAR4, localVar,\n\t\t\t\tenvPtr);\n\t\t    }\n\t\t} else {\n\t\t    code = TclCompileTokens(interp, tokenPtr+2,\n\t\t\t    tokenPtr->numComponents-1, envPtr);\n\t\t    if (code != TCL_OK) {\n\t\t\tchar errorBuffer[150];\n\t\t\tsprintf(errorBuffer,\n\t\t\t        \"\\n    (parsing index for array \\\"%.*s\\\")\",\n\t\t\t\t((nameBytes > 100)? 100 : nameBytes), name);\n\t\t\tTcl_AddObjErrorInfo(interp, errorBuffer, -1);\n\t\t\tgoto error;\n\t\t    }\n\t\t    if (localVar < 0) {\n\t\t\tTclEmitOpcode(INST_LOAD_ARRAY_STK, envPtr);\n\t\t    } else if (localVar <= 255) {\n\t\t\tTclEmitInstInt1(INST_LOAD_ARRAY1, localVar,\n\t\t\t        envPtr);\n\t\t    } else {\n\t\t\tTclEmitInstInt4(INST_LOAD_ARRAY4, localVar,\n\t\t\t        envPtr);\n\t\t    }\n\t\t}\n\t\tnumObjsToConcat++;\n\t\tcount -= tokenPtr->numComponents;\n\t\ttokenPtr += tokenPtr->numComponents;\n\t\tbreak;\n\n\t    default:\n\t\tpanic(\"Unexpected token type in TclCompileTokens\");\n\t}\n    }\n\n    /*\n     * Push any accumulated characters appearing at the end.\n     */\n\n    if (Tcl_DStringLength(&textBuffer) > 0) {\n\tint literal;\n\n\tliteral = TclRegisterLiteral(envPtr, Tcl_DStringValue(&textBuffer),\n\t        Tcl_DStringLength(&textBuffer), /*onHeap*/ 0);\n\tTclEmitPush(literal, envPtr);\n\tnumObjsToConcat++;\n\n#ifdef TCL_TIP280\n\tif (numCL) {\n\t    TclContinuationsEnter(envPtr->literalArrayPtr[literal].objPtr,\n\t\t\t\t  numCL, clPosition);\n\t}\n\tnumCL = 0;\n#endif\n    }\n\n    /*\n     * If necessary, concatenate the parts of the word.\n     */\n\n    while (numObjsToConcat > 255) {\n\tTclEmitInstInt1(INST_CONCAT1, 255, envPtr);\n\tnumObjsToConcat -= 254;\t/* concat pushes 1 obj, the result */\n    }\n    if (numObjsToConcat > 1) {\n\tTclEmitInstInt1(INST_CONCAT1, numObjsToConcat, envPtr);\n    }\n\n    /*\n     * If the tokens yielded no instructions, push an empty string.\n     */\n    \n    if (envPtr->codeNext == entryCodeNext) {\n\tTclEmitPush(TclRegisterLiteral(envPtr, \"\", 0, /*onHeap*/ 0),\n\t        envPtr);\n    }\n    code = TCL_OK;\n\n    error:\n    Tcl_DStringFree(&textBuffer);\n#ifdef TCL_TIP280\n    /*\n     * Release the temp table we used to collect the locations of\n     * continuation lines, if any.\n     */\n\n    if (maxNumCL) {\n\tckfree ((char*) clPosition);\n    }\n#endif\n    return code;\n}\n",
+        "snippet_sha256": "28cc01627a3f5190822bbbf9a864d45696cb8727a2cfbf3def2c7f09da492afa",
+        "evidence": "e2"
+      },
+      {
+        "provider": "tcl8.4",
+        "version": "8.4.20",
+        "revision": "pinned Tcl release 8.4.20",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclFindCompiledLocal",
+        "lines": [
+          2237,
+          2307
+        ],
+        "source_sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+        "snippet": "TclFindCompiledLocal(name, nameBytes, create, flags, procPtr)\n    register CONST char *name;\t/* Points to first character of the name of\n\t\t\t\t * a scalar or array variable. If NULL, a\n\t\t\t\t * temporary var should be created. */\n    int nameBytes;\t\t/* Number of bytes in the name. */\n    int create;\t\t\t/* If 1, allocate a local frame entry for\n\t\t\t\t * the variable if it is new. */\n    int flags;\t\t\t/* Flag bits for the compiled local if\n\t\t\t\t * created. Only VAR_SCALAR, VAR_ARRAY, and\n\t\t\t\t * VAR_LINK make sense. */\n    register Proc *procPtr;\t/* Points to structure describing procedure\n\t\t\t\t * containing the variable reference. */\n{\n    register CompiledLocal *localPtr;\n    int localVar = -1;\n    register int i;\n\n    /*\n     * If not creating a temporary, does a local variable of the specified\n     * name already exist?\n     */\n\n    if (name != NULL) {\t\n\tint localCt = procPtr->numCompiledLocals;\n\tlocalPtr = procPtr->firstLocalPtr;\n\tfor (i = 0;  i < localCt;  i++) {\n\t    if (!TclIsVarTemporary(localPtr)) {\n\t\tchar *localName = localPtr->name;\n\t\tif ((nameBytes == localPtr->nameLength)\n\t                && (strncmp(name, localName, (unsigned) nameBytes) == 0)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t    localPtr = localPtr->nextPtr;\n\t}\n    }\n\n    /*\n     * Create a new variable if appropriate.\n     */\n    \n    if (create || (name == NULL)) {\n\tlocalVar = procPtr->numCompiledLocals;\n\tlocalPtr = (CompiledLocal *) ckalloc((unsigned) \n\t        (sizeof(CompiledLocal) - sizeof(localPtr->name)\n\t\t+ nameBytes+1));\n\tif (procPtr->firstLocalPtr == NULL) {\n\t    procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;\n\t} else {\n\t    procPtr->lastLocalPtr->nextPtr = localPtr;\n\t    procPtr->lastLocalPtr = localPtr;\n\t}\n\tlocalPtr->nextPtr = NULL;\n\tlocalPtr->nameLength = nameBytes;\n\tlocalPtr->frameIndex = localVar;\n\tlocalPtr->flags = flags | VAR_UNDEFINED;\n\tif (name == NULL) {\n\t    localPtr->flags |= VAR_TEMPORARY;\n\t}\n\tlocalPtr->defValuePtr = NULL;\n\tlocalPtr->resolveInfo = NULL;\n\n\tif (name != NULL) {\n\t    memcpy((VOID *) localPtr->name, (VOID *) name,\n\t            (size_t) nameBytes);\n\t}\n\tlocalPtr->name[nameBytes] = '\\0';\n\tprocPtr->numCompiledLocals++;\n    }\n    return localVar;\n}\n",
+        "snippet_sha256": "c719316f477c7007c60b313b7ca0b00b12bf22372981a3819bdbf232eb3dde79",
+        "evidence": "e3"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclCompCmds.c",
+        "function": "TclCompileSetCmd",
+        "lines": [
+          3328,
+          3404
+        ],
+        "source_sha256": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414",
+        "snippet": "TclCompileSetCmd(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr,\t/* Points to a parse structure for the command\n\t\t\t\t * created by Tcl_ParseCommand. */\n    Command *cmdPtr,\t\t/* Points to defintion of command being\n\t\t\t\t * compiled. */\n    CompileEnv *envPtr)\t\t/* Holds resulting instructions. */\n{\n    Tcl_Token *varTokenPtr, *valueTokenPtr;\n    int isAssignment, isScalar, simpleVarName, localIndex, numWords;\n    DefineLineInformation;\t/* TIP #280 */\n\n    numWords = parsePtr->numWords;\n    if ((numWords != 2) && (numWords != 3)) {\n\treturn TCL_ERROR;\n    }\n    isAssignment = (numWords == 3);\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    varTokenPtr = TokenAfter(parsePtr->tokenPtr);\n    PushVarNameWord(interp, varTokenPtr, envPtr, TCL_CREATE_VAR,\n\t\t    &localIndex, &simpleVarName, &isScalar, 1);\n\n    /*\n     * If we are doing an assignment, push the new value.\n     */\n\n    if (isAssignment) {\n\tvalueTokenPtr = TokenAfter(varTokenPtr);\n\tCompileWord(envPtr, valueTokenPtr, interp, 2);\n    }\n\n    /*\n     * Emit instructions to set/get the variable.\n     */\n\n    if (simpleVarName) {\n\tif (isScalar) {\n\t    if (localIndex < 0) {\n\t\tTclEmitOpcode((isAssignment?\n\t\t\tINST_STORE_SCALAR_STK : INST_LOAD_SCALAR_STK), envPtr);\n\t    } else if (localIndex <= 255) {\n\t\tTclEmitInstInt1((isAssignment?\n\t\t\tINST_STORE_SCALAR1 : INST_LOAD_SCALAR1),\n\t\t\tlocalIndex, envPtr);\n\t    } else {\n\t\tTclEmitInstInt4((isAssignment?\n\t\t\tINST_STORE_SCALAR4 : INST_LOAD_SCALAR4),\n\t\t\tlocalIndex, envPtr);\n\t    }\n\t} else {\n\t    if (localIndex < 0) {\n\t\tTclEmitOpcode((isAssignment?\n\t\t\tINST_STORE_ARRAY_STK : INST_LOAD_ARRAY_STK), envPtr);\n\t    } else if (localIndex <= 255) {\n\t\tTclEmitInstInt1((isAssignment?\n\t\t\tINST_STORE_ARRAY1 : INST_LOAD_ARRAY1),\n\t\t\tlocalIndex, envPtr);\n\t    } else {\n\t\tTclEmitInstInt4((isAssignment?\n\t\t\tINST_STORE_ARRAY4 : INST_LOAD_ARRAY4),\n\t\t\tlocalIndex, envPtr);\n\t    }\n\t}\n    } else {\n\tTclEmitOpcode((isAssignment? INST_STORE_STK : INST_LOAD_STK), envPtr);\n    }\n\n    return TCL_OK;\n}\n",
+        "snippet_sha256": "ef1e582aeeed894fe50713e0f8ce8a99a06c94f2466e1f94cd9f4e1c5d849dcf",
+        "evidence": "e4"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclCompCmds.c",
+        "function": "PushVarName",
+        "lines": [
+          4774,
+          4984
+        ],
+        "source_sha256": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414",
+        "snippet": "PushVarName(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Token *varTokenPtr,\t/* Points to a variable token. */\n    CompileEnv *envPtr,\t\t/* Holds resulting instructions. */\n    int flags,\t\t\t/* TCL_CREATE_VAR or TCL_NO_LARGE_INDEX. */\n    int *localIndexPtr,\t\t/* Must not be NULL. */\n    int *simpleVarNamePtr,\t/* Must not be NULL. */\n    int *isScalarPtr,\t\t/* Must not be NULL. */\n    int line,                   /* Line the token starts on. */\n    int* clNext)                /* Reference to offset of next hidden cont. line */\n{\n    register const char *p;\n    const char *name, *elName;\n    register int i, n;\n    Tcl_Token *elemTokenPtr = NULL;\n    int nameChars, elNameChars, simpleVarName, localIndex;\n    int elemTokenCount = 0, allocedTokens = 0, removedParen = 0;\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    simpleVarName = 0;\n    name = elName = NULL;\n    nameChars = elNameChars = 0;\n    localIndex = -1;\n\n    if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {\n\t/*\n\t * A simple variable name. Divide it up into \"name\" and \"elName\"\n\t * strings. If it is not a local variable, look it up at runtime.\n\t */\n\n\tsimpleVarName = 1;\n\n\tname = varTokenPtr[1].start;\n\tnameChars = varTokenPtr[1].size;\n\tif (name[nameChars-1] == ')') {\n\t    /*\n\t     * last char is ')' => potential array reference.\n\t     */\n\n\t    for (i=0,p=name ; i<nameChars ; i++,p++) {\n\t\tif (*p == '(') {\n\t\t    elName = p + 1;\n\t\t    elNameChars = nameChars - i - 2;\n\t\t    nameChars = i;\n\t\t    break;\n\t\t}\n\t    }\n\n\t    if (interp && (elName != NULL) && elNameChars) {\n\t\t/*\n\t\t * An array element, the element name is a simple string:\n\t\t * assemble the corresponding token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *) TclStackAlloc(interp,\n\t\t\tsizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = elNameChars;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = 1;\n\t    }\n\t}\n    } else if (interp && ((n = varTokenPtr->numComponents) > 1)\n\t    && (varTokenPtr[1].type == TCL_TOKEN_TEXT)\n\t    && (varTokenPtr[n].type == TCL_TOKEN_TEXT)\n\t    && (varTokenPtr[n].start[varTokenPtr[n].size - 1] == ')')) {\n\n\t/*\n\t * Check for parentheses inside first token.\n\t */\n\n\tsimpleVarName = 0;\n\tfor (i = 0, p = varTokenPtr[1].start;\n\t\ti < varTokenPtr[1].size; i++, p++) {\n\t    if (*p == '(') {\n\t\tsimpleVarName = 1;\n\t\tbreak;\n\t    }\n\t}\n\tif (simpleVarName) {\n\t    int remainingChars;\n\n\t    /*\n\t     * Check the last token: if it is just ')', do not count it.\n\t     * Otherwise, remove the ')' and flag so that it is restored at\n\t     * the end.\n\t     */\n\n\t    if (varTokenPtr[n].size == 1) {\n\t\t--n;\n\t    } else {\n\t\t--varTokenPtr[n].size;\n\t\tremovedParen = n;\n\t    }\n\n\t    name = varTokenPtr[1].start;\n\t    nameChars = p - varTokenPtr[1].start;\n\t    elName = p + 1;\n\t    remainingChars = (varTokenPtr[2].start - p) - 1;\n\t    elNameChars = (varTokenPtr[n].start-p) + varTokenPtr[n].size - 1;\n\n\t    if (remainingChars) {\n\t\t/*\n\t\t * Make a first token with the extra characters in the first\n\t\t * token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *) TclStackAlloc(interp,\n\t\t\tn * sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = remainingChars;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = n;\n\n\t\t/*\n\t\t * Copy the remaining tokens.\n\t\t */\n\n\t\tmemcpy(elemTokenPtr+1, varTokenPtr+2,\n\t\t\t(n-1) * sizeof(Tcl_Token));\n\t    } else {\n\t\t/*\n\t\t * Use the already available tokens.\n\t\t */\n\n\t\telemTokenPtr = &varTokenPtr[2];\n\t\telemTokenCount = n - 1;\n\t    }\n\t}\n    }\n\n    if (simpleVarName) {\n\t/*\n\t * See whether name has any namespace separators (::'s).\n\t */\n\n\tint hasNsQualifiers = 0;\n\tfor (i = 0, p = name;  i < nameChars;  i++, p++) {\n\t    if ((*p == ':') && ((i+1) < nameChars) && (*(p+1) == ':')) {\n\t\thasNsQualifiers = 1;\n\t\tbreak;\n\t    }\n\t}\n\n\t/*\n\t * Look up the var name's index in the array of local vars in the proc\n\t * frame. If retrieving the var's value and it doesn't already exist,\n\t * push its name and look it up at runtime.\n\t */\n\n\tif ((envPtr->procPtr != NULL) && !hasNsQualifiers) {\n\t    localIndex = TclFindCompiledLocal(name, nameChars,\n\t\t    /*create*/ flags & TCL_CREATE_VAR,\n\t\t    envPtr->procPtr);\n\t    if ((flags & TCL_NO_LARGE_INDEX) && (localIndex > 255)) {\n\t\t/*\n\t\t * We'll push the name.\n\t\t */\n\n\t\tlocalIndex = -1;\n\t    }\n\t}\n\tif (interp && localIndex < 0) {\n\t    PushLiteral(envPtr, name, nameChars);\n\t}\n\n\t/*\n\t * Compile the element script, if any.\n\t */\n\n\tif (interp && elName != NULL) {\n\t    if (elNameChars) {\n\t\tenvPtr->line = line;\n\t\tenvPtr->clNext = clNext;\n\t\tTclCompileTokens(interp, elemTokenPtr, elemTokenCount, envPtr);\n\t    } else {\n\t\tPushLiteral(envPtr, \"\", 0);\n\t    }\n\t}\n    } else if (interp) {\n\t/*\n\t * The var name isn't simple: compile and push it.\n\t */\n\n\tenvPtr->line = line;\n\tenvPtr->clNext = clNext;\n\tCompileTokens(envPtr, varTokenPtr, interp);\n    }\n\n    if (removedParen) {\n\t++varTokenPtr[removedParen].size;\n    }\n    if (allocedTokens) {\n\tTclStackFree(interp, elemTokenPtr);\n    }\n    *localIndexPtr = localIndex;\n    *simpleVarNamePtr = simpleVarName;\n    *isScalarPtr = (elName == NULL);\n    return TCL_OK;\n}\n",
+        "snippet_sha256": "93765f759ed489263582d7d4f2b86f58fab7e0a7cf1232323fb9dcef835c0210",
+        "evidence": "e5"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileTokens",
+        "lines": [
+          1660,
+          1921
+        ],
+        "source_sha256": "8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988",
+        "snippet": "TclCompileTokens(\n    Tcl_Interp *interp,\t\t/* Used for error and status reporting. */\n    Tcl_Token *tokenPtr,\t/* Pointer to first in an array of tokens to\n\t\t\t\t * compile. */\n    int count,\t\t\t/* Number of tokens to consider at tokenPtr.\n\t\t\t\t * Must be at least 1. */\n    CompileEnv *envPtr)\t\t/* Holds the resulting instructions. */\n{\n    Tcl_DString textBuffer;\t/* Holds concatenated chars from adjacent\n\t\t\t\t * TCL_TOKEN_TEXT, TCL_TOKEN_BS tokens. */\n    char buffer[TCL_UTF_MAX];\n    const char *name, *p;\n    int numObjsToConcat, nameBytes, localVarName, localVar;\n    int length, i;\n    unsigned char *entryCodeNext = envPtr->codeNext;\n#define NUM_STATIC_POS 20\n    int isLiteral, maxNumCL, numCL;\n    int* clPosition = NULL;\n\n    /*\n     * For the handling of continuation lines in literals we first check if\n     * this is actually a literal. For if not we can forego the additional\n     * processing. Otherwise we pre-allocate a small table to store the\n     * locations of all continuation lines we find in this literal, if\n     * any. The table is extended if needed.\n     *\n     * Note: Different to the equivalent code in function\n     * 'TclSubstTokens()' (see file \"tclParse.c\") we do not seem to need\n     * the 'adjust' variable. We also do not seem to need code which merges\n     * continuation line information of multiple words which concat'd at\n     * runtime. Either that or I have not managed to find a test case for\n     * these two possibilities yet. It might be a difference between compile-\n     * versus runtime processing.\n     */\n\n    numCL     = 0;\n    maxNumCL  = 0;\n    isLiteral = 1;\n    for (i=0 ; i < count; i++) {\n\tif ((tokenPtr[i].type != TCL_TOKEN_TEXT) &&\n\t    (tokenPtr[i].type != TCL_TOKEN_BS)) {\n\t    isLiteral = 0;\n\t    break;\n\t}\n    }\n\n    if (isLiteral) {\n\tmaxNumCL   = NUM_STATIC_POS;\n\tclPosition = (int*) ckalloc (maxNumCL*sizeof(int));\n    }\n\n    Tcl_DStringInit(&textBuffer);\n    numObjsToConcat = 0;\n    for ( ;  count > 0;  count--, tokenPtr++) {\n\tswitch (tokenPtr->type) {\n\tcase TCL_TOKEN_TEXT:\n\t    Tcl_DStringAppend(&textBuffer, tokenPtr->start, tokenPtr->size);\n\t    break;\n\n\tcase TCL_TOKEN_BS:\n\t    length = TclParseBackslash(tokenPtr->start, tokenPtr->size,\n\t\t    NULL, buffer);\n\t    Tcl_DStringAppend(&textBuffer, buffer, length);\n\n\t    /*\n\t     * If the backslash sequence we found is in a literal, and\n\t     * represented a continuation line, we compute and store its\n\t     * location (as char offset to the beginning of the _result_\n\t     * script). We may have to extend the table of locations.\n\t     *\n\t     * Note that the continuation line information is relevant even if\n\t     * the word we are processing is not a literal, as it can affect\n\t     * nested commands. See the branch for TCL_TOKEN_COMMAND below,\n\t     * where the adjustment we are tracking here is taken into\n\t     * account. The good thing is that we do not need a table of\n\t     * everything, just the number of lines we have to add as\n\t     * correction.\n\t     */\n\n\t    if ((length == 1) && (buffer[0] == ' ') &&\n\t\t(tokenPtr->start[1] == '\\n')) {\n\t\tif (isLiteral) {\n\t\t    int clPos = Tcl_DStringLength (&textBuffer);\n\n\t\t    if (numCL >= maxNumCL) {\n\t\t\tmaxNumCL *= 2;\n\t\t\tclPosition = (int*) ckrealloc ((char*)clPosition,\n\t\t\t\t\t\t       maxNumCL*sizeof(int));\n\t\t    }\n\t\t    clPosition[numCL] = clPos;\n\t\t    numCL ++;\n\t\t}\n\t    }\n\t    break;\n\n\tcase TCL_TOKEN_COMMAND:\n\t    /*\n\t     * Push any accumulated chars appearing before the command.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal = TclRegisterNewLiteral(envPtr,\n\t\t\tTcl_DStringValue(&textBuffer),\n\t\t\tTcl_DStringLength(&textBuffer));\n\n\t\tTclEmitPush(literal, envPtr);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\n\t\tif (numCL) {\n\t\t    TclContinuationsEnter(envPtr->literalArrayPtr[literal].objPtr,\n\t\t\t\t\t  numCL, clPosition);\n\t\t}\n\t\tnumCL = 0;\n\t    }\n\n\t    TclCompileScript(interp, tokenPtr->start+1,\n\t\t    tokenPtr->size-2, envPtr);\n\t    numObjsToConcat++;\n\t    break;\n\n\tcase TCL_TOKEN_VARIABLE:\n\t    /*\n\t     * Push any accumulated chars appearing before the $<var>.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal;\n\n\t\tliteral = TclRegisterNewLiteral(envPtr,\n\t\t\tTcl_DStringValue(&textBuffer),\n\t\t\tTcl_DStringLength(&textBuffer));\n\t\tTclEmitPush(literal, envPtr);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\t    }\n\n\t    /*\n\t     * Determine how the variable name should be handled: if it\n\t     * contains any namespace qualifiers it is not a local variable\n\t     * (localVarName=-1); if it looks like an array element and the\n\t     * token has a single component, it should not be created here\n\t     * [Bug 569438] (localVarName=0); otherwise, the local variable\n\t     * can safely be created (localVarName=1).\n\t     */\n\n\t    name = tokenPtr[1].start;\n\t    nameBytes = tokenPtr[1].size;\n\t    localVarName = -1;\n\t    if (envPtr->procPtr != NULL) {\n\t\tlocalVarName = 1;\n\t\tfor (i = 0, p = name;  i < nameBytes;  i++, p++) {\n\t\t    if ((*p == ':') && (i < nameBytes-1) && (*(p+1) == ':')) {\n\t\t\tlocalVarName = -1;\n\t\t\tbreak;\n\t\t    } else if ((*p == '(')\n\t\t\t    && (tokenPtr->numComponents == 1)\n\t\t\t    && (*(name + nameBytes - 1) == ')')) {\n\t\t\tlocalVarName = 0;\n\t\t\tbreak;\n\t\t    }\n\t\t}\n\t    }\n\n\t    /*\n\t     * Either push the variable's name, or find its index in the array\n\t     * of local variables in a procedure frame.\n\t     */\n\n\t    localVar = -1;\n\t    if (localVarName != -1) {\n\t\tlocalVar = TclFindCompiledLocal(name, nameBytes, localVarName,\n\t\t\tenvPtr->procPtr);\n\t    }\n\t    if (localVar < 0) {\n\t\tTclEmitPush(TclRegisterNewLiteral(envPtr, name, nameBytes),\n\t\t\tenvPtr);\n\t    }\n\n\t    /*\n\t     * Emit instructions to load the variable.\n\t     */\n\n\t    if (tokenPtr->numComponents == 1) {\n\t\tif (localVar < 0) {\n\t\t    TclEmitOpcode(INST_LOAD_SCALAR_STK, envPtr);\n\t\t} else if (localVar <= 255) {\n\t\t    TclEmitInstInt1(INST_LOAD_SCALAR1, localVar, envPtr);\n\t\t} else {\n\t\t    TclEmitInstInt4(INST_LOAD_SCALAR4, localVar, envPtr);\n\t\t}\n\t    } else {\n\t\tTclCompileTokens(interp, tokenPtr+2,\n\t\t\ttokenPtr->numComponents-1, envPtr);\n\t\tif (localVar < 0) {\n\t\t    TclEmitOpcode(INST_LOAD_ARRAY_STK, envPtr);\n\t\t} else if (localVar <= 255) {\n\t\t    TclEmitInstInt1(INST_LOAD_ARRAY1, localVar, envPtr);\n\t\t} else {\n\t\t    TclEmitInstInt4(INST_LOAD_ARRAY4, localVar, envPtr);\n\t\t}\n\t    }\n\t    numObjsToConcat++;\n\t    count -= tokenPtr->numComponents;\n\t    tokenPtr += tokenPtr->numComponents;\n\t    break;\n\n\tdefault:\n\t    Tcl_Panic(\"Unexpected token type in TclCompileTokens: %d; %.*s\",\n\t\t    tokenPtr->type, tokenPtr->size, tokenPtr->start);\n\t}\n    }\n\n    /*\n     * Push any accumulated characters appearing at the end.\n     */\n\n    if (Tcl_DStringLength(&textBuffer) > 0) {\n\tint literal;\n\n\tliteral = TclRegisterNewLiteral(envPtr, Tcl_DStringValue(&textBuffer),\n\t\tTcl_DStringLength(&textBuffer));\n\tTclEmitPush(literal, envPtr);\n\tnumObjsToConcat++;\n\n\tif (numCL) {\n\t    TclContinuationsEnter(envPtr->literalArrayPtr[literal].objPtr,\n\t\t\t\t  numCL, clPosition);\n\t}\n\tnumCL = 0;\n    }\n\n    /*\n     * If necessary, concatenate the parts of the word.\n     */\n\n    while (numObjsToConcat > 255) {\n\tTclEmitInstInt1(INST_CONCAT1, 255, envPtr);\n\tnumObjsToConcat -= 254;\t/* concat pushes 1 obj, the result */\n    }\n    if (numObjsToConcat > 1) {\n\tTclEmitInstInt1(INST_CONCAT1, numObjsToConcat, envPtr);\n    }\n\n    /*\n     * If the tokens yielded no instructions, push an empty string.\n     */\n\n    if (envPtr->codeNext == entryCodeNext) {\n\tTclEmitPush(TclRegisterNewLiteral(envPtr, \"\", 0), envPtr);\n    }\n    Tcl_DStringFree(&textBuffer);\n\n    /*\n     * Release the temp table we used to collect the locations of\n     * continuation lines, if any.\n     */\n\n    if (maxNumCL) {\n\tckfree ((char*) clPosition);\n    }\n}\n",
+        "snippet_sha256": "f6f5b99e924c9008a95360d1e7a247721f85fbd997611560b5fe350837a4a3a5",
+        "evidence": "e6"
+      },
+      {
+        "provider": "tcl8.5",
+        "version": "8.5.19",
+        "revision": "pinned Tcl release 8.5.19",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclFindCompiledLocal",
+        "lines": [
+          2286,
+          2354
+        ],
+        "source_sha256": "8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988",
+        "snippet": "TclFindCompiledLocal(\n    register const char *name,\t/* Points to first character of the name of a\n\t\t\t\t * scalar or array variable. If NULL, a\n\t\t\t\t * temporary var should be created. */\n    int nameBytes,\t\t/* Number of bytes in the name. */\n    int create,\t\t\t/* If non-zero, allocate a local frame entry\n\t\t\t\t * for the variable if it is new. */\n    register Proc *procPtr)\t/* Points to structure describing procedure\n\t\t\t\t * containing the variable reference. */\n{\n    register CompiledLocal *localPtr;\n    int localVar = -1;\n    register int i;\n\n    /*\n     * If not creating a temporary, does a local variable of the specified\n     * name already exist?\n     */\n\n    if (name != NULL) {\n\tint localCt = procPtr->numCompiledLocals;\n\n\tlocalPtr = procPtr->firstLocalPtr;\n\tfor (i = 0;  i < localCt;  i++) {\n\t    if (!TclIsVarTemporary(localPtr)) {\n\t\tchar *localName = localPtr->name;\n\n\t\tif ((nameBytes == localPtr->nameLength) &&\n\t\t\t(strncmp(name,localName,(unsigned)nameBytes) == 0)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t    localPtr = localPtr->nextPtr;\n\t}\n    }\n\n    /*\n     * Create a new variable if appropriate.\n     */\n\n    if (create || (name == NULL)) {\n\tlocalVar = procPtr->numCompiledLocals;\n\tlocalPtr = (CompiledLocal *) ckalloc((unsigned)\n\t\t(sizeof(CompiledLocal) - sizeof(localPtr->name)\n\t\t+ nameBytes + 1));\n\tif (procPtr->firstLocalPtr == NULL) {\n\t    procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;\n\t} else {\n\t    procPtr->lastLocalPtr->nextPtr = localPtr;\n\t    procPtr->lastLocalPtr = localPtr;\n\t}\n\tlocalPtr->nextPtr = NULL;\n\tlocalPtr->nameLength = nameBytes;\n\tlocalPtr->frameIndex = localVar;\n\tlocalPtr->flags = 0;\n\tif (name == NULL) {\n\t    localPtr->flags |= VAR_TEMPORARY;\n\t}\n\tlocalPtr->defValuePtr = NULL;\n\tlocalPtr->resolveInfo = NULL;\n\n\tif (name != NULL) {\n\t    memcpy(localPtr->name, name, (size_t) nameBytes);\n\t}\n\tlocalPtr->name[nameBytes] = '\\0';\n\tprocPtr->numCompiledLocals++;\n    }\n    return localVar;\n}\n",
+        "snippet_sha256": "917731c247b97d3ce1ec4f6331879334c90f0eb0d1cc37c9ec2194b5954c00ff",
+        "evidence": "e7"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclCompCmdsSZ.c",
+        "function": "TclCompileSetCmd",
+        "lines": [
+          125,
+          197
+        ],
+        "source_sha256": "b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942",
+        "snippet": "TclCompileSetCmd(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr,\t/* Points to a parse structure for the command\n\t\t\t\t * created by Tcl_ParseCommand. */\n    Command *cmdPtr,\t\t/* Points to definition of command being\n\t\t\t\t * compiled. */\n    CompileEnv *envPtr)\t\t/* Holds resulting instructions. */\n{\n    DefineLineInformation;\t/* TIP #280 */\n    Tcl_Token *varTokenPtr, *valueTokenPtr;\n    int isAssignment, isScalar, localIndex, numWords;\n\n    numWords = parsePtr->numWords;\n    if ((numWords != 2) && (numWords != 3)) {\n\treturn TCL_ERROR;\n    }\n    isAssignment = (numWords == 3);\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    varTokenPtr = TokenAfter(parsePtr->tokenPtr);\n    PushVarNameWord(interp, varTokenPtr, envPtr, 0,\n\t    &localIndex, &isScalar, 1);\n\n    /*\n     * If we are doing an assignment, push the new value.\n     */\n\n    if (isAssignment) {\n\tvalueTokenPtr = TokenAfter(varTokenPtr);\n\tCompileWord(envPtr, valueTokenPtr, interp, 2);\n    }\n\n    /*\n     * Emit instructions to set/get the variable.\n     */\n\n\tif (isScalar) {\n\t    if (localIndex < 0) {\n\t\tTclEmitOpcode((isAssignment?\n\t\t\tINST_STORE_STK : INST_LOAD_STK), envPtr);\n\t    } else if (localIndex <= 255) {\n\t\tTclEmitInstInt1((isAssignment?\n\t\t\tINST_STORE_SCALAR1 : INST_LOAD_SCALAR1),\n\t\t\tlocalIndex, envPtr);\n\t    } else {\n\t\tTclEmitInstInt4((isAssignment?\n\t\t\tINST_STORE_SCALAR4 : INST_LOAD_SCALAR4),\n\t\t\tlocalIndex, envPtr);\n\t    }\n\t} else {\n\t    if (localIndex < 0) {\n\t\tTclEmitOpcode((isAssignment?\n\t\t\tINST_STORE_ARRAY_STK : INST_LOAD_ARRAY_STK), envPtr);\n\t    } else if (localIndex <= 255) {\n\t\tTclEmitInstInt1((isAssignment?\n\t\t\tINST_STORE_ARRAY1 : INST_LOAD_ARRAY1),\n\t\t\tlocalIndex, envPtr);\n\t    } else {\n\t\tTclEmitInstInt4((isAssignment?\n\t\t\tINST_STORE_ARRAY4 : INST_LOAD_ARRAY4),\n\t\t\tlocalIndex, envPtr);\n\t    }\n\t}\n\n    return TCL_OK;\n}\n",
+        "snippet_sha256": "ec6366d9632f55a840c255b1cb09270653daeba0155e462257ef175f3b0e84e9",
+        "evidence": "e8"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclCompCmds.c",
+        "function": "TclPushVarName",
+        "lines": [
+          3387,
+          3591
+        ],
+        "source_sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+        "snippet": "TclPushVarName(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Token *varTokenPtr,\t/* Points to a variable token. */\n    CompileEnv *envPtr,\t\t/* Holds resulting instructions. */\n    int flags,\t\t\t/* TCL_NO_LARGE_INDEX | TCL_NO_ELEMENT. */\n    int *localIndexPtr,\t\t/* Must not be NULL. */\n    int *isScalarPtr)\t\t/* Must not be NULL. */\n{\n    const char *p;\n    const char *last, *name, *elName;\n    int n;\n    Tcl_Token *elemTokenPtr = NULL;\n    int nameLen, elNameLen, simpleVarName, localIndex;\n    int elemTokenCount = 0, allocedTokens = 0, removedParen = 0;\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    simpleVarName = 0;\n    name = elName = NULL;\n    nameLen = elNameLen = 0;\n    localIndex = -1;\n\n    if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {\n\t/*\n\t * A simple variable name. Divide it up into \"name\" and \"elName\"\n\t * strings. If it is not a local variable, look it up at runtime.\n\t */\n\n\tsimpleVarName = 1;\n\n\tname = varTokenPtr[1].start;\n\tnameLen = varTokenPtr[1].size;\n\tif (nameLen > 0 && name[nameLen-1] == ')') {\n\t    /*\n\t     * last char is ')' => potential array reference.\n\t     */\n\t    last = &name[nameLen-1];\n\n\t    if (*last == ')') {\n\t\tfor (p = name;  p < last;  p++) {\n\t\t    if (*p == '(') {\n\t\t\telName = p + 1;\n\t\t\telNameLen = last - elName;\n\t\t\tnameLen = p - name;\n\t\t\tbreak;\n\t\t    }\n\t\t}\n\t    }\n\n\t    if (!(flags & TCL_NO_ELEMENT) && elNameLen) {\n\t\t/*\n\t\t * An array element, the element name is a simple string:\n\t\t * assemble the corresponding token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *)TclStackAlloc(interp, sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = elNameLen;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = 1;\n\t    }\n\t}\n    } else if (interp && ((n = varTokenPtr->numComponents) > 1)\n\t    && (varTokenPtr[1].type == TCL_TOKEN_TEXT)\n\t    && (varTokenPtr[n].type == TCL_TOKEN_TEXT)\n\t    && (*(varTokenPtr[n].start + varTokenPtr[n].size - 1) == ')')) {\n\t/*\n\t * Check for parentheses inside first token.\n\t */\n\n\tsimpleVarName = 0;\n\tfor (p = varTokenPtr[1].start,\n\t     last = p + varTokenPtr[1].size;  p < last;  p++) {\n\t    if (*p == '(') {\n\t\tsimpleVarName = 1;\n\t\tbreak;\n\t    }\n\t}\n\tif (simpleVarName) {\n\t    int remainingLen;\n\n\t    /*\n\t     * Check the last token: if it is just ')', do not count it.\n\t     * Otherwise, remove the ')' and flag so that it is restored at\n\t     * the end.\n\t     */\n\n\t    if (varTokenPtr[n].size == 1) {\n\t\tn--;\n\t    } else {\n\t\tvarTokenPtr[n].size--;\n\t\tremovedParen = n;\n\t    }\n\n\t    name = varTokenPtr[1].start;\n\t    nameLen = p - varTokenPtr[1].start;\n\t    elName = p + 1;\n\t    remainingLen = (varTokenPtr[2].start - p) - 1;\n\t    elNameLen = (varTokenPtr[n].start-p) + varTokenPtr[n].size - 1;\n\n\t    if (!(flags & TCL_NO_ELEMENT)) {\n\t      if (remainingLen) {\n\t\t/*\n\t\t * Make a first token with the extra characters in the first\n\t\t * token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *)TclStackAlloc(interp, n * sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = remainingLen;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = n;\n\n\t\t/*\n\t\t * Copy the remaining tokens.\n\t\t */\n\n\t\tmemcpy(elemTokenPtr+1, varTokenPtr+2,\n\t\t\t(n-1) * sizeof(Tcl_Token));\n\t      } else {\n\t\t/*\n\t\t * Use the already available tokens.\n\t\t */\n\n\t\telemTokenPtr = &varTokenPtr[2];\n\t\telemTokenCount = n - 1;\n\t      }\n\t    }\n\t}\n    }\n\n    if (simpleVarName) {\n\t/*\n\t * See whether name has any namespace separators (::'s).\n\t */\n\n\tint hasNsQualifiers = 0;\n\n\tfor (p = name, last = p + nameLen-1;  p < last;  p++) {\n\t    if ((*p == ':') && (*(p+1) == ':')) {\n\t\thasNsQualifiers = 1;\n\t\tbreak;\n\t    }\n\t}\n\n\t/*\n\t * Look up the var name's index in the array of local vars in the proc\n\t * frame. If retrieving the var's value and it doesn't already exist,\n\t * push its name and look it up at runtime.\n\t */\n\n\tif (!hasNsQualifiers) {\n\t    localIndex = TclFindCompiledLocal(name, nameLen, 1, envPtr);\n\t    if ((flags & TCL_NO_LARGE_INDEX) && (localIndex > 255)) {\n\t\t/*\n\t\t * We'll push the name.\n\t\t */\n\n\t\tlocalIndex = -1;\n\t    }\n\t}\n\tif (interp && localIndex < 0) {\n\t    PushLiteral(envPtr, name, nameLen);\n\t}\n\n\t/*\n\t * Compile the element script, if any, and only if not inhibited. [Bug\n\t * 3600328]\n\t */\n\n\tif (elName != NULL && !(flags & TCL_NO_ELEMENT)) {\n\t    if (elNameLen) {\n\t\tTclCompileTokens(interp, elemTokenPtr, elemTokenCount,\n\t\t\tenvPtr);\n\t    } else {\n\t\tPushStringLiteral(envPtr, \"\");\n\t    }\n\t}\n    } else if (interp) {\n\t/*\n\t * The var name isn't simple: compile and push it.\n\t */\n\n\tCompileTokens(envPtr, varTokenPtr, interp);\n    }\n\n    if (removedParen) {\n\tvarTokenPtr[removedParen].size++;\n    }\n    if (allocedTokens) {\n\tTclStackFree(interp, elemTokenPtr);\n    }\n    *localIndexPtr = localIndex;\n    *isScalarPtr = (elName == NULL);\n}\n",
+        "snippet_sha256": "414e0c602ecd47ea0909bc2af3016540dd61de38a199e3512377e4b06a328fba",
+        "evidence": "e9"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileTokens",
+        "lines": [
+          2355,
+          2550
+        ],
+        "source_sha256": "d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8",
+        "snippet": "TclCompileTokens(\n    Tcl_Interp *interp,\t\t/* Used for error and status reporting. */\n    Tcl_Token *tokenPtr,\t/* Pointer to first in an array of tokens to\n\t\t\t\t * compile. */\n    int count,\t\t\t/* Number of tokens to consider at tokenPtr.\n\t\t\t\t * Must be at least 1. */\n    CompileEnv *envPtr)\t\t/* Holds the resulting instructions. */\n{\n    Tcl_DString textBuffer;\t/* Holds concatenated chars from adjacent\n\t\t\t\t * TCL_TOKEN_TEXT, TCL_TOKEN_BS tokens. */\n    char buffer[TCL_UTF_MAX] = \"\";\n    int i, numObjsToConcat, length, adjust;\n    unsigned char *entryCodeNext = envPtr->codeNext;\n#define NUM_STATIC_POS 20\n    int isLiteral, maxNumCL, numCL;\n    int *clPosition = NULL;\n    int depth = TclGetStackDepth(envPtr);\n\n    /*\n     * For the handling of continuation lines in literals, first check if\n     * this is actually a literal. For if not we can forego the additional\n     * processing. Otherwise preallocate a small table to store the\n     * locations of all continuation lines found in this literal, if any.\n     * The table is extended if needed.\n     *\n     * Note: Different to the equivalent code in function 'TclSubstTokens()'\n     * (see file \"tclParse.c\") there seem to be no need the 'adjust' variable.\n     * There also seems to be no need for code which merges continuation line\n     * information of multiple words which concat'd at runtime. Either that or\n     * I have not managed to find a test case for these two possibilities yet.\n     * It might be a difference between compile- versus run-time processing.\n     */\n\n    numCL = 0;\n    maxNumCL = 0;\n    isLiteral = 1;\n    for (i=0 ; i < count; i++) {\n\tif ((tokenPtr[i].type != TCL_TOKEN_TEXT)\n\t\t&& (tokenPtr[i].type != TCL_TOKEN_BS)) {\n\t    isLiteral = 0;\n\t    break;\n\t}\n    }\n\n    if (isLiteral) {\n\tmaxNumCL = NUM_STATIC_POS;\n\tclPosition = (int *)ckalloc(maxNumCL * sizeof(int));\n    }\n\n    adjust = 0;\n    Tcl_DStringInit(&textBuffer);\n    numObjsToConcat = 0;\n    for ( ;  count > 0;  count--, tokenPtr++) {\n\tswitch (tokenPtr->type) {\n\tcase TCL_TOKEN_TEXT:\n\t    TclDStringAppendToken(&textBuffer, tokenPtr);\n\t    TclAdvanceLines(&envPtr->line, tokenPtr->start,\n\t\t    tokenPtr->start + tokenPtr->size);\n\t    break;\n\n\tcase TCL_TOKEN_BS:\n\t    length = TclParseBackslash(tokenPtr->start, tokenPtr->size,\n\t\t    NULL, buffer);\n\t    Tcl_DStringAppend(&textBuffer, buffer, length);\n\n\t    /*\n\t     * If the backslash sequence we found is in a literal, and\n\t     * represented a continuation line, we compute and store its\n\t     * location (as char offset to the beginning of the _result_\n\t     * script). We may have to extend the table of locations.\n\t     *\n\t     * Note that the continuation line information is relevant even if\n\t     * the word we are processing is not a literal, as it can affect\n\t     * nested commands. See the branch for TCL_TOKEN_COMMAND below,\n\t     * where the adjustment we are tracking here is taken into\n\t     * account. The good thing is that we do not need a table of\n\t     * everything, just the number of lines we have to add as\n\t     * correction.\n\t     */\n\n\t    if ((length == 1) && (buffer[0] == ' ') &&\n\t\t(tokenPtr->start[1] == '\\n')) {\n\t\tif (isLiteral) {\n\t\t    int clPos = Tcl_DStringLength(&textBuffer);\n\n\t\t    if (numCL >= maxNumCL) {\n\t\t\tmaxNumCL *= 2;\n\t\t\tclPosition = (int *)ckrealloc(clPosition,\n                                maxNumCL * sizeof(int));\n\t\t    }\n\t\t    clPosition[numCL] = clPos;\n\t\t    numCL ++;\n\t\t}\n\t\tadjust++;\n\t    }\n\t    break;\n\n\tcase TCL_TOKEN_COMMAND:\n\t    /*\n\t     * Push any accumulated chars appearing before the command.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal = TclRegisterDStringLiteral(envPtr, &textBuffer);\n\n\t\tTclEmitPush(literal, envPtr);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\n\t\tif (numCL) {\n\t\t    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),\n\t\t\t    numCL, clPosition);\n\t\t}\n\t\tnumCL = 0;\n\t    }\n\n\t    envPtr->line += adjust;\n\t    TclCompileScript(interp, tokenPtr->start+1,\n\t\t    tokenPtr->size-2, envPtr);\n\t    envPtr->line -= adjust;\n\t    numObjsToConcat++;\n\t    break;\n\n\tcase TCL_TOKEN_VARIABLE:\n\t    /*\n\t     * Push any accumulated chars appearing before the $<var>.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal;\n\n\t\tliteral = TclRegisterDStringLiteral(envPtr, &textBuffer);\n\t\tTclEmitPush(literal, envPtr);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\t    }\n\n\t    TclCompileVarSubst(interp, tokenPtr, envPtr);\n\t    numObjsToConcat++;\n\t    count -= tokenPtr->numComponents;\n\t    tokenPtr += tokenPtr->numComponents;\n\t    break;\n\n\tdefault:\n\t    Tcl_Panic(\"Unexpected token type in TclCompileTokens: %d; %.*s\",\n\t\t    tokenPtr->type, tokenPtr->size, tokenPtr->start);\n\t}\n    }\n\n    /*\n     * Push any accumulated characters appearing at the end.\n     */\n\n    if (Tcl_DStringLength(&textBuffer) > 0) {\n\tint literal = TclRegisterDStringLiteral(envPtr, &textBuffer);\n\n\tTclEmitPush(literal, envPtr);\n\tnumObjsToConcat++;\n\tif (numCL) {\n\t    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),\n\t\t    numCL, clPosition);\n\t}\n\tnumCL = 0;\n    }\n\n    /*\n     * If necessary, concatenate the parts of the word.\n     */\n\n    while (numObjsToConcat > 255) {\n\tTclEmitInstInt1(INST_STR_CONCAT1, 255, envPtr);\n\tnumObjsToConcat -= 254;\t/* concat pushes 1 obj, the result */\n    }\n    if (numObjsToConcat > 1) {\n\tTclEmitInstInt1(INST_STR_CONCAT1, numObjsToConcat, envPtr);\n    }\n\n    /*\n     * If the tokens yielded no instructions, push an empty string.\n     */\n\n    if (envPtr->codeNext == entryCodeNext) {\n\tPushStringLiteral(envPtr, \"\");\n    }\n    Tcl_DStringFree(&textBuffer);\n\n    /*\n     * Release the temp table we used to collect the locations of continuation\n     * lines, if any.\n     */\n\n    if (maxNumCL) {\n\tckfree(clPosition);\n    }\n    TclCheckStackDepth(depth+1, envPtr);\n}\n",
+        "snippet_sha256": "0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7",
+        "evidence": "e10"
+      },
+      {
+        "provider": "tcl8.6",
+        "version": "8.6.18",
+        "revision": "pinned Tcl release 8.6.18",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclFindCompiledLocal",
+        "lines": [
+          2933,
+          3028
+        ],
+        "source_sha256": "d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8",
+        "snippet": "TclFindCompiledLocal(\n    const char *name,\t/* Points to first character of the name of a\n\t\t\t\t * scalar or array variable. If NULL, a\n\t\t\t\t * temporary var should be created. */\n    int nameBytes,\t\t/* Number of bytes in the name. */\n    int create,\t\t\t/* If 1, allocate a local frame entry for the\n\t\t\t\t * variable if it is new. */\n    CompileEnv *envPtr)\t\t/* Points to the current compile environment*/\n{\n    CompiledLocal *localPtr;\n    int localVar = -1;\n    int i;\n    Proc *procPtr;\n\n    /*\n     * If not creating a temporary, does a local variable of the specified\n     * name already exist?\n     */\n\n    procPtr = envPtr->procPtr;\n\n    if (procPtr == NULL) {\n\t/*\n\t * Compiling a non-body script: give it read access to the LVT in the\n\t * current localCache\n\t */\n\n\tLocalCache *cachePtr = envPtr->iPtr->varFramePtr->localCachePtr;\n\tconst char *localName;\n\tTcl_Obj **varNamePtr;\n\tint len;\n\n\tif (!cachePtr || !name) {\n\t    return -1;\n\t}\n\n\tvarNamePtr = &cachePtr->varName0;\n\tfor (i=0; i < cachePtr->numVars; varNamePtr++, i++) {\n\t    if (*varNamePtr) {\n\t\tlocalName = Tcl_GetStringFromObj(*varNamePtr, &len);\n\t\tif ((len == nameBytes) && !strncmp(name, localName, len)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t}\n\treturn -1;\n    }\n\n    if (name != NULL) {\n\tint localCt = procPtr->numCompiledLocals;\n\n\tlocalPtr = procPtr->firstLocalPtr;\n\tfor (i = 0;  i < localCt;  i++) {\n\t    if (!TclIsVarTemporary(localPtr)) {\n\t\tchar *localName = localPtr->name;\n\n\t\tif ((nameBytes == localPtr->nameLength) &&\n\t\t\t(strncmp(name, localName, nameBytes) == 0)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t    localPtr = localPtr->nextPtr;\n\t}\n    }\n\n    /*\n     * Create a new variable if appropriate.\n     */\n\n    if (create || (name == NULL)) {\n\tlocalVar = procPtr->numCompiledLocals;\n\tlocalPtr = (CompiledLocal *)ckalloc(TclOffset(CompiledLocal, name) + 1U + nameBytes);\n\tif (procPtr->firstLocalPtr == NULL) {\n\t    procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;\n\t} else {\n\t    procPtr->lastLocalPtr->nextPtr = localPtr;\n\t    procPtr->lastLocalPtr = localPtr;\n\t}\n\tlocalPtr->nextPtr = NULL;\n\tlocalPtr->nameLength = nameBytes;\n\tlocalPtr->frameIndex = localVar;\n\tlocalPtr->flags = 0;\n\tif (name == NULL) {\n\t    localPtr->flags |= VAR_TEMPORARY;\n\t}\n\tlocalPtr->defValuePtr = NULL;\n\tlocalPtr->resolveInfo = NULL;\n\n\tif (name != NULL) {\n\t    memcpy(localPtr->name, name, nameBytes);\n\t}\n\tlocalPtr->name[nameBytes] = '\\0';\n\tprocPtr->numCompiledLocals++;\n    }\n    return localVar;\n}\n",
+        "snippet_sha256": "b4c836c0f9b9e6e7cf8515b2d2b32b4ab04e6442a41ef69a02ef5ded83dc134f",
+        "evidence": "e11"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclCompCmdsSZ.c",
+        "function": "TclCompileSetCmd",
+        "lines": [
+          124,
+          195
+        ],
+        "source_sha256": "55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac",
+        "snippet": "TclCompileSetCmd(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr,\t/* Points to a parse structure for the command\n\t\t\t\t * created by Tcl_ParseCommand. */\n    TCL_UNUSED(Command *),\n    CompileEnv *envPtr)\t\t/* Holds resulting instructions. */\n{\n    DefineLineInformation;\t/* TIP #280 */\n    Tcl_Token *varTokenPtr, *valueTokenPtr;\n    int isAssignment, isScalar, localIndex, numWords;\n\n    numWords = parsePtr->numWords;\n    if ((numWords != 2) && (numWords != 3)) {\n\treturn TCL_ERROR;\n    }\n    isAssignment = (numWords == 3);\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    varTokenPtr = TokenAfter(parsePtr->tokenPtr);\n    PushVarNameWord(interp, varTokenPtr, envPtr, 0,\n\t    &localIndex, &isScalar, 1);\n\n    /*\n     * If we are doing an assignment, push the new value.\n     */\n\n    if (isAssignment) {\n\tvalueTokenPtr = TokenAfter(varTokenPtr);\n\tCompileWord(envPtr, valueTokenPtr, interp, 2);\n    }\n\n    /*\n     * Emit instructions to set/get the variable.\n     */\n\n\tif (isScalar) {\n\t    if (localIndex < 0) {\n\t\tTclEmitOpcode((isAssignment?\n\t\t\tINST_STORE_STK : INST_LOAD_STK), envPtr);\n\t    } else if (localIndex <= 255) {\n\t\tTclEmitInstInt1((isAssignment?\n\t\t\tINST_STORE_SCALAR1 : INST_LOAD_SCALAR1),\n\t\t\tlocalIndex, envPtr);\n\t    } else {\n\t\tTclEmitInstInt4((isAssignment?\n\t\t\tINST_STORE_SCALAR4 : INST_LOAD_SCALAR4),\n\t\t\tlocalIndex, envPtr);\n\t    }\n\t} else {\n\t    if (localIndex < 0) {\n\t\tTclEmitOpcode((isAssignment?\n\t\t\tINST_STORE_ARRAY_STK : INST_LOAD_ARRAY_STK), envPtr);\n\t    } else if (localIndex <= 255) {\n\t\tTclEmitInstInt1((isAssignment?\n\t\t\tINST_STORE_ARRAY1 : INST_LOAD_ARRAY1),\n\t\t\tlocalIndex, envPtr);\n\t    } else {\n\t\tTclEmitInstInt4((isAssignment?\n\t\t\tINST_STORE_ARRAY4 : INST_LOAD_ARRAY4),\n\t\t\tlocalIndex, envPtr);\n\t    }\n\t}\n\n    return TCL_OK;\n}\n",
+        "snippet_sha256": "34baed7dde71e469973938c03e11e8b92217cd3cf56e7430109715edb6e61098",
+        "evidence": "e12"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclCompCmds.c",
+        "function": "TclPushVarName",
+        "lines": [
+          3488,
+          3694
+        ],
+        "source_sha256": "9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a",
+        "snippet": "TclPushVarName(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Token *varTokenPtr,\t/* Points to a variable token. */\n    CompileEnv *envPtr,\t\t/* Holds resulting instructions. */\n    int flags,\t\t\t/* TCL_NO_LARGE_INDEX | TCL_NO_ELEMENT. */\n    int *localIndexPtr,\t\t/* Must not be NULL. */\n    int *isScalarPtr)\t\t/* Must not be NULL. */\n{\n    const char *p;\n    const char *last, *name, *elName;\n    Tcl_Size n;\n    Tcl_Token *elemTokenPtr = NULL;\n\tsize_t nameLen, elNameLen;\n    int simpleVarName, localIndex;\n    Tcl_Size elemTokenCount = 0, removedParen = 0;\n    int allocedTokens = 0;\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    simpleVarName = 0;\n    name = elName = NULL;\n    nameLen = elNameLen = 0;\n    localIndex = -1;\n\n    if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {\n\t/*\n\t * A simple variable name. Divide it up into \"name\" and \"elName\"\n\t * strings. If it is not a local variable, look it up at runtime.\n\t */\n\n\tsimpleVarName = 1;\n\n\tname = varTokenPtr[1].start;\n\tnameLen = varTokenPtr[1].size;\n\tif (nameLen > 0 && name[nameLen-1] == ')') {\n\t    /*\n\t     * last char is ')' => potential array reference.\n\t     */\n\t    last = &name[nameLen-1];\n\n\t    if (*last == ')') {\n\t\tfor (p = name;  p < last;  p++) {\n\t\t    if (*p == '(') {\n\t\t\telName = p + 1;\n\t\t\telNameLen = last - elName;\n\t\t\tnameLen = p - name;\n\t\t\tbreak;\n\t\t    }\n\t\t}\n\t    }\n\n\t    if (!(flags & TCL_NO_ELEMENT) && elNameLen) {\n\t\t/*\n\t\t * An array element, the element name is a simple string:\n\t\t * assemble the corresponding token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *)TclStackAlloc(interp, sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = elNameLen;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = 1;\n\t    }\n\t}\n    } else if (interp && ((n = varTokenPtr->numComponents) > 1)\n\t    && (varTokenPtr[1].type == TCL_TOKEN_TEXT)\n\t    && (varTokenPtr[n].type == TCL_TOKEN_TEXT)\n\t    && (*(varTokenPtr[n].start + varTokenPtr[n].size - 1) == ')')) {\n\t/*\n\t * Check for parentheses inside first token.\n\t */\n\n\tsimpleVarName = 0;\n\tfor (p = varTokenPtr[1].start, last = p + varTokenPtr[1].size;\n\t\tp < last;  p++) {\n\t    if (*p == '(') {\n\t\tsimpleVarName = 1;\n\t\tbreak;\n\t    }\n\t}\n\tif (simpleVarName) {\n\t    size_t remainingLen;\n\n\t    /*\n\t     * Check the last token: if it is just ')', do not count it.\n\t     * Otherwise, remove the ')' and flag so that it is restored at\n\t     * the end.\n\t     */\n\n\t    if (varTokenPtr[n].size == 1) {\n\t\tn--;\n\t    } else {\n\t\tvarTokenPtr[n].size--;\n\t\tremovedParen = n;\n\t    }\n\n\t    name = varTokenPtr[1].start;\n\t    nameLen = p - varTokenPtr[1].start;\n\t    elName = p + 1;\n\t    remainingLen = (varTokenPtr[2].start - p) - 1;\n\t    elNameLen = (varTokenPtr[n].start-p) + varTokenPtr[n].size - 1;\n\n\t    if (!(flags & TCL_NO_ELEMENT)) {\n\t      if (remainingLen) {\n\t\t/*\n\t\t * Make a first token with the extra characters in the first\n\t\t * token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *)TclStackAlloc(interp, n * sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = remainingLen;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = n;\n\n\t\t/*\n\t\t * Copy the remaining tokens.\n\t\t */\n\n\t\tmemcpy(elemTokenPtr+1, varTokenPtr+2,\n\t\t\t(n-1) * sizeof(Tcl_Token));\n\t      } else {\n\t\t/*\n\t\t * Use the already available tokens.\n\t\t */\n\n\t\telemTokenPtr = &varTokenPtr[2];\n\t\telemTokenCount = n - 1;\n\t      }\n\t    }\n\t}\n    }\n\n    if (simpleVarName) {\n\t/*\n\t * See whether name has any namespace separators (::'s).\n\t */\n\n\tint hasNsQualifiers = 0;\n\n\tfor (p = name, last = p + nameLen-1;  p < last;  p++) {\n\t    if ((p[0] == ':') && (p[1] == ':')) {\n\t\thasNsQualifiers = 1;\n\t\tbreak;\n\t    }\n\t}\n\n\t/*\n\t * Look up the var name's index in the array of local vars in the proc\n\t * frame. If retrieving the var's value and it doesn't already exist,\n\t * push its name and look it up at runtime.\n\t */\n\n\tif (!hasNsQualifiers) {\n\t    localIndex = TclFindCompiledLocal(name, nameLen, 1, envPtr);\n\t    if ((flags & TCL_NO_LARGE_INDEX) && (localIndex > 255)) {\n\t\t/*\n\t\t * We'll push the name.\n\t\t */\n\n\t\tlocalIndex = -1;\n\t    }\n\t}\n\tif (interp && localIndex < 0) {\n\t    PushLiteral(envPtr, name, nameLen);\n\t}\n\n\t/*\n\t * Compile the element script, if any, and only if not inhibited. [Bug\n\t * 3600328]\n\t */\n\n\tif (elName != NULL && !(flags & TCL_NO_ELEMENT)) {\n\t    if (elNameLen) {\n\t\tTclCompileTokens(interp, elemTokenPtr, elemTokenCount,\n\t\t\tenvPtr);\n\t    } else {\n\t\tPushStringLiteral(envPtr, \"\");\n\t    }\n\t}\n    } else if (interp) {\n\t/*\n\t * The var name isn't simple: compile and push it.\n\t */\n\n\tCompileTokens(envPtr, varTokenPtr, interp);\n    }\n\n    if (removedParen) {\n\tvarTokenPtr[removedParen].size++;\n    }\n    if (allocedTokens) {\n\tTclStackFree(interp, elemTokenPtr);\n    }\n    *localIndexPtr = localIndex;\n    *isScalarPtr = (elName == NULL);\n}\n",
+        "snippet_sha256": "26b20fe759673164bffb8c6201656258f3eba27f3200c3d7fadf21af5e6b5d30",
+        "evidence": "e13"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileTokens",
+        "lines": [
+          2416,
+          2610
+        ],
+        "source_sha256": "51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3",
+        "snippet": "TclCompileTokens(\n    Tcl_Interp *interp,\t\t/* Used for error and status reporting. */\n    Tcl_Token *tokenPtr,\t/* Pointer to first in an array of tokens to\n\t\t\t\t * compile. */\n    Tcl_Size count,\t\t/* Number of tokens to consider at tokenPtr.\n\t\t\t\t * Must be at least 1. */\n    CompileEnv *envPtr)\t\t/* Holds the resulting instructions. */\n{\n    Tcl_DString textBuffer;\t/* Holds concatenated chars from adjacent\n\t\t\t\t * TCL_TOKEN_TEXT, TCL_TOKEN_BS tokens. */\n    char buffer[4] = \"\";\n    Tcl_Size i, numObjsToConcat, adjust;\n    int length;\n    unsigned char *entryCodeNext = envPtr->codeNext;\n#define NUM_STATIC_POS 20\n    int isLiteral;\n    Tcl_Size maxNumCL, numCL;\n    Tcl_Size *clPosition = NULL;\n    int depth = TclGetStackDepth(envPtr);\n\n    /*\n     * If this is actually a literal, handle continuation lines by\n     * preallocating a small table to store the locations of any continuation\n     * lines found in this literal.  The table is extended if needed.\n     *\n     * Note: In contrast with the analagous code in 'TclSubstTokens()' the\n     * 'adjust' variable seems unneeded here.  The code which merges\n     * continuation line information of multiple words which concat'd at\n     * runtime also seems unneeded. Either that or I have not managed to find a\n     * test case for these two possibilities yet.  It might be a difference\n     * between compile- versus run-time processing.\n     */\n\n    numCL = 0;\n    maxNumCL = 0;\n    isLiteral = 1;\n    for (i=0 ; i < count; i++) {\n\tif ((tokenPtr[i].type != TCL_TOKEN_TEXT)\n\t\t&& (tokenPtr[i].type != TCL_TOKEN_BS)) {\n\t    isLiteral = 0;\n\t    break;\n\t}\n    }\n\n    if (isLiteral) {\n\tmaxNumCL = NUM_STATIC_POS;\n\tclPosition = (Tcl_Size *)Tcl_Alloc(maxNumCL * sizeof(Tcl_Size));\n    }\n\n    adjust = 0;\n    Tcl_DStringInit(&textBuffer);\n    numObjsToConcat = 0;\n    for ( ;  count > 0;  count--, tokenPtr++) {\n\tswitch (tokenPtr->type) {\n\tcase TCL_TOKEN_TEXT:\n\t    TclDStringAppendToken(&textBuffer, tokenPtr);\n\t    TclAdvanceLines(&envPtr->line, tokenPtr->start,\n\t\t    tokenPtr->start + tokenPtr->size);\n\t    break;\n\n\tcase TCL_TOKEN_BS:\n\t    length = TclParseBackslash(tokenPtr->start, tokenPtr->size,\n\t\t    NULL, buffer);\n\t    Tcl_DStringAppend(&textBuffer, buffer, length);\n\n\t    /*\n\t     * If the identified backslash sequence is in a literal and\n\t     * represented a continuation line, compute and store its\n\t     * location (as char offset to the beginning of the _result_\n\t     * script). We may have to extend the table of locations.\n\t     *\n\t     * The continuation line information is relevant even if the word\n\t     * being processed is not a literal, as it can affect nested\n\t     * commands. See the branch below for TCL_TOKEN_COMMAND, where the\n\t     * adjustment being tracked here is taken into account. The good\n\t     * thing is a table of everything is not needed, just the number of\n\t     * lines to add as correction.\n\t     */\n\n\t    if ((length == 1) && (buffer[0] == ' ') &&\n\t\t    (tokenPtr->start[1] == '\\n')) {\n\t\tif (isLiteral) {\n\t\t    int clPos = Tcl_DStringLength(&textBuffer);\n\n\t\t    if (numCL >= maxNumCL) {\n\t\t\tmaxNumCL *= 2;\n\t\t\tclPosition = (Tcl_Size *)Tcl_Realloc(clPosition,\n\t\t\t\tmaxNumCL * sizeof(Tcl_Size));\n\t\t    }\n\t\t    clPosition[numCL] = clPos;\n\t\t    numCL ++;\n\t\t}\n\t\tadjust++;\n\t    }\n\t    break;\n\n\tcase TCL_TOKEN_COMMAND:\n\t    /*\n\t     * Push any accumulated chars appearing before the command.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal = TclRegisterDStringLiteral(envPtr, &textBuffer);\n\n\t\tTclEmitPush(literal, envPtr);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\n\t\tif (numCL) {\n\t\t    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),\n\t\t\t    numCL, clPosition);\n\t\t}\n\t\tnumCL = 0;\n\t    }\n\n\t    envPtr->line += adjust;\n\t    TclCompileScript(interp, tokenPtr->start+1,\n\t\t    tokenPtr->size-2, envPtr);\n\t    envPtr->line -= adjust;\n\t    numObjsToConcat++;\n\t    break;\n\n\tcase TCL_TOKEN_VARIABLE:\n\t    /*\n\t     * Push any accumulated chars appearing before the $<var>.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal;\n\n\t\tliteral = TclRegisterDStringLiteral(envPtr, &textBuffer);\n\t\tTclEmitPush(literal, envPtr);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\t    }\n\n\t    TclCompileVarSubst(interp, tokenPtr, envPtr);\n\t    numObjsToConcat++;\n\t    count -= tokenPtr->numComponents;\n\t    tokenPtr += tokenPtr->numComponents;\n\t    break;\n\n\tdefault:\n\t    Tcl_Panic(\"Unexpected token type in TclCompileTokens: %d; %.*s\",\n\t\t    tokenPtr->type, (int)tokenPtr->size, tokenPtr->start);\n\t}\n    }\n\n    /*\n     * Push any accumulated characters appearing at the end.\n     */\n\n    if (Tcl_DStringLength(&textBuffer) > 0) {\n\tint literal = TclRegisterDStringLiteral(envPtr, &textBuffer);\n\n\tTclEmitPush(literal, envPtr);\n\tnumObjsToConcat++;\n\tif (numCL) {\n\t    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),\n\t\t    numCL, clPosition);\n\t}\n\tnumCL = 0;\n    }\n\n    /*\n     * If necessary, concatenate the parts of the word.\n     */\n\n    while (numObjsToConcat > 255) {\n\tTclEmitInstInt1(INST_STR_CONCAT1, 255, envPtr);\n\tnumObjsToConcat -= 254;\t/* concat pushes 1 obj, the result */\n    }\n    if (numObjsToConcat > 1) {\n\tTclEmitInstInt1(INST_STR_CONCAT1, numObjsToConcat, envPtr);\n    }\n\n    /*\n     * If the tokens yielded no instructions, push an empty string.\n     */\n\n    if (envPtr->codeNext == entryCodeNext) {\n\tPushStringLiteral(envPtr, \"\");\n    }\n    Tcl_DStringFree(&textBuffer);\n\n    /*\n     * Release the temp table we used to collect the locations of continuation\n     * lines, if any.\n     */\n\n    if (maxNumCL) {\n\tTcl_Free(clPosition);\n    }\n    TclCheckStackDepth(depth+1, envPtr);\n}\n",
+        "snippet_sha256": "2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33",
+        "evidence": "e14"
+      },
+      {
+        "provider": "tcl9.0",
+        "version": "9.0.4",
+        "revision": "pinned Tcl release 9.0.4",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclFindCompiledLocal",
+        "lines": [
+          3020,
+          3115
+        ],
+        "source_sha256": "51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3",
+        "snippet": "TclFindCompiledLocal(\n    const char *name,\t/* Points to first character of the name of a\n\t\t\t\t * scalar or array variable. If NULL, a\n\t\t\t\t * temporary var should be created. */\n    Tcl_Size nameBytes,\t\t/* Number of bytes in the name. */\n    int create,\t\t\t/* If 1, allocate a local frame entry for the\n\t\t\t\t * variable if it is new. */\n    CompileEnv *envPtr)\t\t/* Points to the current compile environment*/\n{\n    CompiledLocal *localPtr;\n    Tcl_Size localVar = TCL_INDEX_NONE;\n    Tcl_Size i;\n    Proc *procPtr;\n\n    /*\n     * If not creating a temporary, does a local variable of the specified\n     * name already exist?\n     */\n\n    procPtr = envPtr->procPtr;\n\n    if (procPtr == NULL) {\n\t/*\n\t * Compiling a non-body script: give it read access to the LVT in the\n\t * current localCache\n\t */\n\n\tLocalCache *cachePtr = envPtr->iPtr->varFramePtr->localCachePtr;\n\tconst char *localName;\n\tTcl_Obj **varNamePtr;\n\tTcl_Size len;\n\n\tif (!cachePtr || !name) {\n\t    return TCL_INDEX_NONE;\n\t}\n\n\tvarNamePtr = &cachePtr->varName0;\n\tfor (i=0; i < cachePtr->numVars; varNamePtr++, i++) {\n\t    if (*varNamePtr) {\n\t\tlocalName = TclGetStringFromObj(*varNamePtr, &len);\n\t\tif ((len == nameBytes) && !strncmp(name, localName, len)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t}\n\treturn TCL_INDEX_NONE;\n    }\n\n    if (name != NULL) {\n\tTcl_Size localCt = procPtr->numCompiledLocals;\n\n\tlocalPtr = procPtr->firstLocalPtr;\n\tfor (i = 0;  i < localCt;  i++) {\n\t    if (!TclIsVarTemporary(localPtr)) {\n\t\tchar *localName = localPtr->name;\n\n\t\tif ((nameBytes == localPtr->nameLength) &&\n\t\t\t(strncmp(name,localName,nameBytes) == 0)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t    localPtr = localPtr->nextPtr;\n\t}\n    }\n\n    /*\n     * Create a new variable if appropriate.\n     */\n\n    if (create || (name == NULL)) {\n\tlocalVar = procPtr->numCompiledLocals;\n\tlocalPtr = (CompiledLocal *)Tcl_Alloc(offsetof(CompiledLocal, name) + 1U + nameBytes);\n\tif (procPtr->firstLocalPtr == NULL) {\n\t    procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;\n\t} else {\n\t    procPtr->lastLocalPtr->nextPtr = localPtr;\n\t    procPtr->lastLocalPtr = localPtr;\n\t}\n\tlocalPtr->nextPtr = NULL;\n\tlocalPtr->nameLength = nameBytes;\n\tlocalPtr->frameIndex = localVar;\n\tlocalPtr->flags = 0;\n\tif (name == NULL) {\n\t    localPtr->flags |= VAR_TEMPORARY;\n\t}\n\tlocalPtr->defValuePtr = NULL;\n\tlocalPtr->resolveInfo = NULL;\n\n\tif (name != NULL) {\n\t    memcpy(localPtr->name, name, nameBytes);\n\t}\n\tlocalPtr->name[nameBytes] = '\\0';\n\tprocPtr->numCompiledLocals++;\n    }\n    return localVar;\n}\n",
+        "snippet_sha256": "a87ffe2b6f62282e8c4c51da0e7e6b045d3470c4c40c9e44ceef8a3519f4f347",
+        "evidence": "e15"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclCompCmdsSZ.c",
+        "function": "TclCompileSetCmd",
+        "lines": [
+          136,
+          212
+        ],
+        "source_sha256": "931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a",
+        "snippet": "TclCompileSetCmd(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Parse *parsePtr,\t/* Points to a parse structure for the command\n\t\t\t\t * created by Tcl_ParseCommand. */\n    TCL_UNUSED(Command *),\n    CompileEnv *envPtr)\t\t/* Holds resulting instructions. */\n{\n    DefineLineInformation;\t/* TIP #280 */\n    Tcl_Token *varTokenPtr, *valueTokenPtr;\n    int isAssignment, isScalar;\n    Tcl_Size numWords = parsePtr->numWords;\n    Tcl_LVTIndex localIndex;\n\n    if ((numWords != 2) && (numWords != 3)) {\n\treturn TCL_ERROR;\n    }\n    isAssignment = (numWords == 3);\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    varTokenPtr = TokenAfter(parsePtr->tokenPtr);\n    PushVarNameWord(varTokenPtr, 0, &localIndex, &isScalar, 1);\n    if (OutOfUintRangeUpper(localIndex)) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * If we are doing an assignment, push the new value.\n     */\n\n    if (isAssignment) {\n\tvalueTokenPtr = TokenAfter(varTokenPtr);\n\tPUSH_TOKEN(\t\tvalueTokenPtr, 2);\n    }\n\n    /*\n     * Emit instructions to set/get the variable.\n     */\n\n    if (isScalar) {\n\tif (localIndex < 0) {\n\t    if (isAssignment) {\n\t\tOP(\t\tSTORE_STK);\n\t    } else {\n\t\tOP(\t\tLOAD_STK);\n\t    }\n\t} else {\n\t    if (isAssignment) {\n\t\tOP4(\t\tSTORE_SCALAR, localIndex);\n\t    } else {\n\t\tOP4(\t\tLOAD_SCALAR, localIndex);\n\t    }\n\t}\n    } else {\n\tif (localIndex < 0) {\n\t    if (isAssignment) {\n\t\tOP(\t\tSTORE_ARRAY_STK);\n\t    } else {\n\t\tOP(\t\tLOAD_ARRAY_STK);\n\t    }\n\t} else {\n\t    if (isAssignment) {\n\t\tOP4(\t\tSTORE_ARRAY, localIndex);\n\t    } else {\n\t\tOP4(\t\tLOAD_ARRAY, localIndex);\n\t    }\n\t}\n    }\n\n    return TCL_OK;\n}\n",
+        "snippet_sha256": "9ab577969f25ab94cd5720caff9bc0e85081472c78b0ac071eb24d2475cf41bf",
+        "evidence": "e16"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclPushVarName",
+        "lines": [
+          4919,
+          5117
+        ],
+        "source_sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+        "snippet": "TclPushVarName(\n    Tcl_Interp *interp,\t\t/* Used for error reporting. */\n    Tcl_Token *varTokenPtr,\t/* Points to a variable token. */\n    CompileEnv *envPtr,\t\t/* Holds resulting instructions. */\n    int flags,\t\t\t/* TCL_NO_ELEMENT. */\n    Tcl_Size *localIndexPtr,\t/* Must not be NULL. */\n    int *isScalarPtr)\t\t/* Must not be NULL. */\n{\n    const char *p;\n    const char *last, *name, *elName;\n    Tcl_Token *elemTokenPtr = NULL;\n    Tcl_Size nameLen, elNameLen, n;\n    int simpleVarName = 0, allocedTokens = 0;\n    Tcl_Size elemTokenCount = 0, removedParen = 0;\n    Tcl_LVTIndex localIndex;\n\n    /*\n     * Decide if we can use a frame slot for the var/array name or if we need\n     * to emit code to compute and push the name at runtime. We use a frame\n     * slot (entry in the array of local vars) if we are compiling a procedure\n     * body and if the name is simple text that does not include namespace\n     * qualifiers.\n     */\n\n    name = elName = NULL;\n    nameLen = elNameLen = 0;\n    localIndex = TCL_INDEX_NONE;\n\n    if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {\n\t/*\n\t * A simple variable name. Divide it up into \"name\" and \"elName\"\n\t * strings. If it is not a local variable, look it up at runtime.\n\t */\n\n\tsimpleVarName = 1;\n\n\tname = varTokenPtr[1].start;\n\tnameLen = varTokenPtr[1].size;\n\tif (nameLen > 0 && name[nameLen - 1] == ')') {\n\t    /*\n\t     * last char is ')' => potential array reference.\n\t     */\n\t    last = &name[nameLen - 1];\n\n\t    if (*last == ')') {\n\t\tfor (p = name;  p < last;  p++) {\n\t\t    if (*p == '(') {\n\t\t\telName = p + 1;\n\t\t\telNameLen = last - elName;\n\t\t\tnameLen = p - name;\n\t\t\tbreak;\n\t\t    }\n\t\t}\n\t    }\n\n\t    if (!(flags & TCL_NO_ELEMENT) && elNameLen) {\n\t\t/*\n\t\t * An array element, the element name is a simple string:\n\t\t * assemble the corresponding token.\n\t\t */\n\n\t\telemTokenPtr = (Tcl_Token *)TclStackAlloc(interp, sizeof(Tcl_Token));\n\t\tallocedTokens = 1;\n\t\telemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\telemTokenPtr->start = elName;\n\t\telemTokenPtr->size = elNameLen;\n\t\telemTokenPtr->numComponents = 0;\n\t\telemTokenCount = 1;\n\t    }\n\t}\n    } else if (interp && ((n = varTokenPtr->numComponents) > 1)\n\t    && (varTokenPtr[1].type == TCL_TOKEN_TEXT)\n\t    && (varTokenPtr[n].type == TCL_TOKEN_TEXT)\n\t    && (varTokenPtr[n].start[varTokenPtr[n].size - 1] == ')')) {\n\t/*\n\t * Check for parentheses inside first token.\n\t */\n\n\tsimpleVarName = 0;\n\tfor (p = varTokenPtr[1].start, last = p + varTokenPtr[1].size;\n\t\tp < last;  p++) {\n\t    if (*p == '(') {\n\t\tsimpleVarName = 1;\n\t\tbreak;\n\t    }\n\t}\n\tif (simpleVarName) {\n\t    size_t remainingLen;\n\n\t    /*\n\t     * Check the last token: if it is just ')', do not count it.\n\t     * Otherwise, remove the ')' and flag so that it is restored at\n\t     * the end.\n\t     */\n\n\t    if (varTokenPtr[n].size == 1) {\n\t\tn--;\n\t    } else {\n\t\tvarTokenPtr[n].size--;\n\t\tremovedParen = n;\n\t    }\n\n\t    name = varTokenPtr[1].start;\n\t    nameLen = p - varTokenPtr[1].start;\n\t    elName = p + 1;\n\t    remainingLen = (varTokenPtr[2].start - p) - 1;\n\t    elNameLen = (varTokenPtr[n].start-p) + varTokenPtr[n].size - 1;\n\n\t    if (!(flags & TCL_NO_ELEMENT)) {\n\t\tif (remainingLen) {\n\t\t    /*\n\t\t     * Make a first token with the extra characters in the\n\t\t     * first token.\n\t\t     */\n\n\t\t    elemTokenPtr = (Tcl_Token *)TclStackAlloc(interp,\n\t\t\t    n * sizeof(Tcl_Token));\n\t\t    allocedTokens = 1;\n\t\t    elemTokenPtr->type = TCL_TOKEN_TEXT;\n\t\t    elemTokenPtr->start = elName;\n\t\t    elemTokenPtr->size = remainingLen;\n\t\t    elemTokenPtr->numComponents = 0;\n\t\t    elemTokenCount = n;\n\n\t\t    /*\n\t\t     * Copy the remaining tokens.\n\t\t     */\n\n\t\t    memcpy(elemTokenPtr + 1, varTokenPtr + 2,\n\t\t\t    (n - 1) * sizeof(Tcl_Token));\n\t\t} else {\n\t\t    /*\n\t\t     * Use the already available tokens.\n\t\t     */\n\n\t\t    elemTokenPtr = &varTokenPtr[2];\n\t\t    elemTokenCount = n - 1;\n\t\t}\n\t    }\n\t}\n    }\n\n    if (simpleVarName) {\n\t/*\n\t * See whether name has any namespace separators (::'s).\n\t */\n\n\tint hasNsQualifiers = 0;\n\n\tfor (p = name, last = p + nameLen-1;  p < last;  p++) {\n\t    if ((p[0] == ':') && (p[1] == ':')) {\n\t\thasNsQualifiers = 1;\n\t\tbreak;\n\t    }\n\t}\n\n\t/*\n\t * Look up the var name's index in the array of local vars in the proc\n\t * frame. If retrieving the var's value and it doesn't already exist,\n\t * push its name and look it up at runtime.\n\t */\n\n\tif (!hasNsQualifiers) {\n\t    localIndex = TclFindCompiledLocal(name, nameLen, true, envPtr);\n\t}\n\tif (interp && localIndex < 0) {\n\t    PushLiteral(envPtr, name, nameLen);\n\t}\n\n\t/*\n\t * Compile the element script, if any, and only if not inhibited. [Bug\n\t * 3600328]\n\t */\n\n\tif (elName != NULL && !(flags & TCL_NO_ELEMENT)) {\n\t    if (elNameLen) {\n\t\tTclCompileTokens(interp, elemTokenPtr, elemTokenCount,\n\t\t\tenvPtr);\n\t    } else {\n\t\tPUSH(\t\t\"\");\n\t    }\n\t}\n    } else if (interp) {\n\t/*\n\t * The var name isn't simple: compile and push it.\n\t */\n\n\tCompileTokens(envPtr, varTokenPtr, interp);\n    }\n\n    if (removedParen) {\n\tvarTokenPtr[removedParen].size++;\n    }\n    if (allocedTokens) {\n\tTclStackFree(interp, elemTokenPtr);\n    }\n    *localIndexPtr = localIndex;\n    *isScalarPtr = (elName == NULL);\n}\n",
+        "snippet_sha256": "8c671c78715232e3ba32aa25ded0482b4c4b7644f96bb23d5eceab79c589ea45",
+        "evidence": "e17"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclCompileTokens",
+        "lines": [
+          2739,
+          2927
+        ],
+        "source_sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+        "snippet": "TclCompileTokens(\n    Tcl_Interp *interp,\t\t/* Used for error and status reporting. */\n    Tcl_Token *tokenPtr,\t/* Pointer to first in an array of tokens to\n\t\t\t\t * compile. */\n    Tcl_Size count,\t\t/* Number of tokens to consider at tokenPtr.\n\t\t\t\t * Must be at least 1. */\n    CompileEnv *envPtr)\t\t/* Holds the resulting instructions. */\n{\n    Tcl_DString textBuffer;\t/* Holds concatenated chars from adjacent\n\t\t\t\t * TCL_TOKEN_TEXT, TCL_TOKEN_BS tokens. */\n    char buffer[4] = \"\";\n    Tcl_Size i, numObjsToConcat, adjust;\n    Tcl_Size length;\n    unsigned char *entryCodeNext = envPtr->codeNext;\n#define NUM_STATIC_POS 20\n    int isLiteral;\n    Tcl_Size maxNumCL, numCL;\n    Tcl_Size *clPosition = NULL;\n    Tcl_Size depth = TclGetStackDepth(envPtr);\n\n    /*\n     * If this is actually a literal, handle continuation lines by\n     * preallocating a small table to store the locations of any continuation\n     * lines found in this literal.  The table is extended if needed.\n     *\n     * Note: In contrast with the analagous code in 'TclSubstTokens()' the\n     * 'adjust' variable seems unneeded here.  The code which merges\n     * continuation line information of multiple words which concat'd at\n     * runtime also seems unneeded. Either that or I have not managed to find a\n     * test case for these two possibilities yet.  It might be a difference\n     * between compile- versus run-time processing.\n     */\n\n    numCL = 0;\n    maxNumCL = 0;\n    isLiteral = 1;\n    for (i=0 ; i < count; i++) {\n\tif ((tokenPtr[i].type != TCL_TOKEN_TEXT)\n\t\t&& (tokenPtr[i].type != TCL_TOKEN_BS)) {\n\t    isLiteral = 0;\n\t    break;\n\t}\n    }\n\n    if (isLiteral) {\n\tmaxNumCL = NUM_STATIC_POS;\n\tclPosition = (Tcl_Size *)Tcl_Alloc(maxNumCL * sizeof(Tcl_Size));\n    }\n\n    adjust = 0;\n    Tcl_DStringInit(&textBuffer);\n    numObjsToConcat = 0;\n    for ( ;  count > 0;  count--, tokenPtr++) {\n\tswitch (tokenPtr->type) {\n\tcase TCL_TOKEN_TEXT:\n\t    TclDStringAppendToken(&textBuffer, tokenPtr);\n\t    TclAdvanceLines(&envPtr->line, tokenPtr->start,\n\t\t    tokenPtr->start + tokenPtr->size);\n\t    break;\n\n\tcase TCL_TOKEN_BS:\n\t    length = TclParseBackslash(tokenPtr->start, tokenPtr->size,\n\t\t    NULL, buffer);\n\t    Tcl_DStringAppend(&textBuffer, buffer, length);\n\n\t    /*\n\t     * If the identified backslash sequence is in a literal and\n\t     * represented a continuation line, compute and store its\n\t     * location (as char offset to the beginning of the _result_\n\t     * script). We may have to extend the table of locations.\n\t     *\n\t     * The continuation line information is relevant even if the word\n\t     * being processed is not a literal, as it can affect nested\n\t     * commands. See the branch below for TCL_TOKEN_COMMAND, where the\n\t     * adjustment being tracked here is taken into account. The good\n\t     * thing is a table of everything is not needed, just the number of\n\t     * lines to add as correction.\n\t     */\n\n\t    if ((length == 1) && (buffer[0] == ' ') &&\n\t\t    (tokenPtr->start[1] == '\\n')) {\n\t\tif (isLiteral) {\n\t\t    Tcl_Size clPos = Tcl_DStringLength(&textBuffer);\n\n\t\t    if (numCL >= maxNumCL) {\n\t\t\tmaxNumCL *= 2;\n\t\t\tclPosition = (Tcl_Size *)Tcl_Realloc(clPosition,\n\t\t\t\tmaxNumCL * sizeof(Tcl_Size));\n\t\t    }\n\t\t    clPosition[numCL] = clPos;\n\t\t    numCL ++;\n\t\t}\n\t\tadjust++;\n\t    }\n\t    break;\n\n\tcase TCL_TOKEN_COMMAND:\n\t    /*\n\t     * Push any accumulated chars appearing before the command.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tint literal = TclPushDString(envPtr, &textBuffer);\n\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\t\tif (numCL) {\n\t\t    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),\n\t\t\t    numCL, clPosition);\n\t\t}\n\t\tnumCL = 0;\n\t    }\n\n\t    envPtr->line += adjust;\n\t    TclCompileScript(interp, tokenPtr->start+1,\n\t\t    tokenPtr->size-2, envPtr);\n\t    envPtr->line -= adjust;\n\t    numObjsToConcat++;\n\t    break;\n\n\tcase TCL_TOKEN_VARIABLE:\n\t    /*\n\t     * Push any accumulated chars appearing before the $<var>.\n\t     */\n\n\t    if (Tcl_DStringLength(&textBuffer) > 0) {\n\t\tTclPushDString(envPtr, &textBuffer);\n\t\tnumObjsToConcat++;\n\t\tTcl_DStringFree(&textBuffer);\n\t    }\n\n\t    TclCompileVarSubst(interp, tokenPtr, envPtr);\n\t    numObjsToConcat++;\n\t    count -= tokenPtr->numComponents;\n\t    tokenPtr += tokenPtr->numComponents;\n\t    break;\n\n\tdefault:\n\t    Tcl_Panic(\"Unexpected token type in TclCompileTokens: %d; %.*s\",\n\t\t    tokenPtr->type, (int)tokenPtr->size, tokenPtr->start);\n\t}\n    }\n\n    /*\n     * Push any accumulated characters appearing at the end.\n     */\n\n    if (Tcl_DStringLength(&textBuffer) > 0) {\n\tint literal = TclPushDString(envPtr, &textBuffer);\n\n\tnumObjsToConcat++;\n\tif (numCL) {\n\t    TclContinuationsEnter(TclFetchLiteral(envPtr, literal),\n\t\t    numCL, clPosition);\n\t}\n\tnumCL = 0;\n    }\n\n    /*\n     * If necessary, concatenate the parts of the word.\n     */\n\n    while (numObjsToConcat > 255) {\n\tOP1(\t\t\tSTR_CONCAT1, 255);\n\tnumObjsToConcat -= 254;\t/* concat pushes 1 obj, the result */\n    }\n    if (numObjsToConcat > 1) {\n\tOP1(\t\t\tSTR_CONCAT1, numObjsToConcat);\n    }\n\n    /*\n     * If the tokens yielded no instructions, push an empty string.\n     */\n\n    if (envPtr->codeNext == entryCodeNext) {\n\tPUSH(\t\t\t\"\");\n    }\n    Tcl_DStringFree(&textBuffer);\n\n    /*\n     * Release the temp table we used to collect the locations of continuation\n     * lines, if any.\n     */\n\n    if (maxNumCL) {\n\tTcl_Free(clPosition);\n    }\n    TclCheckStackDepth(depth+1, envPtr);\n}\n",
+        "snippet_sha256": "0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba",
+        "evidence": "e18"
+      },
+      {
+        "provider": "tcl9.1",
+        "version": "9.1.0",
+        "revision": "pinned Tcl release 9.1.0",
+        "original_path": "generic/tclCompile.c",
+        "function": "TclFindCompiledLocal",
+        "lines": [
+          3337,
+          3433
+        ],
+        "source_sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+        "snippet": "TclFindCompiledLocal(\n    const char *name,\t\t/* Points to first character of the name of a\n\t\t\t\t * scalar or array variable. If NULL, a\n\t\t\t\t * temporary var should be created. */\n    Tcl_Size nameBytes,\t\t/* Number of bytes in the name. */\n    bool create,\t\t/* If 1, allocate a local frame entry for the\n\t\t\t\t * variable if it is new. */\n    CompileEnv *envPtr)\t\t/* Points to the current compile environment*/\n{\n    CompiledLocal *localPtr;\n    Tcl_Size localVar = TCL_INDEX_NONE;\n    Tcl_Size i;\n    Proc *procPtr;\n\n    /*\n     * If not creating a temporary, does a local variable of the specified\n     * name already exist?\n     */\n\n    procPtr = envPtr->procPtr;\n\n    if (procPtr == NULL) {\n\t/*\n\t * Compiling a non-body script: give it read access to the LVT in the\n\t * current localCache\n\t */\n\n\tLocalCache *cachePtr = envPtr->iPtr->varFramePtr->localCachePtr;\n\tconst char *localName;\n\tTcl_Obj **varNamePtr;\n\tTcl_Size len;\n\n\tif (!cachePtr || !name) {\n\t    return TCL_INDEX_NONE;\n\t}\n\n\tvarNamePtr = &cachePtr->varName0;\n\tfor (i=0; i < cachePtr->numVars; varNamePtr++, i++) {\n\t    if (*varNamePtr) {\n\t\tlocalName = TclGetStringFromObj(*varNamePtr, &len);\n\t\tif ((len == nameBytes) && !strncmp(name, localName, len)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t}\n\treturn TCL_INDEX_NONE;\n    }\n\n    if (name != NULL) {\n\tTcl_Size localCt = procPtr->numCompiledLocals;\n\n\tlocalPtr = procPtr->firstLocalPtr;\n\tfor (i = 0;  i < localCt;  i++) {\n\t    if (!TclIsVarTemporary(localPtr)) {\n\t\tchar *localName = localPtr->name;\n\n\t\tif ((nameBytes == localPtr->nameLength) &&\n\t\t\t(strncmp(name,localName,nameBytes) == 0)) {\n\t\t    return i;\n\t\t}\n\t    }\n\t    localPtr = localPtr->nextPtr;\n\t}\n    }\n\n    /*\n     * Create a new variable if appropriate.\n     */\n\n    if (create || (name == NULL)) {\n\tlocalVar = procPtr->numCompiledLocals;\n\tlocalPtr = (CompiledLocal *)Tcl_Alloc(\n\t\toffsetof(CompiledLocal, name) + 1U + nameBytes);\n\tif (procPtr->firstLocalPtr == NULL) {\n\t    procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;\n\t} else {\n\t    procPtr->lastLocalPtr->nextPtr = localPtr;\n\t    procPtr->lastLocalPtr = localPtr;\n\t}\n\tlocalPtr->nextPtr = NULL;\n\tlocalPtr->nameLength = nameBytes;\n\tlocalPtr->frameIndex = localVar;\n\tlocalPtr->flags = 0;\n\tif (name == NULL) {\n\t    localPtr->flags |= VAR_TEMPORARY;\n\t}\n\tlocalPtr->defValuePtr = NULL;\n\tlocalPtr->resolveInfo = NULL;\n\n\tif (name != NULL) {\n\t    memcpy(localPtr->name, name, nameBytes);\n\t}\n\tlocalPtr->name[nameBytes] = '\\0';\n\tprocPtr->numCompiledLocals++;\n    }\n    return localVar;\n}\n",
+        "snippet_sha256": "49bb8900d55b9cd0c4bec628d60e387147c71948cac15462778a850635653ab2",
+        "evidence": "e19"
+      }
+    ],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "selector": "native_compilation::tests::original_literal_set_compiler_effects_do_not_grant_opcode_admission",
+        "assertion": "The Rust consumer excludes nested/dynamic vectors and retains Unknown native admission independently; this is not guest execution.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "symbol": "NativeCompilationSpec::preserves_names_before_original_arguments",
+        "purpose": "Select only the source-supported tracked-name effect closure for a genuine original compiler vector; no opcode or handler grant."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Compare pinned C release sources against exact full-file and definition hashes. No current native guest observation or Rust execution is implied by this source record."
+    }
+  },
+  {
+    "id": "naming.compiler.original-name-effect-separation",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-compiler-name-effect-separation.md",
+    "problem_statement": "A genuine stock set handler may be selected while its caller compilation mode is unknown. Treating uncertain opcode admission as an arbitrary compiler mutation erases previously installed commands before this invocation evaluates any arguments. The opposing risk is assuming compiler purity from the Set handler footprint: source substitutions can cause nested compilation, and an unrelated or replaced compiler has its own effects. The question is limited to the selected stock Set compiler and a complete substitution-free original vector.",
+    "question": "How does the shared source selection separate compiler tracked-name effects from uncertain native admission without lending an arbitrary handler or original vector?",
+    "conclusion": "The Registry query accepts only independently selected C NoHook or genuine Set descriptors with matching source-string recipe, valid original operand geometry and substitution-free full words. Source selection meets this effect closure across compiler alternatives and preserves Unknown admission and absent native preparations. Missing compiler ownership, dependencies or nested compilation withdraw the closure. The common source driver uses it only to decide whether compilation makes tracked command/namespace state opaque before argv; actual post-argv handler lookup, variable receiver, normal completion and body entry retain their own proofs.",
+    "scope": "Current Rust original-source selection and tracked-name barrier contract. Exact full lexer config/channel/word ownership comes from NativeCompilerWords capture and source projection. Static opaque NativeValue bytes are accepted for this effect purpose only. C source support is recorded separately; no native test execution or physical object/compiler authority is claimed.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "selector": "native_compilation::tests::original_literal_set_compiler_effects_do_not_grant_opcode_admission",
+        "assertion": "Original static Set vectors close names while admission remains Unknown; dynamic or nested words, wrong argc/operation/ordinal or missing dialect decline.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+        "selector": "command_binding::compiled_invocation::tests::original_literal_compiler_name_effects_remain_separate_from_unknown_admission",
+        "assertion": "Actual selected source state retains stable Set and no opcode preparation; nested compiler obligations and joined differing closures withdraw the name-effect proof.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "symbol": "NativeCompilationSpec::preserves_names_before_original_arguments",
+        "purpose": "Select only the source-supported tracked-name effect closure for a genuine original compiler vector; no opcode or handler grant."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+        "symbol": "original_compiler_preserves_names",
+        "purpose": "Project exact same original image/vector/full config and selected source protocol into the Registry effect query."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+        "symbol": "CompiledInvocationSelection::join",
+        "purpose": "Meet independent compiler name-effect closure without strengthening native admission or handler identity."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "symbol": "SourceBindingDriver::walk_source_command",
+        "purpose": "Withdraw tracked names only for unclosed compiler effects before authentic argv evaluation."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-registry",
+        "original_literal_set_compiler_effects_do_not_grant_opcode_admission"
+      ],
+      "limitations": "Use the parent-controlled intended frozen source build. A linked Rust selector is coverage, not a result receipt."
+    }
+  }
+]

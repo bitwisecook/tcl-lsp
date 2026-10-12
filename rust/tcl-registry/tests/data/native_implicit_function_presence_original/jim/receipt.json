@@ -1,0 +1,34 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/current-native-implicit-function-presence156/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.01269698201213032,
+  "reported_version": "0.84-9-g5bac7c9",
+  "executable_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "source_sha256": "52606ff182cbccd8125c7be37bea2397fe93285047cc37a8cb6adfbe7c190332",
+  "runner_sha256": "379080da40335d5f4e57c0bd411249eb81253d6994b82533c6c1d52cc0f48222",
+  "stdout_sha256": "0efb006e248b3ec836a4ea25c2c523fec2608b535103501f9e575afbcca34420",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb"
+  },
+  "rows": [
+    "VERSION|0.84-9-g5bac7c9",
+    "initial-slot|0|",
+    "initial-call|1|73796e746178206572726f7220696e2065787072657373696f6e3a20225069282922",
+    "namespace-control|0|",
+    "install-control|0|3a3a74636c3a3a6d61746866756e633a3a5069",
+    "installed-slot|0|3a3a3a3a74636c3a3a6d61746866756e633a3a5069",
+    "installed-call|1|73796e746178206572726f7220696e2065787072657373696f6e3a20225069282922"
+  ],
+  "input_channel": "ASCII LF source-file CLI; six sequential independently caught implicit-function/slot control cases",
+  "boundary": "Question: distinguish implicit expression-function dispatch from original written command-head lookup, before and after a counted ASCII procedure-name control. Hex is binary scan H* presentation, no native getter, allocation identity, cache or compiler admission. Cases execute sequentially in a fresh CLI process per provider; namespace creation and installation results are independently caught, not assumed."
+}

@@ -1,0 +1,80 @@
+{
+  "observer_contract": "Capture original result and native return options before any public global lookups; C85+ code/info read from captured option object; C84 direct physical namespace variable storage without callbacks; Jim flags0 native root scalar read has no trace implementation. Preserve all original call/assertion/case inputs.",
+  "source_windows": [
+    "physical-before",
+    "physical-after-native-append"
+  ],
+  "native_rows": 7041,
+  "identity_rows": 7041,
+  "cases": 1035,
+  "engines": [
+    {
+      "version": "8.4.20",
+      "cases": 189,
+      "physical": {},
+      "physical_log_sha256": "24afa03c8121caa8cf02a6193949ad1754661dc2a419ba3c41b2d507d572c40d",
+      "identity_log_sha256": "fe3d5924fcad89e78da685807c4371d1ef8ca186b3010ba56716e0a00444157c",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "binary_sha256": "e8bf674dfe66dcd687f1622ab95d36c2814b8afef22dc0589a62462248c3ae52",
+      "fixture_sha256": "06b932a86dee609d474a637cf81996384a44d1e71c2c7ed0ecf9cb3cb5831958"
+    },
+    {
+      "version": "8.5.19",
+      "cases": 189,
+      "physical": {},
+      "physical_log_sha256": "aa89bc59401a59ff08acfe5a5ff82bac66ce828eae47eedd11e9e1d19dcec914",
+      "identity_log_sha256": "54b59fd8431c7bb7067ae5666acf28c7f26e6464920839e6212e2d51f51f32ab",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "binary_sha256": "581dff2777b501d838635bc611978192101d123ae596ea967d73e395e6c41778",
+      "fixture_sha256": "06b932a86dee609d474a637cf81996384a44d1e71c2c7ed0ecf9cb3cb5831958"
+    },
+    {
+      "version": "8.6.18",
+      "cases": 189,
+      "physical": {},
+      "physical_log_sha256": "2257152c28b64b3e45542be52728192688c1d4621950e4b8ca43a97fe9cbaa61",
+      "identity_log_sha256": "f06fe1f84a8e1b505c1b0dd46506262de8d54fff918739e0ad2e79e9d9f46086",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "binary_sha256": "e8edbc2bef689e349a6942eb5213bd2d76d9906d3796e01c2b62eca4aecf5cab",
+      "fixture_sha256": "1154a12747e703bb61ee74992f68daba02d2849ba79ae53cd18a269253738ab0"
+    },
+    {
+      "version": "9.0.4",
+      "cases": 189,
+      "physical": {},
+      "physical_log_sha256": "8be0880fb5b5227ef82e72ef8dcb07758cc0c23a346c8cc26bdf6c1a69547712",
+      "identity_log_sha256": "e8d962dc488ae425f500171a9c6ad7bdb48bdd82efa33b4c52d03cce30d06c9b",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "binary_sha256": "980e6ea9860ffd6eada7c709969dab995585766909c18da4f352d39f8375bcf0",
+      "fixture_sha256": "83b5ef137828dfe38f523be3935567ff239021c55adf097261c518f6868a80a3"
+    },
+    {
+      "version": "9.1.0",
+      "cases": 189,
+      "physical": {},
+      "physical_log_sha256": "8be0880fb5b5227ef82e72ef8dcb07758cc0c23a346c8cc26bdf6c1a69547712",
+      "identity_log_sha256": "e8d962dc488ae425f500171a9c6ad7bdb48bdd82efa33b4c52d03cce30d06c9b",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "binary_sha256": "4753c0fdbd540a4b4cb30aeab87824b6c0098e3c3d0db02985de1d6a38b915cb",
+      "fixture_sha256": "83b5ef137828dfe38f523be3935567ff239021c55adf097261c518f6868a80a3"
+    },
+    {
+      "version": "Jim",
+      "cases": 90,
+      "physical": {},
+      "physical_log_sha256": "6990571b3c0a3ae513fb425d8068f389e94a1cf19607d8467f490d2abc7582fd",
+      "identity_log_sha256": "e241332b56b9ae96462b92136083ea7fc3a8ed3d6476cdc7f044a7d41bf9294f",
+      "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "binary_sha256": "84d76226e1097bd995a86e3f40fbe14f7a61ad7ecb982e658a19b5c9af79f529",
+      "fixture_sha256": "577cb481aeced1fed0c2db5c75fcf963e04e166a7c70a8f647b7d1ff08735f73"
+    }
+  ],
+  "native_source_sha256": "5aba86871bb6c6aa7659db725cc023045b4c1a14adbea8a01279efd4ad286e48",
+  "identity_source_sha256": "60a5cfa6374abfdf38923e909eb868fdeaf0200a729cb393a10e74df707313ee"
+}

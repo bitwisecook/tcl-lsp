@@ -1,0 +1,19 @@
+{
+  "ordinal": 303,
+  "selector": "interp::native_literal_pool::tests::retiring_registered_bytecode_releases_nested_literals_outside_world_borrow",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_literal_pool::tests::retiring_registered_bytecode_releases_nested_literals_outside_world_borrow",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 3.150202836986864,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.02s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/303.log",
+  "log_sha256": "4e3600c9b25bd347beca4f307703169c77adb68dda578522f685b85d8860de7e"
+}

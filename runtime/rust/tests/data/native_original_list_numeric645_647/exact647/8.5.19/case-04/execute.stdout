@@ -1,0 +1,28 @@
+provider	C-Tcl
+case	4	search-integer-one-outside-int-width
+operation	lsearch
+mode	integer
+extra	absent
+input-key0	counted-string	34323934393637323936
+input-key1	absent
+input-pattern	counted-string	34323934393637323936
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=1
+before-key0	none	1	1	10
+before-key1	absent
+before-pattern	none	1	1	10
+before-container	list	0	1	0
+code	1
+reached-key0	none	1	1	10
+reached-key1	absent
+reached-pattern	int	1	1	10
+reached-container	list	1	1	10
+reached-result	none	1	1	56
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e7465676572
+materialised-result	none	1	1	56
+after-result-getter-key0	none	1	1	10
+after-result-getter-key1	absent
+after-result-getter-pattern	int	1	1	10
+after-result-getter-container	list	1	1	10
+error-code-bytes	415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e74656765727d
+error-info-bytes	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e74656765720a202020207768696c6520657865637574696e670a226c736561726368202d696e7465676572202d65786163742034323934393637323936203432393439363732393622

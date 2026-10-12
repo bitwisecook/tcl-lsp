@@ -1,0 +1,17 @@
+
+running 1 test
+test codegen_native::original_expression_completion_tests::original_expression_completion_preserves_guest_codes_and_rejects_changed_worlds ... 
+thread 'codegen_native::original_expression_completion_tests::original_expression_completion_preserves_guest_codes_and_rejects_changed_worlds' (1216460) panicked at src/codegen_native.rs:1425:21:
+assertion `left == right` failed
+  left: [78, 79, 78, 69]
+ right: [79, 82, 73, 71, 73, 78, 65, 76, 32, 67, 65, 76, 76, 66, 65, 67, 75, 32, 67, 79, 68, 69]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    codegen_native::original_expression_completion_tests::original_expression_completion_preserves_guest_codes_and_rejects_changed_worlds
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.70s
+

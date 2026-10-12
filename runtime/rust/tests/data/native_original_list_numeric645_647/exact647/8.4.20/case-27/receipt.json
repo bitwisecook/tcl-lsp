@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-list-numeric-exact647/8.4.20/probe.elf",
+    "27"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-numeric-exact647/8.4.20/case-27",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.0025099379708990455,
+  "stdout": "/workspace/.proofs/root-native-list-numeric-exact647/8.4.20/case-27/execute.stdout",
+  "stdout_sha256": "c2eab7780a5782a87eb06704f7de599db1b6260f6c10eb856f6de8c7d2e5519b",
+  "stderr": "/workspace/.proofs/root-native-list-numeric-exact647/8.4.20/case-27/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 27,
+  "executable_sha256_before": "a7c7e3cbec913ead2c2b229cf0421a0c2d2a8778e2c64686a5ded038b68ab938",
+  "executable_sha256_after": "a7c7e3cbec913ead2c2b229cf0421a0c2d2a8778e2c64686a5ded038b68ab938"
+}

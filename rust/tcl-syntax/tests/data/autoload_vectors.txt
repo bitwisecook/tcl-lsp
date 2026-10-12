@@ -1,0 +1,11 @@
+# Executable resolution vectors shared by oracle and consumer suites.
+# id | required Jim capabilities | script | C release expectations | Jim expectation
+# !UNSUPPORTED is an asserted feature absence, never a missing interpreter.
+auto_qualify_bare_root | autoload | auto_qualify foo :: | 0 foo | !UNSUPPORTED
+auto_qualify_bare_namespace | autoload | auto_qualify foo ::n | 0 {::n::foo foo} | !UNSUPPORTED
+auto_qualify_relative_root | autoload | auto_qualify a::foo :: | 0 ::a::foo | !UNSUPPORTED
+auto_qualify_relative_namespace | autoload | auto_qualify a::foo ::n | 0 {::n::a::foo ::a::foo} | !UNSUPPORTED
+auto_qualify_absolute | autoload | auto_qualify ::a::foo ::n | 0 ::a::foo | !UNSUPPORTED
+auto_qualify_triple_colons | autoload | auto_qualify a:::foo ::n | 0 {::n::a::foo ::a::foo} | !UNSUPPORTED
+auto_qualify_empty | autoload | auto_qualify {} ::n | 0 {::n:: {}} | !UNSUPPORTED
+autoload_observes_live_binding | autoload | set auto_index(::loaded) {proc ::loaded {} {return LOADED}}; list [auto_load ::loaded] [::loaded] | 0 {1 LOADED} | !UNSUPPORTED

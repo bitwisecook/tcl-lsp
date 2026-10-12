@@ -1,0 +1,74 @@
+[
+  {
+    "case": 0,
+    "name": "normal",
+    "mutation": "No trace mutation",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 1,
+    "name": "guest-rejection",
+    "mutation": "Trace returns actual Guest error",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 2,
+    "name": "unset",
+    "mutation": "Trace unsets captured target",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 3,
+    "name": "recreate-scalar",
+    "mutation": "Trace unsets then recreates scalar at same name",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 4,
+    "name": "recreate-array",
+    "mutation": "Trace unsets then recreates array at same name",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 5,
+    "name": "recreate-holder",
+    "mutation": "Trace deletes/recreates namespace holder then scalar",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 6,
+    "name": "same-cell-overwrite",
+    "mutation": "Trace overwrites value without unsetting",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  },
+  {
+    "case": 7,
+    "name": "nested-const-recreate",
+    "mutation": "Trace unsets then runs genuine nested const at same name",
+    "worker": "direct const $::a $::b",
+    "fresh_interpreter": true,
+    "lookup_context": "global; persistent ::a/::b original headers",
+    "write_trace_supported": "C9 only; selected other provider worker/observer availability measured explicitly"
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "provider": "compiler",
+  "channel": "compiler-version",
+  "status": "closed",
+  "command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "--version"
+  ],
+  "cwd": "/workspace/.proofs/native-naming-argument-order499d",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "2d2260c617a84b1863fda0941e3ff2cf4f1aefc64c90d3d4346141b328705901",
+  "source_sha256": "b5e1feb99cbf30c994579a1906177e7a23b2378f6a9538e236a35c2ffc64b3fd",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.0037844839971512556,
+  "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

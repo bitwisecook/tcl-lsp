@@ -39,6 +39,7 @@
 //! language server never links this crate: the registry's seam is all the
 //! analysis depends on.
 
+mod command_receipts;
 mod dylink;
 mod extension_host;
 mod host_call;
@@ -197,20 +198,21 @@ impl Extension {
 /// unusable can be rebuilt as it was.
 enum Setup {
     Extension(Extension),
-    Command(String, Rc<dyn HostCommand>),
-    Removed(String),
+    Command(Vec<u8>, Rc<dyn HostCommand>),
+    Removed(Vec<u8>),
     Package(String, String),
-    Restrict(Vec<String>, Vec<String>),
+    Restrict(Vec<String>),
     Confine,
     Release(&'static str),
-    Unit(String, Vec<String>, String),
+    Unit(u32, Vec<u8>, Vec<String>, String),
 }
 
 /// A compiled unit: the procedure it was defined as, and how many arguments
 /// it takes.
 #[derive(Debug, Clone)]
 pub struct WasmHandle {
-    procedure: String,
+    owner: Rc<()>,
+    unit: u32,
     parameters: usize,
 }
 
@@ -224,8 +226,7 @@ pub struct WasmEngine {
     budget: Budget,
     release: Option<&'static str>,
     units: u32,
-    host_commands: Vec<String>,
-    unit_commands: Vec<String>,
+    owner: Rc<()>,
     spent: Option<u64>,
     /// Whether the instance has yet to run an evaluation, which then has the
     /// first-use fuel ([`FIRST_USE_FUEL`]).
@@ -247,8 +248,7 @@ impl WasmEngine {
             budget: Budget::default(),
             release: None,
             units: 0,
-            host_commands: Vec::new(),
-            unit_commands: Vec::new(),
+            owner: Rc::new(()),
             spent: None,
             first_use: true,
         })
@@ -285,9 +285,17 @@ impl WasmEngine {
 
     /// Apply `setup` to the instance and keep it, so a rebuilt instance has it
     /// too.
-    fn apply(&mut self, setup: Setup) -> Result<(), EngineError> {
+    fn apply(&mut self, mut setup: Setup) -> Result<(), EngineError> {
         let session = self.session()?;
-        match replay(session, &setup) {
+        session.begin_entry().map_err(Failure::into_engine_error)?;
+        let applied = if let Setup::Command(name, command) = &mut setup {
+            session
+                .define_command(name, Rc::clone(command))
+                .map(|receipt| *name = receipt.qualified)
+        } else {
+            replay(session, &setup)
+        };
+        match applied {
             Ok(()) => {
                 self.setup.push(setup);
                 Ok(())
@@ -313,11 +321,9 @@ impl WasmEngine {
         for defined in std::mem::take(&mut session.store.data_mut().defined) {
             match defined {
                 Defined::Command(name, command) => {
-                    remember(&mut self.host_commands, &name);
                     self.setup.push(Setup::Command(name, command));
                 }
                 Defined::Removed(name) => {
-                    forget(&mut self.host_commands, &name);
                     self.setup.push(Setup::Removed(name));
                 }
                 Defined::Package(name, version) => {
@@ -332,30 +338,16 @@ impl WasmEngine {
 fn replay(session: &mut Session, setup: &Setup) -> Result<(), Failure> {
     match setup {
         Setup::Extension(extension) => session.load(extension),
-        Setup::Command(name, command) => session.define_command(name, Rc::clone(command)),
+        Setup::Command(name, command) => session.define_command(name, Rc::clone(command)).map(drop),
         Setup::Removed(name) => session.delete_command(name).map(drop),
         Setup::Package(name, version) => session.provide_package(name, version),
-        Setup::Restrict(allowed, kept) => session.restrict(allowed, kept),
+        Setup::Restrict(allowed) => session.restrict(allowed),
         Setup::Confine => session.confine(),
         Setup::Release(profile) => session.set_release(profile),
-        Setup::Unit(procedure, parameters, body) => {
-            session.define_unit(procedure, parameters, body)
+        Setup::Unit(key, procedure, parameters, body) => {
+            session.define_unit(*key, procedure, parameters, body)
         }
     }
-}
-
-/// Add `name`, unrooted, to `names` unless it is there.
-fn remember(names: &mut Vec<String>, name: &str) {
-    let unrooted = name.trim_start_matches("::").to_owned();
-    if !names.contains(&unrooted) {
-        names.push(unrooted);
-    }
-}
-
-/// Take `name`, unrooted, out of `names`.
-fn forget(names: &mut Vec<String>, name: &str) {
-    let unrooted = name.trim_start_matches("::");
-    names.retain(|known| known != unrooted);
 }
 
 /// The catalogue profile `profile` names when it is a release the runtime
@@ -380,20 +372,34 @@ impl Engine for WasmEngine {
         name: &str,
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
-        self.apply(Setup::Command(name.to_owned(), command))?;
-        remember(&mut self.host_commands, name);
-        Ok(())
+        self.define_command_bytes(name.as_bytes(), command)
+    }
+
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.apply(Setup::Command(name.to_vec(), command))
     }
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+        self.remove_command_bytes(name.as_bytes())
+    }
+
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
         let session = self.session()?;
-        let existed = match session.delete_command(name) {
-            Ok(existed) => existed,
+        session.begin_entry().map_err(Failure::into_engine_error)?;
+        let receipt = match session.delete_command(name) {
+            Ok(receipt) => receipt,
             Err(failure) => return Err(self.failed(failure)),
         };
-        forget(&mut self.host_commands, name);
-        self.setup.push(Setup::Removed(name.to_owned()));
-        Ok(existed)
+        if let Some(receipt) = receipt {
+            self.setup.push(Setup::Removed(receipt.qualified));
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
@@ -406,40 +412,43 @@ impl Engine for WasmEngine {
     /// subcommands).
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
         let allowed: Vec<String> = allowed.iter().map(|name| (*name).to_owned()).collect();
-        let kept: Vec<String> = self
-            .host_commands
-            .iter()
-            .chain(&self.unit_commands)
-            .cloned()
-            .collect();
-        self.apply(Setup::Restrict(allowed, kept))
+        self.apply(Setup::Restrict(allowed))
     }
 
     /// Define the unit as a procedure, `::spectcl::unit::N`. The runtime parses
     /// a body when it runs it, so a body that does not parse fails its first
     /// invocation rather than its compilation.
     fn compile(&mut self, unit: CompileUnit<'_>) -> Result<Self::Handle, EngineError> {
-        let procedure = format!("::spectcl::unit::{}", self.units + 1);
+        let key = self
+            .units
+            .checked_add(1)
+            .ok_or(EngineError::Unsupported("so many compiled units"))?;
+        let procedure = format!("::spectcl::unit::{key}");
         let parameters: Vec<String> = unit
             .parameters
             .iter()
             .map(|name| (*name).to_owned())
             .collect();
         self.apply(Setup::Unit(
-            procedure.clone(),
+            key,
+            procedure.into_bytes(),
             parameters,
             unit.body.to_owned(),
         ))?;
-        self.units += 1;
-        self.unit_commands
-            .push(procedure.trim_start_matches("::").to_owned());
+        self.units = key;
         Ok(WasmHandle {
-            procedure,
+            owner: Rc::clone(&self.owner),
+            unit: key,
             parameters: unit.parameters.len(),
         })
     }
 
     fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
+        if !Rc::ptr_eq(&self.owner, &handle.owner) {
+            return Err(EngineError::ExecutionRefusal(
+                "compiled handle belongs to another engine".into(),
+            ));
+        }
         if arguments.len() != handle.parameters {
             return Err(EngineError::Script {
                 message: format!(
@@ -450,10 +459,13 @@ impl Engine for WasmEngine {
                 code: None,
             });
         }
-        let texts: Vec<String> = arguments.iter().map(host_call::text_of).collect();
-        let mut words: Vec<&[u8]> = vec![handle.procedure.as_bytes()];
-        words.extend(texts.iter().map(String::as_bytes));
-        self.session()?;
+        let receipt = self
+            .session()?
+            .unit_receipt(handle.unit)
+            .map_err(Failure::into_engine_error)?;
+        let mut words = Vec::with_capacity(arguments.len() + 1);
+        words.push(Value::string_bytes(receipt.qualified.clone()));
+        words.extend_from_slice(arguments);
         let limits = if std::mem::replace(&mut self.first_use, false) {
             limits_of(self.budget).with_first_use()
         } else {
@@ -462,7 +474,8 @@ impl Engine for WasmEngine {
         let session = self.session()?;
         let answer = session
             .arm(limits)
-            .and_then(|()| session.evaluate(&words))
+            .and_then(|()| session.guard_unit(&receipt))
+            .and_then(|()| session.evaluate_values(&words))
             .and_then(|completion| Ok((completion, session.exceeded()?)));
         self.spent = self.session.as_mut().and_then(Session::commands_spent);
         let panic = self
@@ -523,30 +536,17 @@ impl Engine for WasmEngine {
 
 /// The interface's answer for a completion: its value, or the error it was.
 fn completion_value(completion: &Completion) -> Result<Value, EngineError> {
-    let text = String::from_utf8_lossy(&completion.result).into_owned();
     match completion.code {
-        0 | 2 => Ok(Value::string(text)),
-        1 => Err(EngineError::Script {
-            message: text,
-            code: error_code(&completion.options),
+        0 | 2 => Ok(match std::str::from_utf8(&completion.result) {
+            Ok(text) => Value::string(text),
+            Err(_) => Value::string_bytes(completion.result.clone()),
         }),
-        _ => Err(EngineError::Script {
-            message: text,
-            code: None,
+        _ => Err(EngineError::ScriptBytes {
+            message: completion.result.clone(),
+            code: completion.error_code.clone(),
+            options: Some(completion.options.clone()),
         }),
     }
-}
-
-/// The `-errorcode` in a completion's options.
-fn error_code(options: &[u8]) -> Option<String> {
-    let options = String::from_utf8_lossy(options);
-    let items = tcl_syntax::list::split_list(&options).ok()?;
-    items
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .find(|[name, _]| name == "-errorcode")
-        .map(|[_, code]| code.to_string())
 }
 
 /// The limits an evaluation under `budget` runs with.

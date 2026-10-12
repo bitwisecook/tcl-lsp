@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_moves_keep_child_path_and_parent_lineage_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8233 filtered out; finished in 13.02s
+

@@ -1,0 +1,65 @@
+{
+  "question": "naming.expression.variable-reference-boundaries",
+  "problem": "When expr reaches a whole braced/unbraced variable reference, which public lookup succeeds for unmatched scalar parentheses, closed combined array names, literal dollar bytes and the selected first-close versus nested-brace rule?",
+  "channel": "Exact ASCII LF source-file CLI. binary format H* explicitly constructs the declared variable name and reached expr argument. Public catch completion/result are sampled; no private parsed AST, table/header/cache, opaque source-byte, execution-entry or BIG-IP claim.",
+  "source_sha256": "76bc797db154598f002be8a2aeed8aae94360f988edd817042281b9ab10eef19",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested; hosted expression parsing requires independent evidence",
+  "cases": [
+    {
+      "label": "unmatched_scalar_open",
+      "declared_variable_hex": "7363616c6172286f70656e",
+      "expression_hex": "247b7363616c6172286f70656e7d",
+      "assigned_value": 11
+    },
+    {
+      "label": "scalar_parenthesis_tail",
+      "declared_variable_hex": "7363616c6172286f70656e297461696c",
+      "expression_hex": "247b7363616c6172286f70656e297461696c7d",
+      "assigned_value": 12
+    },
+    {
+      "label": "combined_closed_element",
+      "declared_variable_hex": "617272286b657929",
+      "expression_hex": "247b617272286b6579297d",
+      "assigned_value": 21
+    },
+    {
+      "label": "separate_closed_element",
+      "declared_variable_hex": "617272286b657929",
+      "expression_hex": "24617272286b657929",
+      "assigned_value": 21
+    },
+    {
+      "label": "combined_multiple_parentheses",
+      "declared_variable_hex": "61727228696e6e657229286b657929",
+      "expression_hex": "247b61727228696e6e657229286b6579297d",
+      "assigned_value": 22
+    },
+    {
+      "label": "first_close_reference",
+      "declared_variable_hex": "617b62",
+      "expression_hex": "247b617b627d",
+      "assigned_value": 31
+    },
+    {
+      "label": "nested_close_reference",
+      "declared_variable_hex": "617b627d63",
+      "expression_hex": "247b617b627d637d",
+      "assigned_value": 32
+    },
+    {
+      "label": "literal_dollar_scalar",
+      "declared_variable_hex": "63617368246e616d65",
+      "expression_hex": "247b63617368246e616d657d",
+      "assigned_value": 41
+    }
+  ]
+}

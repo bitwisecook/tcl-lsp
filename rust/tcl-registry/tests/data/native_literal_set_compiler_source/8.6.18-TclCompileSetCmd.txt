@@ -1,0 +1,73 @@
+TclCompileSetCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int isAssignment, isScalar, localIndex, numWords;
+
+    numWords = parsePtr->numWords;
+    if ((numWords != 2) && (numWords != 3)) {
+	return TCL_ERROR;
+    }
+    isAssignment = (numWords == 3);
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we need
+     * to emit code to compute and push the name at runtime. We use a frame
+     * slot (entry in the array of local vars) if we are compiling a procedure
+     * body and if the name is simple text that does not include namespace
+     * qualifiers.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PushVarNameWord(interp, varTokenPtr, envPtr, 0,
+	    &localIndex, &isScalar, 1);
+
+    /*
+     * If we are doing an assignment, push the new value.
+     */
+
+    if (isAssignment) {
+	valueTokenPtr = TokenAfter(varTokenPtr);
+	CompileWord(envPtr, valueTokenPtr, interp, 2);
+    }
+
+    /*
+     * Emit instructions to set/get the variable.
+     */
+
+	if (isScalar) {
+	    if (localIndex < 0) {
+		TclEmitOpcode((isAssignment?
+			INST_STORE_STK : INST_LOAD_STK), envPtr);
+	    } else if (localIndex <= 255) {
+		TclEmitInstInt1((isAssignment?
+			INST_STORE_SCALAR1 : INST_LOAD_SCALAR1),
+			localIndex, envPtr);
+	    } else {
+		TclEmitInstInt4((isAssignment?
+			INST_STORE_SCALAR4 : INST_LOAD_SCALAR4),
+			localIndex, envPtr);
+	    }
+	} else {
+	    if (localIndex < 0) {
+		TclEmitOpcode((isAssignment?
+			INST_STORE_ARRAY_STK : INST_LOAD_ARRAY_STK), envPtr);
+	    } else if (localIndex <= 255) {
+		TclEmitInstInt1((isAssignment?
+			INST_STORE_ARRAY1 : INST_LOAD_ARRAY1),
+			localIndex, envPtr);
+	    } else {
+		TclEmitInstInt4((isAssignment?
+			INST_STORE_ARRAY4 : INST_LOAD_ARRAY4),
+			localIndex, envPtr);
+	    }
+	}
+
+    return TCL_OK;
+}

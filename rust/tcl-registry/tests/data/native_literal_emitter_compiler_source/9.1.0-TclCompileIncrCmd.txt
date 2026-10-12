@@ -1,0 +1,85 @@
+TclCompileIncrCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr, *incrTokenPtr;
+    int isScalar, haveImmValue;
+    Tcl_LVTIndex localIndex;
+    Tcl_WideInt immValue;
+
+    if ((parsePtr->numWords != 2) && (parsePtr->numWords != 3)) {
+	return TCL_ERROR;
+    }
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    PushVarNameWord(varTokenPtr, 0, &localIndex, &isScalar, 1);
+    if (OutOfUintRangeUpper(localIndex)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * If an increment is given, push it, but see first if it's a small
+     * integer.
+     */
+
+    haveImmValue = 0;
+    immValue = 1;
+    if (parsePtr->numWords == 3) {
+	Tcl_Obj *intObj;
+	incrTokenPtr = TokenAfter(varTokenPtr);
+	TclNewObj(intObj);
+	if (TclWordKnownAtCompileTime(incrTokenPtr, intObj)) {
+	    int code = TclGetWideIntFromObj(NULL, intObj, &immValue);
+	    if ((code == TCL_OK) && (-127 <= immValue) && (immValue <= 127)) {
+		haveImmValue = 1;
+	    }
+	}
+	Tcl_BounceRefCount(intObj);
+	if (!haveImmValue) {
+	    SetLineInformation(2);
+	    CompileTokens(envPtr, incrTokenPtr, interp);
+	}
+    } else {			/* No incr amount given so use 1. */
+	haveImmValue = 1;
+    }
+
+    /*
+     * Emit the instruction to increment the variable.
+     */
+
+    if (isScalar) {		/* Simple scalar variable. */
+	if (localIndex >= 0) {
+	    if (haveImmValue) {
+		OP41(		INCR_SCALAR_IMM, localIndex, immValue);
+	    } else {
+		OP4(		INCR_SCALAR, localIndex);
+	    }
+	} else {
+	    if (haveImmValue) {
+		OP1(		INCR_STK_IMM, immValue);
+	    } else {
+		OP(		INCR_STK);
+	    }
+	}
+    } else {			/* Simple array variable. */
+	if (localIndex >= 0) {
+	    if (haveImmValue) {
+		OP41(		INCR_ARRAY_IMM, localIndex, immValue);
+	    } else {
+		OP4(		INCR_ARRAY, localIndex);
+	    }
+	} else {
+	    if (haveImmValue) {
+		OP1(		INCR_ARRAY_STK_IMM, immValue);
+	    } else {
+		OP(		INCR_ARRAY_STK);
+	    }
+	}
+    }
+
+    return TCL_OK;
+}

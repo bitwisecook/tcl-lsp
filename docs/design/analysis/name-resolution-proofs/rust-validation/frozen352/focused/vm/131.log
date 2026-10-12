@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::authored_math::tests::authored_function_syntax_rejects_malformed_original_children_before_lookup ... 
+thread 'interp::authored_math::tests::authored_function_syntax_rejects_malformed_original_children_before_lookup' (1359490) panicked at rust/tcl-vm/src/interp/authored_math.rs:308:14:
+called `Result::unwrap()` on an `Err` value: CompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::authored_math::tests::authored_function_syntax_rejects_malformed_original_children_before_lookup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 5.69s
+

@@ -1,0 +1,214 @@
+
+running 1 test
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_GENERIC_HEAD site=24 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=24 available=false unknown=false absent=false targets=0
+ORIGINAL_GENERIC_HEAD site=61 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=61 available=false unknown=false absent=false targets=0
+ORIGINAL_GENERIC_HEAD site=211 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=211 available=false unknown=false absent=false targets=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=24 stage=body-unavailable
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=61 stage=body-unavailable
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=211 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_GENERIC_HEAD site=0 input=true dynamic=false opaque=false
+ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+ORIGINAL_HANDLER_ENTRY site=0 implementation=true route=Unknown dynamic=false
+ORIGINAL_HANDLER_OBJECTS site=0 preserves=false dynamic=false
+ORIGINAL_HANDLER_CLOSED_RECEIVER site=0 read_captured=false read_current=false write_current=false route=Unknown
+ORIGINAL_HANDLER_RETURN site=0 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_STORE_CARRIER site=0 receiver=false selection=Some(Generic) arguments=Some(2) epoch=Some(2)
+ORIGINAL_GENERIC_RESULT site=0 normal=true abrupt=1 normal_dynamic=true
+ORIGINAL_GENERIC_HEAD site=24 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=24 available=false unknown=false absent=false targets=0
+ORIGINAL_GENERIC_HEAD site=61 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=61 available=false unknown=false absent=false targets=0
+ORIGINAL_GENERIC_HEAD site=211 input=true dynamic=true opaque=true
+ORIGINAL_GENERIC_BINDING site=211 available=false unknown=false absent=false targets=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=24 stage=body-unavailable
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=61 stage=body-unavailable
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=211 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=lookup available=true targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=24 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=24 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=61 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=61 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=lookup available=false targets=0 unknown=true absent=true opaque=true
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (574926) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12314:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8160 filtered out; finished in 2.26s
+

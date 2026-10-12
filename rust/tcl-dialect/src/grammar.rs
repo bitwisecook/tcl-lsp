@@ -448,8 +448,9 @@ impl EscapeSyntax {
         !matches!(self, Self::Tcl84)
     }
 
-    /// Whether `\u{…}` — a brace-delimited scalar of any width — is a form
-    /// this grammar decodes.
+    /// Whether `\u{…}` — a brace-delimited numeric UTF8 unit — is a form
+    /// this grammar decodes. Jim accepts one through six hex digits up to
+    /// `0x1fffff`; its byte encoder also retains surrogate units.
     ///
     /// `JimTcl` alone accepts it (`\u{1F600}` is one character on jimsh 0.76
     /// and 0.84); no build of the Tcl core does, and tclsh 8.6 / 9.0 both read
@@ -816,7 +817,7 @@ impl QuoteTermination {
 ///   is one variable where C Tcl names `caf`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum VarSyntax {
-    /// `TclParseVarName`: `$(` is a variable named `(`, an index ends at the
+    /// `TclParseVarName`: `$(` starts an empty-name array read; an index ends at the
     /// first `)`, and a bare name is ASCII alphanumerics plus `_`.
     #[default]
     Tcl,

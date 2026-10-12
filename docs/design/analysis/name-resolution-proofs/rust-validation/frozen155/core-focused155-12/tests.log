@@ -1,0 +1,15 @@
+
+running 1 test
+test hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins ... 
+thread 'hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins' (607257) panicked at rust/tcl-lsp-core/src/hover/original_registry.rs:354:58:
+namespace ensemble configure -namespace ::example
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2650 filtered out; finished in 5.19s
+

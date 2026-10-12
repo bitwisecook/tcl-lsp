@@ -1,0 +1,15 @@
+{
+  "question_id": "naming.tcloo.original-selected-method-role-report",
+  "request_sha256": "9c4af45b7295009f373eded7c0009d493f92e4ab71933cf0b279e9003cf05280",
+  "launcher_sha256": "fc9466657b508bf29dc56870dbc2b541881006668c532a851066002578ae5b5e",
+  "scope": "Complete Jim ordinary CLI dependency/version/initialized TclOO availability channels withheld in original513 after a real unprepinned zstd dependency. No OO value script executes on this retry.",
+  "process_capture_complete": true,
+  "all_requested_channels_successful": true,
+  "providers": [
+    {
+      "provider": "jim",
+      "status": "closed-availability-only",
+      "receipt_sha256": "385439f7f9b46dbe6ee100ff0d014a9d153cc35a6786412d6f2b397caab1b419"
+    }
+  ]
+}

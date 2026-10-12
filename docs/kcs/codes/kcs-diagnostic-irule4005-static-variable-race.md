@@ -17,14 +17,13 @@ Why does the analyser flag a `static::` variable that is written and read across
 
 ## Why
 
-One connection writes while another reads, producing unpredictable values under concurrent traffic.
+Connections on one TMM share its static namespace. Runtime updates persist for other connections on that worker and do not propagate to other workers.
 
 ## Symptoms
 
-- A yellow squiggle appears on the write, with the message "Potential race:
+- A yellow squiggle appears on the write, with the message "Persistent state:
   'static::myapp_hits' is written outside RULE_INIT and read in another event.
-  static:: variables persist across all connections on the same virtual server;
-  concurrent writes can produce unpredictable results."
+  Connections on this TMM share the value; updates are not propagated to other TMMs."
 
 ## Example that triggers it
 

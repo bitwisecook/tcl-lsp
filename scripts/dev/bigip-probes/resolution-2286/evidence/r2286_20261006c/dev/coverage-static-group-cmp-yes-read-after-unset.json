@@ -1,0 +1,16 @@
+{
+  "actual_response_unit_counts": {
+    "0:1": 32,
+    "0:2": 32,
+    "0:3": 32,
+    "0:0": 32
+  },
+  "expected_active_roster": [
+    "0:0",
+    "0:1",
+    "0:2",
+    "0:3"
+  ],
+  "missing_units": [],
+  "coverage": "COMPLETE_FOR_SUPPLIED_ROSTER"
+}

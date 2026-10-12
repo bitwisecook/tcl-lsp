@@ -1,0 +1,41 @@
+{
+  "provider": "9.1.0",
+  "command": [
+    "/workspace/.proofs/native-source-list-length241-capture/9.1.0/probe.elf"
+  ],
+  "exit": 0,
+  "seconds": 0.012051885016262531,
+  "rows": [
+    "VERSION|0|392e312e30",
+    "ORIGINAL_0|0|776f7264",
+    "ORIGINAL_1|0|412020422043",
+    "OPERAND|first|none",
+    "OPERAND|second|none",
+    "ORIGINAL_2|0|412020422043",
+    "SOURCE_LENGTH|NOT_APPLICABLE"
+  ],
+  "executable_sha256": "b623347b3066f9ebb75d51117999668a26a4d8bd6c4afe5b1fc9ec04191d4e80",
+  "compile_receipt_sha256": "f7b325d2495389627d0c13386fe27cecc9b7572631b301c1184492f1955ff225",
+  "request_sha256": "034d004378272f03df639f9b9a58afcd087e32cb1fae33153df0a66b0849564a",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+    "/workspace/.proofs/native-source-list-length241-capture/probe.c": "f4f958ef8f46e68f3f77379c173bf1bad4f01410f2a227bb85565cb8f1f62dd3",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a"
+  },
+  "stdout_sha256": "5ea155b91ceed28158c9bed3cf0fbfb870d528a25df773573136ab3e8b9ae42d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "reported_cli_provider_version_association": "version 9.1.0 initial_class {} alias_command {}",
+  "provider_version_receipt_sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+  "channel": "Compile this exact ASCII C99 probe against the same six independently pinned Native236 headers/archives/build sources and linker arguments. Fresh full Tcl_Init or Jim core/static extensions. Call executable with no arguments; retain full original stdout/stderr/exit and actual linked patchlevel. No outer source wrapper, no result normalization. The dedicated Source-length API channel uses its own fresh Jim interpreter and reports C NOT_APPLICABLE; it is separate from the three public source evaluations."
+}

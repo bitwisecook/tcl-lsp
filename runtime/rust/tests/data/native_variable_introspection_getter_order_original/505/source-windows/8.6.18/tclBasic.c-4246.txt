@@ -1,0 +1,111 @@
+int
+Tcl_EvalObjv(
+    Tcl_Interp *interp,		/* Interpreter in which to evaluate the
+				 * command. Also used for error reporting. */
+    int objc,			/* Number of words in command. */
+    Tcl_Obj *const objv[],	/* An array of pointers to objects that are
+				 * the words that make up the command. */
+    int flags)			/* Collection of OR-ed bits that control the
+				 * evaluation of the script. Only
+				 * TCL_EVAL_GLOBAL, TCL_EVAL_INVOKE and
+				 * TCL_EVAL_NOERR are currently supported. */
+{
+    int result;
+    NRE_callback *rootPtr = TOP_CB(interp);
+
+    result = TclNREvalObjv(interp, objc, objv, flags, NULL);
+    return TclNRRunCallbacks(interp, result, rootPtr);
+}
+
+int
+TclNREvalObjv(
+    Tcl_Interp *interp,		/* Interpreter in which to evaluate the
+				 * command. Also used for error reporting. */
+    int objc,			/* Number of words in command. */
+    Tcl_Obj *const objv[],	/* An array of pointers to objects that are
+				 * the words that make up the command. */
+    int flags,			/* Collection of OR-ed bits that control the
+				 * evaluation of the script. Only
+				 * TCL_EVAL_GLOBAL, TCL_EVAL_INVOKE and
+				 * TCL_EVAL_NOERR are currently supported. */
+    Command *cmdPtr)		/* NULL if the Command is to be looked up
+				 * here, otherwise the pointer to the
+				 * requested Command struct to be invoked. */
+{
+    Interp *iPtr = (Interp *) interp;
+
+    /*
+     * data[1] stores a marker for use by tailcalls; it will be set to 1 by
+     * command redirectors (imports, alias, ensembles) so that tailcall skips
+     * this callback (that marks the end of the target command) and goes back
+     * to the end of the source command.
+     */
+
+    if (iPtr->deferredCallbacks) {
+	iPtr->deferredCallbacks = NULL;
+    } else {
+	TclNRAddCallback(interp, NRCommand, NULL, NULL, NULL, NULL);
+    }
+
+    iPtr->numLevels++;
+    TclNRAddCallback(interp, EvalObjvCore, cmdPtr, INT2PTR(flags),
+	    INT2PTR(objc), objv);
+    return TCL_OK;
+}
+
+static int
+EvalObjvCore(
+    ClientData data[],
+    Tcl_Interp *interp,
+    int result)
+{
+    Command *cmdPtr = NULL, *preCmdPtr = (Command *)data[0];
+    int flags = PTR2INT(data[1]);
+    int objc = PTR2INT(data[2]);
+    Tcl_Obj **objv = (Tcl_Obj **)data[3];
+    Interp *iPtr = (Interp *) interp;
+    Namespace *lookupNsPtr = NULL;
+    int enterTracesDone = 0;
+
+    /*
+     * Push records for task to be done on return, in INVERSE order. First, if
+     * needed, the exception handlers (as they should happen last).
+     */
+
+    if (!(flags & TCL_EVAL_NOERR)) {
+	TEOV_PushExceptionHandlers(interp, objc, objv, flags);
+    }
+
+    if (TCL_OK != TclInterpReady(interp)) {
+	return TCL_ERROR;
+    }
+
+    if (objc == 0) {
+	return TCL_OK;
+    }
+
+    if (TclLimitExceeded(iPtr->limit)) {
+	/* generate error message if not yet already logged at this stage */
+	if (!(iPtr->flags & ERR_ALREADY_LOGGED)) {
+	    Tcl_LimitCheck(interp);
+	}
+	return TCL_ERROR;
+    }
+
+    /*
+     * Configure evaluation context to match the requested flags.
+     */
+
+    if (iPtr->lookupNsPtr) {
+
+	/*
+	 * Capture the namespace we should do command name resolution in, as
+	 * instructed by our caller sneaking it in to us in a private interp
+	 * field.  Clear that field right away so we cannot possibly have its
+	 * use leak where it should not.  The sneaky message pass is done.
+	 *
+	 * Use of this mechanism overrides the TCL_EVAL_GLOBAL flag.
+	 * TODO: Is that a bug?
+	 */
+
+	lookupNsPtr = iPtr->lookupNsPtr;

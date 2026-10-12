@@ -1,0 +1,156 @@
+2027:  *	interpreter.
+2028:  *
+2029:  *----------------------------------------------------------------------
+2030:  */
+2031: 
+2032: static void
+2033: AliasObjCmdDeleteProc(
+2034:     void *clientData)		/* The alias record for this alias. */
+2035: {
+2036:     Alias *aliasPtr = (Alias *) clientData;
+2037:     Target *targetPtr;
+2038:     Tcl_Size i;
+2039:     Tcl_Obj **objv;
+2040: 
+2041:     Tcl_DecrRefCount(aliasPtr->token);
+2042:     objv = &aliasPtr->objPtr;
+2043:     for (i = 0; i < aliasPtr->objc; i++) {
+2044: 	Tcl_DecrRefCount(objv[i]);
+2045:     }
+2046:     Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+2047: 
+2048:     /*
+2049:      * Splice the target record out of the target interpreter's parent list.
+2050:      */
+2051: 
+2052:     targetPtr = aliasPtr->targetPtr;
+2053:     if (targetPtr->prevPtr != NULL) {
+2054: 	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+2055:     } else {
+2056: 	Parent *parentPtr = &INTERP_INFO(aliasPtr->targetInterp)->parent;
+2057: 
+2058: 	parentPtr->targetsPtr = targetPtr->nextPtr;
+2059:     }
+2060:     if (targetPtr->nextPtr != NULL) {
+2061: 	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+2062:     }
+2063: 
+2064:     Tcl_Free(targetPtr);
+2065:     Tcl_Free(aliasPtr);
+2066: }
+2067: 
+2068: 
+2069: /*
+2070:  *----------------------------------------------------------------------
+2071:  *
+2072:  * Tcl_CreateChild --
+2073:  *
+2074:  *	Creates a child interpreter. The childPath argument denotes the name
+2075:  *	of the new child relative to the current interpreter; the child is a
+2076:  *	direct descendant of the one-before-last component of the path,
+2077:  *	e.g. it is a descendant of the current interpreter if the childPath
+2078:  *	argument contains only one component. Optionally makes the child
+2079:  *	interpreter safe.
+2080:  *
+2081:  * Results:
+2082:  *	Returns the interpreter structure created, or NULL if an error
+2083:  *	occurred.
+2084:  *
+2085:  * Side effects:
+2086:  *	Creates a new interpreter and a new interpreter object command in the
+2087:  *	interpreter indicated by the childPath argument.
+2088:  *
+2089:  *----------------------------------------------------------------------
+2090:  */
+2091: 
+2092: Tcl_Interp *
+2093: Tcl_CreateChild(
+2094:     Tcl_Interp *interp,		/* Interpreter to start search at. */
+2095:     const char *childPath,	/* Name of child to create. */
+2096:     int isSafe)			/* Should new child be "safe" ? */
+2097: {
+2098:     Tcl_Obj *pathPtr;
+2099:     Tcl_Interp *childInterp;
+2100: 
+2101:     pathPtr = Tcl_NewStringObj(childPath, -1);
+2102:     childInterp = ChildCreate(interp, pathPtr, isSafe);
+2103:     Tcl_DecrRefCount(pathPtr);
+2104: 
+2105:     return childInterp;
+2106: }
+2107: 
+2108: 
+2109: /*
+2110:  *----------------------------------------------------------------------
+2111:  *
+2112:  * Tcl_GetChild --
+2113:  *
+2114:  *	Finds a child interpreter by its path name.
+2115:  *
+2116:  * Results:
+2117:  *	Returns a Tcl_Interp * for the named interpreter or NULL if not found.
+2118:  *
+2119:  * Side effects:
+2120:  *	None.
+2121:  *
+2122:  *----------------------------------------------------------------------
+2123:  */
+2124: 
+2125: Tcl_Interp *
+2126: Tcl_GetChild(
+2127:     Tcl_Interp *interp,		/* Interpreter to start search from. */
+2128:     const char *childPath)	/* Path of child to find. */
+2129: {
+2130:     Tcl_Obj *pathPtr;
+2131:     Tcl_Interp *childInterp;
+2132: 
+2133:     pathPtr = Tcl_NewStringObj(childPath, -1);
+2134:     childInterp = GetInterp(interp, pathPtr);
+2135:     Tcl_DecrRefCount(pathPtr);
+2136: 
+2137:     return childInterp;
+2138: }
+2139: 
+2140: 
+2141: /*
+2142:  *----------------------------------------------------------------------
+2143:  *
+2144:  * Tcl_GetParent --
+2145:  *
+2146:  *	Finds the parent interpreter of a child interpreter.
+2147:  *
+2148:  * Results:
+2149:  *	Returns a Tcl_Interp * for the parent interpreter or NULL if none.
+2150:  *
+2151:  * Side effects:
+2152:  *	None.
+2153:  *
+2154:  *----------------------------------------------------------------------
+2155:  */
+2156: 
+2157: Tcl_Interp *
+2158: Tcl_GetParent(
+2159:     Tcl_Interp *interp)		/* Get the parent of this interpreter. */
+2160: {
+2161:     Child *childPtr;		/* Child record of this interpreter. */
+2162: 
+2163:     if (interp == NULL) {
+2164: 	return NULL;
+2165:     }
+2166:     childPtr = &INTERP_INFO(interp)->child;
+2167:     return childPtr->parentInterp;
+2168: }
+2169: 
+2170: 
+2171: /*
+2172:  *----------------------------------------------------------------------
+2173:  *
+2174:  * TclSetChildCancelFlags --
+2175:  *
+2176:  *	This function marks all child interpreters belonging to a given
+2177:  *	interpreter as being canceled or not canceled, depending on the
+2178:  *	provided flags.
+2179:  *
+2180:  * Results:
+2181:  *	None.
+2182:  *

@@ -1,0 +1,6 @@
+
+running 1 test
+test exec::native_uplevel_tests::level_reference_reselects_current_frames_in_thirty_native_windows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.23s
+

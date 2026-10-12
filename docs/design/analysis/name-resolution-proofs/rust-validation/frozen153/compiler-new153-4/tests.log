@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::diagnostics::version_gate::tests::original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects ... 
+thread 'analyser::diagnostics::version_gate::tests::original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects' (598131) panicked at rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs:1630:13:
+package require Tk 8.6
+proc entry args {}; entry .e -placeholder text
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::version_gate::tests::original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8189 filtered out; finished in 3.30s
+

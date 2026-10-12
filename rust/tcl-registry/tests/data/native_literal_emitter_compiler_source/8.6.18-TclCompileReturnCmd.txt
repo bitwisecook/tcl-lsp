@@ -1,0 +1,187 @@
+TclCompileReturnCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    /*
+     * General syntax: [return ?-option value ...? ?result?]
+     * An even number of words means an explicit result argument is present.
+     */
+    int level, code, status = TCL_OK;
+    int size;
+    int numWords = parsePtr->numWords;
+    int explicitResult = (0 == (numWords % 2));
+    int objc, numOptionWords = numWords - 1 - explicitResult;
+    Tcl_Obj *returnOpts, **objv;
+    Tcl_Token *wordTokenPtr = TokenAfter(parsePtr->tokenPtr);
+
+    /*
+     * Check for special case which can always be compiled:
+     *	    return -options <opts> <msg>
+     * Unlike the normal [return] compilation, this version does everything at
+     * runtime so it can handle arbitrary words and not just literals. Note
+     * that if INST_RETURN_STK wasn't already needed for something else
+     * ('finally' clause processing) this piece of code would not be present.
+     */
+
+    if ((numWords == 4) && (wordTokenPtr->type == TCL_TOKEN_SIMPLE_WORD)
+	    && (wordTokenPtr[1].size == 8)
+	    && (strncmp(wordTokenPtr[1].start, "-options", 8) == 0)) {
+	Tcl_Token *optsTokenPtr = TokenAfter(wordTokenPtr);
+	Tcl_Token *msgTokenPtr = TokenAfter(optsTokenPtr);
+
+	CompileWord(envPtr, optsTokenPtr, interp, 2);
+	CompileWord(envPtr, msgTokenPtr,  interp, 3);
+	TclEmitInvoke(envPtr, INST_RETURN_STK);
+	return TCL_OK;
+    }
+
+    /*
+     * Allocate some working space.
+     */
+
+    objv = (Tcl_Obj **)TclStackAlloc(interp, numOptionWords * sizeof(Tcl_Obj *));
+
+    /*
+     * Scan through the return options. If any are unknown at compile time,
+     * there is no value in bytecompiling. Save the option values known in an
+     * objv array for merging into a return options dictionary.
+     *
+     * TODO: There is potential for improvement if all option keys are known
+     * at compile time and all option values relating to '-code' and '-level'
+     * are known at compile time.
+     */
+
+    for (objc = 0; objc < numOptionWords; objc++) {
+	TclNewObj(objv[objc]);
+	Tcl_IncrRefCount(objv[objc]);
+	if (!TclWordKnownAtCompileTime(wordTokenPtr, objv[objc])) {
+	    /*
+	     * Non-literal, so punt to run-time assembly of the dictionary.
+	     */
+
+	    for (; objc>=0 ; objc--) {
+		TclDecrRefCount(objv[objc]);
+	    }
+	    TclStackFree(interp, objv);
+	    goto issueRuntimeReturn;
+	}
+	wordTokenPtr = TokenAfter(wordTokenPtr);
+    }
+    status = TclMergeReturnOptions(interp, objc, objv,
+	    &returnOpts, &code, &level);
+    while (--objc >= 0) {
+	TclDecrRefCount(objv[objc]);
+    }
+    TclStackFree(interp, objv);
+    if (TCL_ERROR == status) {
+	/*
+	 * Something was bogus in the return options. Clear the error message,
+	 * and report back to the compiler that this must be interpreted at
+	 * runtime.
+	 */
+
+	Tcl_ResetResult(interp);
+	return TCL_ERROR;
+    }
+
+    /*
+     * All options are known at compile time, so we're going to bytecompile.
+     * Emit instructions to push the result on the stack.
+     */
+
+    if (explicitResult) {
+	 CompileWord(envPtr, wordTokenPtr, interp, numWords - 1);
+    } else {
+	/*
+	 * No explict result argument, so default result is empty string.
+	 */
+
+	PushStringLiteral(envPtr, "");
+    }
+
+    /*
+     * Check for optimization: When [return] is in a proc, and there's no
+     * enclosing [catch], and there are no return options, then the INST_DONE
+     * instruction is equivalent, and may be more efficient.
+     */
+
+    if (numOptionWords == 0 && envPtr->procPtr != NULL) {
+	/*
+	 * We have default return options and we're in a proc ...
+	 */
+
+	int index = envPtr->exceptArrayNext - 1;
+	int enclosingCatch = 0;
+
+	while (index >= 0) {
+	    ExceptionRange range = envPtr->exceptArrayPtr[index];
+
+	    if ((range.type == CATCH_EXCEPTION_RANGE)
+		    && (range.catchOffset == -1)) {
+		enclosingCatch = 1;
+		break;
+	    }
+	    index--;
+	}
+	if (!enclosingCatch) {
+	    /*
+	     * ... and there is no enclosing catch. Issue the maximally
+	     * efficient exit instruction.
+	     */
+
+	    Tcl_DecrRefCount(returnOpts);
+	    TclEmitOpcode(INST_DONE, envPtr);
+	    TclAdjustStackDepth(1, envPtr);
+	    return TCL_OK;
+	}
+    }
+
+    /* Optimize [return -level 0 $x]. */
+    Tcl_DictObjSize(NULL, returnOpts, &size);
+    if (size == 0 && level == 0 && code == TCL_OK) {
+	Tcl_DecrRefCount(returnOpts);
+	return TCL_OK;
+    }
+
+    /*
+     * Could not use the optimization, so we push the return options dict, and
+     * emit the INST_RETURN_IMM instruction with code and level as operands.
+     */
+
+    CompileReturnInternal(envPtr, INST_RETURN_IMM, code, level, returnOpts);
+    return TCL_OK;
+
+  issueRuntimeReturn:
+    /*
+     * Assemble the option dictionary (as a list as that's good enough).
+     */
+
+    wordTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    for (objc=1 ; objc<=numOptionWords ; objc++) {
+	CompileWord(envPtr, wordTokenPtr, interp, objc);
+	wordTokenPtr = TokenAfter(wordTokenPtr);
+    }
+    TclEmitInstInt4(INST_LIST, numOptionWords, envPtr);
+
+    /*
+     * Push the result.
+     */
+
+    if (explicitResult) {
+	CompileWord(envPtr, wordTokenPtr, interp, numWords - 1);
+    } else {
+	PushStringLiteral(envPtr, "");
+    }
+
+    /*
+     * Issue the RETURN itself.
+     */
+
+    TclEmitInvoke(envPtr, INST_RETURN_STK);
+    return TCL_OK;
+}

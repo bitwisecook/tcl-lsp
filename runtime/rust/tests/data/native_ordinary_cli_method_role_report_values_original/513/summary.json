@@ -1,0 +1,40 @@
+{
+  "question_id": "naming.tcloo.original-selected-method-role-report",
+  "request_sha256": "49f90a7eba3772c02e65c841427b9ac639912456d7c3d45fc3f690c8cf51b027",
+  "launcher_sha256": "32201d91503d2894c3e92d48935f8e3db0b1989b442a9324a7f4c3fdd5a956cc",
+  "scope": "Measure reported self-method values for genuine inherited constructor/destructor next, a named literal <constructor>, and active named rename. Header identity/refcount and Method506 lifetime are outside this request.",
+  "process_capture_complete": true,
+  "all_requested_channels_successful": false,
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "status": "closed-availability-only",
+      "receipt_sha256": "a7a5f0d6f0fb48b26bad0c1ee2435a320ba2f1b1a7a0698d798edbced3760e35"
+    },
+    {
+      "provider": "8.5.19",
+      "status": "closed-availability-only",
+      "receipt_sha256": "ccb0d8158fe311740809b5b6e61837a56e568d45ac7b937c0ddaeafd2f8b4c9d"
+    },
+    {
+      "provider": "8.6.18",
+      "status": "closed-values",
+      "receipt_sha256": "ede5a8554cfdebdb2567cb3018613f3c0a7c0fbfbf13a1ae1e635acd1334972e"
+    },
+    {
+      "provider": "9.0.4",
+      "status": "closed-values",
+      "receipt_sha256": "baa4696c3986785a9b59fd80bbf1fd6c47be3f571532d63efb5750d9b796c6c7"
+    },
+    {
+      "provider": "9.1.0",
+      "status": "closed-values",
+      "receipt_sha256": "c6617ca8c6018e02d9dac851866cdbe7f27fb2f805a5f09f78af878475a89dc2"
+    },
+    {
+      "provider": "jim",
+      "status": "dependency-closure-unavailable-no-cli-probe",
+      "receipt_sha256": "51bb356fca8c3a0ee5423b150ae1c226e2baac17e7bf79e55868d203eb6b0126"
+    }
+  ]
+}

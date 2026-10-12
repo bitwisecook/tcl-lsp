@@ -1,0 +1,26 @@
+{
+  "label": "collision-bfirst-write-b",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006c-collision-bfirst-write-b",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "34269",
+    "--requests",
+    "1",
+    "--path",
+    "/?action=write_b",
+    "--out",
+    "/tmp/r2286_20261006c-dev/traffic-collision-bfirst-write-b.jsonl"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"1\": 1\n  },\n  \"expected_active_roster\": [],\n  \"missing_units\": [],\n  \"coverage\": \"INCOMPLETE_OR_ROSTER_UNSPECIFIED\"\n}\n",
+  "stderr": ""
+}

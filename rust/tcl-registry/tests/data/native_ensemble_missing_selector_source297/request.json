@@ -1,0 +1,109 @@
+{
+  "request_id": "naming.ensemble.original-missing-selector-source-usage",
+  "question": "Which exact fixed missing-selector usage suffix does each inspected original C ensemble execution dispatcher append, independently of info command identity?",
+  "problem": "A stock info invocation can fail at its actual generic ensemble dispatcher before the info worker. Keeping an info-only suffix and a different generic suffix lets consumers drift and misstates C8.5 diagnostics. The shared ensemble recipe must select the inspected dispatcher suffix, while C8.4 option dispatch and Jim scripted/core info remain separate purposes.",
+  "channel": "Read-only source inspection; no new process/native execution",
+  "providers": [
+    {
+      "version": "8.5.19",
+      "channel": "Read-only exact pinned source inspection; independent Native292 compile receipt supplies build metadata only, not generic ensemble execution.",
+      "function": "NsEnsembleImplementationCmd",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "source_file": "8.5.19-tclNamesp.c",
+      "source_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "source208_pinned_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "internal_header_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h",
+      "internal_header_sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "excerpts": [
+        {
+          "first_line": 6025,
+          "last_line": 6053,
+          "file": "8.5.19-tclNamesp.c-6025-6053.txt",
+          "sha256": "0b5cd811b1372fe44af95f18c2f7a8be2821951694bd32a6692eeeb984454301"
+        }
+      ],
+      "independent_compile_receipt_file": "8.5.19-independent-info292-compile.receipt.json",
+      "independent_compile_receipt_sha256": "92b36c7426600ed77ff8d022f07173b8bafc164203032ff4f4437f242269b5eb",
+      "answer": "subcommand ?argument ...?",
+      "parameter_scope": "C85 no parameter-list suffix construction; C86+ builds parameterList then the fixed suffix. No parameter object, quoting, header identity, or public hash order is inferred."
+    },
+    {
+      "version": "8.6.18",
+      "channel": "Read-only exact pinned source inspection; independent Native292 compile receipt supplies build metadata only, not generic ensemble execution.",
+      "function": "NsEnsembleImplementationCmdNR",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEnsemble.c",
+      "source_file": "8.6.18-tclEnsemble.c",
+      "source_sha256": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+      "source208_pinned_sha256": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+      "internal_header_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h",
+      "internal_header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "excerpts": [
+        {
+          "first_line": 1677,
+          "last_line": 1723,
+          "file": "8.6.18-tclEnsemble.c-1677-1723.txt",
+          "sha256": "380b52525046dec123c3a11e034fdec02daa926c65dd8d86f720863ec2d3bbdd"
+        }
+      ],
+      "independent_compile_receipt_file": "8.6.18-independent-info292-compile.receipt.json",
+      "independent_compile_receipt_sha256": "6e9433414d044125e139dfa184aa375aad7f62d1f91c687c918889c221bc50f2",
+      "answer": "subcommand ?arg ...?",
+      "parameter_scope": "C85 no parameter-list suffix construction; C86+ builds parameterList then the fixed suffix. No parameter object, quoting, header identity, or public hash order is inferred."
+    },
+    {
+      "version": "9.0.4",
+      "channel": "Read-only exact pinned source inspection; independent Native292 compile receipt supplies build metadata only, not generic ensemble execution.",
+      "function": "NsEnsembleImplementationCmdNR",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEnsemble.c",
+      "source_file": "9.0.4-tclEnsemble.c",
+      "source_sha256": "6d0c49c5a53f2c7f89eafb3dc9113b4f2f418e48d6b9256f3c99150be9dd12e7",
+      "source208_pinned_sha256": "6d0c49c5a53f2c7f89eafb3dc9113b4f2f418e48d6b9256f3c99150be9dd12e7",
+      "internal_header_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h",
+      "internal_header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "excerpts": [
+        {
+          "first_line": 1748,
+          "last_line": 1793,
+          "file": "9.0.4-tclEnsemble.c-1748-1793.txt",
+          "sha256": "6a67583a17cfa58fdc9d29bb52bdfe6da92ff34def705f67cb039be583df6c05"
+        }
+      ],
+      "independent_compile_receipt_file": "9.0.4-independent-info292-compile.receipt.json",
+      "independent_compile_receipt_sha256": "592f0da1fe061ceb61facfee8eb8a40ba7fe0cd86103f185cc54de51d5cdfff7",
+      "answer": "subcommand ?arg ...?",
+      "parameter_scope": "C85 no parameter-list suffix construction; C86+ builds parameterList then the fixed suffix. No parameter object, quoting, header identity, or public hash order is inferred."
+    },
+    {
+      "version": "9.1.0",
+      "channel": "Read-only exact pinned source inspection; independent Native292 compile receipt supplies build metadata only, not generic ensemble execution.",
+      "function": "NsEnsembleImplementationCmdNR",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEnsemble.c",
+      "source_file": "9.1.0-tclEnsemble.c",
+      "source_sha256": "3ad1e9efbb692a831d5d4b7545e3030868621532bb62ba94c551c0ce42983664",
+      "source208_pinned_sha256": "3ad1e9efbb692a831d5d4b7545e3030868621532bb62ba94c551c0ce42983664",
+      "internal_header_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h",
+      "internal_header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "excerpts": [
+        {
+          "first_line": 1749,
+          "last_line": 1794,
+          "file": "9.1.0-tclEnsemble.c-1749-1794.txt",
+          "sha256": "4bb38a0eb7fac957078455a74e977b8e3391c76c39b3cd176009207383ab179c"
+        }
+      ],
+      "independent_compile_receipt_file": "9.1.0-independent-info292-compile.receipt.json",
+      "independent_compile_receipt_sha256": "914e2aae7f2e087f41d42d956c4e1e5ae0305e2ae638a81c4d828f5c16814a5b",
+      "answer": "subcommand ?arg ...?",
+      "parameter_scope": "C85 no parameter-list suffix construction; C86+ builds parameterList then the fixed suffix. No parameter object, quoting, header identity, or public hash order is inferred."
+    }
+  ],
+  "not_inspected": [
+    "C Tcl 8.4 generic ensemble entry unavailable for this selected C85+ source purpose; no newly inspected source claim",
+    "Jim: independent protocol, not tested by this source question",
+    "BIG-IP: not tested by this source question"
+  ],
+  "conclusion": "The exact original generic C8.5 entry passes subcommand ?argument ...? to Tcl_WrongNumArgs; C8.6/C9.0/C9.1 build their parameter prefix and append subcommand ?arg ...?. Shared authentic release selection can supply those suffixes to both actual execution engines and the Info purpose. Original invocation/header/rendering and allocation authority remain with consumers. Native292 public Info observations are a separate question, not a generic-ensemble execution proof.",
+  "source_owner": "NativeEnsembleConfigurationProtocol::missing_selector_usage; InvocationDialect::native_info_original_missing_selector_usage delegates for C85+",
+  "pure_selector": "native_ensemble::configuration_surface_tests::actual_ensemble_missing_selector_usage_is_selected_independently_of_info",
+  "software_receipt": "No new Rust compilation/test performed by this agent; Root owns fresh validation."
+}

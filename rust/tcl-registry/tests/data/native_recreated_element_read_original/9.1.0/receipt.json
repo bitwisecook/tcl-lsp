@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-recreated-element142/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.011099764000391588,
+  "reported_version": "9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "6332cbe0cc8ea8128016174dad8719410b89ed844f0234232ca6fbcf34b34e32",
+  "runner_sha256": "7d517f1ab2deb50c65b14582cb5b517562f65ec7acfd274ccd88ea5c7305af6b",
+  "stdout_sha256": "b5c4c04b123285dd468e1d4638a4de32c9233bcc122241f56e3450e6ef3912b5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "PATCHLEVEL 9.1.0",
+    "SETUP 0 ",
+    "OBSERVATION 31207b63616e27742073657420223a3a61286b29223a2075707661722072656665727320746f20656c656d656e7420696e2064656c657465642061727261797d20313030205245414420313030"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Old element READ callback unsets whole array, recreates same-key element, installs a new READ observer and reads the new element before old callback return. Observes old increment completion separately. Explicit trace SETUP refusal is unsupported, not callback behaviour. No physical object/header, compiler/cache or BIG-IP claim."
+}

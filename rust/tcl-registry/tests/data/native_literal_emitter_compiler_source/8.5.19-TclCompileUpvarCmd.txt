@@ -1,0 +1,87 @@
+TclCompileUpvarCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    Tcl_Token *tokenPtr, *otherTokenPtr, *localTokenPtr;
+    int localIndex, numWords, i;
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Obj *objPtr;
+
+    if (envPtr->procPtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    numWords = parsePtr->numWords;
+    if (numWords < 3) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Push the frame index if it is known at compile time
+     */
+
+    objPtr = Tcl_NewObj();
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    if(TclWordKnownAtCompileTime(tokenPtr, objPtr)) {
+	CallFrame *framePtr;
+	Tcl_ObjType *newTypePtr, *typePtr = objPtr->typePtr;
+
+	/*
+	 * Attempt to convert to a level reference. Note that TclObjGetFrame
+	 * only changes the obj type when a conversion was successful.
+	 */
+
+	TclObjGetFrame(interp, objPtr, &framePtr);
+	newTypePtr = objPtr->typePtr;
+	Tcl_DecrRefCount(objPtr);
+
+	if (newTypePtr != typePtr) {
+	    if(numWords%2) {
+		return TCL_ERROR;
+	    }
+	    /* TODO: Push the known value instead? */
+	    CompileWord(envPtr, tokenPtr, interp, 1);
+	    otherTokenPtr = TokenAfter(tokenPtr);
+	    i = 2;
+	} else {
+	    if(!(numWords%2)) {
+		return TCL_ERROR;
+	    }
+	    PushLiteral(envPtr, "1", 1);
+	    otherTokenPtr = tokenPtr;
+	    i = 1;
+	}
+    } else {
+	Tcl_DecrRefCount(objPtr);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Loop over the (otherVar, thisVar) pairs. If any of the thisVar is not a
+     * local variable, return an error so that the non-compiled command will
+     * be called at runtime.
+     */
+
+    for(; i<numWords; i+=2, otherTokenPtr = TokenAfter(localTokenPtr)) {
+	localTokenPtr = TokenAfter(otherTokenPtr);
+
+	CompileWord(envPtr, otherTokenPtr, interp, i);
+	localIndex = LocalScalarFromToken(localTokenPtr, envPtr);
+	if (localIndex < 0) {
+	    return TCL_ERROR;
+	}
+	TclEmitInstInt4(INST_UPVAR, localIndex, envPtr);
+    }
+
+    /*
+     * Pop the frame index, and set the result to empty
+     */
+
+    TclEmitOpcode(INST_POP, envPtr);
+    PushLiteral(envPtr, "", 0);
+    return TCL_OK;
+}

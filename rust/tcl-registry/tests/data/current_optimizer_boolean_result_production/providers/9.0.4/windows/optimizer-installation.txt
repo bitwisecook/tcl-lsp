@@ -1,0 +1,25 @@
+    /* Special invalid value: Any attempt to free the legacy result
+     * will cause a crash. */
+    iPtr->legacyFreeProc = (void (*) (void))-1;
+    iPtr->errorLine = 0;
+    iPtr->stubTable = &tclStubs;
+    TclNewObj(iPtr->objResultPtr);
+    Tcl_IncrRefCount(iPtr->objResultPtr);
+    iPtr->handle = TclHandleCreate(iPtr);
+    iPtr->globalNsPtr = NULL;
+    iPtr->hiddenCmdTablePtr = NULL;
+    iPtr->interpInfo = NULL;
+
+    iPtr->optimizer = TclOptimizeBytecode;
+
+    iPtr->numLevels = 0;
+    iPtr->maxNestingDepth = MAX_NESTING_DEPTH;
+    iPtr->framePtr = NULL;	/* Initialise as soon as :: is available */
+    iPtr->varFramePtr = NULL;	/* Initialise as soon as :: is available */
+
+    /*
+     * TIP #280 - Initialize the arrays used to extend the ByteCode and Proc
+     * structures.
+     */
+
+    iPtr->cmdFramePtr = NULL;

@@ -1,0 +1,11 @@
+{
+  "executable": "/workspace/.proofs/pinned-compiler179.elf",
+  "sha256": "153bd2a2be6240954f925f5d3afd6afc6ee44f17b5eea1bc20e4482ddcc5da64",
+  "build_receipt": "/workspace/.proofs/recovery-compiler-build179.json",
+  "build_receipt_sha256": "59c20294c38203fca011f55e0edd13132549c1bed69d7a61fd02ff4ffa1d2025",
+  "source_snapshot_sha256": "8262af176384a2f1f7259ad990609ee616908828eabfdd5bddab8d8b3b64cde3",
+  "overall_build_exit": 101,
+  "partial_artifact_only": true,
+  "actual_artifact_fresh": false,
+  "rule": "Only actual emitted Compiler libtest artifact is pinned. No other selected crate or overall build pass is established."
+}

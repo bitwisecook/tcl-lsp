@@ -1,0 +1,27 @@
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-pkg)
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/commands.rs:5523:13
+     |
+5521 |         super::class_hierarchy::resolve_written_class_name_in_context(
+     |         ------------------------------------------------------------- arguments to this function are incorrect
+5522 |             name,
+5523 |             &self.command_resolution_namespace(scope_path),
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&SignatureNamespaceScope`, found `&String`
+     |
+     = note: expected reference `&signature_scan::scope::SignatureNamespaceScope`
+                found reference `&std::string::String`
+note: function defined here
+    --> rust/tcl-compiler/src/analyser/class_hierarchy.rs:614:8
+     |
+ 614 | pub fn resolve_written_class_name_in_context<S: std::hash::BuildHasher>(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 615 |     name: &str,
+ 616 |     namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+     |     -----------------------------------------------------------------
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `tcl-compiler` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

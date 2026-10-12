@@ -1,0 +1,61 @@
+{
+  "request_id": "naming.procedure.original-usage-called-name-and-formatter",
+  "question": "How does current Jim construct a procedure wrong-argument usage from the original called-name object, and at what extent boundary does its final error formatter consume that assembled usage?",
+  "problem": "Applying C procedure-name list quoting to a multiword Jim command changes the measured namespace-helper error. Separately, treating counted lookup/header bytes as the final formatter extent can retain bytes after NUL that Jim snprintf does not publish. The shared renderer must preserve original invocation identity separately from presentation.",
+  "evidence_channel": "Exact source inspection only; no new native process or procedure-NUL experiment is claimed. Existing completed original inventory254/256/helper258/alias274 public arity rows independently measure raw multiword called-name headers.",
+  "answers": {
+    "jim": "JimCmdUsage duplicates cmdNameObj then appends selected formal usage; JimSetProcWrongArgs passes that assembled object through %#s, whose actual Jim_SetResultFormatted implementation sizes from counted object length then snprintf formats CString extent.",
+    "8.4.20": "Not tested by this Jim-specific source question; current Rust C procedure formatting is preserved.",
+    "8.5.19": "Not tested by this Jim-specific source question; current Rust C procedure formatting is preserved.",
+    "8.6.18": "Not tested by this Jim-specific source question; current Rust C procedure formatting is preserved.",
+    "9.0.4": "Not tested by this Jim-specific source question; current Rust C procedure formatting is preserved.",
+    "9.1.0": "Not tested by this Jim-specific source question; current Rust C procedure formatting is preserved.",
+    "BIG-IP": "Not tested; this question supplies no vendor interpreter recipe."
+  },
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/procedure-usage-source-anchor285/jim.c",
+      "original_source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "excerpt_path": "/workspace/.proofs/procedure-usage-source-anchor285/JimCmdUsage.c.txt",
+      "lines": [
+        11833,
+        11878
+      ],
+      "excerpt_sha256": "cd284667e1a21dad2255ad2f9f0ff09a32929234ad98fa88bdb432eae12e673e",
+      "function": "JimCmdUsage"
+    },
+    {
+      "source_path": "/workspace/.proofs/procedure-usage-source-anchor285/jim.c",
+      "original_source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "excerpt_path": "/workspace/.proofs/procedure-usage-source-anchor285/JimSetProcWrongArgs.c.txt",
+      "lines": [
+        11882,
+        11886
+      ],
+      "excerpt_sha256": "e46d076ea5318725573531d8f01dd95281ce819df333d449b6dc7cf4e561572f",
+      "function": "JimSetProcWrongArgs"
+    },
+    {
+      "source_path": "/workspace/.proofs/procedure-usage-source-anchor285/jim.c",
+      "original_source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "excerpt_path": "/workspace/.proofs/procedure-usage-source-anchor285/Jim_SetResultFormatted.c.txt",
+      "lines": [
+        17112,
+        17178
+      ],
+      "excerpt_sha256": "6594903ebcd01fd3242fcaeed9be04baa434799636b02db02d814dbc87a279d1",
+      "function": "Jim_SetResultFormatted"
+    }
+  ],
+  "software_owners": [
+    "rust/tcl-registry/src/native_usage.rs::NativeUsageProtocol::render_procedure_name",
+    "rust/tcl-registry/src/native_usage.rs::NativeUsageProtocol::render_procedure_message",
+    "runtime/rust/src/interp.rs::Interp::proc_wrong_args",
+    "rust/tcl-vm/src/exec.rs::proc_usage"
+  ],
+  "pure_selector": "native_usage::tests::procedure_usage_preserves_the_selected_name_and_final_formatter_boundary",
+  "scope": "Pure byte renderer only; selected dialect is independent from genuine original call words, formal declaration, resolver/table ownership and activation. No procedure-NUL public execution, C source inspection, TclOO private cell, lifetime, hash-table order or backend test pass is inferred."
+}

@@ -1,0 +1,15 @@
+
+running 1 test
+test diagnostic_subject::tests::math_transport_preserves_expression_kind_without_reconstructing_a_command ... 
+thread 'diagnostic_subject::tests::math_transport_preserves_expression_kind_without_reconstructing_a_command' (533433) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:330:18:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    diagnostic_subject::tests::math_transport_preserves_expression_kind_without_reconstructing_a_command
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2627 filtered out; finished in 0.69s
+

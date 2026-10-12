@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_precision::original_stage_tests::original_precision_missing_environment_and_prior_cause_remain_outer_refusals ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 8.64s
+

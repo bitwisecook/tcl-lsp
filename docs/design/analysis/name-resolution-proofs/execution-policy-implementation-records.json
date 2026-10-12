@@ -1,0 +1,126 @@
+[
+  {
+    "id": "naming.invocation.execution-policy-canonical-point",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/invocation-execution-policy-canonical-point.md",
+    "problem_statement": "A retained native compiler dialect stores an explicit canonical point, while an equivalent C profile may store its typed release with no explicit point. Structural equality then rejects an authentic original compiler inventory. Comparing only a release would instead ignore distinct grammar, character, variable, namespace or build policies. The comparison must normalise only the representation of an independently selected execution point and preserve every other field and authority boundary.",
+    "question": "Can an explicit canonical C execution point match an equivalent typed C profile without accepting different policies or granting compiler authority?",
+    "conclusion": "InvocationDialect::has_same_execution_policy resolves both points with the existing execution_point owner, then compares every full policy field after storing those selected points. It declines unknown or conflicting points, foreign families, release differences, build differences and other field changes. The source compiler query still requires the original compiler/source owner and complete unchanged vector; this equality neither creates a native entry nor changes compiler admission, original-object, cache or Normal facts.",
+    "scope": "Pure complete-policy comparison of selected InvocationDialect records, consumed by the source compiler inventory query. C profile versus explicit canonical representation, Jim exact explicit point, and negative character/grammar/namespace/family/release/unknown/build axes. No native interpreter execution is claimed for this implementation question; actual compiler tests must be run by the current parent build.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "contract",
+        "path": "rust/tcl-registry/src/invocation_words.rs",
+        "role": "implementation",
+        "sha256": "2f798bbee9ed66b47a049d4bba7102e74cc964ecbbfee00a1cc0db5a26dc5110",
+        "description": "Current complete-policy equality kernel and actual negative-axis test; this implementation source supplies no native execution observation.",
+        "contains": "pub fn has_same_execution_policy"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/invocation_words.rs",
+        "selector": "invocation_words::tests::execution_policy_comparison_normalises_only_the_selected_point",
+        "assertion": "All five C profile records match equivalent explicit point in both directions, while independent policy and foreign/build negatives reject.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/invocation_words.rs",
+        "symbol": "InvocationDialect::execution_point",
+        "purpose": "Resolve selected actual-family point; foreign compatible C base supplies no C implementation."
+      },
+      {
+        "path": "rust/tcl-registry/src/invocation_words.rs",
+        "symbol": "InvocationDialect::has_same_execution_policy",
+        "purpose": "Normalise point representation only and retain exact equality of every other invocation policy field."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-registry",
+        "invocation_words::tests::execution_policy_comparison_normalises_only_the_selected_point",
+        "--",
+        "--exact"
+      ],
+      "limitations": "Run in the exact current workspace/frozen parent source. This verifies a pure implementation contract, not native interpreter behavior or a compiler/token/cache grant. Parent also reruns the existing original namespace/switch tests, including changed/truncated/joined original vector negatives."
+    }
+  }
+]

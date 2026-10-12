@@ -1,0 +1,4 @@
+/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl:4: Error: package, unknown command "ifneeded": should be forget, names, provide, require
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl", line 4
+    package ifneeded tcltest 1.0

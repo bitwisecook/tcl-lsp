@@ -1,0 +1,51 @@
+{
+  "proposed_question_id": "naming.embedding.original-active-object-command-deletion",
+  "problem": "Runtime ObjCommand currently remains alive through dispatch Rc. The genuine selected C deleteProc may run during active original callback deletion, while Jim uses its command inUse release. Idle same-name recreation does not establish active callback timing.",
+  "question": "When a publicly registered original object command deletes itself during its actual active invocation, does its deletion callback run before INVOKE_RETURN, and what survives when that callback recreates the same name once?",
+  "status": "Prepared design/source only; no compile or Native execution",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim0.84-9-g5bac7c9"
+  ],
+  "bigip": "not tested",
+  "probe": "/tmp/sourceperf-active-command-retirement-design670/probe.c",
+  "probe_sha256": "ea5cd968ccea5352cabd92407a0239e29ff6392a23fcaddbec9ebe76159f05bc",
+  "case_map": {
+    "0": "Active original publicly deletes its own authentic C token or actual Jim argv name; no replacement",
+    "1": "Same active deletion; actual original delete callback recreates the same name once using the same public registration API"
+  },
+  "execution": {
+    "processes": 6,
+    "fresh_initialized_case_interpreters_per_provider": 2,
+    "case_blocks": 12,
+    "separate_original_CLI_and_same_linked_library_version_receipts_required": true,
+    "timeout_seconds": 60,
+    "argv": [
+      "probe.elf"
+    ]
+  },
+  "entry": {
+    "C": "Original Tcl_CreateObjCommand legacy int-count callback, genuine Tcl_EvalObjv object vector and Tcl_DeleteCommandFromToken of its actual registration token",
+    "Jim": "Original Jim_CreateCommand, genuine Jim_EvalObjVector and Jim_DeleteCommand using the actual active argv[0] name",
+    "caller_name_object": "One genuine caller +1 through both public invocations, then one release; no protective command-record or additional artificial object hold"
+  },
+  "observations": [
+    "Complete ordered CREATE_ORIGINAL_RETURN, INVOKE_ENTER, DELETE_ORIGINAL, RECREATE_RETURN when reached, DELETE_API_RETURN and INVOKE_RETURN events",
+    "Actual first public invocation return code/result bytes and original/replacement delete/call counts in every event",
+    "Actual same caller word second invocation raw code/result and replacement callback reached count; no pointer/generation inference",
+    "Complete caller word release and interpreter teardown events including final replacement delete callback"
+  ],
+  "safety_of_observer": "Client records are independent stack-backed observation state alive through full teardown. Delete callback records invocation and intentionally does not free client-data backing. No client-data free/reference-count equivalence or address/incarnation claim.",
+  "expected_results": null,
+  "required_inputs_and_receipts": [
+    "Root selects actual previously pinned headers/configured static libraries/CLI/source/environment/link dependencies for all six, renewing full original input inventory before and after",
+    "Exact probe/request/source-window inputs and compile argv/stdout/stderr/status/compiler identity",
+    "Whole executable and complete raw process stdout/stderr/status/argv/environment, fresh case selection and elapsed time",
+    "Separate full version observations from the same linked library and original provider CLI; no donor executable/version"
+  ],
+  "limits": "Native design only. Root alone builds/launches and owns input receipts. Does not establish ordinary Procedure/OO callback parity, imported-command stage order, reentrant recursive deletion, rename/hide, Rust outcomes, object/reference counts, Native address authority, broader command lifetime, or any BIG-IP execution. Existing idle-recreation proof remains immutable and independently bounded."
+}

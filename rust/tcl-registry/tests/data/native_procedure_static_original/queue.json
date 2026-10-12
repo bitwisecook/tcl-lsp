@@ -1,0 +1,23 @@
+{
+  "purpose": "Original native procedure static object members and availability",
+  "source_sha256": "88b0b366ceed66311cc46a667c4a5851d9a34569c2969a82f4e20329b5d46405",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Native counted object-vector invocation; original nested list objects; original result pointer equality before sole string getter",
+  "cases": [
+    "ASCII/FF/D800/D801/raw-zero literal original nested-list value",
+    "opaque copied current value versus retained raw reference",
+    "duplicate and missing declarations leave no installed command"
+  ],
+  "limits": [
+    "C5 extra procedure operand availability negatives only",
+    "No wrapper-target-missing, cleanup callback, or arbitrary interpreter lifecycle observation"
+  ],
+  "question_id": "naming.procedure-static.original-member-object-boundaries"
+}

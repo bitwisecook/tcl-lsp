@@ -1,0 +1,5 @@
+version 8.4.20
+OBSERVATION builtin 0 4
+OBSERVATION alias_expression 0 4
+OBSERVATION shadowed_expression 0 VALUE
+OBSERVATION alias_setter 0 VALUE

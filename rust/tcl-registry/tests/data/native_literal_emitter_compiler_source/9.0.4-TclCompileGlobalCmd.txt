@@ -1,0 +1,61 @@
+TclCompileGlobalCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr;
+    int localIndex, numWords, i;
+
+    /* TODO: Consider support for compiling expanded args. */
+    numWords = parsePtr->numWords;
+    if (numWords < 2) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * 'global' has no effect outside of proc bodies; handle that at runtime
+     */
+
+    if (envPtr->procPtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Push the namespace
+     */
+
+    PushStringLiteral(envPtr, "::");
+
+    /*
+     * Loop over the variables.
+     */
+
+    varTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    for (i=1; i<numWords; varTokenPtr = TokenAfter(varTokenPtr),i++) {
+	localIndex = IndexTailVarIfKnown(interp, varTokenPtr, envPtr);
+
+	if (localIndex < 0) {
+	    return TCL_ERROR;
+	}
+
+	/*
+	 * TODO: Consider what value can pass through the
+	 * IndexTailVarIfKnown() screen. Full CompileWord() likely does not
+	 * apply here. Push known value instead.
+	 */
+
+	CompileWord(envPtr, varTokenPtr, interp, i);
+	TclEmitInstInt4(	INST_NSUPVAR, localIndex,	envPtr);
+    }
+
+    /*
+     * Pop the namespace, and set the result to empty
+     */
+
+    TclEmitOpcode(		INST_POP,			envPtr);
+    PushStringLiteral(envPtr, "");
+    return TCL_OK;
+}

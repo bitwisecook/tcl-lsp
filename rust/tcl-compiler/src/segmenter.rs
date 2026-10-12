@@ -113,7 +113,7 @@ pub struct SegmentedCommand {
     /// Whether the command is incomplete (unclosed delimiter).
     pub is_partial: bool,
     /// Which delimiter was left unclosed, when `is_partial`. Set by the
-    /// recovery segmenter from the suspicious EOF-reaching token; drives
+    /// recovery segmenter or checked script's structured parse cut; drives
     /// the precise E200 message and gates stolen-close-brace detection to
     /// brace partials only.
     pub partial_delimiter: Option<UnclosedDelimiter>,
@@ -403,6 +403,135 @@ pub fn segment_commands_with_offset_and_config(
         .collect()
 }
 
+/// Segment an unchanged Unicode structural view of an original source image.
+/// The same lexer/grouper/CST owners consume the retained input channel. Opaque
+/// bytes or an unavailable token stream return `None`, rather than no commands.
+/// Spans in the returned projection are relocated by `base_offset`.
+#[must_use]
+pub fn segment_commands_image_with_offset_and_config(
+    image: &tcl_lexer::SourceImage,
+    base_offset: u32,
+    config: LexerConfig,
+) -> Option<Vec<SegmentedCommand>> {
+    let source = image.try_text().ok()?;
+    let sm = SourceMap::from_image(image);
+    let (document, _) = crate::parsing::syntax::build::build_document_image(image, config)?;
+    let mut segments = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    if config.brace_line_continuation.continues() {
+        segments = merge_f5_if_else_lookahead(source, segments);
+    }
+    if base_offset != 0 {
+        segments = segments
+            .into_iter()
+            .map(|segment| segment.shifted_by(base_offset))
+            .collect();
+    }
+    Some(segments)
+}
+
+/// An authentic malformed command after a complete command prefix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SegmentedParseCut {
+    /// Original incomplete or terminal command, separate from executable prefix.
+    pub command: SegmentedCommand,
+    /// Structured syntax issue and offsets in the selected source coordinates.
+    pub cut: tcl_lexer::ParseCut,
+}
+
+/// CST commands joined to the shared selected-grammar parse-cut owner.
+/// This syntax projection supplies no command, frame or execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SegmentedScript {
+    /// All complete commands before the first malformed command.
+    pub commands: Vec<SegmentedCommand>,
+    /// Authentic syntax failure, distinct from unavailable source ownership.
+    pub fatal_tail: Option<SegmentedParseCut>,
+}
+
+impl SegmentedScript {
+    /// Keep an incomplete command for editor assistance. Terminal errors and
+    /// commands after the first failure cannot become declaration or call facts.
+    #[must_use]
+    pub fn into_editor_commands(mut self) -> Vec<SegmentedCommand> {
+        if let Some(tail) = self.fatal_tail
+            && tail.cut.completeness() == tcl_lexer::ParseCutCompleteness::Incomplete
+        {
+            self.commands.push(tail.command);
+        }
+        self.commands
+    }
+}
+
+/// Segment an original image at its first selected-grammar syntax failure.
+///
+/// The cut ordinal joins the unmerged CST, then F5 lookahead applies only to
+/// the complete prefix. Raw and heuristic recovery segmentation are separate
+/// projections of the same CST. Nested callers supply their actual body config.
+///
+/// # Errors
+/// Returns unavailable original source geometry or lexical/component ownership.
+pub fn segment_script_image_with_offset_and_config(
+    image: &tcl_lexer::SourceImage,
+    base_offset: u32,
+    config: LexerConfig,
+) -> Result<SegmentedScript, tcl_lexer::ParseCutUnavailable> {
+    // naming.source.original-configured-script-completeness
+    // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+    let unavailable = || {
+        tcl_lexer::ParseCutUnavailable::SourceGeometry(
+            tcl_lexer::ExecutablePartsUnavailable::SourceGeometry,
+        )
+    };
+    let source = image.try_text().map_err(|_| unavailable())?;
+    let source_len = u32::try_from(image.bytes().len()).map_err(|_| unavailable())?;
+    base_offset
+        .checked_add(source_len)
+        .ok_or_else(unavailable)?;
+    let cut = tcl_lexer::first_parse_cut_image_checked(image, config)?;
+    let sm = SourceMap::from_image(image);
+    let (document, _) = crate::parsing::syntax::build::build_document_image(image, config)
+        .ok_or_else(unavailable)?;
+    let mut commands = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    let fatal_tail = if let Some(mut cut) = cut {
+        if cut.command >= commands.len() {
+            return Err(unavailable());
+        }
+        let mut command = commands.remove(cut.command);
+        commands.truncate(cut.command);
+        command.is_partial = cut.kind.is_incomplete();
+        command.partial_delimiter = match cut.kind {
+            tcl_lexer::ParseIssueKind::MissingBrace => Some(UnclosedDelimiter::Brace),
+            tcl_lexer::ParseIssueKind::MissingBracket => Some(UnclosedDelimiter::Bracket),
+            tcl_lexer::ParseIssueKind::MissingQuote => Some(UnclosedDelimiter::Quote),
+            _ => None,
+        };
+        cut.offset = cut
+            .offset
+            .checked_add(base_offset)
+            .ok_or_else(unavailable)?;
+        cut.term = cut.term.checked_add(base_offset).ok_or_else(unavailable)?;
+        Some(SegmentedParseCut {
+            command: command.shifted_by(base_offset),
+            cut,
+        })
+    } else {
+        None
+    };
+    if config.brace_line_continuation.continues() {
+        commands = merge_f5_if_else_lookahead(source, commands);
+    }
+    if base_offset != 0 {
+        commands = commands
+            .into_iter()
+            .map(|command| command.shifted_by(base_offset))
+            .collect();
+    }
+    Ok(SegmentedScript {
+        commands,
+        fatal_tail,
+    })
+}
+
 /// Whether `source` contains exactly one Tcl command under `config`.
 ///
 /// This is the conservative shape gate for consumers that re-lex a command's
@@ -523,7 +652,8 @@ pub fn body_text_in_region<'t>(
 /// that element's text, so it must be read under the grammar the document was
 /// lexed with — an iRules `}{`, a Jim `$(…)` or an 8.4 `{*}` classify
 /// differently otherwise, which is why `config` is required rather than
-/// defaulted.
+/// defaulted. Only the extracted element parser uses `config.nested()`;
+/// list geometry and the enclosing original word retain their parent purpose.
 #[must_use]
 pub fn flatten_clause_list_elements_with_config(
     source: &str,
@@ -565,7 +695,7 @@ pub fn flatten_clause_list_elements_with_config(
             // one already-located element merely preserves the representative
             // token kind (`$var`, `[command]`, or bare text) that consumers
             // use for semantic classification.
-            Lexer::with_config(raw, config)
+            Lexer::with_config(raw, config.nested())
                 .tokenise_all()
                 .ok()
                 .and_then(|tokens| {
@@ -686,10 +816,14 @@ pub fn segment_commands_incremental(
         .filter(|c| c.span.start() < lo)
         .cloned()
         .collect();
+    // `lo` is the retained whole-document command boundary. A suffix at
+    // zero remains the actual file input; a nonzero suffix is an extracted
+    // mid-file region, so its first BOM is content rather than a file marker.
+    let suffix_config = if lo == 0 { config } else { config.nested() };
     out.extend(segment_commands_with_offset_and_config(
         &new_text[lo as usize..],
         lo,
-        config,
+        suffix_config,
     ));
     out
 }
@@ -1095,6 +1229,39 @@ fn merge_f5_if_else_lookahead(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_image_segmentation_keeps_channel_and_unavailable_text_distinct() {
+        let source = "set a A\\\r\nset b B";
+        let config = LexerConfig::default();
+        let native = tcl_lexer::SourceImage::native(source.as_bytes());
+        let document = tcl_lexer::SourceImage::document(source);
+        let native_commands =
+            segment_commands_image_with_offset_and_config(&native, 17, config).unwrap();
+        let document_commands =
+            segment_commands_image_with_offset_and_config(&document, 17, config).unwrap();
+        assert_eq!(native_commands.len(), 2);
+        assert_eq!(document_commands.len(), 1);
+        assert_eq!(native_commands[0].span.start(), 17);
+        assert_eq!(native_commands[1].texts, ["set", "b", "B"]);
+        assert!(
+            segment_commands_image_with_offset_and_config(
+                &tcl_lexer::SourceImage::native(b"set \xff V".as_slice()),
+                0,
+                config,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            segment_commands_image_with_offset_and_config(
+                &tcl_lexer::SourceImage::native(b"".as_slice()),
+                0,
+                config,
+            )
+            .unwrap(),
+            []
+        );
+    }
+
     use super::*;
     use tcl_core_types::DiagCode;
 
@@ -1206,6 +1373,66 @@ mod tests {
     }
 
     #[test]
+    fn original_incremental_suffix_keeps_whole_file_and_midfile_bom_purposes() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original Document command geometry only; no entered/native source grant.
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl9.1").unwrap();
+        for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom,
+                ..input.lexer_config()
+            };
+            let old = "\u{feff}set prefix OLD\n\u{feff}unknown old";
+            let new = "\u{feff}set prefix OLD\n\u{feff}unknown new";
+            let previous = segment_commands_with_offset_and_config(old, 0, config);
+            assert_eq!(previous.len(), 2);
+            assert!(previous[1].span.start() > 0);
+            let incremental = segment_commands_incremental(old, &previous, new, config);
+            let complete = segment_commands_with_offset_and_config(new, 0, config);
+            assert_eq!(projected(&incremental), projected(&complete));
+            assert_eq!(incremental[1].texts[0], "\u{feff}unknown");
+            assert_eq!(
+                new.get(incremental[1].argv[0].span.as_range()),
+                Some("\u{feff}unknown")
+            );
+
+            // An edit before the first retained command actually reparses the
+            // whole input, and must keep its explicitly selected file policy.
+            let old = "set prefix OLD\nputs tail";
+            let new = "\u{feff}set prefix OLD\nputs tail";
+            let previous = segment_commands_with_offset_and_config(old, 0, config);
+            assert_eq!(previous[0].span.start(), 0);
+            let incremental = segment_commands_incremental(old, &previous, new, config);
+            assert_eq!(
+                projected(&incremental),
+                projected(&segment_commands_with_offset_and_config(new, 0, config))
+            );
+            assert_eq!(
+                incremental[0].texts[0],
+                if leading_bom == tcl_lexer::LeadingBom::Skip {
+                    "set"
+                } else {
+                    "\u{feff}set"
+                }
+            );
+        }
+        // Genuine non-BOM grammar override remains selected in the suffix.
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..input.lexer_config()
+        };
+        let old = "puts prefix\n\u{feff}puts ${name{inner}} OLD";
+        let new = "puts prefix\n\u{feff}puts ${name{inner}} NEW";
+        let previous = segment_commands_with_offset_and_config(old, 0, config);
+        assert_eq!(
+            projected(&segment_commands_incremental(old, &previous, new, config)),
+            projected(&segment_commands_with_offset_and_config(new, 0, config))
+        );
+    }
+
+    #[test]
     fn segment_commands_incremental_pins() {
         // Edit inside one command.
         let old = "set x 1\nputs hi\nset y 2\n";
@@ -1311,7 +1538,10 @@ mod tests {
 
     #[test]
     fn empty_source() {
-        assert!(segment_commands("").is_empty());
+        assert_eq!(
+            segment_commands(""),
+            [] as [crate::segmenter::SegmentedCommand; 0]
+        );
     }
 
     #[test]
@@ -1344,7 +1574,7 @@ mod tests {
         let words =
             |cs: &[SegmentedCommand]| cs.iter().map(|c| c.texts.clone()).collect::<Vec<_>>();
         assert_eq!(words(&rec), words(&plain));
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [crate::analyser::types::Diagnostic; 0]);
     }
 
     #[test]
@@ -1902,5 +2132,149 @@ mod span_absolute_tests {
             text.starts_with("set"),
             "expected absolute span pointing at `set`, got {text:?}",
         );
+    }
+}
+
+#[cfg(test)]
+mod original_clause_element_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_clause_elements_keep_parent_geometry_and_nested_bom_content() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original Document/list geometry only; the public String completeness
+        // observations supply no list value, header or handler receipt.
+        let source = "\u{feff}switch -- $v {\u{feff}$pattern {puts ok} plain {puts tail}}";
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = LexerConfig {
+                leading_bom: bom,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..LexerConfig::for_file_grammar(environment.grammar())
+            };
+            let commands = segment_commands_with_offset_and_config(source, 0, config);
+            let [command] = commands.as_slice() else {
+                panic!("actual original whole command")
+            };
+            let body = command.argv[3];
+            let elements =
+                flatten_clause_list_elements_with_config(source, &command.texts[3], body, config);
+            assert_eq!(
+                elements
+                    .iter()
+                    .map(|(text, _)| text.as_str())
+                    .collect::<Vec<_>>(),
+                ["\u{feff}$pattern", "puts ok", "plain", "puts tail"]
+            );
+            assert_eq!(elements[0].1.kind, TokenType::Esc);
+            assert_eq!(elements[1].1.kind, TokenType::Str);
+            let first = elements[0].1.span;
+            assert_eq!(source.get(first.as_range()), Some("\u{feff}$pattern"));
+            assert_eq!(
+                first.start(),
+                body.span.start() + u32::from(body.content_offset)
+            );
+            assert_eq!(elements[1].1.content_offset, 1);
+            assert!(
+                elements
+                    .iter()
+                    .all(|(_, token)| body.span.start() <= token.span.start()
+                        && token.span.end() <= body.span.end())
+            );
+            let elements_with_content = flatten_clause_list_elements_with_config(
+                source,
+                &command.texts[3],
+                body,
+                LexerConfig {
+                    leading_bom: tcl_lexer::LeadingBom::Content,
+                    ..config
+                },
+            );
+            assert_eq!(elements, elements_with_content);
+        }
+    }
+}
+
+#[cfg(test)]
+mod checked_script_tests {
+    use super::*;
+    use tcl_lexer::{ParseIssueKind, SourceImage};
+
+    #[test]
+    fn selected_braced_variable_cut_preserves_complete_prefix_and_editor_tail() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = SourceImage::document("set before 1; puts ${a{b}; set after 2");
+        let first_close = LexerConfig::for_dialect("tcl8.4");
+        let complete =
+            segment_script_image_with_offset_and_config(&source, 7, first_close).unwrap();
+        assert_eq!(complete.commands.len(), 3);
+        assert!(complete.fatal_tail.is_none());
+        assert_eq!(complete.commands[0].span.start(), 7);
+        let nesting = LexerConfig::for_dialect("tcl9.1");
+        let script = segment_script_image_with_offset_and_config(&source, 7, nesting).unwrap();
+        assert_eq!(script.commands.len(), 1);
+        assert_eq!(script.commands[0].name(), "set");
+        let tail = script.fatal_tail.as_ref().unwrap();
+        assert_eq!(tail.cut.kind, ParseIssueKind::MissingVariableBrace);
+        assert_eq!(tail.cut.command, 1);
+        assert_eq!(tail.command.span.start(), 21);
+        assert!(tail.command.is_partial);
+        assert_eq!(tail.command.partial_delimiter, None);
+        assert_eq!(script.into_editor_commands().len(), 2);
+    }
+
+    #[test]
+    fn terminal_word_error_keeps_prefix_without_inventing_an_incomplete_command() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let image = SourceImage::document("set before 1; set invalid {a}b; set after 2");
+        let config = LexerConfig::for_dialect("tcl9.1");
+        let script = segment_script_image_with_offset_and_config(&image, 0, config).unwrap();
+        assert_eq!(script.commands.len(), 1);
+        let tail = script.fatal_tail.as_ref().unwrap();
+        assert_eq!(tail.cut.kind, ParseIssueKind::ExtraAfterBrace);
+        assert!(!tail.command.is_partial);
+        assert_eq!(script.into_editor_commands().len(), 1);
+        let strict = LexerConfig {
+            strict_quoting: true,
+            ..config
+        };
+        assert!(matches!(
+            segment_script_image_with_offset_and_config(&image, 0, strict),
+            Err(tcl_lexer::ParseCutUnavailable::LexicalStream(_))
+        ));
+    }
+
+    #[test]
+    fn checked_f5_cut_ordinal_joins_before_if_else_lookahead() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let image = SourceImage::document("if 1 {set a 1}\nelse {set b 2}\nputs ${abc");
+        let config = LexerConfig::for_dialect("f5-irules");
+        let script = segment_script_image_with_offset_and_config(&image, 0, config).unwrap();
+        assert_eq!(script.commands.len(), 1);
+        assert_eq!(script.commands[0].name(), "if");
+        let tail = script.fatal_tail.unwrap();
+        assert_eq!(tail.cut.command, 2);
+        assert_eq!(tail.cut.kind, ParseIssueKind::MissingVariableBrace);
+        assert_eq!(tail.command.name(), "puts");
+    }
+
+    #[test]
+    fn checked_script_refuses_opaque_structural_views_and_offset_overflow() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let config = LexerConfig::for_dialect("tcl9.1");
+        for (image, base) in [
+            (SourceImage::native(b"set a \xff".as_slice()), 0),
+            (SourceImage::document("set a 1"), u32::MAX),
+        ] {
+            assert!(matches!(
+                segment_script_image_with_offset_and_config(&image, base, config),
+                Err(tcl_lexer::ParseCutUnavailable::SourceGeometry(_))
+            ));
+        }
     }
 }

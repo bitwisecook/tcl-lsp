@@ -115,6 +115,28 @@ pub struct ContextRegistry {
 }
 
 impl ContextRegistry {
+    /// Descriptive package ownership of constructed namespaces from the actual
+    /// rows selected by this complete context/store. Conflicting or unowned rows
+    /// decline; this supplies neither package loading nor callable identity.
+    #[must_use]
+    pub fn namespace_package_ownership(&self) -> super::NamespacePackageOwnership {
+        super::NamespacePackageOwnership::from_selected_specs(
+            self.commands
+                .command_names_in_any_dialect()
+                .filter_map(|name| self.context.resolve_spec(&self.commands, name)),
+        )
+    }
+
+
+    /// Reassemble this exact availability context over an explicitly supplied
+    /// command store. Retains provider, release and package state; it does not
+    /// reconstruct a context from the store's profile name or establish native
+    /// implementation identity.
+    #[must_use]
+    pub fn with_command_store(&self, commands: Arc<CommandRegistry>) -> Self {
+        Self::assemble(self.context.clone(), commands)
+    }
+
     /// Assemble a generation for `context` over the `commands` store:
     /// admit every store spec with some declaration whose provider is
     /// active (and whose predicate holds) under the context's world
@@ -164,6 +186,30 @@ impl ContextRegistry {
             commands,
             entries,
         }
+    }
+
+    /// Retain an explicit execution snapshot independently of its environment
+    /// label. Package placement still comes from the resolved environment;
+    /// a selected point replaces only the core selector and target line.
+    pub(crate) fn project_for_profile(&self, profile: &'static DialectProfile) -> Self {
+        let mut environment = (*self.context.environment).clone();
+        if let Some(point) = profile.core_point {
+            environment.core = Some(tcl_dialect::model::CoreProfileSelector {
+                family: point.family(),
+                default_release: point.release(),
+                build: point.build(),
+            });
+            if let Ok(targets) = tcl_dialect::model::VersionSet::from_requirements(
+                tcl_dialect::model::VersionAxisId::core(point.family()),
+                &[point.release().as_str()],
+            ) {
+                environment.targets = targets;
+            }
+        }
+        Self::assemble(
+            ResolvedContext::resolve(Arc::new(environment), &KeyedVersions::default()),
+            Arc::new(self.commands.project_for_profile(profile)),
+        )
     }
 
     /// The context this generation answers under.
@@ -282,7 +328,14 @@ impl std::fmt::Debug for ContextRegistry {
 /// family's compiled-in own-surface specs change what its store holds, so
 /// the environment registry's own generation would not move and a cached
 /// generation would answer from the surface just replaced.
-type GenerationKey = (EnvironmentIdentity, u64, u64, u64, u64);
+type GenerationKey = (
+    EnvironmentIdentity,
+    Option<tcl_dialect::model::DialectPoint>,
+    u64,
+    u64,
+    u64,
+    u64,
+);
 
 /// The interned catalogue profile whose command store backs
 /// `environment_id`'s generations — the interop seam: the
@@ -354,16 +407,34 @@ impl std::error::Error for OverlayMiss {}
 /// can write, so a miss returns `None`, which the generation door reports
 /// as an [`OverlayMiss`].
 fn command_store(
-    environment: &EnvironmentDefinition,
+    environment: &Arc<EnvironmentDefinition>,
+    identity: &EnvironmentIdentity,
     overlay: u64,
 ) -> Option<Arc<CommandRegistry>> {
-    let profile = store_profile(environment.id.as_str());
+    let execution = crate::model::ingress::DocumentEnvironment {
+        definition: Arc::clone(environment),
+        identity: identity.clone(),
+    }
+    .unit_profile();
+    // Unoverlaid execution views use the exact retained profile cache, including
+    // projected Jim and Tk points. Published legacy overlays are looked up at
+    // their authoring key and projected without losing registered rows.
+    let profile = if overlay == 0 {
+        execution
+    } else {
+        store_profile(environment.id.as_str())
+    };
     let base = crate::cache::registry_for_profile_if_built(profile, overlay)?;
-    Some(match environment.core {
+    let commands = match environment.core {
         // A family's own compiled-in commands sit over the shared store for
         // that family's documents only.
         Some(core) => crate::cache::registry_with_core_surface(base, profile, overlay, core.family),
         None => base,
+    };
+    Some(if execution.cache_key() == profile.cache_key() {
+        commands
+    } else {
+        Arc::new(commands.project_for_profile(execution))
     })
 }
 
@@ -412,6 +483,7 @@ pub fn registry_for_environment_if_built(
     let cache = CACHE.get_or_init(|| Mutex::new(FxHashMap::default()));
     let key: GenerationKey = (
         identity.clone(),
+        environment.point(),
         keyed.content_hash(),
         overlay,
         tcl_dialect::model::inherited_surface_generation(),
@@ -428,8 +500,8 @@ pub fn registry_for_environment_if_built(
     // dropped in favour of the first published entry. The store lookup
     // stays outside too: an overlay miss must not park anything in the
     // cache — the packs may be installed a moment later.
-    let commands = command_store(environment, overlay).ok_or_else(|| OverlayMiss {
-        environment: environment.id.as_str().to_owned(),
+    let commands = command_store(environment, identity, overlay).ok_or_else(|| OverlayMiss {
+        environment: environment.id.to_string(),
         overlay,
     })?;
     let assembled = Arc::new(ContextRegistry::assemble(
@@ -452,7 +524,7 @@ fn prune_overlaid_generations(
 ) {
     const GENERATION_LIMIT: usize = 64;
     if map.len() >= GENERATION_LIMIT {
-        map.retain(|&(_, _, overlay, _, _), _| overlay == 0 || overlay == current);
+        map.retain(|&(_, _, _, overlay, _, _), _| overlay == 0 || overlay == current);
     }
 }
 
@@ -497,29 +569,55 @@ pub fn resolve_invocation_in_context<'r, 'w>(
     commands.resolve_invocation(name, args, Some(context.authoring_query()))
 }
 
-/// [`resolve_invocation_in_context`] over structured source words: a word
-/// the caller knows was substituted, expanded or opaque stays so, and every
-/// derived query of the resolution — the state transitions an alias consumer
-/// applies among them — abstains on it rather than reading its spelling.
-///
-/// Same invariant (I4), same proof: a carried context must prove the literal
-/// head, and selection proceeds at the context's authoring point. A computed
-/// head selects nothing.
+/// Resolve structured words under the actual supplied availability context.
+/// The context retains keyed versions, packages and overlays; selecting it
+/// supplies no runtime command identity or native compilation admission.
+#[must_use]
+pub fn resolve_structured_invocation_in_resolved_context<'r, 'w>(
+    commands: &'r CommandRegistry,
+    context: Option<&'w ResolvedContext>,
+    words: crate::InvocationWords<'w>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> crate::StructuredInvocationResolution<'r, 'w> {
+    // Implementation contract: naming.vendor.original-registry-metadata
+    // docs/design/analysis/name-resolution-proofs/vendor-original-registry-metadata.md
+    let Some(context) = context else {
+        let query = commands
+            .profile()
+            .and_then(|profile| crate::InvocationDialect::of_profile(profile).authoring_query())
+            .map(|query| query.with_realm(realm));
+        return commands.resolve_structured_invocation(words, query);
+    };
+    let query = context.authoring_query().with_realm(realm);
+    let Some(name) = words.head_literal() else {
+        // A computed head selects nothing in either model; report it through
+        // the ordinary path so the decline names the word kind rather than a
+        // missing spec.
+        return commands.resolve_structured_invocation(words, Some(query));
+    };
+    if context
+        .resolve_spec_in_realm(commands, name, realm)
+        .is_none()
+    {
+        return crate::StructuredInvocationResolution::from_unresolved(
+            crate::InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
+        );
+    }
+    commands.resolve_structured_invocation(words, Some(query))
+}
+
+/// Resolve structured source words at the context's authoring realm.
+/// Unknown values retain their kinds and select no literal command.
 #[must_use]
 pub fn resolve_invocation_words_in_context<'r, 'w>(
     commands: &'r CommandRegistry,
     context: Option<&'w ResolvedContext>,
     words: crate::InvocationWords<'w>,
 ) -> Option<ResolvedInvocation<'r, 'w>> {
-    let Some(context) = context else {
-        return commands
-            .resolve_structured_invocation(words, None)
-            .resolved();
-    };
-    context.resolve_spec(commands, words.head_literal()?)?;
-    commands
-        .resolve_structured_invocation(words, Some(context.authoring_query()))
-        .resolved()
+    let realm = context.map_or(tcl_dialect::model::InvocationRealm::RuleLoader, |context| {
+        context.authoring_query().realm
+    });
+    resolve_structured_invocation_in_resolved_context(commands, context, words, realm).resolved()
 }
 
 /// The legacy-selection twin of [`resolve_invocation_in_context`] for the
@@ -534,7 +632,7 @@ pub fn resolve_invocation_words_in_context<'r, 'w>(
 #[must_use]
 pub fn resolve_call_in_context<'r>(
     commands: &'r CommandRegistry,
-    context: Option<&ResolvedContext>,
+    context: Option<&'r ResolvedContext>,
     name: &str,
     args: &[&str],
 ) -> Option<ResolvedCall<'r>> {
@@ -1003,8 +1101,8 @@ pub(crate) mod tests {
                 "`{name}` under `{environment}`: Absent ⇒ no call selection (I4)"
             );
             assert!(
-                resolve_invocation_in_context(store, None, name, &[]).is_some(),
-                "no context carried ⇒ the obligation is NotRequired"
+                resolve_invocation_in_context(store, None, name, &[]).is_none(),
+                "the retained store profile still governs an omitted context"
             );
         }
         // A proved head still selects, hooks intact.
@@ -1051,7 +1149,7 @@ pub(crate) mod tests {
             let identity = environments.identity_of(&definition);
             let generation =
                 registry_for_environment(&definition, &identity, &KeyedVersions::default());
-            let profile = DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl);
+            let profile = crate::model::ingress::resolve_environment(name).unit_profile();
             let old = crate::cache::registry_handle_for_profile(profile);
             assert!(
                 Arc::ptr_eq(generation.commands(), &old),

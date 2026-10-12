@@ -1,0 +1,7 @@
+PATCHLEVEL 8.6.18
+RESULT literal_array_read 1 {can't read "a": variable is array}
+RESULT dynamic_array_read 1 {can't read "a": variable is array}
+RESULT procedure_array_read 1 {can't read "a": variable is array}
+RESULT literal_scalar_element 1 {can't read "b(k)": variable isn't array}
+RESULT dynamic_scalar_element 1 {can't read "b(k)": variable isn't array}
+RESULT procedure_scalar_element 1 {can't read "b(k)": variable isn't array}

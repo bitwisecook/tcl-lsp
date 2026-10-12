@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-registry228.elf",
+  "sha256": "cb73fa67611ff5803ff759507d515070c01f9b3b20a1a39f8ea3e48cad77ca64",
+  "build_receipt": "/workspace/.proofs/recovery-registry-build228.json",
+  "build_receipt_sha256": "3e4dfd460edc17d0361278325980b8e3ac6861417d63afe35c22a4d8c2f3d255",
+  "source_snapshot_sha256": "4a44397922c01f6beb8e358ed3fe7d38f434fc1cf740db6cce68ed1dd788639c"
+}

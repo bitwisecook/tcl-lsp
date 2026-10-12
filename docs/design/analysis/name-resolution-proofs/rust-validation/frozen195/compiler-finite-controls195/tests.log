@@ -1,0 +1,86 @@
+
+running 40 tests
+test analyser::commands::original_nested_source_tests::direct_callbacks_retain_selected_schema_and_exact_prefix_producers ... ok
+test analyser::commands::original_nested_source_tests::named_receiver_inventory_uses_original_ordered_source_carriers ... ok
+test analyser::commands::original_nested_source_tests::nested_source_bodies_follow_original_moves_alias_prefixes_and_shadow_barriers ... ok
+test analyser::commands::original_nested_source_tests::nested_source_bodies_use_the_actual_dialect_availability ... ok
+test analyser::commands::original_nested_source_tests::nested_source_callbacks_keep_the_original_input_baked_count_and_purpose ... ok
+test analyser::commands::original_nested_source_tests::nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch ... ok
+test analyser::commands::original_nested_source_tests::pending_constructor_heads_preserve_real_variable_and_selector_geometry ... 
+thread 'analyser::commands::original_nested_source_tests::pending_constructor_heads_preserve_real_variable_and_selector_geometry' (715258) panicked at rust/tcl-compiler/src/analyser/commands.rs:7924:13:
+assertion `left == right` failed: set object [$class create name]
+  left: None
+ right: Some(("class", "create", "$class"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::commands::original_nested_source_tests::source_named_constructors_do_not_publish_permanent_speculative_commands ... ok
+test analyser::commands::original_nested_source_tests::source_pending_constructor_values_do_not_select_native_reporting_class_labels ... 
+thread 'analyser::commands::original_nested_source_tests::source_pending_constructor_values_do_not_select_native_reporting_class_labels' (715301) panicked at rust/tcl-compiler/src/analyser/commands.rs:7999:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::C")
+FAILED
+test analyser::commands::original_nested_source_tests::source_user_class_setters_join_original_moves_aliases_and_whole_substitutions ... ok
+test analyser::diagnostic_subject::callback::tests::original_absolute_trace_subject_retains_source_signature_without_trigger_frame ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_composes_separate_capture_counts ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_keeps_alias_move_and_target_replacement ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_alias_signature_retains_nested_and_baked_premises ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_signature_lookup_requires_its_complete_source_input ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_source_barriers_cannot_resurrect_project_headers ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_subject_retains_prefix_counts_headers_and_source_purpose ... ok
+test analyser::diagnostic_subject::callback::tests::original_callback_subject_withdraws_unknown_counts_and_missing_frame ... ok
+test analyser::diagnostics::original_positioned_callee::positioned_body_availability_refuses_unproved_native_labels_and_future_definitions ... ok
+test analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs ... 
+thread 'analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs' (715787) panicked at rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs:58:5:
+assertion failed: resolver.resolves(&unproved_call("available"))
+FAILED
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_alias_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_class_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_proc_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_rename_target_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1010_interpolated_head_folds_to_reestablished_proc_resolves ... ok
+test analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged ... 
+thread 'analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged' (715808) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9567:5:
+an interpolated head folding to a deleted proc must still draw W123; got []
+FAILED
+test analyser::diagnostics::var_command::retained_constant_context_tests::array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile ... ok
+test analyser::oo::tests::unknown_handler_effects_follow_resolved_alias_arguments ... 
+thread 'analyser::oo::tests::unknown_handler_effects_follow_resolved_alias_arguments' (715836) panicked at rust/tcl-compiler/src/analyser/oo.rs:5465:9:
+assertion failed: info.has_auto_load
+FAILED
+test analyser::oo::tests::unknown_handler_effects_require_the_live_implementation ... ok
+test command_binding::original_callback_lookup::tests::original_callback_heads_keep_selected_operand_evaluator_and_frame_scope ... ok
+test command_binding::original_callback_lookup::tests::original_callback_invocation_rows_retain_readonly_scope_lookup ... ok
+test command_binding::original_callback_lookup::tests::original_callback_scope_refuses_foreign_vectors_and_installer_head_lookup ... ok
+test command_binding::source_transition_advice::source_callback::tests::original_callback_registration_retains_actual_installer_and_captured_operand_producer ... ok
+test command_binding::source_transition_advice::source_callback::tests::original_callback_registration_retains_factory_method_and_known_target_barrier ... 
+thread 'command_binding::source_transition_advice::source_callback::tests::original_callback_registration_retains_factory_method_and_known_target_barrier' (715951) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs:649:14:
+genuine original callback prefix
+FAILED
+test command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_distinguishes_alias_external_name_from_missing_direct_target ... ok
+test command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_keeps_alias_capture_order_and_canonical_local_declaration ... ok
+test command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_keeps_alias_move_and_direct_target_canonical_name ... ok
+test command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_keeps_held_target_name_and_known_refusal_boundary ... 
+thread 'command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_keeps_held_target_name_and_known_refusal_boundary' (716065) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs:791:14:
+interp alias {} a {} b; interp alias {} b {} a; lsort -command a {3 1 2}
+FAILED
+test command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_refuses_relative_trigger_frame_and_keeps_absolute_scope_recipe ... ok
+test command_binding::source_transition_advice::source_callback::tests::original_callback_unknown_scope_retains_prefix_without_relative_frame_donation ... 
+thread 'command_binding::source_transition_advice::source_callback::tests::original_callback_unknown_scope_retains_prefix_without_relative_frame_donation' (716108) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_callback.rs:649:14:
+genuine original callback prefix
+FAILED
+
+failures:
+
+failures:
+    analyser::commands::original_nested_source_tests::pending_constructor_heads_preserve_real_variable_and_selector_geometry
+    analyser::commands::original_nested_source_tests::source_pending_constructor_values_do_not_select_native_reporting_class_labels
+    analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs
+    analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged
+    analyser::oo::tests::unknown_handler_effects_follow_resolved_alias_arguments
+    command_binding::source_transition_advice::source_callback::tests::original_callback_registration_retains_factory_method_and_known_target_barrier
+    command_binding::source_transition_advice::source_callback::tests::original_callback_source_target_keeps_held_target_name_and_known_refusal_boundary
+    command_binding::source_transition_advice::source_callback::tests::original_callback_unknown_scope_retains_prefix_without_relative_frame_donation
+
+test result: FAILED. 32 passed; 8 failed; 0 ignored; 0 measured; 8350 filtered out; finished in 172.21s
+

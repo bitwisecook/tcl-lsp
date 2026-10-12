@@ -1,0 +1,94 @@
+TclCompileListCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *valueTokenPtr;
+    int i, numWords, concat, build;
+    Tcl_Obj *listObj, *objPtr;
+
+    if (parsePtr->numWords == 1) {
+	/*
+	 * [list] without arguments just pushes an empty object.
+	 */
+
+	PushStringLiteral(envPtr, "");
+	return TCL_OK;
+    }
+
+    /*
+     * Test if all arguments are compile-time known. If they are, we can
+     * implement with a simple push.
+     */
+
+    numWords = parsePtr->numWords;
+    valueTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    TclNewObj(listObj);
+    for (i = 1; i < numWords && listObj != NULL; i++) {
+	TclNewObj(objPtr);
+	if (TclWordKnownAtCompileTime(valueTokenPtr, objPtr)) {
+	    (void) Tcl_ListObjAppendElement(NULL, listObj, objPtr);
+	} else {
+	    Tcl_DecrRefCount(objPtr);
+	    Tcl_DecrRefCount(listObj);
+	    listObj = NULL;
+	}
+	valueTokenPtr = TokenAfter(valueTokenPtr);
+    }
+    if (listObj != NULL) {
+	TclEmitPush(TclAddLiteralObj(envPtr, listObj, NULL), envPtr);
+	return TCL_OK;
+    }
+
+    /*
+     * Push the all values onto the stack.
+     */
+
+    numWords = parsePtr->numWords;
+    valueTokenPtr = TokenAfter(parsePtr->tokenPtr);
+    concat = build = 0;
+    for (i = 1; i < numWords; i++) {
+	if (valueTokenPtr->type == TCL_TOKEN_EXPAND_WORD && build > 0) {
+	    TclEmitInstInt4(	INST_LIST, build,	envPtr);
+	    if (concat) {
+		TclEmitOpcode(	INST_LIST_CONCAT,	envPtr);
+	    }
+	    build = 0;
+	    concat = 1;
+	}
+	CompileWord(envPtr, valueTokenPtr, interp, i);
+	if (valueTokenPtr->type == TCL_TOKEN_EXPAND_WORD) {
+	    if (concat) {
+		TclEmitOpcode(	INST_LIST_CONCAT,	envPtr);
+	    } else {
+		concat = 1;
+	    }
+	} else {
+	    build++;
+	}
+	valueTokenPtr = TokenAfter(valueTokenPtr);
+    }
+    if (build > 0) {
+	TclEmitInstInt4(	INST_LIST, build,	envPtr);
+	if (concat) {
+	    TclEmitOpcode(	INST_LIST_CONCAT,	envPtr);
+	}
+    }
+
+    /*
+     * If there was just one expanded word, we must ensure that it is a list
+     * at this point. We use an [lrange ... 0 end] for this (instead of
+     * [llength], as with literals) as we must drop any string representation
+     * that might be hanging around.
+     */
+
+    if (concat && numWords == 2) {
+	TclEmitInstInt4(	INST_LIST_RANGE_IMM, 0,	envPtr);
+	TclEmitInt4(			TCL_INDEX_END,	envPtr);
+    }
+    return TCL_OK;
+}

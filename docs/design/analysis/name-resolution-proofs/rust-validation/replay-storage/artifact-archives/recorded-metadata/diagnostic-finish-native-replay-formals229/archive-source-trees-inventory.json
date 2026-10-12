@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/diagnostic-finish-native-replay-formals229.source-trees.tar.gz",
+  "archive_sha256": "bbf0e0c1f3bd83c64a41e810ab71f0265937ffbddbe2616df5acd0f99b9a67f9",
+  "archive_bytes": 337188,
+  "uncompressed_bytes": 1736999,
+  "source_manifest_sha256": "830093cba63456a3d8986742c98aa7de55b1b866defe12c3678fbdfac50d8740",
+  "source_patch_sha256": "f8574ef71dc8c9988fad44bdc099119cf864b2d1281bebf510d20861eed18990",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": true,
+  "member_count": 10,
+  "members": {
+    "diagnostic-finish-native-replay-formals229/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.013525,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.013525,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.017525,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.017525,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/base/rust/tcl-compiler/src/command_binding.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.8217068,
+      "size": 866831,
+      "sha256": "8f5eaff1388c5eee31d5dbd12eaee950603dc129e92b94afcd5934905d0d288c"
+    },
+    "diagnostic-finish-native-replay-formals229/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.0188205,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/candidate/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.0188205,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/candidate/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.0188205,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/candidate/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591714.0188205,
+      "size": 0,
+      "sha256": null
+    },
+    "diagnostic-finish-native-replay-formals229/candidate/rust/tcl-compiler/src/command_binding.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791591788.8234499,
+      "size": 870168,
+      "sha256": "354b0206b9af8184fedf3fdebc23cfda34f4efb67e806bc6ef691d33e168396d"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "354b0206b9af8184fedf3fdebc23cfda34f4efb67e806bc6ef691d33e168396d",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "hash_key": "base_sha256",
+      "sha256": "8f5eaff1388c5eee31d5dbd12eaee950603dc129e92b94afcd5934905d0d288c",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

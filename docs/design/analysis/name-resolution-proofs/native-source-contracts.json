@@ -1,0 +1,253 @@
+[
+  {
+    "id": "naming.source.native-literal-word-renderer",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/native-literal-word-renderer.md",
+    "problem_statement": "A new source spelling can change the native value of a name: a counted raw zero differs from modified zero, a lone surrogate has no Rust Unicode scalar, and a Document character channel differs from a counted NativeValue input. Using a displayed String or a list formatter as a source-name identity can therefore rename another slot. This question concerns exact source spelling, without command lookup or native object authority.",
+    "question": "Can the shared source literal renderer retain exact selected native bytes under the requested original channel, full escape grammar and independent string protocol?",
+    "conclusion": "native_literal_source_word returns a quoted literal only when the shared source decoder produces the requested bytes exactly. It first checks a literal UTF-8 spelling, then independently selected C native units with exact byte re-encoding and numeric escapes. Raw counted zero remains raw in NativeValue, modified zero uses its own escape spelling, and Document raw-zero bytes or invalid opaque bytes that have no exact representable spelling remain unavailable. No naming, object, cache, completion or compiler capability follows from rendering.",
+    "scope": "Rust source rendering for C8.4\u20139.1 and current modeled Jim protocol, both Document and NativeValue channels. The decoder/protocol guards retain the requested grammar. This question does not observe a real interpreter executing the rendered words.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-syntax/src/backslash.rs",
+        "selector": "backslash::tests::literal_source_renderer_preserves_selected_native_bytes_and_channel",
+        "assertion": "Check exact decoded values for syntax metacharacters, newline controls, modified zero and distinct native surrogate units; distinguish raw source channels and unavailable opaque bytes.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-syntax/src/backslash.rs",
+        "symbol": "native_literal_source_word",
+        "purpose": "Central original-channel native-byte source spelling."
+      },
+      {
+        "path": "rust/tcl-syntax/src/backslash.rs",
+        "symbol": "native_source_string_bytes_channel_in",
+        "purpose": "Independent exact native value comparison."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-syntax",
+        "backslash::tests::literal_source_renderer_preserves_selected_native_bytes_and_channel",
+        "--",
+        "--exact"
+      ],
+      "limitations": "These are Rust implementation-contract checks. Native provider answers remain not-tested for this precise Rust question; neighboring native observations establish separate byte, evaluator and object rules. A captured interpreter outcome is not a Rust test pass."
+    }
+  },
+  {
+    "id": "naming.optimiser.original-tail-call-inventory",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md",
+    "problem_statement": "A display name can denote a different procedure after rename, replacement, aliasing or a namespace change. A text scanner can also miss a quoted or escaped call, count inert brackets, or lose a non-tail recursive call in a decoded expression. Reconstructing the procedure header or reindenting original lines can change name identity and multiline literal values. These ambiguities affect whether a source loop rewrite is justified.",
+    "question": "Does the tail-call optimiser select the exact retained procedure allocation and inventory original and readonly expression calls before editing the original body?",
+    "conclusion": "The inventory joins the original evaluated body and complete procedure allocation, then selects source calls through independently retained current byte publications and original alias target producers. Checked expression grammar inventories original command spans; statically produced expression script words retain readonly parent-byte lineage and never acquire editable coordinates. Unknown target, operand effects or incomplete syntax withdraw the complete inventory. Fixed-arity scalar assignments consume the original native formal binding topology and exact source renderer. A loop edit preserves the entire original header and contiguous braced body, adds explicit continuation and normal fallthrough return, and retains multiline literal bytes. Captured prefixes, rest/reference bindings and missing original owners cannot donate written loop operands.",
+    "scope": "Rust source-only naming and rewrite contracts; exact original source/configuration/frame/namespace and Registry transition receipts are required. Conditional quiet formal reads remain separate from unknown object rendering or arithmetic coercion. Native object caches, actual body entry and successful runtime completion are not supplied by an inventory or a source allocation.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No observation for this question.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "No appliance observation for this question.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/optimiser/tail_call.rs",
+        "selector": "optimiser::tail_call::tests::original_allocation_and_grouped_names_control_tail_rewrites",
+        "assertion": "Grouped/non-ASCII original names retain header spelling; replaced and sibling allocations and expanded rest calls do not obtain a loop rewrite.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/tail_call.rs",
+        "selector": "optimiser::tail_call::tests::produced_expression_commands_retain_readonly_self_identity",
+        "assertion": "Non-tail decoded expression self calls, including an alias target, prevent a tail-only loop edit.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/optimiser/tail_call/inventory.rs",
+        "symbol": "Inventory::capture",
+        "purpose": "Exact implementation allocation and complete original command inventory."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_lookup.rs",
+        "symbol": "SourceInvocationBinding::original_declared_definition_reference",
+        "purpose": "Conditional current byte publication selection with independent operand-effect closure."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_lookup.rs",
+        "symbol": "SourceInvocationBinding::original_expression_command_definition",
+        "purpose": "Readonly static parent-owned expression script selection."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/formal_topology.rs",
+        "symbol": "OriginalFormalTopology::fixed_scalar_binding_names",
+        "purpose": "Original fixed-arity native scalar binding destinations."
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/tail_call.rs",
+        "symbol": "emit_loop_conversion",
+        "purpose": "Original contiguous body edit preserving header and literal lines."
+      }
+    ],
+    "replay": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-compiler",
+        "optimiser::tail_call::tests::original_allocation_and_grouped_names_control_tail_rewrites",
+        "--",
+        "--exact"
+      ],
+      "limitations": "These are Rust implementation-contract checks. Native provider answers remain not-tested for this precise Rust question; neighboring native observations establish separate byte, evaluator and object rules. A captured interpreter outcome is not a Rust test pass."
+    }
+  }
+]

@@ -1,0 +1,4 @@
+/workspace/.proofs/native-lassign-argv065/cases.tcl:5: Error: wrong # args: should be "interp"
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-lassign-argv065/cases.tcl", line 5
+    interp alias {} la {} lassign

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::command_publication_tests::original_compiler_header_keeps_the_published_proc_binding_between_actual_getters ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 19.30s
+

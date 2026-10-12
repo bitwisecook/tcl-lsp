@@ -1,0 +1,34 @@
+TclCompileStringLenCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    Tcl_Obj *objPtr;
+
+    if (parsePtr->numWords != 2) {
+	return TCL_ERROR;
+    }
+
+    tokenPtr = TokenAfter(parsePtr->tokenPtr);
+    TclNewObj(objPtr);
+    if (TclWordKnownAtCompileTime(tokenPtr, objPtr)) {
+	/*
+	 * Here someone is asking for the length of a static string (or
+	 * something with backslashes). Just push the actual character (not
+	 * byte) length.
+	 */
+
+	Tcl_Obj *objLen = Tcl_NewWideUIntObj(Tcl_GetCharLength(objPtr));
+	PUSH_OBJ(		objLen);
+    } else {
+	SetLineInformation(1);
+	CompileTokens(envPtr, tokenPtr, interp);
+	OP(			STR_LEN);
+    }
+    TclDecrRefCount(objPtr);
+    return TCL_OK;
+}

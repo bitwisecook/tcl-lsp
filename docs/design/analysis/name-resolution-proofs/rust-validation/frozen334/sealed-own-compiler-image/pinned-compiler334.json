@@ -1,0 +1,7 @@
+{
+  "executable": "/tmp/naming-owned334/pinned-compiler334.elf",
+  "sha256": "232160a6387aa3004106d1e21569040944274e84ff9f0444ca3489487813d3b1",
+  "build_receipt": "/workspace/.proofs/integration-compiler-own-test-build334.json",
+  "build_receipt_sha256": "90bef30af21c30615a2644eab9cb91469de5960d9177b0f7ff7afe7b1cc0c110",
+  "source_snapshot_sha256": "84ff78785e4b27568e4566f9c021c94b076560f035bf79e954a91e0a46e340c2"
+}

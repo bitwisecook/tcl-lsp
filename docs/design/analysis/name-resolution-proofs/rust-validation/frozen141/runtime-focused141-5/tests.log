@@ -1,0 +1,7 @@
+
+running 1 test
+test cmd_switch::tests::switch_integer_matches_by_value_on_tcl91 ... ADMISSION140 control physical=Some(V9_1) in_proc=false list_dispatch=false compiles=true namespace=0 original=0x7fda847c7490
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 1.72s
+

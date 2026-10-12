@@ -1,0 +1,11 @@
+
+running 6 tests
+test package_resolver::original_names::tests::original_index_grammar_requires_the_current_registry_implementation ... ok
+test package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices ... ok
+test package_resolver::original_names::tests::original_old_index_uses_list_grammar_and_translated_line_boundaries ... ok
+test package_resolver::original_names::tests::original_package_advice_keeps_unowned_reports_and_metadata_distinct ... ok
+test package_resolver::original_names::tests::original_package_keys_keep_opaque_names_and_nested_source_owners ... ok
+test package_resolver::original_names::tests::original_package_requirement_closure_keeps_versions_and_preference ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 2608 filtered out; finished in 45.13s
+

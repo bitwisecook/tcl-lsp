@@ -1,0 +1,28 @@
+   Compiling tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 1m 58s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_registry-830a06eae9987c16)
+
+running 1 test
+test body_execution::tests::deferred_global_entry_keeps_the_authored_native_family ... 
+thread 'body_execution::tests::deferred_global_entry_keeps_the_authored_native_family' (502915) panicked at rust/tcl-registry/src/body_execution.rs:849:70:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    body_execution::tests::deferred_global_entry_keeps_the_authored_native_family
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1441 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p tcl-registry --lib`

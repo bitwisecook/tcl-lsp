@@ -1,0 +1,44 @@
+[
+  {
+    "provider": "jim",
+    "version": "Jim0.84 captured source label; no captured patch query",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+    "original_path": "jim-regexp.c",
+    "function": "SetRegexpFromAny",
+    "lines": [
+      64,
+      118
+    ],
+    "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+    "snippet": "static void FreeRegexpInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)\n{\n    jim_regfree(objPtr->internalRep.ptrIntValue.ptr);\n    Jim_Free(objPtr->internalRep.ptrIntValue.ptr);\n}\n\n/* internal rep is stored in ptrIntvalue\n *  ptr = compiled regex\n *  int1 = flags\n */\nstatic const Jim_ObjType regexpObjType = {\n    \"regexp\",\n    FreeRegexpInternalRep,\n    NULL,\n    NULL,\n    JIM_TYPE_NONE\n};\n\nstatic regex_t *SetRegexpFromAny(Jim_Interp *interp, Jim_Obj *objPtr, unsigned flags)\n{\n    regex_t *compre;\n    const char *pattern;\n    int ret;\n\n    /* Check if the object is already an uptodate variable */\n    if (objPtr->typePtr == &regexpObjType &&\n        objPtr->internalRep.ptrIntValue.ptr && objPtr->internalRep.ptrIntValue.int1 == flags) {\n        /* nothing to do */\n        return objPtr->internalRep.ptrIntValue.ptr;\n    }\n\n    /* Not a regexp or the flags do not match */\n\n    /* Get the string representation */\n    pattern = Jim_String(objPtr);\n    compre = Jim_Alloc(sizeof(regex_t));\n\n    if ((ret = jim_regcomp(compre, pattern, REG_EXTENDED | flags)) != 0) {\n        char buf[100];\n\n        jim_regerror(ret, compre, buf, sizeof(buf));\n        Jim_SetResultFormatted(interp, \"couldn't compile regular expression pattern: %s\", buf);\n        jim_regfree(compre);\n        Jim_Free(compre);\n        return NULL;\n    }\n\n    Jim_FreeIntRep(interp, objPtr);\n\n    objPtr->typePtr = &regexpObjType;\n    objPtr->internalRep.ptrIntValue.int1 = flags;\n    objPtr->internalRep.ptrIntValue.ptr = compre;\n\n    return compre;\n}\n",
+    "snippet_sha256": "59666c07b5a37595ac1f946f1a627d8212ece3241bf8c95609abfbdd66380a5f"
+  },
+  {
+    "provider": "jim",
+    "version": "Jim0.84 captured source label; no captured patch query",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+    "original_path": "jim-regexp.c",
+    "function": "Jim_RegsubCmd",
+    "lines": [
+      452,
+      483
+    ],
+    "source_sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+    "snippet": "    }\n    if (argc - i != 3 && argc - i != 4) {\n        return JIM_USAGE;\n    }\n\n    /* Need to ensure that this is unshared, so just duplicate it always */\n    regcomp_obj = Jim_DuplicateObj(interp, argv[i]);\n    Jim_IncrRefCount(regcomp_obj);\n    regex = SetRegexpFromAny(interp, regcomp_obj, regcomp_flags);\n    if (!regex) {\n        Jim_DecrRefCount(interp, regcomp_obj);\n        return JIM_ERR;\n    }\n    pattern = Jim_String(argv[i]);\n\n    source_str = Jim_GetString(argv[i + 1], &source_len);\n    if (opt_command) {\n        cmd_prefix = argv[i + 2];\n        if (Jim_ListLength(interp, cmd_prefix) == 0) {\n            Jim_SetResultString(interp, \"command prefix must be a list of at least one element\", -1);\n            Jim_DecrRefCount(interp, regcomp_obj);\n            return JIM_ERR;\n        }\n        Jim_IncrRefCount(cmd_prefix);\n    }\n    else {\n        replace_str = Jim_GetString(argv[i + 2], &replace_len);\n    }\n    varname = argv[i + 3];\n\n    /* Create the result string */\n    resultObj = Jim_NewStringObj(interp, \"\", 0);\n",
+    "snippet_sha256": "60d1754027bfbe5928e2189ffd553ac28fab8a6d907b8874249f81775ff5b5c3"
+  },
+  {
+    "provider": "jim",
+    "version": "Jim0.84 captured source label; no captured patch query",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)",
+    "original_path": "jimregexp.c",
+    "function": "jim_regcomp",
+    "lines": [
+      284,
+      342
+    ],
+    "source_sha256": "97cff9c0d8f2b0b6e09c40b46e77d09b80e667ea50aa2382e5e9b74552692acf",
+    "snippet": "int jim_regcomp(regex_t *preg, const char *exp, int cflags)\n{\n\tint scan;\n\tint longest;\n\tunsigned len;\n\tint flags;\n\n#ifdef DEBUG\n\tfprintf(stderr, \"Compiling: '%s'\\n\", exp);\n#endif\n\tmemset(preg, 0, sizeof(*preg));\n\n\tif (exp == NULL)\n\t\tFAIL(preg, REG_ERR_NULL_ARGUMENT);\n\n\tif (cflags & REG_EXPANDED) {\n\t\tpreg->exp = reg_expanded_new_pattern(exp);\n\t\texp = preg->exp;\n\t}\n\n\t/* First pass: determine size, legality. */\n\tpreg->cflags = cflags;\n\tpreg->regparse = exp;\n\n\t/* Allocate space. */\n\tpreg->proglen = (strlen(exp) + 1) * 5;\n\tpreg->program = malloc(preg->proglen * sizeof(int));\n\tif (preg->program == NULL)\n\t\tFAIL(preg, REG_ERR_NOMEM);\n\n\t/* Note that since we store a magic value as the first item in the program,\n\t * program offsets will never be 0\n\t */\n\tregc(preg, REG_MAGIC);\n\tif (reg(preg, 0, &flags) == 0) {\n\t\treturn preg->err;\n\t}\n\n\t/* Small enough for pointer-storage convention? */\n\tif (preg->re_nsub >= REG_MAX_PAREN)\t\t/* Probably could be 65535L. */\n\t\tFAIL(preg,REG_ERR_TOO_BIG);\n\n\t/* Dig out information for optimizations. */\n\tpreg->regstart = 0;\t/* Worst-case defaults. */\n\tpreg->reganch = 0;\n\tpreg->regmust = 0;\n\tpreg->regmlen = 0;\n\tscan = 1;\t\t\t/* First BRANCH. */\n\tif (OP(preg, regnext(preg, scan)) == END) {\t\t/* Only one top-level choice. */\n\t\tscan = OPERAND(scan);\n\n\t\t/* Starting-point info. */\n\t\tif (OP(preg, scan) == EXACTLY) {\n\t\t\tpreg->regstart = preg->program[OPERAND(scan)];\n\t\t}\n\t\telse if (OP(preg, scan) == BOL)\n\t\t\tpreg->reganch++;\n\n\t\t/*\n",
+    "snippet_sha256": "f4bb5293214ea7920646df0d88c596fc0cc1d8b776c705d729184dcbc66c8324"
+  }
+]

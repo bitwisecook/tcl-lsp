@@ -1,0 +1,54 @@
+{
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/root-native-list-group-cli656/probe.tcl",
+    "6"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-group-cli656/Jim/case-06",
+  "explicit_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCLLIBPATH": ""
+  },
+  "timeout_seconds": 20,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.004908326955046505,
+  "stdout": "/workspace/.proofs/root-native-list-group-cli656/Jim/case-06/execute.stdout",
+  "stderr": "/workspace/.proofs/root-native-list-group-cli656/Jim/case-06/execute.stderr",
+  "stdout_sha256": "f8110ee94c53511d04cf0a003572d0648eb30717377999ecf6fe39bf0ac11d03",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "fields": {
+    "case": [
+      "6",
+      "command-valid-width"
+    ],
+    "script-hex": [
+      "6c736f7274202d636f6d6d616e64207232323836636d70202d7374726964652032202d696e6465782031207b322041203120427d"
+    ],
+    "guest-code": [
+      "0"
+    ],
+    "result-hex": [
+      "32204120312042"
+    ],
+    "error-code-present": [
+      "0"
+    ],
+    "error-code-hex": [
+      ""
+    ],
+    "error-info-present": [
+      "0"
+    ],
+    "error-info-hex": [
+      ""
+    ],
+    "callback-count": [
+      "1"
+    ]
+  },
+  "case": 6,
+  "complete_projection": true
+}

@@ -1,0 +1,27 @@
+    OPERAND_LVT1,		/* One byte unsigned index into the local
+				 * variable table. */
+    OPERAND_LVT4,		/* Four byte unsigned index into the local
+				 * variable table. */
+    OPERAND_AUX4		/* Four byte unsigned index into the aux data
+				 * table. */
+} InstOperandType;
+
+typedef struct InstructionDesc {
+    char *name;			/* Name of instruction. */
+    int numBytes;		/* Total number of bytes for instruction. */
+    int stackEffect;		/* The worst-case balance stack effect of the
+				 * instruction, used for stack requirements
+				 * computations. The value INT_MIN signals
+				 * that the instruction's worst case effect is
+				 * (1-opnd1). */
+    int numOperands;		/* Number of operands. */
+    InstOperandType opTypes[MAX_INSTRUCTION_OPERANDS];
+				/* The type of each operand. */
+} InstructionDesc;
+
+MODULE_SCOPE InstructionDesc tclInstructionTable[];
+
+/*
+ * Compilation of some Tcl constructs such as if commands and the logical or
+ * (||) and logical and (&&) operators in expressions requires the generation
+ * of forward jumps. Since the PC target of these jumps isn't known when the

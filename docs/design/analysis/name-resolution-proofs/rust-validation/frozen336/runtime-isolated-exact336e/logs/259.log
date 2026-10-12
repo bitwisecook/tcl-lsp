@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_command_recreation::tests::original_owned_shim_purpose_survives_the_public_constructor_facade ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.27s
+

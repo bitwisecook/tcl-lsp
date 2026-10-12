@@ -299,15 +299,19 @@ mod tests {
         // yields no O124 — gated.
         let source = "proc ::foo {} { set x 1 }\n";
         let ip = ip_with(&[("::foo", &[], false)]);
-        assert!(
+        assert_eq!(
             run_pass(
                 source,
                 Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
                 ip.clone()
             )
-            .is_empty()
+            .len(),
+            0
         );
-        assert!(run_pass(source, None, ip).is_empty());
+        assert_eq!(
+            run_pass(source, None, ip),
+            [] as [crate::optimiser::Optimisation; 0]
+        );
     }
 
     #[test]
@@ -316,8 +320,9 @@ mod tests {
         let source = "proc ::helper {} { set x 1 }\nwhen RULE_INIT { set static::y 0 }\n";
         let ip = ip_with(&[("::helper", &[], false), ("::when::RULE_INIT", &[], false)]);
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert!(
-            opts.is_empty(),
+        assert_eq!(
+            opts.len(),
+            0,
             "library iRule should not emit O124: {opts:?}"
         );
     }
@@ -330,8 +335,9 @@ mod tests {
             ("::when::HTTP_REQUEST", &["::helper"], false),
         ]);
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert!(
-            opts.is_empty(),
+        assert_eq!(
+            opts.len(),
+            0,
             "reachable proc should not be flagged: {opts:?}"
         );
     }
@@ -347,8 +353,9 @@ mod tests {
             ("::when::HTTP_REQUEST", &["::a"], false),
         ]);
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert!(
-            opts.is_empty(),
+        assert_eq!(
+            opts.len(),
+            0,
             "barrier in reachable proc should suppress all O124: {opts:?}",
         );
     }

@@ -1,0 +1,50 @@
+{
+  "question": "naming.bootstrap.original-mathop-constructor-publication",
+  "request_sha256": "c82e51c99926b4795167e67cd1e059b2279e5bb2d04e5b023ade8e12e4b1a42b",
+  "processes": [
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/8.4.20/compile.receipt.json",
+      "sha256": "25604a508e8a913d5a7753e7ba5a72ecc78983781d286e6a731acba0d57b5158"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/8.5.19/compile.receipt.json",
+      "sha256": "7b991712c5fbf49cd0750e32c9d09ad57c9987a33a3ad98c311b11d0d42b1eed"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/8.5.19/execute.receipt.json",
+      "sha256": "0c780409e4c7fec2b3ea797894d3cfc893eb6b7eb3b94b8bdb97a77e29afea15"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/8.6.18/compile.receipt.json",
+      "sha256": "a8fbf458c9500c5be1126f22e2da28befb7210e4d769eab10db3953affdaf83c"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/8.6.18/execute.receipt.json",
+      "sha256": "d2ba2e51eb1fb49161804152a90cce0e304b4d7b0cebb3eaa1ce7780f23fbed2"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/9.0.4/compile.receipt.json",
+      "sha256": "b4c9cff22cfa12d6021c7b1b6fe447c0073bb1a8f2480d9f8740c0f787380a60"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/9.0.4/execute.receipt.json",
+      "sha256": "ee0378729bc4cd27050f647504f83f86baffb2c51268076f7c234ff36645dd8a"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/9.1.0/compile.receipt.json",
+      "sha256": "57f5edd6ac6d7015f1254b5bcb9158583bede8d7990f80f97504918a842651d3"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/9.1.0/execute.receipt.json",
+      "sha256": "8c223c9e61413e998f16558ef44ce2771b591a5286b38c5a51e2a6a5b84b93c1"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/jim/compile.receipt.json",
+      "sha256": "c078f41fc79ba25083a3f514caf82ad64addb9d2b88a001cb0cdf20eb8864857"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/providers/jim/execute.receipt.json",
+      "sha256": "8eded3439960d734279d86bb062bea90e5a32222ba004470c4e1f486b756d8e8"
+    }
+  ]
+}

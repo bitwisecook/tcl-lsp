@@ -1,0 +1,195 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/grammar-source-roles173.base-files.tar.gz",
+  "archive_sha256": "fd0027054b1c6e665becd1b262f4a3f09b55f19b9ba60427ddea9d51a61a5a9e",
+  "archive_bytes": 363529,
+  "uncompressed_bytes": 1690693,
+  "source_manifest_sha256": "e315a3cf1473ee6a8936847f4f17f1ad0e3cbf32de53bcf3061201cd7ef2e766",
+  "source_patch_sha256": "872f3c12d3b76d63ae36fd639a45dfdd5d2fa4e86362eabc87c223e5384bc74c",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/872f3c12d3b76d63ae36fd639a45dfdd5d2fa4e86362eabc87c223e5384bc74c.patch",
+  "original_application_journal_sha256": "872f3c12d3b76d63ae36fd639a45dfdd5d2fa4e86362eabc87c223e5384bc74c",
+  "member_count": 20,
+  "members": {
+    "grammar-source-roles173/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1661367,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust/tcl-lsp-core/src/semantic_tokens": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1700892,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1729555,
+      "size": 74082,
+      "sha256": "38879eac4fc660fb711f52acd78d6ea55fd6d4445781fef17adee76add8e4a86"
+    },
+    "grammar-source-roles173/base/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1700892,
+      "size": 492876,
+      "sha256": "1feed9d671c46d0b54f55ce735f65323e5ce5f5e5d0a9b672b3509d5319fc2d8"
+    },
+    "grammar-source-roles173/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1729555,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/base/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791582376.1966076,
+      "size": 264576,
+      "sha256": "13009d617b7a24c10a568e27c64acc4fd81d2925350a41cbebacc33c1d2c20fa"
+    },
+    "grammar-source-roles173/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust/tcl-lsp-core": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust/tcl-lsp-core/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1768687,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust/tcl-lsp-core/src/semantic_tokens": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1747751,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791582192.0317998,
+      "size": 91785,
+      "sha256": "daf7f0192a0fe55772a01f30bfe993f6ff99bb399694fae1f483858a52e18ee9"
+    },
+    "grammar-source-roles173/files/rust/tcl-lsp-core/src/semantic_tokens.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791582364.5184615,
+      "size": 493968,
+      "sha256": "e1d979ad297edb82d402a35f840db179f7c270338a9e9bcb3074cc2185bf361c"
+    },
+    "grammar-source-roles173/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791581386.1621368,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791582410.9660993,
+      "size": 0,
+      "sha256": null
+    },
+    "grammar-source-roles173/files/rust/tcl-registry/src/resolved_invocation.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791582376.1903706,
+      "size": 273406,
+      "sha256": "1f5e0b96df65ddbafd55790d5cd209537613480a02320a3f8860a6e74b29af3e"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

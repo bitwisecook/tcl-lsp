@@ -1,0 +1,60 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error[E0599]: no method named `flatten` found for enum `std::option::Option<InvocationMetadataContext<'_>>` in the current scope
+   --> rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs:195:69
+    |
+195 |     let metadata = cfg.metadata_context.metadata_context(registry)?.flatten();
+    |                                                                     ^^^^^^^ `std::option::Option<InvocationMetadataContext<'_>>` is not an iterator
+    |
+help: call `.into_iter()` first
+    |
+195 |     let metadata = cfg.metadata_context.metadata_context(registry)?.into_iter().flatten();
+    |                                                                     ++++++++++++
+
+error[E0425]: cannot find value `MAX_EXPR_NODE_DEPTH` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:3473:8
+     |
+3473 |     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+     |        ^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this constant
+     |
+  70 + use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
+     |
+
+error[E0425]: cannot find type `ContextRegistry` in crate `tcl_registry`
+    --> rust/tcl-compiler/src/lowering/execution_regions.rs:1288:68
+     |
+1288 |     fn captured_provider_context() -> std::sync::Arc<tcl_registry::ContextRegistry> {
+     |                                                                    ^^^^^^^^^^^^^^^
+     |
+    ::: rust/tcl-registry/src/registry.rs:837:1
+     |
+ 837 | pub struct CommandRegistry {
+     | -------------------------- similarly named struct `CommandRegistry` defined here
+     |
+help: a struct with a similar name exists
+     |
+1288 -     fn captured_provider_context() -> std::sync::Arc<tcl_registry::ContextRegistry> {
+1288 +     fn captured_provider_context() -> std::sync::Arc<tcl_registry::CommandRegistry> {
+     |
+
+error[E0599]: no method named `flatten` found for enum `std::option::Option<metadata_context::InvocationMetadataContext<'_>>` in the current scope
+   --> rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs:195:69
+    |
+195 |     let metadata = cfg.metadata_context.metadata_context(registry)?.flatten();
+    |                                                                     ^^^^^^^ `std::option::Option<metadata_context::InvocationMetadataContext<'_>>` is not an iterator
+    |
+help: call `.into_iter()` first
+    |
+195 |     let metadata = cfg.metadata_context.metadata_context(registry)?.into_iter().flatten();
+    |                                                                     ++++++++++++
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `tcl-compiler` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0425, E0599.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `tcl-compiler` (lib test) due to 3 previous errors

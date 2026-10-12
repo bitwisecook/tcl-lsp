@@ -1,0 +1,65 @@
+{
+  "channel": "ASCII NUL-terminated C literals, C Tcl_EvalEx length -1 with TCL_EVAL_DIRECT; Jim_Eval",
+  "cases": [
+    {
+      "id": "basic",
+      "source": "set x OLD; after 0 {set x NEW}; vwait x; set x"
+    },
+    {
+      "id": "lone-all",
+      "source": "set {-all} OLD; after 0 {set {-all} NEW}; vwait -all; set {-all}"
+    },
+    {
+      "id": "lone-signal",
+      "source": "set {-signal} OLD; after 0 {set {-signal} NEW}; vwait -signal; set {-signal}"
+    },
+    {
+      "id": "lone-end",
+      "source": "set {--} OLD; after 0 {set {--} NEW}; vwait --"
+    },
+    {
+      "id": "end-name",
+      "source": "set {--} OLD; after 0 {set {--} NEW}; vwait -- --; set {--}"
+    },
+    {
+      "id": "option-variable",
+      "source": "set x OLD; after 0 {set x NEW}; vwait -variable x -timeout 100; set x"
+    },
+    {
+      "id": "abbreviated-variable",
+      "source": "set x OLD; after 0 {set x NEW}; vwait -v x -t 100; set x"
+    },
+    {
+      "id": "timeout-or-jim-body",
+      "source": "set {-timeout} OLD; after 0 {set {-timeout} NEW}; vwait -timeout 1"
+    },
+    {
+      "id": "signal-name",
+      "source": "set x OLD; after 0 {set x NEW}; vwait -signal x; set x"
+    },
+    {
+      "id": "name-body",
+      "source": "set x SAME; after 0 {set x SAME}; vwait x {break}"
+    },
+    {
+      "id": "signal-name-body",
+      "source": "set x SAME; after 0 {set x SAME}; vwait -signal x {break}"
+    },
+    {
+      "id": "abbreviation-is-jim-name",
+      "source": "set {-sig} OLD; after 0 {set {-sig} NEW}; vwait -sig x; set {-sig}"
+    },
+    {
+      "id": "global-scope",
+      "source": "set x OLD; namespace eval N {variable x LOCAL}; after 0 {set x GLOBAL}; namespace eval N {vwait x}; list [namespace eval N {set x}] $x"
+    },
+    {
+      "id": "missing-option-value",
+      "source": "vwait -variable x -timeout"
+    },
+    {
+      "id": "missing-channel",
+      "source": "vwait -readable no_such_original_channel"
+    }
+  ]
+}

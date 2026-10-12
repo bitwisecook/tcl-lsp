@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_oo::original_record_retirement_tests::active_forward_record_retains_its_existing_payload_until_real_chain_cleanup ... 
+thread 'cmd_oo::original_record_retirement_tests::active_forward_record_retains_its_existing_payload_until_real_chain_cleanup' (1254562) panicked at src/cmd_oo/original_record_retirement_tests.rs:341:5:
+assertion failed: STAGES.with(|stages| stages.borrow().is_empty())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::original_record_retirement_tests::active_forward_record_retains_its_existing_payload_until_real_chain_cleanup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.09s
+

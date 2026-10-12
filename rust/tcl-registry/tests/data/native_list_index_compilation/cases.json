@@ -1,0 +1,21 @@
+[
+  "lindex $x 0",
+  "lindex $x $i",
+  "lindex $x",
+  "lindex $x {0 1}",
+  "lindex $x 0 1",
+  "lindex $x bad",
+  "lindex $x -1",
+  "lindex $x end",
+  "lindex $x end-1",
+  "lindex $x end+1",
+  "lindex $x 1+1",
+  "lindex $x \\060",
+  "lindex {*}$i",
+  "lindex {*}{a b} 0",
+  "lindex $x 2147483647",
+  "lindex $x {0 bad}",
+  "lindex {} 0 bad",
+  "lindex \\{ 0",
+  "lindex $x 0 [return EARLY]"
+]

@@ -1,0 +1,17 @@
+
+running 1 test
+test inlining::tests::original_inlining_activation_requires_selected_c_parameter_grammar ... 
+thread 'inlining::tests::original_inlining_activation_requires_selected_c_parameter_grammar' (661562) panicked at rust/tcl-compiler/src/inlining/tests.rs:830:5:
+assertion `left == right` failed: the C control must exercise an eligible transform
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::tests::original_inlining_activation_requires_selected_c_parameter_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8298 filtered out; finished in 0.32s
+

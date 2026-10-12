@@ -1,0 +1,51 @@
+ * Side effects:
+ *	The command's fully-qualified name is appended to the string
+ *	representation of objPtr.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+Tcl_GetCommandFullName(
+    Tcl_Interp *interp,		/* Interpreter containing the command. */
+    Tcl_Command command,	/* Token for command returned by a previous
+				 * call to Tcl_CreateCommand. The command must
+				 * not have been deleted. */
+    Tcl_Obj *objPtr)		/* Points to the object onto which the
+				 * command's full name is appended. */
+
+{
+    Interp *iPtr = (Interp *) interp;
+    Command *cmdPtr = (Command *) command;
+    char *name;
+
+    /*
+     * Add the full name of the containing namespace, followed by the "::"
+     * separator, and the command name.
+     */
+
+    if (cmdPtr != NULL) {
+	if (cmdPtr->nsPtr != NULL) {
+	    Tcl_AppendToObj(objPtr, cmdPtr->nsPtr->fullName, -1);
+	    if (cmdPtr->nsPtr != iPtr->globalNsPtr) {
+		Tcl_AppendToObj(objPtr, "::", 2);
+	    }
+	}
+	if (cmdPtr->hPtr != NULL) {
+	    name = (char *)Tcl_GetHashKey(cmdPtr->hPtr->tablePtr, cmdPtr->hPtr);
+	    Tcl_AppendToObj(objPtr, name, -1);
+	}
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_DeleteCommand --
+ *
+ *	Remove the given command from the given interpreter.
+ *
+ * Results:
+ *	0 is returned if the command was deleted successfully. -1 is returned
+ *	if there didn't exist a command by that name.
+ *

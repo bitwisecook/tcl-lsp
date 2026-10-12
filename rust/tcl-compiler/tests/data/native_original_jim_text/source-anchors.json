@@ -1,0 +1,77 @@
+[
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "jim.c",
+    "function": "JimParserGetTokenObj",
+    "lines": [
+      2087,
+      2111
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "static Jim_Obj *JimParserGetTokenObj(Jim_Interp *interp, struct JimParserCtx *pc)\n{\n    const char *start, *end;\n    char *token;\n    int len;\n\n    start = pc->tstart;\n    end = pc->tend;\n    len = (end - start) + 1;\n    if (len < 0) {\n        len = 0;\n    }\n    token = Jim_Alloc(len + 1);\n    if (pc->tt != JIM_TT_ESC) {\n        /* No escape conversion needed? Just copy it. */\n        memcpy(token, start, len);\n        token[len] = '\\0';\n    }\n    else {\n        /* Else convert the escape chars. */\n        len = JimEscape(token, start, len);\n    }\n\n    return Jim_NewStringObjNoAlloc(interp, token, len);\n}\n",
+    "snippet_sha256": "31a91b47ddf67147dfb8ef80db497dc8bd3c1f1bf2c31d09da6e8f59ec3cc976",
+    "evidence": "jim-source-2087"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "jim.c",
+    "function": "Jim_NewStringObjNoAlloc",
+    "lines": [
+      2549,
+      2558
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "Jim_Obj *Jim_NewStringObjNoAlloc(Jim_Interp *interp, char *s, int len)\n{\n    Jim_Obj *objPtr = Jim_NewObj(interp);\n\n    objPtr->bytes = s;\n    objPtr->length = (len == -1) ? strlen(s) : len;\n    objPtr->typePtr = NULL;\n    return objPtr;\n}\n\n",
+    "snippet_sha256": "293970b4f9c4577f796359cdd82ecc72db4f1b8a658cd0f4ea7ddddb271edb60",
+    "evidence": "jim-source-2549"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "jim.c",
+    "function": "JimSubstOneToken",
+    "lines": [
+      11256,
+      11269
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "static int JimSubstOneToken(Jim_Interp *interp, const ScriptToken *token, Jim_Obj **objPtrPtr)\n{\n    Jim_Obj *objPtr;\n    int ret = JIM_ERR;\n\n    switch (token->type) {\n        case JIM_TT_STR:\n        case JIM_TT_ESC:\n            objPtr = token->objPtr;\n            break;\n        case JIM_TT_VAR:\n            objPtr = Jim_GetVariable(interp, token->objPtr, JIM_ERRMSG);\n            break;\n        case JIM_TT_DICTSUGAR:\n",
+    "snippet_sha256": "22d884776010882e019ee91f9a113fc37edaece0915053e89da40fb139178305",
+    "evidence": "jim-source-11256"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "jim.c",
+    "function": "Jim_EvalObj Text fast path",
+    "lines": [
+      11663,
+      11679
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "                if (wordtokens < 0) {\n                    expand = 1;\n                    wordtokens = -wordtokens;\n                }\n            }\n\n            if (wordtokens == 1) {\n                /* Fast path if the token does not\n                 * need interpolation */\n\n                switch (token[i].type) {\n                    case JIM_TT_ESC:\n                    case JIM_TT_STR:\n                        wordObjPtr = token[i].objPtr;\n                        break;\n                    case JIM_TT_VAR:\n                        wordObjPtr = Jim_GetVariable(interp, token[i].objPtr, JIM_ERRMSG);\n",
+    "snippet_sha256": "256ef9fd75fdf6354d3ce9460e741006673d80554b353639ee2ead54514635c9",
+    "evidence": "jim-source-11663"
+  },
+  {
+    "provider": "jim",
+    "version": "0.84-9-g5bac7c9",
+    "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "original_path": "jim.c",
+    "function": "JimInterpolateTokens text rendering and copy",
+    "lines": [
+      11343,
+      11400
+    ],
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "snippet": "                    error_action = \"continue\";\n                }\n                /* fall through to error */\n            default:\n                while (i--) {\n                    Jim_DecrRefCount(interp, intv[i]);\n                }\n                if (intv != sintv) {\n                    Jim_Free(intv);\n                }\n                if (error_action) {\n                    Jim_SetResultFormatted(interp, \"invoked \\\"%s\\\" outside of a loop\", error_action);\n                }\n                return NULL;\n        }\n        taint |= intv[i]->taint;\n        Jim_IncrRefCount(intv[i]);\n        Jim_String(intv[i]);\n        totlen += intv[i]->length;\n    }\n\n    /* Fast path return for a single token */\n    if (tokens == 1 && intv[0] && intv == sintv) {\n        /* Reverse the Jim_IncrRefCount() above, but don't free the object */\n        intv[0]->refCount--;\n        return intv[0];\n    }\n\n    /* Concatenate every token in an unique\n     * object. */\n    objPtr = Jim_NewStringObjNoAlloc(interp, NULL, 0);\n    objPtr->taint = taint;\n\n    if (tokens == 4 && token[0].type == JIM_TT_ESC && token[1].type == JIM_TT_ESC\n        && token[2].type == JIM_TT_VAR) {\n        /* May be able to do fast interpolated object -> dictSubst */\n        objPtr->typePtr = &interpolatedObjType;\n        objPtr->internalRep.dictSubstValue.varNameObjPtr = token[0].objPtr;\n        objPtr->internalRep.dictSubstValue.indexObjPtr = intv[2];\n        Jim_IncrRefCount(intv[2]);\n    }\n    else if (tokens && intv[0] && intv[0]->typePtr == &sourceObjType) {\n        /* The first interpolated token is source, so preserve the source info */\n        int line;\n        Jim_Obj *fileNameObj = Jim_GetSourceInfo(interp, intv[0], &line);\n        Jim_SetSourceInfo(interp, objPtr, fileNameObj, line);\n    }\n\n\n    s = objPtr->bytes = Jim_Alloc(totlen + 1);\n    objPtr->length = totlen;\n    for (i = 0; i < tokens; i++) {\n        if (intv[i]) {\n            memcpy(s, intv[i]->bytes, intv[i]->length);\n            s += intv[i]->length;\n            Jim_DecrRefCount(interp, intv[i]);\n        }\n    }\n",
+    "snippet_sha256": "996055d8c3bebda098ffcab8933ffca0fb30cc6edab3ed1ea0ee29d4506e22e7",
+    "evidence": "jim-source-11343"
+  }
+]

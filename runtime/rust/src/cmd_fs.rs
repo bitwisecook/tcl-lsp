@@ -30,20 +30,124 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
-use tcl_dialect::model::{surface_admits, SurfaceQuery};
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use tcl_platform::{Filesystem, HostError};
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
-use crate::list;
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::TclObj;
 
 /// Register `source`, `file`, `glob`, `pwd`, `cd`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"source", source_cmd);
-    interp.register_builtin(b"file", file_cmd);
-    interp.register_builtin(b"glob", glob_cmd);
-    interp.register_builtin(b"pwd", pwd_cmd);
-    interp.register_builtin(b"cd", cd_cmd);
+    interp.register_stock_builtin(b"source", source_cmd);
+    install_file(interp);
+    interp.register_stock_builtin(b"glob", glob_cmd);
+    interp.register_stock_builtin(b"pwd", pwd_cmd);
+    interp.register_stock_builtin(b"cd", cd_cmd);
+}
+
+pub(crate) fn install_file(interp: &mut Interp) {
+    const NAMES: &[&[u8]] = &[
+        b"atime",
+        b"attributes",
+        b"channels",
+        b"copy",
+        b"delete",
+        b"dirname",
+        b"executable",
+        b"exists",
+        b"extension",
+        b"home",
+        b"isdirectory",
+        b"isfile",
+        b"join",
+        b"link",
+        b"lstat",
+        b"mkdir",
+        b"mtime",
+        b"nativename",
+        b"normalize",
+        b"owned",
+        b"pathtype",
+        b"readable",
+        b"readlink",
+        b"rename",
+        b"rootname",
+        b"separator",
+        b"size",
+        b"split",
+        b"stat",
+        b"system",
+        b"tail",
+        b"tempdir",
+        b"tempfile",
+        b"tildeexpand",
+        b"type",
+        b"volumes",
+        b"writable",
+    ];
+    let admitted = crate::environment::release_subcommands(
+        interp.native_ensemble_profile_name(),
+        "file",
+        NAMES,
+    );
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::File,
+        b"file",
+        file_cmd,
+        FILE_MEMBERS,
+        admitted,
+    );
+}
+
+macro_rules! file_members {
+    ($($function:ident => $member:literal),+ $(,)?) => {
+        const FILE_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+            $(($member, $function)),+
+        ];
+        $(fn $function(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+            interp.invoke_stock_worker(argv, &[b"file", $member], file_cmd)
+        })+
+    };
+}
+
+file_members! {
+    stock_file_atime => b"atime",
+    stock_file_attributes => b"attributes",
+    stock_file_channels => b"channels",
+    stock_file_copy => b"copy",
+    stock_file_delete => b"delete",
+    stock_file_dirname => b"dirname",
+    stock_file_executable => b"executable",
+    stock_file_exists => b"exists",
+    stock_file_extension => b"extension",
+    stock_file_home => b"home",
+    stock_file_isdirectory => b"isdirectory",
+    stock_file_isfile => b"isfile",
+    stock_file_join => b"join",
+    stock_file_link => b"link",
+    stock_file_lstat => b"lstat",
+    stock_file_mkdir => b"mkdir",
+    stock_file_mtime => b"mtime",
+    stock_file_nativename => b"nativename",
+    stock_file_normalize => b"normalize",
+    stock_file_owned => b"owned",
+    stock_file_pathtype => b"pathtype",
+    stock_file_readable => b"readable",
+    stock_file_readlink => b"readlink",
+    stock_file_rename => b"rename",
+    stock_file_rootname => b"rootname",
+    stock_file_separator => b"separator",
+    stock_file_size => b"size",
+    stock_file_split => b"split",
+    stock_file_stat => b"stat",
+    stock_file_system => b"system",
+    stock_file_tail => b"tail",
+    stock_file_tempdir => b"tempdir",
+    stock_file_tempfile => b"tempfile",
+    stock_file_tildeexpand => b"tildeexpand",
+    stock_file_type => b"type",
+    stock_file_volumes => b"volumes",
+    stock_file_writable => b"writable",
 }
 
 fn as_str(b: &[u8]) -> &str {
@@ -52,37 +156,91 @@ fn as_str(b: &[u8]) -> &str {
 
 // source
 
-/// `source ?-encoding name? ?-nopkg? fileName` — read and evaluate a file.
-/// We are UTF-8 internally so `-encoding` is accepted and ignored; `-nopkg`
-/// (Tcl 9's "don't register for `package files`") is likewise a no-op here.
+/// Read a file after the actual native source grammar selects its operands.
 fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"source ?-encoding encoding? ?-nopkg? fileName";
-    let mut i = 1;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-encoding" if i + 1 < argv.len() => i += 2,
-            b"-nopkg" => i += 1,
-            _ => break,
+    use crate::interp::{
+        native_arguments::OriginalArguments, native_operation_currency::NativeOperationScope,
+    };
+    let operation = match NativeOperationScope::enter(interp) {
+        Ok(operation) => operation,
+        Err(error) => {
+            return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error));
         }
+    };
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = source_in_scope(interp, argv, &arguments);
+    let reached = arguments.finish(reached);
+    drop(arguments);
+    if operation.currency().ensure_current_or_refuse().is_err() {
+        return Code::Error;
     }
-    if i != argv.len() - 1 {
-        return interp.wrong_args(USAGE);
-    }
-    let path = obj_bytes(argv[i]);
-    let read = interp
-        .host()
-        .filesystem()
-        .map_or(Err(HostError::NotFound), |fs| fs.read(as_str(&path)));
-    match read {
-        Ok(bytes) => interp.eval_sourced(&bytes, &path),
-        Err(e) => {
-            let mut m = b"couldn't read file \"".to_vec();
-            m.extend_from_slice(&path);
-            m.extend_from_slice(b"\": ");
-            m.extend_from_slice(e.reason().as_bytes());
-            interp.set_error(&m)
+    reached
+}
+
+fn source_in_scope(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
+    use tcl_registry::source_file::{SourceFileGrammar, SourceFileSelection};
+    let dialect = interp.native_invocation_dialect();
+    let Some(grammar) = dialect.source_file_grammar() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("native source grammar")
+                .into(),
+        );
+    };
+    let Some(protocol) = dialect.native_source_file_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native source file protocol",
+            )
+            .into(),
+        );
+    };
+    let count = argv.len().saturating_sub(1);
+    let selector = if count > 1 && grammar != SourceFileGrammar::Filename {
+        match arguments.bytes(1) {
+            Ok(bytes) => Some(bytes),
+            Err(error) => return interp.report_cmd_error(error),
         }
+    } else {
+        None
+    };
+    let SourceFileSelection::Selected(selected) =
+        grammar.select_original(count, selector.as_deref())
+    else {
+        return interp.wrong_args_for_invocation(argv, grammar.usage_suffix().as_bytes());
+    };
+    let prepared = tcl_cmd_core::encoding::prepare_source_file(
+        &mut crate::interp::native_encoding_source::SourceOps {
+            interpreter: interp,
+            arguments,
+            encoding_at: selected.encoding_at,
+            reached: Vec::new(),
+        },
+        protocol,
+        selected.path_at,
+        selected.encoding_at,
+    );
+    let prepared = match prepared {
+        Ok(prepared) => prepared,
+        Err(error) => return interp.report_cmd_error(arguments.retain_refusal(error)),
+    };
+    if let Err(error) = arguments.check_for(interp) {
+        return interp.report_cmd_error(error);
     }
+    let package_scope = selected
+        .no_package
+        .then(|| interp.take_package_file_scope());
+    let code = interp.eval_sourced(&prepared.script, &prepared.path);
+    if let Some(scope) = package_scope {
+        interp.restore_package_file_scope(scope);
+    }
+    arguments.finish(code)
 }
 
 // file
@@ -209,12 +367,11 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"link" => file_link(interp, argv),
         b"lstat" => file_stat(interp, argv, true),
         b"split" => {
-            let name = arg(2).unwrap_or_default();
-            let objs: Vec<*mut TclObj> = tcl_cmd_core::path::split(&name)
-                .into_iter()
-                .map(new_string)
+            let elems: Vec<*mut TclObj> = tcl_cmd_core::path::split(&arg(2).unwrap_or_default())
+                .iter()
+                .map(|part| new_string(part))
                 .collect();
-            interp.set_result(list::new_list_obj(&objs));
+            interp.set_result(interp.new_list_object(&elems));
             Code::Ok
         }
         b"normalize" => {
@@ -533,7 +690,7 @@ fn file_attributes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .iter()
             .flat_map(|(k, v)| [new_string(k), new_string(v)])
             .collect();
-        interp.set_result(list::new_list_obj(&objs));
+        interp.set_result(interp.new_list_object(&objs));
         return Code::Ok;
     }
     if argv.len() == 4 && obj_bytes(argv[3]) == b"-permissions" {
@@ -572,7 +729,7 @@ fn file_channels(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         })
         .collect();
     let objs: Vec<*mut TclObj> = names.iter().map(|n| new_string(n)).collect();
-    interp.set_result(list::new_list_obj(&objs));
+    interp.set_result(interp.new_list_object(&objs));
     Code::Ok
 }
 
@@ -765,7 +922,7 @@ fn file_stat(interp: &mut Interp, argv: &[*mut TclObj], no_follow: bool) -> Code
             .iter()
             .flat_map(|(k, v)| [new_string(k), new_string(v)])
             .collect();
-        interp.set_result(list::new_list_obj(&objs));
+        interp.set_result(interp.new_list_object(&objs));
     }
     Code::Ok
 }
@@ -958,7 +1115,7 @@ fn file_volumes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"filesystem not available");
     }
     let root = new_string(b"/");
-    interp.set_result(list::new_list_obj(&[root]));
+    interp.set_result(interp.new_list_object(&[root]));
     Code::Ok
 }
 
@@ -1086,7 +1243,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if !word.starts_with(b"-") {
             break;
         }
-        match GLOB_OPTIONS.index_of(&word) {
+        match interp.native_static_option_index(argv[i], GLOB_OPTIONS.names(), false, "option") {
             // `-directory dir` and `-path prefix` are distinct in C; this
             // runtime models both as the search root.
             Ok(0 | 3) => {
@@ -1113,7 +1270,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 i += 1;
                 break;
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
         i += 1;
     }
@@ -1149,7 +1306,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(&m);
     }
     let objs: Vec<*mut TclObj> = hits.iter().map(|h| new_string(h)).collect();
-    interp.set_result(list::new_list_obj(&objs));
+    interp.set_result(interp.new_list_object(&objs));
     Code::Ok
 }
 
@@ -1284,6 +1441,71 @@ mod tests {
     use crate::interp::{Code, Interp};
     use tcl_dialect::TclVersion;
 
+    #[test]
+    fn file_worker_runtime_headers_match_all_190_original_native_snapshots() {
+        use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
+        let fixtures = [
+            (
+                TclVersion::V8_4,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/8.4.20.tsv"
+                ),
+            ),
+            (
+                TclVersion::V8_5,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/8.5.19.tsv"
+                ),
+            ),
+            (
+                TclVersion::V8_6,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/8.6.18.tsv"
+                ),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/9.0.4.tsv"
+                ),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!(
+                    "../../../rust/tcl-registry/tests/data/native_file_compilers/9.1.0.tsv"
+                ),
+            ),
+        ];
+        let mut checked = 0;
+        for (version, fixture) in fixtures {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            for row in fixture.lines().skip(1) {
+                let (identity, expected) = row.split_once('\t').unwrap();
+                let namespaces = interp.namespaces();
+                let actual = match namespaces
+                    .resolve_generation(crate::namespace::GLOBAL, identity.as_bytes())
+                {
+                    None => -1,
+                    Some(generation) => match namespaces.native_compiler_hook(generation) {
+                        Some(Hook::Absent) => 0,
+                        Some(Hook::Present) => 1,
+                        value => panic!(
+                            "unknown original file registration: {version:?}/{identity}: {value:?}"
+                        ),
+                    },
+                };
+                assert_eq!(
+                    actual,
+                    expected.parse::<i32>().unwrap(),
+                    "{version:?}/{identity}"
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 190);
+    }
+
     fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
         assert_eq!(
             i.eval_str(src),
@@ -1417,11 +1639,13 @@ mod tests {
         );
         let created = std::path::PathBuf::from(String::from_utf8(created).unwrap());
         assert_eq!(created.parent(), Some(root.as_path()));
-        assert!(created
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .starts_with("gorp_"));
+        assert!(
+            created
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("gorp_")
+        );
         std::fs::remove_dir(&created).unwrap();
         std::fs::remove_dir(&root).unwrap();
     }
@@ -1579,6 +1803,37 @@ mod tests {
         assert_eq!(ok(&mut i, cmd.as_bytes()), b"done"); // top-level return → ok
         assert_eq!(ok(&mut i, b"set sourced"), b"42");
         std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn source_uses_actual_argument_and_return_protocols() {
+        let jim = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )));
+        let path =
+            std::env::temp_dir().join(format!("tclrt_source_protocol_{}.tcl", std::process::id()));
+        std::fs::write(&path, b"return -level 2 -code error BOOM\n").unwrap();
+        for (profile, expected_code) in [
+            (
+                crate::environment::profile_for_dialect("tcl8.6"),
+                b"2".as_slice(),
+            ),
+            (jim, b"0".as_slice()),
+        ] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(profile);
+            let script = format!("catch {{source {}}} result", path.display());
+            assert_eq!(ok(&mut interp, script.as_bytes()), expected_code);
+            assert_eq!(ok(&mut interp, b"set result"), b"BOOM");
+            let invalid = format!("catch {{source -encoding utf-8 {}}}", path.display());
+            if std::ptr::eq(profile, jim) {
+                assert_eq!(ok(&mut interp, invalid.as_bytes()), b"1");
+            }
+        }
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]

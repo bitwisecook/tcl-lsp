@@ -1,0 +1,121 @@
+int
+Tcl_UnsetVar2(interp, part1, part2, flags)
+    Tcl_Interp *interp;		/* Command interpreter in which varName is
+				 * to be looked up. */
+    CONST char *part1;		/* Name of variable or array. */
+    CONST char *part2;		/* Name of element within array or NULL. */
+    int flags;			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    int result;
+    Tcl_Obj *part1Ptr;
+
+    part1Ptr = Tcl_NewStringObj(part1, -1);
+    Tcl_IncrRefCount(part1Ptr);
+    /* Filter to pass through only the flags this interface supports. */
+    flags &= (TCL_GLOBAL_ONLY|TCL_NAMESPACE_ONLY|TCL_LEAVE_ERR_MSG);
+    result = TclObjUnsetVar2(interp, part1Ptr, part2, flags);
+    TclDecrRefCount(part1Ptr);
+
+    return result;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclObjUnsetVar2 --
+ *
+ *	Delete a variable, given a 2-object name.
+ *
+ * Results:
+ *	Returns TCL_OK if the variable was successfully deleted, TCL_ERROR
+ *	if the variable can't be unset.  In the event of an error,
+ *	if the TCL_LEAVE_ERR_MSG flag is set then an error message
+ *	is left in the interp's result.
+ *
+ * Side effects:
+ *	If part1ptr and part2Ptr indicate a local or global variable in interp,
+ *	it is deleted.  If part1Ptr is an array name and part2Ptr is NULL, then
+ *	the whole array is deleted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclObjUnsetVar2(interp, part1Ptr, part2, flags)
+    Tcl_Interp *interp;		/* Command interpreter in which varName is
+				 * to be looked up. */
+    Tcl_Obj *part1Ptr;		/* Name of variable or array. */
+    CONST char *part2;		/* Name of element within array or NULL. */
+    int flags;			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    Var *varPtr;
+    Interp *iPtr = (Interp *) interp;
+    Var *arrayPtr;
+    int result;
+    char *part1;
+
+    part1 = TclGetString(part1Ptr);
+    varPtr = TclObjLookupVar(interp, part1Ptr, part2, flags, "unset",
+	    /*createPart1*/ 0, /*createPart2*/ 0, &arrayPtr);
+    if (varPtr == NULL) {
+	return TCL_ERROR;
+    }
+ 
+    result = (TclIsVarUndefined(varPtr)? TCL_ERROR : TCL_OK);
+
+    /*
+     * Keep the variable alive until we're done with it. We used to
+     * increase/decrease the refCount for each operation, making it
+     * hard to find [Bug 735335] - caused by unsetting the variable
+     * whose value was the variable's name.
+     */
+    
+    varPtr->refCount++;
+
+    UnsetVarStruct(varPtr, arrayPtr, iPtr, part1, part2, flags);
+
+    /*
+     * It's an error to unset an undefined variable.
+     */
+	
+    if (result != TCL_OK) {
+	if (flags & TCL_LEAVE_ERR_MSG) {
+	    VarErrMsg(interp, part1, part2, "unset", 
+		    ((arrayPtr == NULL) ? noSuchVar : noSuchElement));
+	}
+    }
+
+    /*
+     * Try to avoid keeping the Var struct allocated due to a tclNsVarNameType 
+     * keeping a reference. This removes some additional exteriorisations of
+     * [Bug 736729], but may be a good thing independently of the bug.
+     */
+
+    if (part1Ptr->typePtr == &tclNsVarNameType) {
+	part1Ptr->typePtr->freeIntRepProc(part1Ptr);
+	part1Ptr->typePtr = NULL;
+    }
+
+    /*
+     * Finally, if the variable is truly not in use then free up its Var
+     * structure and remove it from its hash table, if any. The ref count of
+     * its value object, if any, was decremented above.
+     */
+
+    varPtr->refCount--;
+    CleanupVar(varPtr, arrayPtr);
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * UnsetVarStruct --
+ *
+ *	Unset and delete a variable. This does the internal work for
+ *	TclObjUnsetVar2 and TclDeleteNamespaceVars, which call here for each

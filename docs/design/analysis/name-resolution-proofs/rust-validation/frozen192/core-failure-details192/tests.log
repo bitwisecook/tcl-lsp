@@ -1,0 +1,77 @@
+
+running 11 tests
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes ... 
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes' (701438) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:456:32:
+missing T100: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test completion::original_proc_completion_tests::moved_and_deleted_completions_use_completed_publication_slots ... 
+thread 'completion::original_proc_completion_tests::moved_and_deleted_completions_use_completed_publication_slots' (701453) panicked at rust/tcl-lsp-core/src/completion.rs:5691:9:
+assertion failed: analysis.original_completed_command_world().is_some()
+FAILED
+test completion::original_properties::source_instance_tests::original_property_options_share_symbolic_and_captured_receiver_source_argv ... 
+thread 'completion::original_properties::source_instance_tests::original_property_options_share_symbolic_and_captured_receiver_source_argv' (701454) panicked at rust/tcl-lsp-core/src/completion/original_properties.rs:350:13:
+assertion `left == right` failed
+  left: []
+ right: ["-readable", "-writable"]
+FAILED
+test completion::original_properties::tests::original_property_options_keep_opaque_names_and_selected_read_write_roles ... 
+thread 'completion::original_properties::tests::original_property_options_keep_opaque_names_and_selected_read_write_roles' (701455) panicked at rust/tcl-lsp-core/src/completion/original_properties.rs:225:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+FAILED
+test completion::original_properties::tests::original_property_options_require_receiver_selector_currency_and_do_not_retag_values ... 
+thread 'completion::original_properties::tests::original_property_options_require_receiver_selector_currency_and_do_not_retag_values' (701456) panicked at rust/tcl-lsp-core/src/completion/original_properties.rs:310:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+FAILED
+test declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan ... 
+thread 'declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan' (701457) panicked at rust/tcl-lsp-core/src/declaration.rs:415:9:
+assertion failed: analysis.allows_lexical_declaration_advice()
+FAILED
+test definition::tests::logical_receiver_candidates_keep_instance_and_class_buckets_together ... 
+thread 'definition::tests::logical_receiver_candidates_keep_instance_and_class_buckets_together' (701458) panicked at rust/tcl-lsp-core/src/definition.rs:7281:9:
+assertion failed: analysis.allows_lexical_declaration_advice()
+FAILED
+test document_symbols::tests::original_outline_does_not_borrow_tcl9_member_roles_under_tcl86 ... 
+thread 'document_symbols::tests::original_outline_does_not_borrow_tcl9_member_roles_under_tcl86' (701459) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1588:18:
+called `Option::unwrap()` on a `None` value
+FAILED
+test executable_regions::tests::quoted_case_actions_retain_absolute_spans_for_each_registry_descriptor ... 
+thread 'executable_regions::tests::quoted_case_actions_retain_absolute_spans_for_each_registry_descriptor' (701460) panicked at rust/tcl-lsp-core/src/executable_regions.rs:742:13:
+assertion `left == right` failed: quoted case action must preserve its whole-document command span: expect {-re {ready} "format {%d} 1"}
+  left: [("format", "", 21)]
+ right: [("format", "format", 21)]
+FAILED
+test executable_regions::tests::quoted_declared_bodies_recurse_only_when_source_mappable ... 
+thread 'executable_regions::tests::quoted_declared_bodies_recurse_only_when_source_mappable' (701461) panicked at rust/tcl-lsp-core/src/executable_regions.rs:803:9:
+assertion `left == right` failed: a substitution-free quoted body is executable at its written span
+  left: [("format", "", 11)]
+ right: [("format", "format", 11)]
+FAILED
+test executable_regions::tests::reference_only_bodies_are_not_executable_regions ... 
+thread 'executable_regions::tests::reference_only_bodies_are_not_executable_regions' (701462) panicked at rust/tcl-lsp-core/src/executable_regions.rs:1154:9:
+assertion `left == right` failed: a reference-only script is matched metadata, not potential execution
+  left: []
+ right: [44]
+FAILED
+
+failures:
+
+failures:
+    code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes
+    completion::original_proc_completion_tests::moved_and_deleted_completions_use_completed_publication_slots
+    completion::original_properties::source_instance_tests::original_property_options_share_symbolic_and_captured_receiver_source_argv
+    completion::original_properties::tests::original_property_options_keep_opaque_names_and_selected_read_write_roles
+    completion::original_properties::tests::original_property_options_require_receiver_selector_currency_and_do_not_retag_values
+    declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan
+    definition::tests::logical_receiver_candidates_keep_instance_and_class_buckets_together
+    document_symbols::tests::original_outline_does_not_borrow_tcl9_member_roles_under_tcl86
+    executable_regions::tests::quoted_case_actions_retain_absolute_spans_for_each_registry_descriptor
+    executable_regions::tests::quoted_declared_bodies_recurse_only_when_source_mappable
+    executable_regions::tests::reference_only_bodies_are_not_executable_regions
+
+test result: FAILED. 0 passed; 11 failed; 0 ignored; 0 measured; 2695 filtered out; finished in 10.54s
+

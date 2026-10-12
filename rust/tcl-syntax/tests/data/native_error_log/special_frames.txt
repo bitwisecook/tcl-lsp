@@ -1,0 +1,12 @@
+8.6.18|root|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6.18|special-shift|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6.18|special-same|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6.18|nested-shift|0|{INNER {returnImm BODY {}} UP 2 CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0.4|root|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0.4|special-shift|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0.4|special-same|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0.4|nested-shift|0|{INNER {returnImm BODY {}} UP 2 CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1.0|root|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1.0|special-shift|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1.0|special-same|0|{INNER {returnImm BODY {}}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1.0|nested-shift|0|{INNER {returnImm BODY {}} UP 2 CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}

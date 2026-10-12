@@ -1,0 +1,1 @@
+interp create kid; list [interp exists kid] [kid issafe]

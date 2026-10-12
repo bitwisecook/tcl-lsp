@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_prefix::native_object_tests::temporary_c86_table_retires_only_a_nonidentity_key_cache ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.66s
+

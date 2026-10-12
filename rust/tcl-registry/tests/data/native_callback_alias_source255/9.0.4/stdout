@@ -1,0 +1,8 @@
+version 9.0.4 alias_command {}
+single 0 {2 1} {{FIXED 2 1}}
+baked 0 {2 1} {{FIXED BAKED 2 1}}
+nested 0 {2 1} {{INNER OUTER BAKED 2 1}}
+moved_alias 0 {2 1} {{FIXED 2 1}}
+moved_target 1 {invalid command name "target"} {}
+replacement_four 1 {wrong # args: should be "moved_cb b c d"}
+replacement_baked_four 0 {2 1}

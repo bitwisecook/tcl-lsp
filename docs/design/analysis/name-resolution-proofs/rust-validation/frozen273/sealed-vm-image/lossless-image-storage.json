@@ -1,0 +1,12 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.elf.gz",
+  "stored_sha256": "685969c4230223a9a6e8b6838ae6cc063c995f0d43e5f81b54522706abd03e36",
+  "stored_bytes": 19816995,
+  "original_sha256": "81717199bc118a999775a1d928b490d4e1a1c599ef000418f98a95e8fa2cd1e4",
+  "original_bytes": 101318440,
+  "original_recorded_executable": "/workspace/.proofs/pinned-vm273.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.json",
+  "pin_metadata_sha256": "2174cf61681ba213a3b0dba15133f4c8e344ff306f6037fbd2a2da945eda289f",
+  "verification": "Original full image hash/length and exact producer/source metadata verified; compressed bytes are independently decompressed and byte-compared before publication. The compressed file is storage, not a different executable or a new run."
+}

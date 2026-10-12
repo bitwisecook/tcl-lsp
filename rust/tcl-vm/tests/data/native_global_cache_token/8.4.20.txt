@@ -1,0 +1,6 @@
+localVarName|LOCAL
+localVarName|GLOBAL
+simple|0|GLOBAL
+parsedVarName|QUALIFIED
+parsedVarName|QUALIFIED
+qualified|0|QUALIFIED

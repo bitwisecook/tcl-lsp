@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/native-list-arity146/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.005662240000674501,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "03dd0d973f283518d7a1dc2a9d17332ccfe82f3ad62ce973b5a4dde200ae0cc8",
+  "runner_sha256": "6e739313b414a3ca71c6aa2b27023440e00b7c0a31f77a957796a7e4da301f73",
+  "stdout_sha256": "6f6a80cfbee81c3b118db0ba3d690679d2b68d969c884490f361f30bcf0d3ba8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "PATCHLEVEL 8.5.19",
+    "RESULT no_operands 1 {wrong # args: should be \"lassign list varName ?varName ...?\"}",
+    "RESULT literal_no_target 1 {wrong # args: should be \"lassign list varName ?varName ...?\"}",
+    "RESULT dynamic_no_target 1 {wrong # args: should be \"lassign list varName ?varName ...?\"}",
+    "RESULT compiled_no_target 1 {wrong # args: should be \"lassign list varName ?varName ...?\"}",
+    "RESULT malformed_no_target 1 {wrong # args: should be \"lassign list varName ?varName ...?\"}",
+    "RESULT literal_one_target 0 B",
+    "RESULT empty_no_target 1 {wrong # args: should be \"lassign list varName ?varName ...?\"}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; selected interpreter trace registration and fresh scalar callbacks",
+  "boundary": "Seven fixed list-assignment invocation controls covering target-free arity, literal/dynamic/compiled source entry, malformed list before arity, one target and empty list. CLI outcomes only; no physical compiler/header/cache or BIG-IP claim."
+}

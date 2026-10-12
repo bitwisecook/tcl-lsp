@@ -73,6 +73,10 @@ use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::tcl_expr_eval::{ExprAnswer, ExprServices, FoldPolicy, evaluate_expression};
 use tcl_syntax::word_rules::WordValueRules;
 
+mod original_diagnostic_values;
+
+pub use original_diagnostic_values::OriginalDiagnosticValues;
+
 /// The analysis context's hashable identity, as a per-function memo key
 /// carries it: the facts that can change an answer and that the key's
 /// other fields (body, dialect, grammar, traces, seeds) do not already
@@ -482,6 +486,9 @@ pub(crate) struct CatchEndRecord {
 /// explanations the run records for the statement it is evaluating.
 pub(crate) struct LatticeDriver<'a> {
     registry: &'a CommandRegistry,
+    /// Terminal unavailable, explicit standalone, or the actual retained generation.
+    metadata_context: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
+    source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     folds: Option<BuiltinFoldInputs<'a>>,
     policy: FoldPolicy,
     context: AnalysisContext,
@@ -737,29 +744,6 @@ enum CallRerun {
     Waiting,
 }
 
-/// Each argument word of a call statement as the driver reads it — its
-/// literal value, `None` for one that substitutes — or `None` where a word
-/// expands, so no word's position is known.
-pub(crate) fn call_literal_words(
-    args: &[String],
-    tokens: Option<&CommandTokens>,
-    config: &LexerConfig,
-) -> Option<Vec<Option<String>>> {
-    let cooked = call_arguments(args, tokens, config);
-    if cooked
-        .iter()
-        .any(|word| word.kind == InvocationWordKind::Expanded)
-    {
-        return None;
-    }
-    Some(
-        literal_words(&cooked)
-            .into_iter()
-            .map(|word| word.map(str::to_owned))
-            .collect(),
-    )
-}
-
 /// The step each place a call statement's `Name` arguments name takes from
 /// its callee's transfer summary, the callee resolved from `function` under
 /// the shared lattice's trust: what the read-before-set check reads of the
@@ -767,13 +751,11 @@ pub(crate) fn call_literal_words(
 /// answer or that never completes normally.
 pub(crate) fn summary_steps(
     module: &crate::interprocedural::ModuleProcedures<'_>,
-    function: &str,
+    _function: &str,
     statement: &Statement,
-    config: &LexerConfig,
+    _config: &LexerConfig,
 ) -> Vec<(String, ExistenceStep)> {
     let Statement::Call {
-        command,
-        args,
         tokens,
         foreach_groups: None,
         ..
@@ -784,14 +766,17 @@ pub(crate) fn summary_steps(
     if statement.synthetic_marker().is_some() {
         return Vec::new();
     }
-    let Some(callee) = module.resolve(command, function, FoldTrust::ObservedBindings) else {
+    let Some(call) = tokens
+        .as_ref()
+        .and_then(|tokens| module.resolve_call_at(tokens, FoldTrust::ObservedBindings))
+    else {
         return Vec::new();
     };
-    let Some(words) = call_literal_words(args, tokens.as_ref(), config) else {
+    let Some(words) = module.original_call_arguments(&call) else {
         return Vec::new();
     };
     let words: Vec<Option<&str>> = words.iter().map(Option::as_deref).collect();
-    match module.call_transfer(&callee, &words) {
+    match module.call_transfer(&call.procedure.qualified_name, &words) {
         Some(crate::interprocedural::CallTransfer::Places(places)) => places,
         _ => Vec::new(),
     }
@@ -1279,7 +1264,20 @@ impl<'a> LatticeDriver<'a> {
         escaping: &HashSet<String>,
     ) -> Self {
         let registry = trace.registry;
-        let profile = registry.profile();
+        let profile = trace
+            .source_metadata_input
+            .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+            .or_else(|| registry.profile());
+        let metadata_context = trace.source_metadata_input.map_or(Some(None), |input| {
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, input,
+            )
+            .map(Some)
+        });
+        let lexer_config = trace.source_metadata_input.map_or_else(
+            || LexerConfig::for_profile(profile),
+            crate::analyser::ResolvedAnalysisInput::lexer_config,
+        );
         let key = trace.analysis_context;
         let context = AnalysisContext {
             registry_generation: key.map_or(0, |k| k.registry_generation),
@@ -1289,7 +1287,9 @@ impl<'a> LatticeDriver<'a> {
                 .unwrap_or_default(),
             namespace: "::".to_owned(),
             profile,
-            grammar: profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+            grammar: lexer_config.grammar_over(
+                profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+            ),
             traced_variables: trace.traced_variables.clone(),
             has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
             escaping: escaping.iter().cloned().collect(),
@@ -1306,11 +1306,13 @@ impl<'a> LatticeDriver<'a> {
         });
         Self {
             registry,
+            metadata_context,
+            source_metadata_input: trace.source_metadata_input,
             folds,
             policy,
             context,
-            lexer_config: LexerConfig::for_profile(profile),
-            typed_assignment,
+            lexer_config,
+            typed_assignment: typed_assignment && metadata_context.is_some(),
             nesting: Cell::new(0),
             explaining: Cell::new(None),
             throwing: Cell::new(false),
@@ -1336,6 +1338,45 @@ impl<'a> LatticeDriver<'a> {
             function: "::",
             reads_module: Cell::new(false),
         }
+    }
+
+    /// Retain the CFG's original availability mode. A missing actual input
+    /// cannot acquire detached catalogue compatibility from TraceInputs::None.
+    pub(crate) fn with_cfg_metadata(
+        mut self,
+        owner: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) -> Self {
+        self.metadata_context = owner.metadata_context(self.registry);
+        if let Some(input) = owner.source_analysis_input() {
+            let agrees = self.source_metadata_input.is_some_and(|trace| {
+                std::ptr::eq(
+                    trace.borrowed_context_registry(),
+                    input.borrowed_context_registry(),
+                ) && trace.unit_profile().cache_key() == input.unit_profile().cache_key()
+                    && trace.analyser_profile().cache_key() == input.analyser_profile().cache_key()
+                    && trace.lexer_config().normalized() == input.lexer_config().normalized()
+                    && trace.vendor_source_policy() == input.vendor_source_policy()
+            });
+            if !agrees {
+                self.metadata_context = None;
+            }
+            self.context.profile = Some(input.unit_profile());
+            self.context.grammar = input
+                .lexer_config()
+                .grammar_over(input.unit_profile().grammar);
+            self.lexer_config = input.lexer_config();
+        } else if owner.is_standalone() {
+            if self.source_metadata_input.is_some() {
+                self.metadata_context = None;
+            }
+        } else {
+            // Availability-only or withdrawn ownership supplies no source
+            // grammar/profile from a nominal registry label.
+            self.context.profile = None;
+            self.context.grammar = tcl_dialect::LexerGrammar::default();
+        }
+        self.typed_assignment &= self.metadata_context.is_some();
+        self
     }
 
     /// Say which function the run analyses and what it reads of the module
@@ -1440,7 +1481,6 @@ impl<'a> LatticeDriver<'a> {
         let stmt_ssa = block.statements.get(index)?;
         let Statement::Call {
             command,
-            args,
             tokens,
             foreach_groups: None,
             ..
@@ -1455,10 +1495,13 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let module = self.procedures_for(command)?;
-        let callee = module.resolve(command, self.function, self.procedure_trust())?;
+        let original = tokens.as_ref()?;
+        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let callee = &call.procedure.qualified_name;
         self.reads_module.set(true);
         let defs = named_defs(stmt_ssa, ssa);
-        let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
+        let cooked =
+            effective_procedure_arguments(&call.arguments, module.original_call_arguments(&call)?);
         if cooked
             .iter()
             .any(|word| word.kind == InvocationWordKind::Expanded)
@@ -1539,13 +1582,19 @@ impl<'a> LatticeDriver<'a> {
         (cooked, places): (&[ArgWord<'_>], &PlaceSteps),
         (values, ssa): (&HashMap<ValueKey, LatticeValue, S>, &SsaFunction),
     ) -> Option<CallRerun> {
-        let inputs = self.expression_inputs((&block.statements.get(index)?.uses, values, ssa));
+        let original = block.statements.get(index)?.statement.tokens()?;
+        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let mut inputs = self.expression_inputs((&block.statements.get(index)?.uses, values, ssa));
+        inputs.original = Some(original.clone());
+        inputs.written_arguments = (0..cooked.len())
+            .map(|argument| call.arguments.written_argument(argument))
+            .collect();
         let mut arguments = Vec::with_capacity(cooked.len());
-        for word in cooked {
+        for (index, word) in cooked.iter().enumerate() {
             arguments.push(match word.kind {
                 InvocationWordKind::Literal => Some(ExactValue::from_literal(&word.text)),
                 _ if word.source == OperandSource::Substituted => {
-                    match inputs.substituted(&word.text) {
+                    match inputs.substituted_argument(&word.text, index) {
                         FactView::Exact(value, _) => Some(value),
                         FactView::Pending => return Some(CallRerun::Waiting),
                         _ => None,
@@ -1598,9 +1647,8 @@ impl<'a> LatticeDriver<'a> {
         arguments: &[Option<ExactValue>],
         seeds: &[(Option<ExactValue>, Existence)],
     ) -> Option<std::rc::Rc<crate::interprocedural::Rerun>> {
-        let dialect = self.folds.and_then(|folds| folds.dialect);
         module
-            .parameter_values(callee, arguments, dialect)
+            .parameter_values(callee, arguments)
             .zip(self.rerun_stance())
             .and_then(|(params, stance)| module.rerun(callee, (&params, seeds), stance))
     }
@@ -1620,15 +1668,18 @@ impl<'a> LatticeDriver<'a> {
     fn procedure_run<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         seg: &crate::segmenter::SegmentedCommand,
+        original: Option<&CommandTokens>,
         (uses, values, ssa): Lattice<'_, S1, S2>,
         (prior, policy): (&[(PlaceRef, StoreOutcome)], NestedPolicy),
     ) -> Option<ScriptRun> {
         let head = seg.name();
-        if self.leaves_procedure_run(head, policy) {
+        let original = original?;
+        if self.leaves_procedure_run(original, policy) {
             return None;
         }
         let module = self.procedures_for(head)?;
-        let callee = module.resolve(head, self.function, self.procedure_trust())?;
+        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let callee = &call.procedure.qualified_name;
         self.reads_module.set(true);
         let binding = binding_of(head, &callee);
         let answered = |answer, writes| {
@@ -1651,7 +1702,8 @@ impl<'a> LatticeDriver<'a> {
                 member_writes(policy, Vec::new()),
             )
         };
-        let cooked = self.cooked_args(seg);
+        let cooked =
+            effective_procedure_arguments(&call.arguments, module.original_call_arguments(&call)?);
         if cooked
             .iter()
             .any(|word| word.kind == InvocationWordKind::Expanded)
@@ -1677,6 +1729,13 @@ impl<'a> LatticeDriver<'a> {
         }
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let inputs = LatticeInputs {
+            original: Some(original.clone()),
+            written_arguments: (0..cooked.len())
+                .map(|index| call.arguments.written_argument(index))
+                .collect(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: prior.to_vec(),
             words: Words::under(policy),
@@ -1716,7 +1775,7 @@ impl<'a> LatticeDriver<'a> {
     /// nothing would carry (the effect-free policy) — there a call to a
     /// procedure of the module runs nowhere, so its completion is one no
     /// re-run decided.
-    fn leaves_procedure_run(&self, head: &str, policy: NestedPolicy) -> bool {
+    fn leaves_procedure_run(&self, original: &CommandTokens, policy: NestedPolicy) -> bool {
         if policy == NestedPolicy::Protected || self.is_throwing() {
             return true;
         }
@@ -1726,7 +1785,7 @@ impl<'a> LatticeDriver<'a> {
         }
         if self.module.is_some_and(|module| {
             module
-                .resolve(head, self.function, self.procedure_trust())
+                .resolve_call_at(original, self.procedure_trust())
                 .is_some()
         }) {
             self.record_undecided();
@@ -2119,6 +2178,7 @@ impl<'a> LatticeDriver<'a> {
             uses: before.clone(),
             defs: marker.defs.clone(),
             may_defs: marker.may_defs.clone(),
+            destruction_defs: marker.destruction_defs.clone(),
             quoted_uses: HashSet::new(),
             name_only_uses: HashSet::new(),
         };
@@ -2279,6 +2339,11 @@ impl<'a> LatticeDriver<'a> {
                 continue;
             };
             let inputs = LatticeInputs {
+                original: None,
+                written_arguments: Vec::new(),
+                expression_base: None,
+                expression_source: RefCell::new(None),
+                nested_source: RefCell::new(None),
                 driver: self,
                 prior_writes: Vec::new(),
                 words: Words::Independent,
@@ -2388,6 +2453,11 @@ impl<'a> LatticeDriver<'a> {
         let resolved = self.resolve(head, &words)?;
         let semantics = resolved.semantics.value.semantics()?;
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -2524,6 +2594,7 @@ impl<'a> LatticeDriver<'a> {
     ) -> Self {
         Self::new(
             TraceInputs {
+                source_metadata_input: folds.and_then(|inputs| inputs.source_metadata_input),
                 registry,
                 traced_variables: &EMPTY_NAMES,
                 has_dynamic_variable_trace: false,
@@ -2604,8 +2675,8 @@ impl<'a> LatticeDriver<'a> {
         self.folds.is_some_and(|f| f.proven_pure_parameters)
     }
 
-    /// Resolve `head args…` through the invocation resolver under the
-    /// registry's own surface.
+    /// Resolve through the retained availability generation. Only explicitly
+    /// standalone runs use the registry's catalogue surface.
     fn resolve<'w>(
         &self,
         head: &'w str,
@@ -2614,12 +2685,21 @@ impl<'a> LatticeDriver<'a> {
     where
         'a: 'w,
     {
-        self.registry
-            .resolve_structured_invocation(
+        match self.metadata_context? {
+            Some(context) => {
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    self.registry,
+                    Some(context.context()),
+                    InvocationWords::structured(InvocationWord::Literal(head), words),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+            }
+            None => self.registry.resolve_structured_invocation(
                 InvocationWords::structured(InvocationWord::Literal(head), words),
                 self.registry.own_surface_query(),
-            )
-            .resolved()
+            ),
+        }
+        .resolved()
     }
 
     /// The typed `Incr` statement: its node projects to the invocation view
@@ -2670,6 +2750,11 @@ impl<'a> LatticeDriver<'a> {
             .collect();
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3155,18 +3240,33 @@ impl<'a> LatticeDriver<'a> {
         host: &SsaStatement,
         lattice: Lattice<'_, S1, S2>,
     ) -> Option<EmbeddedAnswer> {
+        let original = self.original_expression_parent(&host.statement);
         let ordered = match &host.statement {
             Statement::AssignExpr {
                 expr,
                 command_binding,
+                expr_base,
                 ..
-            } => self.ordered_expression(expr, command_binding.as_ref(), lattice)?,
+            } => self.ordered_expression(
+                expr,
+                command_binding.as_ref(),
+                original.as_ref().zip(*expr_base),
+                lattice,
+            )?,
             Statement::ExprEval {
                 expr,
                 command_binding,
+                expr_base,
                 ..
-            } => self.ordered_expression(expr, Some(command_binding), lattice)?,
-            Statement::AssignValue { value, .. } => self.ordered_script(value, lattice)?,
+            } => self.ordered_expression(
+                expr,
+                Some(command_binding),
+                original.as_ref().zip(*expr_base),
+                lattice,
+            )?,
+            Statement::AssignValue { value, .. } => {
+                self.ordered_script(value, &host.statement, lattice)?
+            }
             _ => return None,
         };
         let defs = named_defs(call, lattice.2);
@@ -3255,6 +3355,7 @@ impl<'a> LatticeDriver<'a> {
         &self,
         expr: &ExprNode,
         command_binding: Option<&tcl_runtime_api::CommandBindingIdentity>,
+        original: Option<(&CommandTokens, u32)>,
         (uses, values, ssa): Lattice<'_, S1, S2>,
     ) -> Option<Ordered> {
         let head = command_binding.map_or("expr", |binding| binding.name.as_str());
@@ -3271,7 +3372,7 @@ impl<'a> LatticeDriver<'a> {
                 command_binding.map_or("expr", |binding| binding.identity.as_str()),
             )),
         };
-        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        let answer = self.evaluate_expression_at(&expression, original, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
         if let LiftedAnswer::Evaluated(outcomes) = &answer {
             self.explain_paths(outcome_paths(outcomes, None));
@@ -3299,6 +3400,7 @@ impl<'a> LatticeDriver<'a> {
     fn ordered_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
+        statement: &Statement,
         lattice: Lattice<'_, S1, S2>,
     ) -> Option<Ordered> {
         use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
@@ -3312,7 +3414,17 @@ impl<'a> LatticeDriver<'a> {
             return None;
         };
         let inner = std::str::from_utf8(script).ok()?;
-        let run = self.run_script(inner, lattice, (Vec::new(), NestedPolicy::LocalWrites))?;
+        let original = self.module.and_then(|module| {
+            let parent = module.original_statement_tokens(self.function, statement)?;
+            let (_, site) = parent.words().last()?.sole_command_substitution()?;
+            module.original_substitution(&parent, site, inner)
+        });
+        let run = self.run_script(
+            inner,
+            lattice,
+            (Vec::new(), NestedPolicy::LocalWrites),
+            original.as_ref(),
+        )?;
         // A head the module rebinds has no route; a procedure of the module
         // is run as its summary says.
         if !run.procedure
@@ -3381,6 +3493,18 @@ impl<'a> LatticeDriver<'a> {
         Some(self.defs_from_placed(&placed, None, defs, input))
     }
 
+    pub(crate) const fn source_lexer_config(&self) -> LexerConfig {
+        self.lexer_config
+    }
+
+    pub(crate) fn original_expression_parent(
+        &self,
+        statement: &Statement,
+    ) -> Option<CommandTokens> {
+        self.module?
+            .original_statement_tokens(self.function, statement)
+    }
+
     /// The inputs of an expression that has no operand words of its own:
     /// it reads every variable by name, at the versions `lattice` selects.
     fn expression_inputs<'i, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
@@ -3388,6 +3512,11 @@ impl<'a> LatticeDriver<'a> {
         (uses, values, ssa): Lattice<'i, S1, S2>,
     ) -> LatticeInputs<'i, S1, S2> {
         LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3439,7 +3568,13 @@ impl<'a> LatticeDriver<'a> {
         }
         if foreach_groups.is_none() {
             let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
-            return self.evaluate_source_call(head, &cooked, &defs, (uses, values, ssa), true);
+            return self.evaluate_source_call(
+                head,
+                &cooked,
+                &defs,
+                (uses, values, ssa),
+                (true, tokens.as_ref()),
+            );
         }
         let (bound, existence) = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
         DefValues::PerDef(
@@ -3562,15 +3697,26 @@ impl<'a> LatticeDriver<'a> {
                         &cooked,
                         &[],
                         (&stmt_ssa.uses, values, ssa),
-                        false,
+                        (false, tokens.as_ref()),
                     )
                 })
             }
             Statement::ExprEval {
                 expr,
                 command_binding,
+                expr_base,
                 ..
-            } => Some(self.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa)),
+            } => {
+                let original = self.original_expression_parent(&stmt_ssa.statement);
+                Some(self.evaluate_expr_eval(
+                    expr,
+                    command_binding,
+                    original.as_ref().zip(*expr_base),
+                    &stmt_ssa.uses,
+                    values,
+                    ssa,
+                ))
+            }
             _ => None,
         };
         self.explaining(None);
@@ -3583,6 +3729,7 @@ impl<'a> LatticeDriver<'a> {
         &self,
         expr: &ExprNode,
         command_binding: &tcl_runtime_api::CommandBindingIdentity,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -3592,7 +3739,7 @@ impl<'a> LatticeDriver<'a> {
             return normal();
         }
         let Some(ordered) =
-            self.ordered_expression(expr, Some(command_binding), (uses, values, ssa))
+            self.ordered_expression(expr, Some(command_binding), original, (uses, values, ssa))
         else {
             return normal();
         };
@@ -3661,6 +3808,11 @@ impl<'a> LatticeDriver<'a> {
             InvocationLayout::LoopHeader { binders: defs },
         );
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3758,13 +3910,59 @@ impl<'a> LatticeDriver<'a> {
         cooked: &[ArgWord<'_>],
         defs: &[(String, ValueKey)],
         (uses, values, ssa): Lattice<'_, S1, S2>,
-        explain_missing: bool,
+        (explain_missing, original): (bool, Option<&CommandTokens>),
     ) -> DefValues {
-        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        if let Some(module) = self.module {
+            let Some(original) = original else {
+                return DefValues::PerDef(widened(defs));
+            };
+            return module
+                .with_original_operation(original, |operation, schema| {
+                    let cooked = self.operation_arguments(operation)?;
+                    let written = (0..cooked.len())
+                        .map(|index| operation.effective.written_argument(index))
+                        .collect();
+                    Some(self.evaluate_resolved_source_call(
+                        head,
+                        schema,
+                        (&cooked, written, Some(original)),
+                        defs,
+                        (uses, values, ssa),
+                        explain_missing,
+                    ))
+                })
+                .unwrap_or_else(|| DefValues::PerDef(widened(defs)));
+        }
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(resolved) = self.resolve(head, &words) else {
             return DefValues::PerDef(widened(defs));
         };
+        let written = (0..cooked.len()).map(Some).collect();
+        self.evaluate_resolved_source_call(
+            head,
+            &resolved,
+            (cooked, written, original),
+            defs,
+            (uses, values, ssa),
+            explain_missing,
+        )
+    }
+
+    fn evaluate_resolved_source_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        resolved: &ResolvedInvocation<'_, '_>,
+        (cooked, written_arguments, original): (
+            &[ArgWord<'_>],
+            Vec<Option<usize>>,
+            Option<&CommandTokens>,
+        ),
+        defs: &[(String, ValueKey)],
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        explain_missing: bool,
+    ) -> DefValues {
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(semantics) = resolved.semantics.value.semantics() else {
             if explain_missing {
                 self.explain(head, None, "declined: no-semantics".to_owned());
@@ -3773,6 +3971,11 @@ impl<'a> LatticeDriver<'a> {
         };
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
+            original: original.cloned(),
+            written_arguments,
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -3814,7 +4017,10 @@ impl<'a> LatticeDriver<'a> {
         let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
         let folded = crate::const_subst::ConstSubstCtx {
             registry: f.registry,
-            resolution_namespace: "::",
+            resolution_namespace: &self.context.namespace,
+            // This detached value spelling retains no original physical
+            // namespace/token owner for executable dependencies.
+            namespace_context: None,
             version: f
                 .dialect
                 .and_then(tcl_dialect::DialectProfile::const_fold_version),
@@ -3842,6 +4048,7 @@ impl<'a> LatticeDriver<'a> {
             inner,
             (uses, values, ssa),
             (Vec::new(), NestedPolicy::EffectFreeOnly),
+            None,
         )?;
         // Binding validity comes first: after `rename list mylist` or a
         // shadowing `proc format …` anywhere in the unit, `[list a 1]` is a
@@ -3899,16 +4106,28 @@ impl<'a> LatticeDriver<'a> {
         script: &str,
         lattice: Lattice<'_, S1, S2>,
         under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        original: Option<&crate::interprocedural::OriginalSummaryScript>,
     ) -> Option<ScriptRun> {
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            original.map_or(0, |owner| owner.base()),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.lexer_config),
+        );
         let [seg] = commands.as_slice() else {
             return None;
         };
         if split_head(script).0 != seg.name() {
             return None;
         }
-        self.run_command(seg, lattice, under)
+        if original.is_some_and(|owner| owner.text() != script) {
+            return None;
+        }
+        self.run_command(
+            seg,
+            lattice,
+            under,
+            original.and_then(|owner| owner.command_at(seg.span.start())),
+        )
     }
 
     /// A segmented command's arguments as the resolver and an evaluator read
@@ -3948,13 +4167,32 @@ impl<'a> LatticeDriver<'a> {
     fn run_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         seg: &crate::segmenter::SegmentedCommand,
-        (uses, values, ssa): Lattice<'_, S1, S2>,
-        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        lattice: Lattice<'_, S1, S2>,
+        under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        original: Option<&CommandTokens>,
     ) -> Option<ScriptRun> {
-        if let Some(run) = self.procedure_run(seg, (uses, values, ssa), (&prior, policy)) {
+        if let Some(run) = self.procedure_run(seg, original, lattice, (&under.0, under.1)) {
             return Some(run);
         }
         let head = seg.name();
+        if let Some(module) = self.module {
+            // A supplied Module is an actual-source ingress. Missing child
+            // ownership cannot reopen the standalone catalogue route.
+            let original = original?;
+            return module.with_original_operation(original, |operation, schema| {
+                let cooked = self.operation_arguments(operation)?;
+                let written = (0..cooked.len())
+                    .map(|index| operation.effective.written_argument(index))
+                    .collect();
+                self.run_resolved_command(
+                    head,
+                    schema,
+                    (&cooked, written, Some(original)),
+                    lattice,
+                    under,
+                )
+            });
+        }
         if !self.trusted(head) {
             return Some(ScriptRun {
                 head: head.to_owned(),
@@ -3967,9 +4205,59 @@ impl<'a> LatticeDriver<'a> {
             });
         }
         let cooked = self.cooked_args(seg);
-        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
+        let written = (0..cooked.len()).map(Some).collect();
+        self.run_resolved_command(
+            head,
+            &resolved,
+            (&cooked, written, original),
+            lattice,
+            under,
+        )
+    }
+
+    fn operation_arguments<'w>(
+        &self,
+        operation: &'w crate::registry_invocation::ResolvedStatementInvocation,
+    ) -> Option<Vec<ArgWord<'w>>> {
+        if operation.effective.words.iter().any(|word| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Expand { .. } | crate::ir::WordExpr::Opaque { .. }
+            )
+        }) {
+            return None;
+        }
+        let literals = (0..operation.effective.words.len().checked_sub(1)?)
+            .map(|index| {
+                operation.effective.argument_literal(
+                    index,
+                    self.lexer_config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&self.lexer_config),
+                )
+            })
+            .collect();
+        Some(effective_procedure_arguments(
+            &operation.effective,
+            literals,
+        ))
+    }
+
+    fn run_resolved_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        resolved: &ResolvedInvocation<'_, '_>,
+        (cooked, written_arguments, original): (
+            &[ArgWord<'_>],
+            Vec<Option<usize>>,
+            Option<&CommandTokens>,
+        ),
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+    ) -> Option<ScriptRun> {
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
         let binding = binding_of(head, resolved.canonical_command);
         // An existence query reads the rung, not a route.
         if let Some(kind) = crate::existence_query::kind_of(resolved.semantics.operation) {
@@ -3986,6 +4274,11 @@ impl<'a> LatticeDriver<'a> {
         let semantics = resolved.semantics.value.semantics()?;
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
+            original: original.cloned(),
+            written_arguments,
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: prior,
             words: Words::under(policy),
@@ -4164,10 +4457,12 @@ impl<'a> LatticeDriver<'a> {
             .chain(&state.writes)
             .cloned()
             .collect();
+        let original = from.nested_source.borrow().clone();
         let Some(run) = self.run_script(
             script,
             (from.uses, from.values, from.ssa),
             (prior, state.policy),
+            original.as_ref(),
         ) else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         };
@@ -4200,13 +4495,23 @@ impl<'a> LatticeDriver<'a> {
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
     ) -> EvalAnswer {
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
+        let original = from.nested_source.borrow().clone();
+        if original
+            .as_ref()
+            .is_some_and(|owner| owner.text() != script)
+        {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            original.as_ref().map_or(0, |owner| owner.base()),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.lexer_config),
+        );
         if commands.iter().any(|seg| seg.is_partial) {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
         let outer_word_error = self.word_error.replace(false);
-        let answer = self.run_protected(&commands, script, state, from);
+        let answer = self.run_protected(&commands, script, state, from, original.as_ref());
         self.word_error.set(outer_word_error);
         answer
     }
@@ -4217,19 +4522,26 @@ impl<'a> LatticeDriver<'a> {
         script: &str,
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
+        original: Option<&crate::interprocedural::OriginalSummaryScript>,
     ) -> EvalAnswer {
         let mut result = ExactValueOrUnavailable::exact_text("");
         let mut completion = CompletionOutcome::Normal;
         for seg in commands {
             // The command's own text: a head the source writes as the
             // command's name, which a `;` may follow (`break;`).
-            let at = usize::try_from(seg.span.start()).unwrap_or(usize::MAX);
-            let end = usize::try_from(seg.span.end()).unwrap_or(usize::MAX);
+            let base = original.map_or(0, |owner| owner.base());
+            let at = usize::try_from(seg.span.start().saturating_sub(base)).unwrap_or(usize::MAX);
+            let end = usize::try_from(seg.span.end().saturating_sub(base)).unwrap_or(usize::MAX);
             if script.get(at..end).map(|text| split_head(text).0) != Some(seg.name()) {
                 return EvalAnswer::Declined(DeclineReason::Unsupported);
             }
             let before = state.writes.len();
-            let (ended, value) = match self.protected_loop(seg, state, from) {
+            let (ended, value) = match self.protected_loop(
+                seg,
+                state,
+                from,
+                original.and_then(|owner| owner.command_at(seg.span.start())),
+            ) {
                 Some(Ok(ran)) => ran,
                 Some(Err(answer)) => return answer,
                 None => {
@@ -4243,6 +4555,7 @@ impl<'a> LatticeDriver<'a> {
                         seg,
                         (from.uses, from.values, from.ssa),
                         (prior, NestedPolicy::LocalWrites),
+                        original.and_then(|owner| owner.command_at(seg.span.start())),
                     ) else {
                         return EvalAnswer::Declined(DeclineReason::Unsupported);
                     };
@@ -4297,12 +4610,47 @@ impl<'a> LatticeDriver<'a> {
         seg: &crate::segmenter::SegmentedCommand,
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
+        original: Option<&CommandTokens>,
     ) -> Option<Result<(CompletionOutcome, ExactValueOrUnavailable), EvalAnswer>> {
         let head = seg.name();
+        if let Some(module) = self.module {
+            let original = original?;
+            return module.with_original_operation(original, |operation, schema| {
+                let cooked = self.operation_arguments(operation)?;
+                let written = (0..cooked.len())
+                    .map(|index| operation.effective.written_argument(index))
+                    .collect();
+                self.protected_loop_resolved(
+                    head,
+                    schema,
+                    (&cooked, written, Some(original)),
+                    state,
+                    from,
+                )
+            });
+        }
         if !self.trusted(head) {
             return None;
         }
         let cooked = self.cooked_args(seg);
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
+        let resolved = self.resolve(head, &words)?;
+        let written = (0..cooked.len()).map(Some).collect();
+        self.protected_loop_resolved(head, &resolved, (&cooked, written, original), state, from)
+    }
+
+    fn protected_loop_resolved<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        head: &str,
+        resolved: &ResolvedInvocation<'_, '_>,
+        (cooked, written_arguments, original): (
+            &[ArgWord<'_>],
+            Vec<Option<usize>>,
+            Option<&CommandTokens>,
+        ),
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> Option<Result<(CompletionOutcome, ExactValueOrUnavailable), EvalAnswer>> {
         if !cooked.iter().all(|arg| {
             matches!(
                 arg.source,
@@ -4314,10 +4662,14 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
-        let resolved = self.resolve(head, &words)?;
+        let words: Vec<_> = cooked.iter().map(ArgWord::word).collect();
         let semantics = resolved.semantics.value.semantics()?;
         let inputs = LatticeInputs {
+            original: original.cloned(),
+            written_arguments,
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: self,
             prior_writes: from
                 .prior_writes
@@ -4432,7 +4784,7 @@ impl<'a> LatticeDriver<'a> {
                     },
                 ));
             }
-            let ran = match self.protected_script(&script, state, from) {
+            let ran = match self.protected_script(&script, state, inputs) {
                 EvalAnswer::Evaluated(ran) => ran,
                 other => return Err(other),
             };
@@ -4575,6 +4927,7 @@ impl<'a> LatticeDriver<'a> {
         &self,
         expr: &ExprNode,
         command_binding: Option<&tcl_runtime_api::CommandBindingIdentity>,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -4594,7 +4947,7 @@ impl<'a> LatticeDriver<'a> {
                 command_binding.map_or("expr", |binding| binding.identity.as_str()),
             )),
         };
-        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        let answer = self.evaluate_expression_at(&expression, original, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
         if let LiftedAnswer::Evaluated(outcomes) = &answer {
             self.explain_paths(outcome_paths(outcomes, None));
@@ -4620,6 +4973,7 @@ impl<'a> LatticeDriver<'a> {
     pub(crate) fn evaluate_condition<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         condition: &ExprNode,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -4631,7 +4985,7 @@ impl<'a> LatticeDriver<'a> {
             nested: NestedPolicy::EffectFreeOnly,
             head: None,
         };
-        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        let answer = self.evaluate_expression_at(&expression, original, uses, values, ssa);
         self.explain("condition", Some(expression.route()), answer_label(&answer));
         let LiftedAnswer::Evaluated(outcomes) = answer else {
             return None;
@@ -4680,11 +5034,16 @@ impl<'a> LatticeDriver<'a> {
     fn evaluate_expression_at<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         expression: &ExpressionEvaluation<'_>,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> LiftedAnswer {
-        let inputs = self.expression_inputs((uses, values, ssa));
+        let mut inputs = self.expression_inputs((uses, values, ssa));
+        if let Some((parent, base)) = original {
+            inputs.original = Some(parent.clone());
+            inputs.expression_base = Some(base);
+        }
         evaluate_lifted(expression, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
     }
 }
@@ -4699,6 +5058,34 @@ pub struct StatementId {
     pub block: crate::cfg::BlockId,
     /// The statement's index in the block.
     pub index: usize,
+}
+
+/// The same positioned word evaluation reads either executable facts or the
+/// separately authenticated diagnostic contents. Only executable facts carry
+/// a representation projection.
+#[derive(Clone, Copy)]
+struct ProvenReadFacts<'a> {
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    folded_types: Option<&'a HashMap<ValueKey, FoldedType>>,
+    reached: &'a HashSet<crate::cfg::BlockId>,
+}
+
+impl<'a> ProvenReadFacts<'a> {
+    fn execution(fu: &'a crate::compilation_unit::FunctionUnit) -> Self {
+        Self {
+            values: &fu.sccp.values,
+            folded_types: Some(&fu.sccp.folded_types),
+            reached: &fu.sccp.executable_blocks,
+        }
+    }
+
+    fn diagnostic(facts: crate::sccp::DiagnosticValueFacts<'a>) -> Self {
+        Self {
+            values: facts.values(),
+            folded_types: None,
+            reached: facts.executable_blocks(),
+        }
+    }
 }
 
 /// The exact value a word of a statement has at that statement, with its
@@ -4724,7 +5111,25 @@ pub fn proven_word_value(
     word: usize,
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
-    if !fu.sccp.executable_blocks.contains(&statement.block) {
+    proven_word_value_with_facts(
+        fu,
+        statement,
+        word,
+        config,
+        ProvenReadFacts::execution(fu),
+        None,
+    )
+}
+
+fn proven_word_value_with_facts(
+    fu: &crate::compilation_unit::FunctionUnit,
+    statement: StatementId,
+    word: usize,
+    config: LexerConfig,
+    facts: ProvenReadFacts<'_>,
+    original: Option<(&CommandTokens, &[crate::word_subst::LiftedCall])>,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    if !facts.reached.contains(&statement.block) {
         return None;
     }
     let call = fu
@@ -4742,22 +5147,25 @@ pub fn proven_word_value(
     let Statement::Call { args, tokens, .. } = call else {
         return None;
     };
-    let arguments = call_arguments(args, tokens.as_ref(), &config);
+    let tokens = original.map_or(tokens.as_ref(), |(tokens, _)| Some(tokens));
+    let arguments = call_arguments(args, tokens, &config);
     let argument = arguments.get(word.checked_sub(1)?)?;
     let written = if at.defs.is_empty() {
         HashSet::new()
     } else {
         let start = tokens
-            .as_ref()
             .and_then(|tokens| tokens.argv.get(word))
             .map(|span| span.start());
-        written_before(
-            at,
-            start,
-            &crate::word_subst::lifted_calls(tokens.as_ref(), config),
-        )
+        let lexical;
+        let calls = if let Some((_, calls)) = original {
+            calls
+        } else {
+            lexical = crate::word_subst::lifted_calls(tokens, config);
+            &lexical
+        };
+        written_before(at, start, calls)
     };
-    proven_argument(argument, &at.uses, &written, fu, config)
+    proven_argument(argument, &at.uses, &written, fu, (config, facts))
 }
 
 /// Where a command substitution runs: in a statement's words, or in a
@@ -4844,8 +5252,11 @@ pub fn return_command_tokens(
     };
     let span = fu.abs_span(*span);
     let text = source.get(span.start() as usize..span.end() as usize)?;
-    let segments =
-        crate::segmenter::segment_commands_with_offset_and_config(text, span.start(), config);
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        span.start(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    );
     let [segment] = segments.as_slice() else {
         return None;
     };
@@ -4869,7 +5280,25 @@ pub fn proven_return_word_value(
     word: usize,
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
-    if !fu.sccp.executable_blocks.contains(&block)
+    proven_return_word_value_with_facts(
+        fu,
+        block,
+        tokens,
+        word,
+        config,
+        ProvenReadFacts::execution(fu),
+    )
+}
+
+fn proven_return_word_value_with_facts(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    tokens: &CommandTokens,
+    word: usize,
+    config: LexerConfig,
+    facts: ProvenReadFacts<'_>,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    if !facts.reached.contains(&block)
         || !crate::word_subst::lifted_calls(Some(tokens), config).is_empty()
     {
         return None;
@@ -4881,7 +5310,7 @@ pub fn proven_return_word_value(
         versions,
         &HashSet::new(),
         fu,
-        config,
+        (config, facts),
     )
 }
 
@@ -4900,18 +5329,36 @@ pub fn proven_substituted_word_value(
     (call, word): (usize, usize),
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
+    proven_substituted_word_value_with_facts(
+        fu,
+        host,
+        calls,
+        (call, word),
+        config,
+        ProvenReadFacts::execution(fu),
+    )
+}
+
+fn proven_substituted_word_value_with_facts(
+    fu: &crate::compilation_unit::FunctionUnit,
+    host: SubstitutionHost,
+    calls: &[crate::word_subst::LiftedCall],
+    (call, word): (usize, usize),
+    config: LexerConfig,
+    facts: ProvenReadFacts<'_>,
+) -> Option<(ExactValue, Option<FoldedType>)> {
     let tokens = calls.get(call)?.words.as_ref()?;
     let start = tokens.argv.get(word)?.start();
     let (versions, written) = match host {
         SubstitutionHost::Statement(id) => {
-            if !fu.sccp.executable_blocks.contains(&id.block) {
+            if !facts.reached.contains(&id.block) {
                 return None;
             }
             let at = fu.ssa.blocks.get(&id.block)?.statements.get(id.index)?;
             (&at.uses, written_before(at, Some(start), calls))
         }
         SubstitutionHost::Terminator(block) => {
-            if !fu.sccp.executable_blocks.contains(&block) {
+            if !facts.reached.contains(&block) {
                 return None;
             }
             (&fu.ssa.blocks.get(&block)?.exit_versions, HashSet::new())
@@ -4923,7 +5370,7 @@ pub fn proven_substituted_word_value(
         versions,
         &written,
         fu,
-        config,
+        (config, facts),
     )
 }
 
@@ -4950,14 +5397,14 @@ fn proven_argument(
     versions: &HashMap<Symbol, Version>,
     written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
-    config: LexerConfig,
+    (config, facts): (LexerConfig, ProvenReadFacts<'_>),
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     match argument.source {
         OperandSource::BracedLiteral | OperandSource::Literal | OperandSource::QuotedLiteral => {
             Some((ExactValue::from_literal(&argument.text), None))
         }
         OperandSource::Substituted => {
-            proven_substitution(&argument.text, versions, written, fu, config)
+            proven_substitution(&argument.text, versions, written, fu, (config, facts))
         }
         OperandSource::Unknown => None,
     }
@@ -4970,7 +5417,7 @@ fn proven_substitution(
     uses: &HashMap<Symbol, Version>,
     written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
-    config: LexerConfig,
+    (config, facts): (LexerConfig, ProvenReadFacts<'_>),
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
     let read = |name: &str| -> Option<(ExactValue, ValueKey)> {
@@ -4979,14 +5426,19 @@ fn proven_substitution(
             return None;
         }
         let key = (symbol, *uses.get(&symbol)?);
-        match fu.sccp.values.get(&key)? {
+        match facts.values.get(&key)? {
             LatticeValue::Const(value) => Some((const_to_exact(value), key)),
             _ => None,
         }
     };
     if let Some(name) = simple_var_ref_name(text, config.braced_var) {
         let (value, key) = read(name)?;
-        return Some((value, fu.sccp.folded_types.get(&key).cloned()));
+        return Some((
+            value,
+            facts
+                .folded_types
+                .and_then(|types| types.get(&key).cloned()),
+        ));
     }
     let parts = match decompose(text.as_bytes(), SubstFlags::default(), config) {
         WordBody::Literal(bytes) => return Some((exact_of_bytes(bytes.to_vec()), None)),
@@ -5000,7 +5452,7 @@ fn proven_substitution(
                 let (value, _) = read(&variable_name(&reference).ok()?)?;
                 bytes.extend_from_slice(&value.bytes);
             }
-            Part::Command(_) | Part::ParseError(_) => return None,
+            Part::Command(_) | Part::Expression(_) | Part::ParseError(_) => return None,
         }
     }
     Some((exact_of_bytes(bytes), None))
@@ -5075,8 +5527,26 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
         }
     }
 
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        _start: u32,
+        _end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        if self.driver.module.is_some() {
+            EvalAnswer::Declined(DeclineReason::NotExact)
+        } else {
+            self.nested(script, state)
+        }
+    }
+
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         self.driver.math_function(name)
+    }
+
+    fn source_lexer_config(&self) -> Option<LexerConfig> {
+        Some(self.driver.lexer_config)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -5084,130 +5554,18 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
     }
 }
 
-/// The result of the one command `script` holds, outside a solver run, where
-/// it calls a procedure of the module that names no place and writes none
-/// outside its frame: a re-run of the callee under the call's arguments
-/// ([`crate::interprocedural::ModuleProcedures::rerun`]). Each argument is a
-/// literal word, a variable `constants` holds, or a command substitution
-/// read the same way — or one on the expression route whose one word is a
-/// literal expression. `None` wherever any of that does not hold, and for a
-/// callee that does not complete normally.
+/// Detached source text retains no original parent operand or point. A Module
+/// procedure result needs that independent receipt; this interface declines.
 fn detached_procedure_result(
-    (module, function): (&crate::interprocedural::ModuleProcedures<'_>, &str),
-    script: &str,
-    constants: &HashMap<String, ExactValue>,
-    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
+    _module: (&crate::interprocedural::ModuleProcedures<'_>, &str),
+    _script: &str,
+    _constants: &HashMap<String, ExactValue>,
+    _stance: (BuiltinFoldInputs<'_>, FoldPolicy),
 ) -> Option<ExactValue> {
-    let config = module.lexer_config();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
-    let [seg] = commands.as_slice() else {
-        return None;
-    };
-    if split_head(script).0 != seg.name() {
-        return None;
-    }
-    let callee = module.resolve(seg.name(), function, folds.trust)?;
-    if !module.keeps_to_its_frame(&callee) {
-        return None;
-    }
-    let arguments: Vec<Option<ExactValue>> = seg
-        .arg_tokens()
-        .iter()
-        .zip(seg.arg_single_token())
-        .zip(seg.args())
-        .map(|((token, &single), text)| {
-            detached_word(
-                (module, function),
-                (text, token.kind, single),
-                constants,
-                (folds, policy),
-            )
-        })
-        .collect();
-    let params = module.parameter_values(&callee, &arguments, folds.dialect)?;
-    let rerun = module.rerun(
-        &callee,
-        (&params, &[]),
-        crate::interprocedural::RerunStance { policy, folds },
-    )?;
-    if !rerun.completes {
-        return None;
-    }
-    rerun.result.clone()
-}
-
-/// One argument word of a command [`detached_procedure_result`] reads.
-fn detached_word(
-    (module, function): (&crate::interprocedural::ModuleProcedures<'_>, &str),
-    (text, kind, single): (&str, TokenType, bool),
-    constants: &HashMap<String, ExactValue>,
-    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
-) -> Option<ExactValue> {
-    use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
-    let config = module.lexer_config();
-    if single && let Some(value) = literal_token_value(text, kind, &config) {
-        return Some(ExactValue::from_literal(&value));
-    }
-    if let Some(name) = simple_var_ref_name(text, config.braced_var) {
-        return constants.get(name).cloned();
-    }
-    let WordBody::Parts(parts) = decompose(text.as_bytes(), SubstFlags::default(), config) else {
-        return None;
-    };
-    let [Part::Command(script)] = parts.as_slice() else {
-        return None;
-    };
-    let inner = std::str::from_utf8(script).ok()?;
-    if let Some(value) =
-        detached_procedure_result((module, function), inner, constants, (folds, policy))
-    {
-        return Some(value);
-    }
-    let expression = detached_expression_word(module.registry(), inner, folds, config)?;
-    let grammar = folds
-        .dialect
-        .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
-            profile.grammar
-        });
-    let node = tcl_syntax::expr::parser::parse_expr_with_grammar(&expression, &grammar);
-    evaluate_expression_in_module(&node, constants, (folds, policy), Some((module, function)))
-}
-
-/// The expression of the one command `script` holds where the command is on
-/// the expression route under `folds`' trust and its one word is a literal
-/// expression.
-fn detached_expression_word(
-    registry: &CommandRegistry,
-    script: &str,
-    folds: BuiltinFoldInputs<'_>,
-    config: LexerConfig,
-) -> Option<String> {
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
-    let [seg] = commands.as_slice() else {
-        return None;
-    };
-    let head = seg.name();
-    let trusted = match folds.trust {
-        FoldTrust::WholeModule => folds.mutations.trusts(head),
-        FoldTrust::ObservedBindings => folds.mutations.observed_binding_is_the_builtin(head),
-    };
-    let ([token], [true], [text]) = (seg.arg_tokens(), seg.arg_single_token(), seg.args()) else {
-        return None;
-    };
-    let expression = literal_token_value(text, token.kind, &config)?;
-    let words = [InvocationWord::Literal(&expression)];
-    let resolved = registry
-        .resolve_structured_invocation(
-            InvocationWords::structured(InvocationWord::Literal(head), &words),
-            registry.own_surface_query(),
-        )
-        .resolved()?;
-    let on_the_route = resolved
-        .semantics
-        .value
-        .semantics()
-        .is_some_and(|semantics| matches!(semantics.route(), EvalRoute::Expression { .. }));
-    (trusted && on_the_route).then(|| expression.into_owned())
+    // Detached text has no original parent operand or point receipt. Existing
+    // registry folding has its separate contract; a Module procedure join
+    // cannot be issued by reparsing equal text at offset zero.
+    None
 }
 
 /// `node` evaluated by the shared expression route outside a solver run —
@@ -5228,9 +5586,9 @@ pub(crate) fn evaluate_expression_detached(
     evaluate_expression_in_module(node, constants, (folds, policy), None)
 }
 
-/// [`evaluate_expression_detached`] with a command the expression runs that
-/// calls a procedure of `module` re-run for its result
-/// ([`detached_procedure_result`]): a re-run's exit reading.
+/// [`evaluate_expression_detached`] with descriptive Module context. Detached
+/// expression text does not retain original child invocation receipts and cannot
+/// consume conditional procedure completion or transfer summaries.
 pub(crate) fn evaluate_expression_in_module(
     node: &ExprNode,
     constants: &HashMap<String, ExactValue>,
@@ -5456,6 +5814,29 @@ enum Expression<'e> {
     Parsed(&'e ExprNode),
 }
 
+fn expression_lexer_config(input: &dyn AnalysisInputs) -> LexerConfig {
+    input
+        .source_lexer_config()
+        .unwrap_or_else(|| LexerConfig::from_grammar(input.context().grammar))
+}
+
+fn expression_parse_context(
+    input: &dyn AnalysisInputs,
+) -> tcl_syntax::expr::parser::ExprParseContext {
+    use tcl_syntax::expr::parser::{ExprParseContext, NativeExprSyntax};
+    let mut parser = input.context().profile.map_or(
+        ExprParseContext {
+            lexer_grammar: input.context().grammar,
+            expr_grammar_base: None,
+            f5_word_grammar: None,
+            native_syntax: NativeExprSyntax::Unknown,
+        },
+        ExprParseContext::for_profile,
+    );
+    parser.lexer_grammar = expression_lexer_config(input).grammar_over(input.context().grammar);
+    parser
+}
+
 /// The expression route as the lift runs it: the shared engine over the
 /// analysis services ([`evaluate_expression`]), so a finite input the
 /// expression reads is pinned per member like any route's operand.
@@ -5500,7 +5881,7 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
         match &self.expression {
             Expression::Assembled(route) => route.variable_reads(input),
             Expression::Parsed(node) => {
-                let config = LexerConfig::for_profile(input.context().profile);
+                let config = expression_lexer_config(input);
                 let mut reads: Vec<String> = node
                     .vars_element_qualified_with_config(config)
                     .into_iter()
@@ -5523,11 +5904,15 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
                     Ok(text) => text,
                     Err(reason) => return EvalAnswer::Declined(reason),
                 };
-                assembled = crate::expr_parser::parse_expr_for_profile(text, self.policy.dialect);
+                assembled = crate::expr_parser::parse_expr_with_syntax_context(
+                    text,
+                    &expression_parse_context(input),
+                );
                 &assembled
             }
             Expression::Parsed(node) => *node,
         };
+        input.prepare_expression_source(node);
         // The operand words substituted before the engine parses them, and
         // the writes their commands made, come first.
         let mut state = input
@@ -5763,11 +6148,40 @@ impl<'t> ArgWord<'t> {
     fn word(&self) -> InvocationWord<'_> {
         match self.kind {
             InvocationWordKind::Literal => InvocationWord::Literal(&self.text),
+            InvocationWordKind::KnownBytes => InvocationWord::KnownBytes(self.text.as_bytes()),
             InvocationWordKind::Dynamic => InvocationWord::Dynamic,
             InvocationWordKind::Expanded => InvocationWord::Expanded,
             InvocationWordKind::Opaque => InvocationWord::Opaque,
         }
     }
+}
+
+fn effective_procedure_arguments<'a>(
+    effective: &'a crate::registry_invocation::EffectiveCommandWords,
+    literals: Vec<Option<String>>,
+) -> Vec<ArgWord<'a>> {
+    effective
+        .words
+        .iter()
+        .skip(1)
+        .zip(literals)
+        .map(|(word, literal)| match literal {
+            Some(text) => ArgWord {
+                text: Cow::Owned(text),
+                kind: InvocationWordKind::Literal,
+                source: if matches!(word, crate::ir::WordExpr::BracedLiteral { .. }) {
+                    OperandSource::BracedLiteral
+                } else {
+                    OperandSource::Literal
+                },
+            },
+            None => ArgWord {
+                text: Cow::Owned(word.legacy_text()),
+                kind: InvocationWordKind::Dynamic,
+                source: OperandSource::Substituted,
+            },
+        })
+        .collect()
 }
 
 /// A call statement's arguments as source words. The call's token snapshot
@@ -6053,6 +6467,11 @@ fn identity_of(key: ValueKey) -> ValueIdentity {
 
 /// The analyser's read-only inputs over the SCCP lattice at one statement.
 struct LatticeInputs<'a, S1, S2> {
+    original: Option<CommandTokens>,
+    written_arguments: Vec<Option<usize>>,
+    expression_base: Option<u32>,
+    expression_source: RefCell<Option<crate::interprocedural::OriginalSummaryExpression>>,
+    nested_source: RefCell<Option<crate::interprocedural::OriginalSummaryScript>>,
     driver: &'a LatticeDriver<'a>,
     view: ResolvedInvocationView<'a>,
     uses: &'a HashMap<Symbol, Version, S1>,
@@ -6285,9 +6704,12 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             InvocationWordKind::Literal => {
                 FactView::Exact(ExactValue::from_literal(operand.text), None)
             }
+            // OperandView is a text-only compatibility projection. It cannot
+            // recover an independently retained non-Unicode byte payload.
+            InvocationWordKind::KnownBytes => FactView::Top(DeclineReason::NotText),
             InvocationWordKind::Dynamic => match self.sources.get(id.0) {
                 Some(OperandSource::Substituted) => match &self.words {
-                    Words::Independent => self.substituted(operand.text),
+                    Words::Independent => self.substituted_argument(operand.text, id.0),
                     Words::Ordered(evaluated) => self.ordered_word(evaluated, id),
                 },
                 _ => simple_var_ref_name(operand.text, self.driver.lexer_config.braced_var)
@@ -6411,17 +6833,62 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         // Only text the word is: a brace-quoted script is not re-read as a
         // substitution, and any other spelling is not the script it runs.
         match self.sources.get(id.0) {
-            Some(OperandSource::BracedLiteral) => Ok(BodyRegion {
-                script: operand.text.to_owned(),
-                base_offset: 0,
-                frame: FrameLevel::Relative(0),
-            }),
+            Some(OperandSource::BracedLiteral) => {
+                let original =
+                    self.original
+                        .as_ref()
+                        .zip(self.driver.module)
+                        .and_then(|(parent, module)| {
+                            let argument = self.written_arguments.get(id.0).copied().flatten()?;
+                            module.original_body(parent, argument, operand.text)
+                        });
+                let base_offset = original.as_ref().map_or(0, |source| source.base());
+                let base_offset =
+                    usize::try_from(base_offset).map_err(|_| DeclineReason::NotExact)?;
+                *self.nested_source.borrow_mut() = original;
+                Ok(BodyRegion {
+                    script: operand.text.to_owned(),
+                    base_offset,
+                    frame: FrameLevel::Relative(0),
+                })
+            }
             _ => Err(DeclineReason::NotExact),
         }
     }
 
     fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {
         self.driver.nested_answer(script, state, self)
+    }
+
+    fn prepare_expression_source(&self, expression: &ExprNode) {
+        *self.expression_source.borrow_mut() = self.driver.module.and_then(|module| {
+            module.original_expression(self.original.as_ref()?, expression, self.expression_base)
+        });
+    }
+
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        start: u32,
+        end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        if let Some(module) = self.driver.module {
+            let original = self
+                .expression_source
+                .borrow()
+                .as_ref()
+                .and_then(|expression| {
+                    module.original_expression_substitution(expression, script, start, end)
+                });
+            let Some(original) = original else {
+                return EvalAnswer::Declined(DeclineReason::NotExact);
+            };
+            *self.nested_source.borrow_mut() = Some(original);
+        }
+        let answer = self.driver.nested_answer(script, state, self);
+        *self.nested_source.borrow_mut() = None;
+        answer
     }
 
     fn word_state(&self) -> Option<EvaluationState> {
@@ -6439,6 +6906,10 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
 
     fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
         self.driver.parameter_default(procedure, parameter)
+    }
+
+    fn source_lexer_config(&self) -> Option<LexerConfig> {
+        Some(self.driver.lexer_config)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -6478,7 +6949,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             .map(|(index, operand)| {
                 (operand.kind == InvocationWordKind::Dynamic
                     && matches!(self.sources.get(index), Some(OperandSource::Substituted)))
-                .then(|| self.substituted_in(operand.text, &mut state))
+                .then(|| self.substituted_in(operand.text, &mut state, Some(index)))
             })
             .collect();
         Box::new(OrderedWords { facts, state })
@@ -6493,22 +6964,47 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
         }
     }
 
-    /// A substituted word's value: its parts' values concatenated — the
-    /// literal runs decoded under the document's grammar, each variable
-    /// read at this statement's use version, each script through the
-    /// nested service under the effect-free policy. A lone variable read
-    /// keeps the variable's own fact, identity included, so the lift can
-    /// pin it. A part that is never exact makes the word never exact; else
-    /// a pending part makes it pending.
-    fn substituted(&self, text: &str) -> FactView {
-        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
-        self.substituted_in(text, &mut state)
+    fn substitution_sources(&self, argument: Option<usize>) -> Vec<crate::ir::SourceSite> {
+        let Some((parent, index)) =
+            self.original
+                .as_ref()
+                .zip(argument)
+                .and_then(|(parent, index)| {
+                    self.written_arguments
+                        .get(index)
+                        .copied()
+                        .flatten()
+                        .map(|index| (parent, index))
+                })
+        else {
+            return Vec::new();
+        };
+        match parent.words().get(index + 1) {
+            Some(crate::ir::WordExpr::CommandSubstitution { source, .. }) => vec![source.clone()],
+            Some(crate::ir::WordExpr::Template { parts, .. }) => parts
+                .iter()
+                .filter_map(|part| match part {
+                    crate::ir::WordPart::CommandSubstitution { source, .. } => Some(source.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
     }
 
-    /// [`Self::substituted`] under `state`: a variable reads what the state's
-    /// writes leave it, and a script's writes join the state in order, so a
-    /// later part sees them.
-    fn substituted_in(&self, text: &str, state: &mut EvaluationState) -> FactView {
+    fn substituted_argument(&self, text: &str, argument: usize) -> FactView {
+        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
+        self.substituted_in(text, &mut state, Some(argument))
+    }
+
+    /// Evaluate a genuine original argument under `state`: variable reads
+    /// observe preceding writes and checked child scripts update that same state.
+    fn substituted_in(
+        &self,
+        text: &str,
+        state: &mut EvaluationState,
+        argument: Option<usize>,
+    ) -> FactView {
         use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
         if let Some(name) = simple_var_ref_name(text, self.driver.lexer_config.braced_var) {
             return self.read(state, name);
@@ -6523,6 +7019,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             }
             WordBody::Parts(parts) => parts,
         };
+        let mut sites = self.substitution_sources(argument).into_iter();
         let mut bytes = Vec::with_capacity(text.len());
         let mut pending = false;
         for part in parts {
@@ -6536,28 +7033,39 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
                     Err(reason) => return FactView::Top(reason),
                 },
                 Part::Command(script) => match std::str::from_utf8(script) {
-                    Ok(script) => match self.nested(script, state) {
-                        // A command that did not complete normally ends the
-                        // word with the writes so far: it has no value, and
-                        // an error is one the invocation never gets past.
-                        EvalAnswer::Evaluated(outcome)
-                            if outcome.completion != CompletionOutcome::Normal =>
-                        {
-                            if matches!(outcome.completion, CompletionOutcome::Error { .. }) {
-                                self.driver.word_error.set(true);
+                    Ok(script) => {
+                        let original = self.original.as_ref().zip(self.driver.module).and_then(
+                            |(parent, module)| {
+                                module.original_substitution(parent, &sites.next()?, script)
+                            },
+                        );
+                        *self.nested_source.borrow_mut() = original;
+                        let answer = self.nested(script, state);
+                        *self.nested_source.borrow_mut() = None;
+                        match answer {
+                            // A command that did not complete normally ends the
+                            // word with the writes so far: it has no value, and
+                            // an error is one the invocation never gets past.
+                            EvalAnswer::Evaluated(outcome)
+                                if outcome.completion != CompletionOutcome::Normal =>
+                            {
+                                if matches!(outcome.completion, CompletionOutcome::Error { .. }) {
+                                    self.driver.word_error.set(true);
+                                }
+                                Err(EvalAnswer::Declined(DeclineReason::StatefulNested))
                             }
-                            Err(EvalAnswer::Declined(DeclineReason::StatefulNested))
+                            EvalAnswer::Evaluated(outcome) => match outcome.result {
+                                ExactValueOrUnavailable::Exact(value) => Ok(value),
+                                ExactValueOrUnavailable::Unavailable(_) => {
+                                    Err(EvalAnswer::Declined(DeclineReason::NotExact))
+                                }
+                            },
+                            answer => Err(answer),
                         }
-                        EvalAnswer::Evaluated(outcome) => match outcome.result {
-                            ExactValueOrUnavailable::Exact(value) => Ok(value),
-                            ExactValueOrUnavailable::Unavailable(_) => {
-                                Err(EvalAnswer::Declined(DeclineReason::NotExact))
-                            }
-                        },
-                        answer => Err(answer),
-                    },
+                    }
                     Err(_) => return FactView::Top(DeclineReason::NotText),
                 },
+                Part::Expression(_) => return FactView::Top(DeclineReason::Unsupported),
                 Part::ParseError(_) => return FactView::Top(DeclineReason::WrongRepresentation),
             };
             match value {
@@ -6639,6 +7147,7 @@ fn word_parts(text: &str, config: LexerConfig) -> Result<Vec<WordPart>, DeclineR
                         .map_err(|_| DeclineReason::NotText)?
                         .to_owned(),
                 }),
+                Part::Expression(_) => Err(DeclineReason::Unsupported),
                 Part::ParseError(_) => Err(DeclineReason::WrongRepresentation),
             }
         })
@@ -6934,12 +7443,30 @@ impl AnalysisInputs for StateInputs<'_> {
         self.run_nested(script)
     }
 
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        _start: u32,
+        _end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        if self.driver.module.is_some() {
+            EvalAnswer::Declined(DeclineReason::NotExact)
+        } else {
+            self.nested(script, state)
+        }
+    }
+
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         self.driver.math_function(name)
     }
 
     fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
         self.driver.parameter_default(procedure, parameter)
+    }
+
+    fn source_lexer_config(&self) -> Option<LexerConfig> {
+        Some(self.driver.lexer_config)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -6997,6 +7524,7 @@ impl StateInputs<'_> {
                         EvalAnswer::Declined(reason) => return Err(reason),
                     }
                 }
+                Part::Expression(_) => return Err(DeclineReason::Unsupported),
                 Part::ParseError(_) => return Err(DeclineReason::WrongRepresentation),
             };
             bytes.extend_from_slice(&value.bytes);
@@ -7012,7 +7540,7 @@ impl StateInputs<'_> {
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             script,
             0,
-            self.driver.lexer_config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.driver.lexer_config),
         );
         let [seg] = commands.as_slice() else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
@@ -7621,6 +8149,7 @@ pub(crate) enum DictBinder {
 /// writes them back (`dict with`, `dict update`, under whichever spelling
 /// the registry resolves), asked over `prior`. The key path is the exact
 /// words the plan read on its way to the dictionary's keys.
+#[cfg(test)]
 fn dict_body_plan(
     registry: &CommandRegistry,
     head: &str,
@@ -7666,6 +8195,7 @@ fn dict_body_plan(
 /// args…` declares binds a dictionary's keys into its body and writes them
 /// back — whatever the dictionary holds, so a call whose keys the analysis
 /// cannot name is still found.
+#[cfg(test)]
 pub(crate) fn dict_body_operand(
     registry: &CommandRegistry,
     head: &str,
@@ -7680,6 +8210,7 @@ pub(crate) fn dict_body_operand(
 /// the dictionary holds its key. `None` when the call is no dictionary
 /// body, or its dictionary does not hold the key path (the command's
 /// error).
+#[cfg(test)]
 pub(crate) fn dict_body(
     registry: &CommandRegistry,
     head: &str,
@@ -7713,6 +8244,133 @@ pub(crate) fn dict_body(
     )
 }
 
+/// A dictionary body's lexical binders under the exact retained source
+/// invocation. These are conditional diagnostic hints, not executed stores.
+fn dict_body_plan_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    prior: Prior<'_>,
+) -> Option<(
+    OperandId,
+    Vec<tcl_registry::value_transfer::Binder>,
+    Vec<String>,
+)> {
+    let input = metadata.source_analysis_input()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    if config.normalized() != input.lexer_config().normalized() {
+        return None;
+    }
+    let invocation =
+        crate::registry_invocation::original_callback_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+    let realm = binding.invocation_realm().or_else(|| {
+        binding
+            .declaration_operand_layout_advice(tokens)
+            .map(|advice| advice.realm())
+    })?;
+    let mut context = AnalysisContext::detached(Some(input.unit_profile()));
+    context.grammar = config.grammar_over(input.unit_profile().grammar);
+    context.registry_generation = registry.generation();
+    context.overlay_generation = registry.overlay_generation();
+    invocation.with_metadata_schema(registry, metadata, realm, |resolved| {
+        let semantics = resolved.semantics.value.semantics()?;
+        let values: Vec<_> = (0..invocation.arguments.len())
+            .map(|index| invocation.argument_word(index))
+            .collect();
+        let words: Vec<_> = values
+            .iter()
+            .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+            .collect();
+        let texts: Vec<_> = (0..invocation.arguments.len())
+            .map(|index| invocation.argument_literal(index).unwrap_or_default())
+            .collect();
+        let borrowed: Vec<_> = texts.iter().map(String::as_str).collect();
+        let mut inputs = StructureInputs::new(
+            view_of(resolved, &borrowed, &words, InvocationLayout::Source),
+            &context,
+        );
+        inputs.prior = prior;
+        let PlanAnswer::Body {
+            binders,
+            reconcile: tcl_registry::value_transfer::Reconcile::WriteBackKeys(dict),
+            ..
+        } = semantics.structure(&inputs)
+        else {
+            return None;
+        };
+        Some((
+            dict,
+            binders,
+            inputs
+                .exact_read_texts()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        ))
+    })
+}
+
+/// Select the effective dictionary operand through original lookup and supplied
+/// availability. Captured aliases retain their effective operand coordinates.
+pub(crate) fn dict_body_operand_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<(usize, String)> {
+    let (dict, ..) =
+        dict_body_plan_with_metadata_context(registry, metadata, tokens, Prior::KeyPath)?;
+    let invocation =
+        crate::registry_invocation::original_callback_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+    Some((dict.0, invocation.argument_literal(dict.0)?))
+}
+
+/// Conditional dictionary-body binder values, with the original selected
+/// grammar and effective alias operands. This does not prove body entry.
+pub(crate) fn dict_body_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    dictionary: &str,
+) -> Option<Vec<DictBinder>> {
+    let (_, binders, path) =
+        dict_body_plan_with_metadata_context(registry, metadata, tokens, Prior::Known(dictionary))?;
+    let invocation =
+        crate::registry_invocation::original_callback_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+    let rules = WordValueRules::from_config(
+        &tokens
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(tokens)?,
+    );
+    let level = path.iter().try_fold(dictionary.to_owned(), |level, key| {
+        dict_value_at(rules, &level, key)
+    })?;
+    Some(
+        binders
+            .into_iter()
+            .filter_map(|binder| match binder.name {
+                BinderName::Declared(name) => Some(DictBinder::Key {
+                    value: dict_value_at(rules, &level, &name)?,
+                    name,
+                }),
+                BinderName::Operand(id) => id.0.checked_sub(1).map(|key| DictBinder::Variable {
+                    variable: id.0,
+                    bound: invocation
+                        .argument_literal(key)
+                        .is_some_and(|key| dict_value_at(rules, &level, &key).is_some()),
+                }),
+            })
+            .collect(),
+    )
+}
+
 /// The value `key` maps to in the dictionary `text`, split as the
 /// dialect's `rules` split a list: the last pair's, as `dict get` reads a
 /// list with a repeated key.
@@ -7730,54 +8388,48 @@ fn dict_value_at(rules: WordValueRules, text: &str, key: &str) -> Option<String>
         .map(|[_, value]| value.to_string())
 }
 
-/// The element writes the call `head args…` states over its literal words:
-/// each `(array, key, value)` its registry route's outcome writes by key
-/// (`array set arr {k v …}`). The lattice holds the same writes in a
-/// function without a barrier, and loses them in one with a barrier, which
-/// widens every value the function holds; a flow-insensitive reader takes
-/// the statement's own. Only a call with a declared store target is run.
-pub(crate) fn literal_element_writes(
+/// The already selected descriptor's template structure under complete source
+/// metadata and its original lexer policy. Literal captured operands keep their
+/// effective ordinals; unknown operands supply no invented text or child span.
+/// The Structure tier grants neither a current value nor successful evaluation.
+pub(crate) fn source_template_plan(
+    schema: &ResolvedInvocation<'_, '_>,
     registry: &CommandRegistry,
-    head: &str,
-    args: &[String],
-) -> Vec<(String, String, String)> {
-    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
-    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
-    let Some(resolved) = registry
-        .resolve_structured_invocation(
-            InvocationWords::structured(InvocationWord::Literal(head), &words),
-            registry.own_surface_query(),
-        )
-        .resolved()
-    else {
-        return Vec::new();
-    };
-    let Some(semantics) = resolved.semantics.value.semantics() else {
-        return Vec::new();
-    };
-    let context = AnalysisContext::detached(registry.profile());
-    let inputs = StructureInputs::new(
-        view_of(&resolved, &texts, &words, InvocationLayout::Source),
-        &context,
-    );
-    if semantics.store_targets(&inputs).is_empty() {
-        return Vec::new();
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    config: LexerConfig,
+) -> Option<tcl_registry::value_transfer::TemplateWordPlan> {
+    use tcl_registry::value_transfer::LiteralInputs;
+    if !metadata.matches_registry(registry) {
+        return None;
     }
-    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
-    else {
-        return Vec::new();
-    };
-    outcome
-        .ordered_stores
-        .into_iter()
-        .filter_map(|store| match store {
-            StoreOutcome::WriteElement { target, key, value } => {
-                let array = inputs.place(target.0).ok()?.name;
-                Some((array, key, String::from_utf8(value.bytes).ok()?))
-            }
-            _ => None,
-        })
-        .collect()
+    let input = metadata.source_analysis_input()?;
+    let arguments = schema.words.arguments();
+    let texts = (0..arguments.len())
+        .map(|ordinal| arguments.literal_at(ordinal).unwrap_or_default())
+        .collect::<Vec<_>>();
+    let mut selected = AnalysisContext::detached(Some(input.unit_profile()));
+    selected.grammar = config.grammar_over(input.unit_profile().grammar);
+    selected.registry_generation = registry.generation();
+    selected.overlay_generation = registry.overlay_generation();
+    selected.tier = AnalysisTier::Structure;
+    let mut literals = LiteralInputs::new(
+        schema.canonical_command,
+        None,
+        &texts,
+        Some(input.unit_profile()),
+    )
+    .with_context(selected);
+    for ordinal in 0..arguments.len() {
+        literals = if arguments.literal_at(ordinal).is_some() {
+            literals.with_bare(OperandId(ordinal))
+        } else {
+            literals.with_unproven(OperandId(ordinal))
+        };
+    }
+    match schema.semantics.value.semantics()?.structure(&literals) {
+        PlanAnswer::TemplateWord(plan) => Some(plan),
+        _ => None,
+    }
 }
 
 /// How one word of a call reads in its source, for a template plan asked
@@ -8082,6 +8734,7 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
     let mutations = crate::command_binding::ModuleCommandMutations::default();
     let driver = LatticeDriver::detached(
         Some(BuiltinFoldInputs {
+            source_metadata_input: None,
             registry: &registry,
             mutations: &mutations,
             dialect: None,
@@ -8107,12 +8760,92 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
         ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
         ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
     ]);
-    driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+    driver.evaluate_expression_at(&expression, None, &uses, &values, &ssa)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lattice_driver_retains_actual_cfg_availability_and_source_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = LexerConfig {
+            expand_syntax: false,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        assert!(profile.grammar.expand_syntax);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        let older =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, older_context, config);
+        let policy = FoldPolicy::for_profile(None, Some(profile));
+        let driver = |input| {
+            LatticeDriver::new(
+                TraceInputs {
+                    source_metadata_input: input,
+                    registry: context.commands(),
+                    traced_variables: &EMPTY_NAMES,
+                    has_dynamic_variable_trace: false,
+                    deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                    analysis_context: None,
+                    existence: None,
+                },
+                None,
+                policy,
+                &HashSet::new(),
+            )
+        };
+        let throw_arguments = [
+            InvocationWord::Literal("CODE"),
+            InvocationWord::Literal("MESSAGE"),
+        ];
+        let string_arguments = [
+            InvocationWord::Literal("length"),
+            InvocationWord::Literal("abc"),
+        ];
+        let owner = Owner::for_source_input(Some(&input));
+        let entry_driver = driver(Some(&input));
+        assert!(!entry_driver.context.grammar.expand_syntax);
+        let selected = entry_driver.with_cfg_metadata(&owner);
+        assert_eq!(selected.lexer_config, config);
+        assert!(!selected.context.grammar.expand_syntax);
+        assert_eq!(
+            selected
+                .context
+                .profile
+                .map(tcl_dialect::DialectProfile::cache_key),
+            Some(profile.cache_key())
+        );
+        assert!(selected.resolve("throw", &throw_arguments).is_some());
+        let older_owner = Owner::for_source_input(Some(&older));
+        let older_selected = driver(Some(&older)).with_cfg_metadata(&older_owner);
+        assert_eq!(older_selected.lexer_config, config);
+        assert!(older_selected.resolve("throw", &throw_arguments).is_none());
+        let mismatched = driver(Some(&input)).with_cfg_metadata(&older_owner);
+        assert!(mismatched.resolve("string", &string_arguments).is_none());
+        let unavailable_owner = Owner::Unavailable;
+        let unavailable = driver(None).with_cfg_metadata(&unavailable_owner);
+        assert!(!unavailable.typed_assignment);
+        assert!(unavailable.resolve("string", &string_arguments).is_none());
+        let standalone_owner = Owner::Standalone;
+        let standalone = driver(None).with_cfg_metadata(&standalone_owner);
+        assert!(standalone.resolve("string", &string_arguments).is_some());
+    }
 
     thread_local! {
         /// The request size the next driver on this thread opens, when set.
@@ -8392,6 +9125,121 @@ mod tests {
             holds("c", &set_of(&["y", "w"])),
             "{:?}",
             function.sccp.values
+        );
+    }
+
+    #[test]
+    fn original_dictionary_body_plan_keeps_aliases_literal_names_and_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original lexical binder plan only; the supplied dictionary is a
+        // separate premise, with no successful body entry or store claim.
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let source = "interp alias {} unpack {} dict with {$dictionary}; unpack {}";
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
+        let module = lowerer.lower(source);
+        let statement = module
+            .top_level
+            .statements
+            .last()
+            .expect("original alias call");
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .expect("original source argv");
+        assert_eq!(
+            dict_body_operand_with_metadata_context(registry, metadata, tokens),
+            Some((1, "$dictionary".to_owned()))
+        );
+        assert_eq!(
+            dict_body_with_metadata_context(registry, metadata, tokens, "$output ONE é( TWO"),
+            Some(vec![
+                DictBinder::Key {
+                    name: "$output".to_owned(),
+                    value: "ONE".to_owned()
+                },
+                DictBinder::Key {
+                    name: "é(".to_owned(),
+                    value: "TWO".to_owned()
+                },
+            ])
+        );
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let older =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, older_context, config);
+        let older_metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &older,
+            )
+            .unwrap();
+        assert!(
+            dict_body_operand_with_metadata_context(registry, older_metadata, tokens).is_none()
+        );
+        assert!(
+            dict_body_with_metadata_context(registry, (&*context).into(), tokens, "$output ONE")
+                .is_none(),
+            "availability-only input cannot invent source context"
+        );
+        let foreign_context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let foreign =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, foreign_context, config);
+        assert!(
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &foreign
+            )
+            .is_none()
+        );
+        let stale = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            LexerConfig {
+                expand_syntax: !config.expand_syntax,
+                ..config
+            },
+        );
+        let stale_metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &stale,
+            )
+            .unwrap();
+        assert!(
+            dict_body_operand_with_metadata_context(registry, stale_metadata, tokens).is_none()
+        );
+        let mut replaced = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
+        let changed = replaced.lower("proc dict args {return CUSTOM}; dict with {$dictionary} {}");
+        let changed_call = changed
+            .top_level
+            .statements
+            .last()
+            .expect("original replacement call");
+        let changed_tokens = changed
+            .top_level
+            .retained_source_tokens_for_statement(changed_call)
+            .expect("original replacement argv");
+        assert!(
+            dict_body_operand_with_metadata_context(registry, metadata, changed_tokens).is_none()
         );
     }
 
@@ -8828,6 +9676,7 @@ mod tests {
         let mutations = crate::command_binding::ModuleCommandMutations::default();
         let driver = LatticeDriver::detached(
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 mutations: &mutations,
                 dialect: None,
@@ -8849,7 +9698,7 @@ mod tests {
         let uses: HashMap<Symbol, Version> = HashMap::new();
         let values: HashMap<ValueKey, LatticeValue> = HashMap::new();
         let LiftedAnswer::Evaluated(outcomes) =
-            driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+            driver.evaluate_expression_at(&expression, None, &uses, &values, &ssa)
         else {
             panic!("the expression evaluates");
         };
@@ -8973,6 +9822,7 @@ mod tests {
         let mutations = crate::command_binding::ModuleCommandMutations::default();
         let driver = LatticeDriver::detached(
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 mutations: &mutations,
                 dialect: None,
@@ -8999,7 +9849,7 @@ mod tests {
             ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
         ]);
         driver
-            .run_script(script, (&uses, &values, &ssa), (Vec::new(), policy))
+            .run_script(script, (&uses, &values, &ssa), (Vec::new(), policy), None)
             .expect("the script is one command the registry resolves")
     }
 
@@ -9152,6 +10002,136 @@ mod tests {
         assert!(!answers[1].preserved && answers[1].stated);
     }
 
+    struct PositionedExpressionInputs<'a> {
+        inner: &'a dyn AnalysisInputs,
+        config: LexerConfig,
+        calls: RefCell<Vec<(String, u32, u32)>>,
+        prepared: RefCell<Option<ExprNode>>,
+    }
+
+    impl AnalysisInputs for PositionedExpressionInputs<'_> {
+        fn invocation(&self) -> &ResolvedInvocationView<'_> {
+            self.inner.invocation()
+        }
+        fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
+            self.inner.operand(id, domain)
+        }
+        fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+            self.inner.place(id)
+        }
+        fn variable(&self, name: &str, domain: FactDomain) -> FactView {
+            if name == "a{b" && domain == FactDomain::ExactValue {
+                FactView::Exact(ExactValue::from_literal("7"), None)
+            } else {
+                self.inner.variable(name, domain)
+            }
+        }
+        fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+            self.inner.prior_store(place, domain)
+        }
+        fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+            self.inner.word_structure(id)
+        }
+        fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason> {
+            self.inner.body(id)
+        }
+        fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+            panic!("positioned expression must retain its actual parser extent")
+        }
+        fn nested_expression_at(
+            &self,
+            script: &str,
+            start: u32,
+            end: u32,
+            _state: &mut EvaluationState,
+        ) -> EvalAnswer {
+            self.calls.borrow_mut().push((script.into(), start, end));
+            EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+                completion: CompletionOutcome::Normal,
+                result: ExactValueOrUnavailable::Exact(ExactValue::from_literal("7")),
+                nested_writes: Vec::new(),
+                ordered_stores: Vec::new(),
+                types: TypeFacts::default(),
+                evidence: DependencyEvidence::default(),
+            }))
+        }
+        fn source_lexer_config(&self) -> Option<LexerConfig> {
+            Some(self.config)
+        }
+        fn prepare_expression_source(&self, expression: &ExprNode) {
+            *self.prepared.borrow_mut() = Some(expression.clone());
+        }
+        fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+            self.inner.math_function(name)
+        }
+        fn context(&self) -> &AnalysisContext {
+            self.inner.context()
+        }
+    }
+
+    #[test]
+    fn expression_services_forward_full_config_and_inclusive_unicode_child_positions() {
+        // naming.expression.original-positioned-analysis-services
+        // docs/design/analysis/name-resolution-proofs/expression-original-positioned-analysis-services.md
+        // Test inputs supply a software result; this proves callback/config transport only.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let inner =
+            tcl_registry::value_transfer::LiteralInputs::new("expr", None, &[], Some(profile));
+        let config = LexerConfig {
+            expand_syntax: false,
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..LexerConfig::for_profile(Some(profile))
+        };
+        let inputs = PositionedExpressionInputs {
+            inner: &inner,
+            config,
+            calls: RefCell::new(Vec::new()),
+            prepared: RefCell::new(None),
+        };
+        let identity = ValueIdentity(1);
+        let member = ExactValue::from_literal("unused");
+        let pinned = tcl_registry::value_transfer::PinnedInputs::new(&inputs, identity, &member);
+        assert_eq!(pinned.source_lexer_config(), Some(config));
+        for (text, result, expected) in [
+            ("[leaf] + 1", "8", Some((0, 5))),
+            (r#""é:[leaf]" eq "é:7""#, "1", Some((4, 9))),
+            (r#""${a{b}" eq "7""#, "1", None),
+        ] {
+            inputs.calls.borrow_mut().clear();
+            let node = crate::expr_parser::parse_expr_with_syntax_context(
+                text,
+                &expression_parse_context(&pinned),
+            );
+            let mut budget = Budget::evaluation();
+            let evaluation = ExpressionEvaluation {
+                expression: Expression::Parsed(&node),
+                policy: FoldPolicy::for_profile(None, Some(profile)),
+                nested: NestedPolicy::EffectFreeOnly,
+                head: None,
+            };
+            let answer = evaluation.evaluate(&pinned, &mut budget);
+            let EvalAnswer::Evaluated(outcome) = answer else {
+                panic!("actual grammar services: {text}: {answer:?}")
+            };
+            let ExactValueOrUnavailable::Exact(value) = outcome.result else {
+                panic!("software result")
+            };
+            assert_eq!(value.bytes, result.as_bytes());
+            assert_eq!(inputs.prepared.borrow().as_ref(), Some(&node));
+            let calls = inputs.calls.borrow();
+            assert_eq!(
+                calls.as_slice(),
+                expected
+                    .map(|(start, end)| vec![("leaf".into(), start, end)])
+                    .unwrap_or_default()
+            );
+        }
+        assert_eq!(
+            profile.grammar.braced_var,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting
+        );
+    }
+
     /// Inputs whose nested script `boom` raises an error after the writes
     /// made so far, and which answer every other request through `inner`.
     struct RaisesOnBoom<'a>(&'a dyn AnalysisInputs);
@@ -9223,6 +10203,7 @@ mod tests {
         let mutations = crate::command_binding::ModuleCommandMutations::default();
         let driver = LatticeDriver::detached(
             Some(BuiltinFoldInputs {
+                source_metadata_input: None,
                 registry: &registry,
                 mutations: &mutations,
                 dialect: None,
@@ -9246,6 +10227,11 @@ mod tests {
         let values: HashMap<ValueKey, LatticeValue> =
             HashMap::from([((x, 1), LatticeValue::Const(ConstValue::Int(1)))]);
         let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
             driver: &driver,
             prior_writes: Vec::new(),
             words: Words::Independent,
@@ -9419,5 +10405,256 @@ mod tests {
             truth_of(&ExactValueOrUnavailable::Exact(ExactValue::int(0))),
             Some(false)
         );
+    }
+}
+
+#[cfg(test)]
+mod original_child_script_purpose_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+
+    fn supplied(
+        source: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        CompilationUnit,
+    ) {
+        let (context, seed) = crate::interprocedural::logical_completion_unit("", "tcl9.1");
+        let original = seed.ir_module.source_metadata_input.as_ref().unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..original.lexer_config()
+        };
+        let input = ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (context, unit)
+    }
+
+    #[test]
+    fn original_summary_child_keeps_bom_alias_and_complete_parent_correspondence() {
+        // naming.interprocedural.original-transfer-summary-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-transfer-summary-source-context.md
+        // Conditional source/value modelling, not Native Normal completion or store permission.
+        let script = "\u{feff}emit VALUE";
+        let source = "\u{feff}interp alias {} \u{feff}emit {} list\nproc p {} {catch {\u{feff}emit VALUE}; return [\u{feff}emit VALUE]}";
+        let (context, unit) = supplied(source);
+        let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, context.commands());
+        let procedure = &unit.ir_module.procedures["::p"];
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let config = input.lexer_config();
+        let parents: Vec<_> = procedure
+            .body
+            .statements
+            .iter()
+            .filter_map(|statement| module.original_statement_tokens("::p", statement))
+            .collect();
+        let body = parents
+            .iter()
+            .find_map(|parent| module.original_body(parent, 0, script))
+            .expect("genuine retained catch body");
+        let child = parents
+            .iter()
+            .find_map(|parent| {
+                let (_, site) = parent
+                    .words()
+                    .iter()
+                    .find_map(crate::ir::WordExpr::sole_command_substitution)?;
+                module.original_substitution(parent, site, script)
+            })
+            .expect("genuine retained bracket child");
+        let driver = LatticeDriver::new(
+            TraceInputs {
+                source_metadata_input: Some(input),
+                registry: context.commands(),
+                traced_variables: &EMPTY_NAMES,
+                has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                analysis_context: None,
+                existence: None,
+            },
+            None,
+            FoldPolicy::for_profile(None, Some(input.unit_profile())),
+            &HashSet::new(),
+        )
+        .with_cfg_metadata(&unit.procedures["::p"].cfg.metadata_context)
+        .in_module(
+            "::p",
+            crate::sccp::ModuleRun {
+                procedures: Some(&module),
+                owned: None,
+                level: crate::sccp::ModuleLevel::Places,
+                reads_exits: false,
+            },
+        );
+        let uses = HashMap::<Symbol, Version>::new();
+        let values = HashMap::<ValueKey, LatticeValue>::new();
+        let ssa = &unit.procedures["::p"].ssa;
+        for original in [&body, &child] {
+            assert_eq!(original.text(), script);
+            assert!(original.base() > 0);
+            let command = original.command_at(original.base()).unwrap();
+            assert_eq!(command.argv_texts[0], "\u{feff}emit");
+            let ran = driver
+                .run_script(
+                    script,
+                    (&uses, &values, ssa),
+                    (Vec::new(), NestedPolicy::EffectFreeOnly),
+                    Some(original),
+                )
+                .unwrap();
+            assert_eq!(ran.head, "\u{feff}emit");
+            assert_eq!(ran.binding.identity, "list");
+            assert!(
+                driver
+                    .run_script(
+                        "list VALUE",
+                        (&uses, &values, ssa),
+                        (Vec::new(), NestedPolicy::EffectFreeOnly),
+                        Some(original)
+                    )
+                    .is_none()
+            );
+        }
+        assert!(
+            driver
+                .run_script(
+                    script,
+                    (&uses, &values, ssa),
+                    (Vec::new(), NestedPolicy::EffectFreeOnly),
+                    None
+                )
+                .is_none()
+        );
+        let inputs = driver.expression_inputs((&uses, &values, ssa));
+        *inputs.nested_source.borrow_mut() = Some(body.clone());
+        let mut state = EvaluationState::new(NestedPolicy::Protected);
+        assert!(matches!(
+            driver.protected_script(script, &mut state, &inputs),
+            EvalAnswer::Evaluated(_)
+        ));
+        assert!(matches!(
+            driver.protected_script("list VALUE", &mut state, &inputs),
+            EvalAnswer::Declined(_)
+        ));
+        assert_eq!(driver.lexer_config, config);
+        assert_eq!(unit.procedures["::p"].source_lexer_config(), config);
+        let mut changed = unit.clone();
+        changed.ir_module.source_metadata_input = None;
+        let missing =
+            crate::interprocedural::ModuleProcedures::of_unit(&changed, context.commands());
+        assert!(
+            parents
+                .iter()
+                .all(|parent| missing.original_body(parent, 0, script).is_none())
+        );
+    }
+
+    #[test]
+    fn original_return_region_keeps_bom_alias_first_close_and_whole_word_config() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Actual reached CFG return source geometry; Native value/read/observer gates remain independent.
+        for argument in ["VALUE", "${a{b}}"] {
+            let source = format!(
+                "\u{feff}rename return {{\u{feff}back}}\nproc p {{}} {{\u{feff}back {argument}}}"
+            );
+            let (context, unit) = supplied(&source);
+            let function = &unit.procedures["::p"];
+            let config = function.source_lexer_config();
+            let (&block, _) = function
+                .cfg
+                .blocks
+                .iter()
+                .find(|(_, block)| {
+                    matches!(
+                        &block.terminator,
+                        Some(crate::cfg::Terminator::Return { span: Some(_), .. })
+                    )
+                })
+                .expect("original return terminator");
+            let tokens = return_command_tokens(function, block, &source, config).unwrap();
+            assert_eq!(tokens.argv_texts, ["\u{feff}back", argument]);
+            assert_eq!(&source[tokens.argv[0].as_range()], "\u{feff}back");
+            assert_eq!(
+                &source[tokens.words()[1].source().span.as_range()],
+                argument
+            );
+            assert_eq!(
+                function.source_metadata_input().unwrap().lexer_config(),
+                config
+            );
+            assert!(
+                function
+                    .invocation_metadata_context_for_module(context.commands(), &unit.ir_module)
+                    .is_some()
+            );
+            let mut unreached = function.clone();
+            unreached.sccp.executable_blocks.remove(&block);
+            assert!(return_command_tokens(&unreached, block, &source, config).is_none());
+        }
+    }
+
+    #[test]
+    fn standalone_loop_child_keeps_bom_and_registered_utility_purpose() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Explicit independent registry utility; no original Module, frame or Native entry is issued.
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let original = registry.get("list").unwrap().clone();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "\u{feff}list",
+            ..original
+        });
+        let mut driver = LatticeDriver::over_registry(&registry, FoldPolicy::default());
+        driver.lexer_config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            strict_quoting: true,
+            ..driver.lexer_config
+        };
+        let parent = driver.lexer_config;
+        let state = crate::static_loops::LoopState::default();
+        let input = StateInputs {
+            driver: &driver,
+            state: &state,
+            view: ResolvedInvocationView {
+                canonical_command: "list",
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands: Vec::new(),
+                argument_offset: 0,
+                arity: None,
+            },
+        };
+        assert!(matches!(
+            input.run_nested("\u{feff}list VALUE"),
+            EvalAnswer::Evaluated(_)
+        ));
+        assert_eq!(driver.lexer_config, parent);
+        assert!(matches!(
+            input.run_nested("unknown VALUE"),
+            EvalAnswer::Declined(_)
+        ));
     }
 }

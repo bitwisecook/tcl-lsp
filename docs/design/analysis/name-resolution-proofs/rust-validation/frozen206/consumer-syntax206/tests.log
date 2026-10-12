@@ -1,0 +1,9 @@
+
+running 4 tests
+test formal_params::tests::native_formal_acceptance_matrix_keeps_provider_count_answers ... ok
+test naming::native::jim_two_word_factory_publication_uses_original_units_and_existing_publication_recipe ... ok
+test native_variable_name::tests::existence_name_cache_purpose_preserves_the_original_release_boundary ... ok
+test native_variable_name::tests::generic_array_set_purposes_preserve_caller_and_release_boundaries ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 606 filtered out; finished in 0.04s
+

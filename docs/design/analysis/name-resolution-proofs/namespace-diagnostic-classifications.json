@@ -1,0 +1,22 @@
+[
+  {
+    "path": "rust/tcl-cmd-core/tests/data/native_namespace_dispatch/provenance.json",
+    "sha256": "c537f7c08df7628e997d0855451857f4e51184d2f8b6d796412868fa0e919786",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.dispatch-error-noun-and-ambiguity",
+      "naming.namespace.dispatch-prefix-worker-availability",
+      "naming.namespace.dispatch-upvar-zero-argument-usage"
+    ],
+    "reason": "All24 embedded process/guest outcomes inspected;18 message projections exactly match. Three questions separate noun/ambiguity, prefix resolution and zero-argument upvar surface/usage. Original script hashes remain metadata because presenter bytes are absent."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_namespace_origin_failures/manifest.json",
+    "sha256": "7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.namespace.origin-generated-opaque-failure-units"
+    ],
+    "reason": "Exact retained source and independently reconstructed observer SHA match all five rows; double-encoded raw stdout exactly equals controls.tsv. Generated zero/ff diagnostics and release-specific errorCode observed, no original object primary/rawString00/native allocation inferred."
+  }
+]

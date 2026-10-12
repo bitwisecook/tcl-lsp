@@ -1,0 +1,26 @@
+{
+  "provider": "jim",
+  "request_sha256": "8c5af0bf7228d00602117707874594e9d503419ea0f24f11ad1b80d14e25c8f5",
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-deep-import-chain449/probe.tcl"
+  ],
+  "selected_environment": {},
+  "source_sha256": "7afc6c1d4b18fdb5352838131077d21157eced317c34d4c1c98f8ecca9751b7a",
+  "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "version_channel": "CASE version.patchlevel, original public info patchlevel; independent executable path query",
+  "returncode": 0,
+  "signal": null,
+  "timeout": false,
+  "start_unix_seconds": 1791660048.5663848,
+  "end_unix_seconds": 1791660048.631213,
+  "stdout_file": "/workspace/.proofs/native-deep-import-chain449/providers/jim/execute.stdout",
+  "stdout_sha256": "84d325ea7f8302eaa5892083e9c8e98a00d254dd3e151b8fe94f09a06ec6b421",
+  "stderr_file": "/workspace/.proofs/native-deep-import-chain449/providers/jim/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observed_case_count": 95,
+  "required_case_count": 95,
+  "closed_marker": true,
+  "status": "closed"
+}

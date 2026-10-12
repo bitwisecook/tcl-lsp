@@ -1,0 +1,108 @@
+}
+
+// Call [$slot Set $list] to set the list of contents of the slot.
+static inline int
+CallSlotSet(
+    Tcl_Interp *interp,
+    Object *slot,
+    Tcl_Obj *list)
+{
+    Tcl_Obj *setArgs[] = {
+	slot->fPtr->myName,
+	slot->fPtr->slotSetName,
+	list
+    };
+    return TclOOPrivateObjectCmd(slot, interp, 3, setArgs);
+}
+
+// Call [$slot Resolve $item] to convert a slot item into canonical form.
+static inline Tcl_Obj *
+CallSlotResolve(
+    Tcl_Interp *interp,
+    Object *slot,
+    Tcl_Obj *item)
+{
+    Tcl_Obj *resolveArgs[] = {
+	slot->fPtr->myName,
+	slot->fPtr->slotResolveName,
+	item
+    };
+    int code = TclOOPrivateObjectCmd(slot, interp, 3, resolveArgs);
+    if (code != TCL_OK) {
+	return NULL;
+    }
+    return Tcl_GetObjResult(interp);
+}
+
+// Call [$slot Resolve $item] for each of a whole list of items.
+static inline Tcl_Obj *
+ResolveAll(
+    Tcl_Interp *interp,
+    Object *slot,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Tcl_Obj **resolvedItems = (Tcl_Obj **) TclStackAlloc(interp,
+	    sizeof(Tcl_Obj *) * objc);
+    for (Tcl_Size i = 0; i < objc; i++) {
+	resolvedItems[i] = CallSlotResolve(interp, slot, objv[i]);
+	if (resolvedItems[i] == NULL) {
+	    for (Tcl_Size j = 0; j < i; j++) {
+		Tcl_DecrRefCount(resolvedItems[j]);
+	    }
+	    TclStackFree(interp, (void *) resolvedItems);
+	    return NULL;
+	}
+	Tcl_IncrRefCount(resolvedItems[i]);
+	Tcl_ResetResult(interp);
+    }
+    Tcl_Obj *resolvedList = Tcl_NewListObj(objc, resolvedItems);
+    for (Tcl_Size i = 0; i < objc; i++) {
+	TclDecrRefCount(resolvedItems[i]);
+    }
+    TclStackFree(interp, (void *) resolvedItems);
+    return resolvedList;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Append --
+ *
+ *	Implementation of the "-append" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Append(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip == objc) {
+	return TCL_OK;
+    }
+
+    // Resolve all values
+    Tcl_Obj *resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    // Get slot contents; store in list
+    Tcl_Obj *list = CallSlotGet(interp, oPtr);
+    if (list == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(list);
+    Tcl_ResetResult(interp);
+
+    // Append
+    if (Tcl_IsShared(list)) {
+	Tcl_Obj *dup = Tcl_DuplicateObj(list);
+	Tcl_IncrRefCount(dup);

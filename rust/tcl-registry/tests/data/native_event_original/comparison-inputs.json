@@ -1,0 +1,86 @@
+[
+  {
+    "label": "GLOBAL_FROM_NAMESPACE",
+    "script": "set ::done 0; namespace eval N {variable x LOCAL; after 0 {set x GLOBAL; set ::done 1}; vwait ::done; list $x $::x}"
+  },
+  {
+    "label": "GLOBAL_FROM_PROC",
+    "script": "set ::x OLD; proc p {} {set x LOCAL; after 0 {set x NEW}; vwait x; list $x $::x}; p"
+  },
+  {
+    "label": "SAME_WRITE",
+    "script": "set x SAME; set log {}; after 0 {set x SAME; lappend log SAME}; after 0 {set x NEXT; lappend log NEXT}; vwait x; set log"
+  },
+  {
+    "label": "ARRAY_SAME_WRITE",
+    "script": "array set a {k OLD}; after 0 {set a(k) OLD}; after 0 {set a(k) NEW}; vwait a(k); set a(k)"
+  },
+  {
+    "label": "UNSET_WRITE",
+    "script": "set x OLD; after 0 {unset x}; vwait x; info exists x"
+  },
+  {
+    "label": "CONCAT_TRIM",
+    "script": "set done 0; after 0 { set} { done } {1 }; vwait done; set done"
+  },
+  {
+    "label": "PURE_LIST_SCRIPT",
+    "script": "set done 0; set body [list set done {A B}]; after 0 $body; vwait done; set done"
+  },
+  {
+    "label": "CANCEL_COUNTED",
+    "script": "set done 0; after 0 {set done 1}; after cancel {set done 1}; update; set done"
+  },
+  {
+    "label": "CANCEL_CONCAT",
+    "script": "set done 0; after 0 {set done 1}; after cancel { set} { done 1 }; update; set done"
+  },
+  {
+    "label": "INFO_SCRIPT",
+    "script": "set id [after idle {set done 1}]; lindex [after info $id] 0"
+  },
+  {
+    "label": "INFO_KIND",
+    "script": "set id [after 0 {set done 1}]; lindex [after info $id] 1"
+  },
+  {
+    "label": "INFO_MISSING",
+    "script": "after info after#99999999"
+  },
+  {
+    "label": "UPDATE_IDLE",
+    "script": "set x OLD; after 0 {set x TIMER}; after idle {set x IDLE}; update idletasks; set x"
+  },
+  {
+    "label": "DELAY_NO_EVENTS",
+    "script": "set x OLD; after 0 {set x TIMER}; after 1; set x"
+  },
+  {
+    "label": "AFTER_ABBREVIATION",
+    "script": "after in"
+  },
+  {
+    "label": "AFTER_AMBIGUOUS",
+    "script": "after i"
+  },
+  {
+    "label": "UPDATE_ABBREVIATION",
+    "script": "update i"
+  },
+  {
+    "label": "BATCH_CANCEL",
+    "script": "set log {}; after 0 {lappend ::log FIRST; after cancel $::later}; set ::later [after 0 {lappend ::log SECOND}]; update; set log"
+  },
+  {
+    "label": "BATCH_NEW",
+    "script": "set log {}; after 0 {lappend ::log FIRST; after 0 {lappend ::log NEW}}; after 0 {lappend ::log SECOND}; update; set log"
+  },
+  {
+    "label": "SAME_NESTED",
+    "script": "set x SAME; set log {}; after 0 {set x SAME; lappend log SAME; after 0 {set x NEXT; lappend log NEXT}}; vwait x; set log"
+  },
+  {
+    "label": "ARRAY_NESTED",
+    "script": "array set a {k OLD}; after 0 {set a(k) OLD; after 0 {set a(k) NEW}}; vwait a(k); set a(k)"
+  }
+]

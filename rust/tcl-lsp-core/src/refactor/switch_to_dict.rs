@@ -18,11 +18,12 @@
 
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
-use tcl_registry::CommandRegistry;
 
-use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
+use super::source_rewrite::{RewriteObligation, select};
+use super::{RefactorEdit, Refactoring, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// A parsed single-command arm body.
@@ -37,9 +38,10 @@ enum BranchBody {
 /// value keeps its original source span (quotes / braces intact) so the
 /// generated dict preserves the literal.
 ///
-/// `config` is the document's [`LexerConfig`].
+/// `config` is the document's [`LexerConfig`]; this extracted arm selects
+/// its nested projection without changing the retained parent input.
 fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<BranchBody> {
-    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config.nested());
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -60,30 +62,34 @@ fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<Branc
 /// Convert a `switch` where every arm sets the same variable / returns a
 /// constant into a `dict` lookup at byte offset `cursor`.
 ///
-/// `config` is the document's [`LexerConfig`], threaded into every
-/// re-segmentation this transform performs.
+/// Source and Registry axes come from the complete current analysis. An
+/// original handler receipt does not grant inserted stores or evaluation
+/// movement; unavailable permissions return a disabled action without edits.
 #[must_use]
 pub fn switch_to_dict(
     source: &str,
     cursor: u32,
-    registry: &CommandRegistry,
+    analysis: &AnalysisResult,
     line_index: &LineIndex,
-    config: LexerConfig,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
-    let texts = &cmd.texts;
-    if texts.len() < 3 {
-        return None;
+    let config = analysis.body_lexer_config?;
+    let (cmd, obligation) = select(
+        source,
+        cursor,
+        analysis,
+        tcl_registry::hooks::LoweringHookId::Switch,
+        RewriteObligation::FreshStoreAndInsertion,
+    )?;
+    let original = super::original_exact_case_source_at_analysis(
+        source,
+        analysis,
+        cmd.argv.first()?.span.start(),
+    )?;
+    if let Some(obligation) = obligation {
+        return Some(obligation.refusal("Convert to dict lookup"));
     }
-
-    // Only `-exact` mode is convertible; the helper yields the subject and
-    // the pattern/body pairs (single braced list or separate words).
-    let (subject, pairs) = super::parse_exact_switch(texts)?;
-    if pairs.is_empty() {
-        return None;
-    }
-
-    let arms = parse_arms(&pairs, config)?;
+    let subject = original.subject().try_text().ok()?;
+    let arms = parse_arms(original.pairs(), config)?;
     if arms.dict_entries.len() < 2 {
         return None;
     }
@@ -92,7 +98,16 @@ pub fn switch_to_dict(
         .split('\n')
         .nth(line_index.line_at(cmd.span.start()) as usize)
         .map_or("", super::line_indent);
-    let replacement = build_dict_replacement(&arms, &subject, indent);
+    let replacement = build_dict_replacement(&arms, subject, indent, config)?;
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&replacement),
+        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    if generated.fatal_tail.is_some() || generated.commands.len() != 2 {
+        return None;
+    }
 
     let (start, end) = super::command_span_offsets(source, &cmd);
     let title = if arms.use_return {
@@ -180,13 +195,40 @@ fn parse_arms(pairs: &[(String, String)], config: LexerConfig) -> Option<ParsedA
     })
 }
 
+/// Completed literal keys enter proposed Tcl source through the shared list
+/// renderer, then the same selected source grammar verifies one literal word.
+fn literal_pattern_source(value: &str, config: LexerConfig) -> Option<String> {
+    let proposed = tcl_syntax::list::list_element(value);
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&proposed),
+        tcl_lexer::Span::new(0, u32::try_from(proposed.len()).ok()?),
+        config.nested(),
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    (parsed.fatal_tail.is_none()
+        && tcl_syntax::word_rules::original_static_word_source_bytes(word)?.as_slice()
+            == value.as_bytes())
+    .then_some(proposed)
+}
+
 /// Build the `dict create` + lookup replacement from the parsed arms.
-fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> String {
+fn build_dict_replacement(
+    arms: &ParsedArms,
+    subject: &str,
+    indent: &str,
+    config: LexerConfig,
+) -> Option<String> {
     let dict_items = arms
         .dict_entries
         .iter()
-        .map(|(k, v)| format!("{k} {v}"))
-        .collect::<Vec<_>>()
+        .map(|(k, v)| Some(format!("{} {v}", literal_pattern_source(k, config)?)))
+        .collect::<Option<Vec<_>>>()?
         .join(" ");
     let dict_name = if arms.use_return {
         "result_map".to_owned()
@@ -221,18 +263,20 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
             "{indent}set {target_var} [dict get ${dict_name} {subject}]"
         ));
     }
-    parts.join("\n")
+    Some(parts.join("\n"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tcl_dialect::model::{Family, SurfaceLayer};
+    use tcl_registry::CommandRegistry;
 
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let reg = super::super::test_registry();
+        let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
         let li = LineIndex::new(source);
-        switch_to_dict(source, cursor, &reg, &li, LexerConfig::default())
+        switch_to_dict(source, cursor, &analysis, &li)
     }
 
     #[test]
@@ -241,11 +285,10 @@ mod tests {
         let r = run(source, 0).expect("result");
         assert!(r.title.to_lowercase().contains("dict"));
         let applied = r.apply(source);
-        // The segmenter canonicalises the `$method` subject to
-        // `${method}`.
+        // The genuine subject retains its original source spelling.
         assert_eq!(
             applied,
-            "set handler_map [dict create GET handle_get POST handle_post PUT handle_put]\nset handler [dict get $handler_map ${method}]"
+            "set handler_map [dict create GET handle_get POST handle_post PUT handle_put]\nset handler [dict get $handler_map $method]"
         );
         assert!(applied.contains("dict create"), "{applied:?}");
         assert!(applied.contains("dict get"), "{applied:?}");
@@ -302,8 +345,190 @@ mod tests {
         reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
-        let r = switch_to_dict(source, cursor, &reg, &li, LexerConfig::default())
-            .expect("nested result");
+        let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
+        let r = switch_to_dict(source, cursor, &analysis, &li).expect("nested result");
         assert!(r.title.to_lowercase().contains("dict"));
+    }
+
+    #[test]
+    fn original_dictionary_conversion_keeps_selected_case_shape_and_original_subject() {
+        // Implementation contract: naming.refactor.original-exact-case-source
+        // docs/design/analysis/name-resolution-proofs/original-exact-case-source.md
+        for subject in ["{$x}", "fixed", "\"literal$x\"", "$array(key)", "${a b}"] {
+            let source =
+                format!("switch -exact -- {subject} {{a {{return one}} b {{return two}}}}");
+            let registry = super::super::test_registry();
+            let analysis = super::super::source_rewrite::lexical_analysis(&source, &registry);
+            let original =
+                super::super::original_exact_case_source_at_analysis(&source, &analysis, 0)
+                    .expect("genuine exact source layout");
+            assert_eq!(original.subject().try_text().unwrap(), subject);
+            assert_eq!(
+                original.pairs(),
+                &[
+                    ("a".to_owned(), "return one".to_owned()),
+                    ("b".to_owned(), "return two".to_owned())
+                ]
+            );
+            let result = switch_to_dict(&source, 0, &analysis, &LineIndex::new(&source))
+                .expect("explicit Logical source rewrite");
+            assert!(result.disabled.is_none());
+            assert_eq!(result.edits.len(), 1);
+            assert!(
+                result
+                    .apply(&source)
+                    .contains(&format!("dict get $result_map {subject}")),
+                "{subject}"
+            );
+            if subject != "${a b}" {
+                assert!(
+                    super::super::original_exact_switch_source_at_analysis(&source, &analysis, 0)
+                        .is_none()
+                );
+            }
+        }
+        let source = "switch -exact -- {$x} {{a b} {return one} {$literal} {return two} {[get]} {return three}}";
+        let applied = run(source, 0).expect("literal case data").apply(source);
+        assert_eq!(
+            applied,
+            "set result_map [dict create {a b} one {$literal} two {[get]} three]\nreturn [dict get $result_map {$x}]"
+        );
+        let positional = "switch -- -nocase {a {return one} b {return two}}";
+        assert!(
+            run(positional, 0)
+                .expect("option-shaped subject is data after --")
+                .apply(positional)
+                .contains("dict get $result_map -nocase")
+        );
+        for options in [
+            "-nocase --",
+            "-exact -nocase --",
+            "-unknown --",
+            "-glob --",
+            "$options --",
+            "{*}$options --",
+        ] {
+            let source = format!("switch {options} $x {{a {{return one}} b {{return two}}}}");
+            assert!(run(&source, 0).is_none(), "{options}");
+        }
+    }
+
+    #[test]
+    fn original_dictionary_conversion_keeps_effective_alias_layout_and_current_source() {
+        // Implementation contract: naming.refactor.original-exact-case-source
+        // docs/design/analysis/name-resolution-proofs/original-exact-case-source.md
+        let source = "interp alias {} choose {} switch -exact --\nchoose {$x} {a {return one} b {return two}}";
+        let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
+        let registry = super::super::test_registry();
+        let mut analysis = super::super::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            super::super::original_exact_case_source_at_analysis(source, &analysis, cursor)
+                .expect("selected bound prefix with genuine call operand");
+        assert_eq!(original.subject().try_text().unwrap(), "{$x}");
+        let result = switch_to_dict(source, cursor, &analysis, &LineIndex::new(source))
+            .expect("Logical alias source rewrite");
+        assert_eq!(result.edits[0].start, cursor);
+        assert!(result.apply(source).contains("dict get $result_map {$x}"));
+        assert!(
+            switch_to_dict(
+                &format!("# changed\n{source}"),
+                cursor,
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(switch_to_dict(source, cursor, &analysis, &LineIndex::new(source)).is_none());
+        let shadow = "proc switch {args} {}\nswitch -exact -- $x {a {return one} b {return two}}";
+        let cursor = u32::try_from(shadow.rfind("switch").unwrap()).unwrap();
+        assert!(run(shadow, cursor).is_none());
+    }
+
+    #[test]
+    fn original_dictionary_case_receipt_does_not_grant_native_rewrite_permissions() {
+        // Implementation contract: naming.refactor.original-exact-case-source
+        // docs/design/analysis/name-resolution-proofs/original-exact-case-source.md
+        let source = "switch -exact -- {$x} {a {return one} b {return two}}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let original = super::super::original_exact_case_source_at_analysis(source, &analysis, 0)
+            .expect("conditional original source layout");
+        assert_eq!(original.subject().try_text().unwrap(), "{$x}");
+        let result = switch_to_dict(source, 0, &analysis, &LineIndex::new(source))
+            .expect("selected source action with independent missing permission");
+        assert!(result.edits.is_empty());
+        assert!(
+            result
+                .disabled
+                .unwrap()
+                .starts_with("missing-fresh-store-and-insertion:")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_branch_parser_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    fn analysed(source: &str, config: LexerConfig) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+    #[test]
+    fn original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::for_profile(Some(profile))
+        };
+        let body = "return {\u{feff}ONE}";
+        let Some(BranchBody::Return(raw)) = parse_branch_assignment(body, config) else {
+            panic!("genuine nested return shape");
+        };
+        assert_eq!(raw, "{\u{feff}ONE}");
+        assert!(parse_branch_assignment("\u{feff}return ONE", config).is_none());
+        assert!(parse_branch_assignment("\u{feff}set answer ONE", config).is_none());
+        assert_eq!(
+            literal_pattern_source("\u{feff}key", config).unwrap(),
+            "\u{feff}key"
+        );
+        let source = "\u{feff}switch -exact -- {$x} {a {return {\u{feff}ONE}} b {return TWO}}";
+        let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
+        let mut analysis = analysed(source, config);
+        assert_eq!(analysis.body_lexer_config, Some(config));
+        let action = switch_to_dict(source, cursor, &analysis, &LineIndex::new(source))
+            .expect("actual Logical source rewrite");
+        assert!(action.disabled.is_none());
+        assert_eq!(action.edits.len(), 1);
+        assert_eq!(action.edits[0].start, cursor);
+        assert_eq!(action.edits[0].end as usize, source.len());
+        assert_eq!(
+            action.apply(source),
+            "\u{feff}set result_map [dict create a {\u{feff}ONE} b TWO]\nreturn [dict get $result_map {$x}]"
+        );
+        assert!(
+            switch_to_dict(
+                &format!("# displaced\n{source}"),
+                cursor,
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(switch_to_dict(source, cursor, &analysis, &LineIndex::new(source)).is_none());
+        let nested = "\u{feff}switch -exact -- {$x} {a {\u{feff}return ONE} b {return TWO}}";
+        let analysis = analysed(nested, config);
+        assert!(switch_to_dict(nested, cursor, &analysis, &LineIndex::new(nested)).is_none());
     }
 }

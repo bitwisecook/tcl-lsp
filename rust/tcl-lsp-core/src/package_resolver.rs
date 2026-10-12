@@ -61,7 +61,7 @@ use std::path::{Path, PathBuf};
 
 use crate::vfs::{NativeStore, SourceStore};
 
-use tcl_lexer::{Lexer, Token, TokenType};
+use tcl_lexer::{Token, TokenType};
 
 pub use tcl_dialect::PackagePrefer;
 
@@ -136,8 +136,10 @@ pub struct PackageInfo {
     pub name: String,
     /// Declared version.
     pub version: String,
-    /// Absolute paths to the Tcl implementation files the `ifneeded` script
-    /// would `source`.
+    /// Candidate Tcl implementation files suggested by the deferred script
+    /// or its directory. This is source advice, not evidence that a loader ran
+    /// or that a file was sourced. Original providers expose each candidate
+    /// provenance through [`OriginalPackageInfo::file_candidates`].
     ///
     /// **Empty** means "declared, but its command set is not statically
     /// enumerable" — a binary-only C extension whose `ifneeded` body just
@@ -191,37 +193,31 @@ pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
     // dialect-drift-ok: on-disk `pkgIndex.tcl` / `tclIndex` auto-load index
     // content from `auto_path`, read as C Tcl's own loader reads it — not the
     // open document's Tcl, and no document dialect reaches this walk.
-    let tokens = Lexer::new(text).tokenise_all().unwrap_or_default();
-    let mut commands: Vec<Vec<Vec<Token>>> = Vec::new();
-    let mut words: Vec<Vec<Token>> = Vec::new();
-    let mut word: Vec<Token> = Vec::new();
+    walk_command_words_with_config(text, tcl_lexer::LexerConfig::default())
+}
 
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Comment | TokenType::Eof => {}
-            TokenType::Eol => {
-                if !word.is_empty() {
-                    words.push(std::mem::take(&mut word));
-                }
-                if !words.is_empty() {
-                    commands.push(std::mem::take(&mut words));
-                }
-            }
-            TokenType::Sep | TokenType::Expand => {
-                if !word.is_empty() {
-                    words.push(std::mem::take(&mut word));
-                }
-            }
-            _ => word.push(tok),
-        }
-    }
-    if !word.is_empty() {
-        words.push(word);
-    }
-    if !words.is_empty() {
-        commands.push(words);
-    }
-    commands
+pub(super) fn walk_command_words_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<Vec<Vec<Token>>> {
+    let Ok(script) = tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+        &tcl_lexer::SourceImage::document(text),
+        0,
+        config,
+    ) else {
+        return Vec::new();
+    };
+    script
+        .commands
+        .into_iter()
+        .map(|command| {
+            command
+                .word_fragments
+                .into_iter()
+                .map(|word| word.into_iter().map(|fragment| fragment.token).collect())
+                .collect()
+        })
+        .collect()
 }
 
 /// The verbatim source slice spanning `word` within `text`.
@@ -272,6 +268,17 @@ pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
 /// * `[file join $dir X …]` — path components after `$dir` joined by `/`.
 /// * `$dir/X` — the path tail after a bare `$dir/` prefix.
 fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
+    // Independent on-disk index compatibility, without a document input.
+    source_filename_with_config(text, arg, tcl_lexer::LexerConfig::default())
+}
+
+/// Parse the genuine command-substitution operand with its supplied grammar.
+/// The caller retains the parent word and input; this supplies path syntax only.
+fn source_filename_with_config(
+    text: &str,
+    arg: &[Token],
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
     let raw = word_raw(text, arg);
 
     // `[file join $dir X]` — a single command-substitution word.
@@ -279,7 +286,10 @@ fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
         let start = arg[0].span.start() as usize + arg[0].content_offset as usize;
         let end = arg[0].span.end() as usize;
         let inner = text.get(start..end)?;
-        let cmds = walk_command_words(inner);
+        let cmds = walk_command_words_with_config(
+            inner,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
         if cmds.len() != 1 {
             return None;
         }
@@ -372,28 +382,13 @@ fn collect_source_targets(
     }
 }
 
-/// A package version token's accepted *format*: digits/dots with an optional
-/// alpha/beta suffix (`1.0`, `2.1`, `1.0b1`). A narrow gate on an
-/// already-tokenised word.
+/// A literal advertisement must be a version in at least one supported C Tcl
+/// release. The selected profile filters advertisements before selection;
+/// discovery never assigns an unspecified source a default Tcl release.
 fn is_version_word(word: &str) -> bool {
-    let (head, suffix) = match word.find(['a', 'b']) {
-        Some(i) => (&word[..i], &word[i..]),
-        None => (word, ""),
-    };
-    if head.is_empty() || !head.bytes().all(|b| b.is_ascii_digit() || b == b'.') {
-        return false;
-    }
-    if suffix.is_empty() {
-        return true;
-    }
-    // `[ab]\d+`
-    let mut it = suffix.bytes();
-    let first = it.next();
-    if !matches!(first, Some(b'a' | b'b')) {
-        return false;
-    }
-    let digits = &suffix[1..];
-    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+    tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .any(|release| tcl_dialect::validate_version_for(word, release))
 }
 
 // Public parsers.
@@ -437,6 +432,7 @@ pub fn parse_pkg_index(
             text,
             words,
             conditions,
+            ..
         } = reached;
         if words.len() < 5 {
             return;
@@ -638,6 +634,77 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
     names
 }
 
+fn candidate_package_infos<'a>(
+    infos: &[&'a PackageInfo],
+    requirements: &[&str],
+    exact: bool,
+    prefer: PackagePrefer,
+    target: Option<tcl_dialect::TclVersion>,
+) -> Vec<&'a PackageInfo> {
+    let releases: Vec<_> = target.map_or_else(
+        || tcl_dialect::TclVersion::ALL.to_vec(),
+        |version| vec![version],
+    );
+    let mut candidates: Vec<&PackageInfo> = Vec::new();
+    for release in releases {
+        let available: Vec<_> = infos
+            .iter()
+            .copied()
+            .filter(|info| {
+                info.availability(Some(release)) != reachability::Availability::Unavailable
+            })
+            .collect();
+        let certain: Vec<_> = available
+            .iter()
+            .copied()
+            .filter(|info| {
+                info.availability(Some(release)) == reachability::Availability::Available
+            })
+            .collect();
+        let versions: Vec<_> = certain.iter().map(|info| info.version.as_str()).collect();
+        let selected = if exact {
+            requirements
+                .first()
+                .filter(|_| requirements.len() == 1)
+                .and_then(|requested| {
+                    tcl_dialect::select_package_version_exact_for(&versions, requested, release)
+                })
+        } else {
+            tcl_dialect::select_package_version_for(&versions, requirements, prefer, release)
+        };
+        let selected_version = selected.map(|index| versions[index]);
+        for info in available {
+            let accepts = if exact {
+                requirements
+                    .first()
+                    .filter(|_| requirements.len() == 1)
+                    .is_some_and(|requested| {
+                        tcl_dialect::version_matches_exact_for(&info.version, requested, release)
+                    })
+            } else {
+                tcl_dialect::select_package_version_for(
+                    &[info.version.as_str()],
+                    requirements,
+                    prefer,
+                    release,
+                )
+                .is_some()
+            };
+            if accepts
+                && (info.availability(Some(release)) == reachability::Availability::Conditional
+                    || selected_version.is_some_and(|version| {
+                        tcl_dialect::compare_versions_for(&info.version, version, release)
+                            == core::cmp::Ordering::Equal
+                    }))
+                && !candidates.iter().any(|candidate| **candidate == *info)
+            {
+                candidates.push(info);
+            }
+        }
+    }
+    candidates
+}
+
 // Name qualification (exact port of C Tcl's auto_qualify).
 
 /// Faithful port of C Tcl's `auto_qualify` (`library/init.tcl:488`).
@@ -650,64 +717,7 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
 /// (namespace-qualified, then global-relative).
 #[must_use]
 pub fn auto_qualify(cmd: &str, namespace: &str) -> Vec<String> {
-    // `regsub -all {::+} $cmd :: cmd` — collapse runs of >=2 colons to `::`
-    // and count how many such runs there were.
-    let (cmd, n) = collapse_colons(cmd);
-
-    if let Some(without_prefix) = cmd.strip_prefix("::").map(str::to_owned) {
-        return if n > 1 {
-            // (::foo::bar, *) -> ::foo::bar
-            vec![cmd]
-        } else {
-            // (::global, *) -> global
-            vec![without_prefix]
-        };
-    }
-
-    if n == 0 {
-        if namespace == "::" {
-            // (nocolons, ::) -> nocolons
-            vec![cmd]
-        } else {
-            // (nocolons, ::sub) -> ::sub::nocolons nocolons
-            vec![format!("{namespace}::{cmd}"), cmd]
-        }
-    } else if namespace == "::" {
-        // (foo::bar, ::) -> ::foo::bar
-        vec![format!("::{cmd}")]
-    } else {
-        // (foo::bar, ::sub) -> ::sub::foo::bar ::foo::bar
-        vec![format!("{namespace}::{cmd}"), format!("::{cmd}")]
-    }
-}
-
-/// Collapse maximal runs of two-or-more `:` to `::`, returning the normalised
-/// string and the number of runs collapsed (the `regsub -all {::+}` count).
-fn collapse_colons(cmd: &str) -> (String, usize) {
-    let bytes = cmd.as_bytes();
-    let mut out = String::with_capacity(cmd.len());
-    let mut n = 0usize;
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b':' {
-            let mut j = i;
-            while j < bytes.len() && bytes[j] == b':' {
-                j += 1;
-            }
-            let run = j - i;
-            if run >= 2 {
-                out.push_str("::");
-                n += 1;
-            } else {
-                out.push(':');
-            }
-            i = j;
-        } else {
-            out.push(bytes[i] as char);
-            i += 1;
-        }
-    }
-    (out, n)
+    tcl_syntax::naming::autoload_command_candidates(cmd, namespace)
 }
 
 // PackageResolver — ties the parsers to a set of search paths (auto_path).
@@ -727,6 +737,17 @@ fn collapse_colons(cmd: &str) -> (String, usize) {
 pub struct PackageResolver {
     packages: HashMap<String, Vec<PackageInfo>>,
     auto_index: HashMap<String, Vec<PathBuf>>,
+    original_packages: HashMap<
+        tcl_registry::native_package::NativePackageNameKey,
+        Vec<original_names::OriginalPackageInfo>,
+    >,
+    original_auto_index: HashMap<
+        (
+            tcl_syntax::native_string::NativeStringProtocol,
+            tcl_core_types::NameBytes,
+        ),
+        Vec<original_names::OriginalAutoIndexRegistration>,
+    >,
     scanned_dirs: Vec<PathBuf>,
     revision: u64,
 }
@@ -752,6 +773,8 @@ impl Default for PackageResolver {
         Self {
             packages: HashMap::new(),
             auto_index: HashMap::new(),
+            original_auto_index: HashMap::new(),
+            original_packages: HashMap::new(),
             scanned_dirs: Vec::new(),
             revision: next_resolver_revision(),
         }
@@ -889,6 +912,9 @@ impl PackageResolver {
             let infos = parse_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
                 list_tcl_files(store, d)
             });
+            self.add_original_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
+                list_tcl_files(store, d)
+            });
             self.add_pkg_index(infos);
         }
         // `tclIndex` is matched case-insensitively (`tclIndex` / `tclindex`).
@@ -900,6 +926,7 @@ impl PackageResolver {
                     .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("tclindex"));
                 if is_tcl_index && let Ok(content) = store.read_to_string(&entry.path) {
                     let dir_owned = entry.path.parent().unwrap_or(dir).to_path_buf();
+                    self.add_original_tcl_index(&content, &dir_owned, &|p| store.is_file(p));
                     self.add_tcl_index(parse_tcl_index(&content, &dir_owned, &|p| {
                         store.is_file(p)
                     }));
@@ -981,16 +1008,14 @@ impl PackageResolver {
         files
     }
 
-    /// The single `package ifneeded` declaration a
-    /// `package require ?-exact? NAME ?VERSION?` would evaluate, or `None`
-    /// when no scanned provider is acceptable.  The full-fidelity form of
-    /// [`Self::resolve_require`], for a caller that needs the chosen release's
-    /// version or index file rather than just its sources.
+    /// A representative assistance candidate, in discovery order.
     ///
-    /// With several providers whose versions compare *equal*, this is the
-    /// **first-discovered** one — the entry whose version string C Tcl keeps
-    /// when it collapses them (see [`Self::resolve_require`] for why the file
-    /// list is nonetheless the union).
+    /// This carries the first registered version spelling for navigation; it
+    /// does not identify the currently installed loader. Equal-comparing
+    /// registrations retain the first key spelling but replace its script,
+    /// while registration guards and an unpinned release can leave distinct
+    /// candidate versions. Semantic callers must establish execution order and
+    /// provider provenance separately.
     #[must_use]
     pub fn select_provider(
         &self,
@@ -1004,14 +1029,8 @@ impl PackageResolver {
             .next()
     }
 
-    /// Every provider of `name` whose version compares **equal** to the one
-    /// `package require ?-exact? NAME ?VERSION?` selects, in discovery order —
-    /// the first is the one C Tcl reports the version of, and the set is what
-    /// its collapsed `ifneeded` entry could be running.
-    ///
-    /// Empty when no scanned provider is acceptable (which includes the
-    /// "constraint no provider satisfies" case — never a silent fallback to
-    /// some other release).
+    /// Assistance candidates across supported C releases, preserving discovery
+    /// order. This does not promote unknown guards to registered loaders.
     #[must_use]
     fn select_providers(
         &self,
@@ -1020,36 +1039,69 @@ impl PackageResolver {
         exact: bool,
         prefer: PackagePrefer,
     ) -> Vec<&PackageInfo> {
+        let requirements: Vec<&str> = version.into_iter().collect();
+        self.candidate_providers_for_require(name, &requirements, exact, prefer, None)
+    }
+
+    /// Candidate loader declarations under an explicit C Tcl target.
+    /// Unknown release or guards return alternatives, never an executing-loader proof.
+    #[must_use]
+    pub fn candidate_providers_for_require(
+        &self,
+        name: &str,
+        requirements: &[&str],
+        exact: bool,
+        prefer: PackagePrefer,
+        target: Option<tcl_dialect::TclVersion>,
+    ) -> Vec<&PackageInfo> {
         let Some(infos) = self.packages.get(name) else {
             return Vec::new();
         };
-        let requirement = version.map(|v| {
-            if exact {
-                tcl_dialect::exact_requirement(v)
-            } else {
-                v.to_owned()
-            }
-        });
-        let requirements: Vec<&str> = requirement.as_deref().into_iter().collect();
-        let versions: Vec<&str> = infos.iter().map(|i| i.version.as_str()).collect();
-        let Some(chosen) = tcl_dialect::select_package_version(&versions, &requirements, prefer)
-        else {
+        candidate_package_infos(
+            &infos.iter().collect::<Vec<_>>(),
+            requirements,
+            exact,
+            prefer,
+            target,
+        )
+    }
+
+    /// Assistance source candidates using the document's requirement grammar.
+    /// This does not prove a loader ran or that its commands remain installed.
+    #[must_use]
+    pub fn resolve_require_for_profile(
+        &self,
+        name: &str,
+        requirements: &[&str],
+        exact: bool,
+        prefer: PackagePrefer,
+        profile: Option<&tcl_dialect::DialectProfile>,
+    ) -> Vec<PathBuf> {
+        if profile.is_some_and(|profile| {
+            !profile
+                .grammar_union
+                .contains(&tcl_dialect::model::SpecProvider::Core(
+                    tcl_dialect::model::Family::Tcl,
+                ))
+                && profile.runtime_version().is_none()
+        }) {
             return Vec::new();
-        };
-        let chosen_version = versions[chosen];
-        infos
-            .iter()
-            .filter(|info| {
-                // Acceptable in its own right — an unparseable version string
-                // is skipped by `SelectPackage` and must not be dragged in by
-                // the lenient comparison `compare_versions` falls back to for
-                // one.
-                tcl_dialect::select_package_version(&[info.version.as_str()], &requirements, prefer)
-                    .is_some()
-                    && tcl_dialect::compare_versions(&info.version, chosen_version)
-                        == core::cmp::Ordering::Equal
-            })
-            .collect()
+        }
+        let mut files = Vec::new();
+        for provider in self.candidate_providers_for_require(
+            name,
+            requirements,
+            exact,
+            prefer,
+            profile.and_then(tcl_dialect::DialectProfile::runtime_version),
+        ) {
+            for file in &provider.source_files {
+                if !files.contains(file) {
+                    files.push(file.clone());
+                }
+            }
+        }
+        files
     }
 
     /// Whether the scanned paths know how to provide `name`.
@@ -1112,6 +1164,28 @@ impl PackageResolver {
     #[must_use]
     pub fn package_names(&self) -> Vec<&str> {
         self.packages.keys().map(String::as_str).collect()
+    }
+
+    /// All registered package implementation paths, before version selection.
+    /// This inventory lets callers capture each file's own source configuration;
+    /// it does not establish that any provider is selected or a loader ran.
+    #[must_use]
+    pub fn provider_source_files(&self) -> Vec<PathBuf> {
+        let mut paths = self
+            .packages
+            .values()
+            .flatten()
+            .flat_map(|provider| provider.source_files.iter().cloned())
+            .chain(
+                self.original_packages
+                    .values()
+                    .flatten()
+                    .flat_map(|provider| provider.metadata().source_files.iter().cloned()),
+            )
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths.dedup();
+        paths
     }
 
     /// Every auto-loadable command name known to the scanned paths.
@@ -1230,7 +1304,12 @@ fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+mod original_names;
 pub mod reachability;
+pub use original_names::{
+    OriginalPackageFileCandidate, OriginalPackageFileCandidateKind, OriginalPackageInfo,
+    PackageRequirementAdvice, PackageRequirementAdviceKey,
+};
 
 #[cfg(test)]
 mod tests;

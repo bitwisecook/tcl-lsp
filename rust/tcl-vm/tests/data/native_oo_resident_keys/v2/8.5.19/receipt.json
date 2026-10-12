@@ -1,0 +1,36 @@
+{
+  "provider": "8.5.19",
+  "probe_sha256": "1c5fe2b5abe093aca8223560f94194657967a1d6abe73c628df80af06504ef57",
+  "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+  "makefile_sha256": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+  "source_owner_sha256": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+  "additional_source_sha256": {
+    "tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+    "tclListObj.c": "6cab768e5c5352f0152edf4a1bea2c8214b711a422d9337106ed1e1d97fbe5ee"
+  },
+  "library_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "/workspace/.proofs/native-oo-resident069-v2/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-oo-resident069-v2/8.5.19/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "223967d3fd6f8ee6d31d334c7710fbd64f8fcd6f942035948f5edf8da306730e",
+  "process_exit": 0,
+  "stdout_sha256": "6763de318120d961bc97b57f9f5476dfdd1a9bc433a782898d4c618ca28564d0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|382e352e3139",
+    "OO_UNAVAILABLE|0|554e415641494c41424c45"
+  ],
+  "reported_version": "8.5.19"
+}

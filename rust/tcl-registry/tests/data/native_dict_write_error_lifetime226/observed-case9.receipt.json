@@ -1,0 +1,53 @@
+{
+  "label": "observed-case9",
+  "command": [
+    "/workspace/.proofs/native-dict-write-error-lifetime226/observed-probe",
+    "9"
+  ],
+  "cwd": null,
+  "exit": 0,
+  "seconds": 0.0021081830200273544,
+  "request_sha256": "19e5819807e7b83a606b54a3908e119bc11859416ff71c2e5fc00c8290948569",
+  "launcher_sha256": "0fef1acbe3a745e88c00646e86720c9cf3eb167a04b8ed8fd96d3c94af8e1bab",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclExecute.c": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclObj.c": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPort.h": "f0985f5ac3804a9ca460df2f788889343e09ef55a8cd4f6d305d8e717398b41f",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclTomMath.h": "97cbde63356a65eee09a9882279cb329876a92ec5995f079d574499b89655314",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/libtommath/tommath.h": "662cb76f756277261d15a4e2a6edbb96f60eb63431aad9c52b361e9fa04ab0d7",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclUnixPort.h": "acc81a8690f4f5a31d7483308d850e120ab6d69d4219452427f9acc922844e3f",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh": "305b56696cc9b02162fef44ffcaa8f2a99b096aede7e53986d2a53acf7d8cac7",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/rust/tcl-vm/tests/data/native_dictionary_body/probe.c": "e95451728352a915dfbc033719e60aabcab9ae4f53566088b583bbd4f12c6f3d",
+    "/workspace/tcl-lsp/rust/tcl-vm/tests/data/native_dictionary_body/manifest.json": "fa787d8358bd24fe60efbcd838a2825f3b6a69c51e0045f2d84fa641bcabbcbf",
+    "/workspace/tcl-lsp/rust/tcl-vm/tests/data/native_dictionary_body/8.5.19.tsv": "a0033268917b943996f7de5b5775af158e0963728c909d69709e37a03852dcaf",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/capture.py": "0fef1acbe3a745e88c00646e86720c9cf3eb167a04b8ed8fd96d3c94af8e1bab",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumentation.patch": "04467fb3fa9ce8272dec02e6f917ff1b94f9d4430ef6dacb02f0786b2e166d1b",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-probe.c": "2fc93c8d36f35ec1d1179babc229c8980bd77ff4a2b3b488e9f49c8f4ff86070",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclExecute.c": "22f01f3793bed82e911214cb9aaae7dde37952371c00f1969ff9a46023a8782e",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/instrumented-source/tclObj.c": "aacbdc95101446dbb8e6f880003f2af2ce232402bde953825f5f274794712db7",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/original-probe.c": "e95451728352a915dfbc033719e60aabcab9ae4f53566088b583bbd4f12c6f3d",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/original-provider.json": "187bdbec01f287f656fe948b49f38cfe7641d69f0771b9cc15e2c8a5fb040992",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/original-source/tclExecute.c": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/original-source/tclObj.c": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/original-source/tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/original-source.tcl": "092c3aa2025b580b926d4b065e10d1d83d86e5620e20a17da9d58ee2c6f67b33",
+    "/workspace/.proofs/native-dict-write-error-lifetime226-request/probe-instrumentation.patch": "fd1a8662384690502a8610dc2a0d5f3b4b0272da08abb32bd8a065fae05a72c2"
+  },
+  "stdout_sha256": "eaff8f339fcc47a1eee86e30a42a01ec2c8309bec38b8600ae85bf93515ca8bf",
+  "stderr_sha256": "9fd0e374738a9c464df576e466204d07b133e4eb8452fe3e8131a99e2c40bc49",
+  "instrumented_build": true,
+  "scope": "Private lifetime counters and public stdout are separate observations. This experiment measures the separately pinned current C85 archive/source build, not the immutable older archive99e capture. Instrumented-build output is not assumed byte-equivalent to either baseline or older capture. No original fixture replacement, allocation-reuse emulation, other provider, generic dict-update, or dict-with lifetime claim. Older provider metadata and completed public rows remain independently preserved; no old-build source or lifetime equivalence is granted.",
+  "actual_artifact_sha256": {
+    "/workspace/.proofs/native-dict-write-error-lifetime226/baseline-current-probe": "61f9356e3a1c007ec47e2d88e621689166c49c53e8a2b211129286a63c5cb40b",
+    "/workspace/.proofs/native-dict-write-error-lifetime226/observed-probe": "6b0d04ae1d1b62d4c9a85f23b626442f2a4af182fb5eb437cad21a1a42b55c2a",
+    "/workspace/.proofs/native-dict-write-error-lifetime226/libtcl8.5-observed.a": "340cb36741b0067bd2f1d3f7aedab7bdb40f4ea386d49b572f919cb399d6e75b",
+    "/workspace/.proofs/native-dict-write-error-lifetime226/tclExecute.o": "1c0ada3d0cb895fbc6b5ae0ca7288ef84eaf81308a551f116db6115a070f80f4",
+    "/workspace/.proofs/native-dict-write-error-lifetime226/tclObj.o": "9eecb77c5b9bb33b6ddd030985d5dfd29b3230d3e4d3f2f71d32151bab1ddc0c"
+  }
+}

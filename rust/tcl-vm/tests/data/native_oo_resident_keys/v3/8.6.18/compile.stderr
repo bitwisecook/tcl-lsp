@@ -1,0 +1,8 @@
+/workspace/.proofs/native-oo-resident069-v3/probe.c:18:20: error: conflicting types for ‘Interp’; have ‘Tcl_Interp’
+   18 | typedef Tcl_Interp Interp;
+      |                    ^~~~~~
+In file included from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h:16,
+                 from /workspace/.proofs/native-oo-resident069-v3/probe.c:16:
+/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h:2141:3: note: previous declaration of ‘Interp’ with type ‘Interp’
+ 2141 | } Interp;
+      |   ^~~~~~

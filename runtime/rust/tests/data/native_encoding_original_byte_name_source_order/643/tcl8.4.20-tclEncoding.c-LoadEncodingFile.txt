@@ -1,0 +1,81 @@
+LoadEncodingFile(interp, name)
+    Tcl_Interp *interp;		/* Interp for error reporting, if not NULL. */
+    CONST char *name;		/* The name of the encoding file on disk
+				 * and also the name for new encoding. */
+{
+    int objc, i, ch;
+    Tcl_Obj **objv;
+    Tcl_Obj *pathPtr;
+    Tcl_Channel chan;
+    Tcl_Encoding encoding;
+
+    pathPtr = TclGetLibraryPath();
+    if (pathPtr == NULL) {
+	goto unknown;
+    }
+    objc = 0;
+    Tcl_ListObjGetElements(NULL, pathPtr, &objc, &objv);
+
+    chan = NULL;
+    for (i = 0; i < objc; i++) {
+	chan = OpenEncodingFile(Tcl_GetString(objv[i]), name);
+	if (chan != NULL) {
+	    break;
+	}
+    }
+
+    if (chan == NULL) {
+	goto unknown;
+    }
+
+    Tcl_SetChannelOption(NULL, chan, "-encoding", "utf-8");
+
+    while (1) {
+	Tcl_DString ds;
+
+	Tcl_DStringInit(&ds);
+	Tcl_Gets(chan, &ds);
+	ch = Tcl_DStringValue(&ds)[0];
+	Tcl_DStringFree(&ds);
+	if (ch != '#') {
+	    break;
+	}
+    }
+
+    encoding = NULL;
+    switch (ch) {
+	case 'S': {
+	    encoding = LoadTableEncoding(interp, name, ENCODING_SINGLEBYTE,
+		    chan);
+	    break;
+	}
+	case 'D': {
+	    encoding = LoadTableEncoding(interp, name, ENCODING_DOUBLEBYTE,
+		    chan);
+	    break;
+	}
+	case 'M': {
+	    encoding = LoadTableEncoding(interp, name, ENCODING_MULTIBYTE,
+		    chan);
+	    break;
+	}
+	case 'E': {
+	    encoding = LoadEscapeEncoding(name, chan);
+	    break;
+	}
+    }
+    if ((encoding == NULL) && (interp != NULL)) {
+	Tcl_AppendResult(interp, "invalid encoding file \"", name, "\"", NULL);
+	if (ch == 'E') {
+	    Tcl_AppendResult(interp, " or missing sub-encoding", NULL);
+	}
+    }
+    Tcl_Close(NULL, chan);
+    return encoding;
+
+    unknown:
+    if (interp != NULL) {
+	Tcl_AppendResult(interp, "unknown encoding \"", name, "\"", NULL);
+    }
+    return NULL;
+}

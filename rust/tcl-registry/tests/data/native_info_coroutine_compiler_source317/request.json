@@ -1,0 +1,89 @@
+{
+  "question_id": "naming.info.original-coroutine-name-compiler",
+  "document": "docs/design/analysis/name-resolution-proofs/info-original-coroutine-name-compiler.md",
+  "problem_statement": "Does the original C info ensemble register a coroutine-name compiler, and what original worker operands does that compiler accept and emit? Missing shared recipe prevents actual Native coroutine-holder source from being admitted.",
+  "kind": "read-only pinned source inspection; no new native process",
+  "sources": [
+    {
+      "version": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "retained_path": "8.4.20/tclCmdIL.c",
+      "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "line_start": 422,
+      "line_end": 432,
+      "excerpt_path": "8.4.20/tclCmdIL.excerpt",
+      "excerpt_sha256": "b4bfdb3fb6e7dbf4f781d0f95064579d75d4b75453b24a6d48f65df175da96a6"
+    },
+    {
+      "version": "8.5.19",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "retained_path": "8.5.19/tclCmdIL.c",
+      "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "line_start": 155,
+      "line_end": 179,
+      "excerpt_path": "8.5.19/tclCmdIL.excerpt",
+      "excerpt_sha256": "995bafaf40d8072c0cc4184721765f5da7bed258bca61e58142d87f0ac2a32f3"
+    },
+    {
+      "version": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "retained_path": "8.6.18/tclCmdIL.c",
+      "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "line_start": 155,
+      "line_end": 181,
+      "excerpt_path": "8.6.18/tclCmdIL.excerpt",
+      "excerpt_sha256": "703fc9501224cc267f80172c041d74b0b5497403423e4ae8767c34c949c4d48a"
+    },
+    {
+      "version": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmdsGR.c",
+      "retained_path": "8.6.18/tclCompCmdsGR.c",
+      "source_sha256": "edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d",
+      "line_start": 648,
+      "line_end": 663,
+      "excerpt_path": "8.6.18/tclCompCmdsGR.excerpt",
+      "excerpt_sha256": "78d955744011d1dcda020cb04c68d0eca4997e9b76f1ec72766cd1f418f04f07"
+    },
+    {
+      "version": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "retained_path": "9.0.4/tclCmdIL.c",
+      "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "line_start": 151,
+      "line_end": 180,
+      "excerpt_path": "9.0.4/tclCmdIL.excerpt",
+      "excerpt_sha256": "f009f3959451b71592a39bd08dc04346eace9fb33f17d9d199f09d39dfc6a664"
+    },
+    {
+      "version": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmdsGR.c",
+      "retained_path": "9.0.4/tclCompCmdsGR.c",
+      "source_sha256": "d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db",
+      "line_start": 640,
+      "line_end": 654,
+      "excerpt_path": "9.0.4/tclCompCmdsGR.excerpt",
+      "excerpt_sha256": "4bd0391aaa675114b48e34bc51facdbe820db5796a1ac2f9d68721aa6518e631"
+    },
+    {
+      "version": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "retained_path": "9.1.0/tclCmdIL.c",
+      "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "line_start": 152,
+      "line_end": 181,
+      "excerpt_path": "9.1.0/tclCmdIL.excerpt",
+      "excerpt_sha256": "28b0dddebe9a2046b4220c08e3c970fbb246f8f88402c4417988a90421cf63fd"
+    },
+    {
+      "version": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmdsGR.c",
+      "retained_path": "9.1.0/tclCompCmdsGR.c",
+      "source_sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+      "line_start": 592,
+      "line_end": 606,
+      "excerpt_path": "9.1.0/tclCompCmdsGR.excerpt",
+      "excerpt_sha256": "4bd0391aaa675114b48e34bc51facdbe820db5796a1ac2f9d68721aa6518e631"
+    }
+  ],
+  "answer_scope": "C8.4/8.5 complete original info table has no coroutine hook; C8.6/9.0/9.1 register TclCompileInfoCoroutineCmd and the original worker accepts numWords == 1 and emits one COROUTINE_NAME instruction. Jim/BIG-IP not tested for this C compiler source question. Native250 public completion/resumption observations are separate. No object header, original command token or successful Rust assertion is inferred."
+}

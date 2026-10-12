@@ -1,0 +1,116 @@
+[
+  {
+    "provider": "8.4.20",
+    "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+    "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+    "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "executable_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+    ],
+    "reported_version": "8.4.20",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "44df979b0b9ecac1feed942a00c46bb0ff5d0f2891397206d84ebf66361d5190",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 12,
+    "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+  },
+  {
+    "provider": "8.5.19",
+    "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+    "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+    "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "executable_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+    ],
+    "reported_version": "8.5.19",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "574f010724d99ba99ed9dd027d48a7cb7b8be21524cc19ae36e30a5bdc2268c4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 12,
+    "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+  },
+  {
+    "provider": "8.6.18",
+    "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+    "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+    "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "executable_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+    ],
+    "reported_version": "8.6.18",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "574f010724d99ba99ed9dd027d48a7cb7b8be21524cc19ae36e30a5bdc2268c4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 12,
+    "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+  },
+  {
+    "provider": "9.0.4",
+    "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+    "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+    "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "executable_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+    ],
+    "reported_version": "9.0.4",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "574f010724d99ba99ed9dd027d48a7cb7b8be21524cc19ae36e30a5bdc2268c4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 12,
+    "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+  },
+  {
+    "provider": "9.1.0",
+    "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+    "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+    "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+    "executable": "/workspace/.proofs/oracle-bin/tclsh9.1",
+    "executable_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+    ],
+    "reported_version": "9.1.0",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "574f010724d99ba99ed9dd027d48a7cb7b8be21524cc19ae36e30a5bdc2268c4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 12,
+    "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+  },
+  {
+    "provider": "jim",
+    "channel": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.",
+    "input_sha256": "c5ce25bcb86f2cf8a803faac0816c985c3fd265873f1da05a59d707a6b5aef8f",
+    "runner_sha256": "3af3a56d4d498527632ab3ae7545b00b7b2224e7638c6c95285d665991e5bcf2",
+    "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/current-native-info-controls085/cases.tcl"
+    ],
+    "reported_version": "0.84-9-g5bac7c9",
+    "version_exit": 0,
+    "exit": 0,
+    "stdout_sha256": "9c14f999aa2cba142600b7b238b10a92bdcbd4967877b30810e65d3b50937748",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rows": 12,
+    "limits": "ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant."
+  }
+]

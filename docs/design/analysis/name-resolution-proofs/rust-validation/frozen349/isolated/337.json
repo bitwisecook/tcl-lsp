@@ -1,0 +1,19 @@
+{
+  "ordinal": 337,
+  "selector": "interp::tests::a_context_the_ingress_refuses_leaves_the_pin_unchanged",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::a_context_the_ingress_refuses_leaves_the_pin_unchanged",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 11.76366301899543,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 11.72s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/337.log",
+  "log_sha256": "220fac591e9478f49a9298d322605bf8e95e96f8031ca4edaf9faaa82d2114e1"
+}

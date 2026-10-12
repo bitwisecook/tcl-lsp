@@ -1,0 +1,346 @@
+[
+  {
+    "provider_key": "84",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+    "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "invoked_file_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+    "exit": 1,
+    "seconds": 0.007875381998019293,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "invalid command name \"oo::configurable\"",
+      "    while executing",
+      "\"oo::configurable create C {"
+    ],
+    "version": "patchlevel 8.4.20\nexecutable /workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh\n"
+  },
+  {
+    "provider_key": "84",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+    "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "invoked_file_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+    "exit": 1,
+    "seconds": 0.018763659987598658,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "invalid command name \"oo::configurable\"",
+      "    while executing",
+      "\"oo::configurable create C {"
+    ],
+    "version": "patchlevel 8.4.20\nexecutable /workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh\n"
+  },
+  {
+    "provider_key": "85",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+    "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "invoked_file_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+    "exit": 1,
+    "seconds": 0.010370422998676077,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "invalid command name \"oo::configurable\"",
+      "    while executing",
+      "\"oo::configurable create C {"
+    ],
+    "version": "patchlevel 8.5.19\nexecutable /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh\n"
+  },
+  {
+    "provider_key": "85",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+    "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "invoked_file_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+    "exit": 1,
+    "seconds": 0.004994262999389321,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "invalid command name \"oo::configurable\"",
+      "    while executing",
+      "\"oo::configurable create C {"
+    ],
+    "version": "patchlevel 8.5.19\nexecutable /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh\n"
+  },
+  {
+    "provider_key": "86",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+    "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "invoked_file_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+    "exit": 1,
+    "seconds": 0.012068309006281197,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "invalid command name \"oo::configurable\"",
+      "    while executing",
+      "\"oo::configurable create C {"
+    ],
+    "version": "patchlevel 8.6.18\nexecutable /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh\n"
+  },
+  {
+    "provider_key": "86",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+    "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "invoked_file_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+    "exit": 1,
+    "seconds": 0.014882921008393168,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "invalid command name \"oo::configurable\"",
+      "    while executing",
+      "\"oo::configurable create C {"
+    ],
+    "version": "patchlevel 8.6.18\nexecutable /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh\n"
+  },
+  {
+    "provider_key": "90",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+    "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "invoked_file_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+    "exit": 0,
+    "seconds": 0.012565573008032516,
+    "stdout_sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "code 0 result {} events {a b} properties {-a -b -z}\n",
+    "stderr_head": [],
+    "version": "patchlevel 9.0.4\nexecutable /workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh\n"
+  },
+  {
+    "provider_key": "90",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+    "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "invoked_file_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+    "exit": 0,
+    "seconds": 0.013786783994873986,
+    "stdout_sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "code 0 result {-a A -z Z} events {a z} properties {-a -b -z}\n",
+    "stderr_head": [],
+    "version": "patchlevel 9.0.4\nexecutable /workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh\n"
+  },
+  {
+    "provider_key": "91",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+    "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh9.1",
+    "invoked_file_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "exit": 0,
+    "seconds": 0.013547340990044177,
+    "stdout_sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "code 0 result {} events {a b} properties {-a -b -z}\n",
+    "stderr_head": [],
+    "version": "patchlevel 9.1.0\nexecutable /workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh\n"
+  },
+  {
+    "provider_key": "91",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+    "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+    "command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh9.1",
+    "invoked_file_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "exit": 0,
+    "seconds": 0.008732127025723457,
+    "stdout_sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "version_command": [
+      "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "code 0 result {-a A -z Z} events {a z} properties {-a -b -z}\n",
+    "stderr_head": [],
+    "version": "patchlevel 9.1.0\nexecutable /workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh\n"
+  },
+  {
+    "provider_key": "jim",
+    "input": "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl",
+    "input_sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "invoked_file_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "exit": 1,
+    "seconds": 0.00911837798776105,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "91daf4b9065a360f5cb67415b12004217807028447ecb8d5f0937be3b61e5a06",
+    "version_command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl:2: Error: invalid command name \"oo::configurable\"",
+      "Traceback (most recent call last):",
+      "  File \"/workspace/.proofs/property-report-native335/multi-write-configurable.tcl\", line 2"
+    ],
+    "version": "patchlevel 0.84-9-g5bac7c9\nexecutable /workspace/.proofs/native-providers/jimtcl/jimsh\n"
+  },
+  {
+    "provider_key": "jim",
+    "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+    "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+    ],
+    "invoked_file": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "invoked_file_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "exit": 1,
+    "seconds": 0.004301567998481914,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "ba8c5b6f5f11b1aad7a095c8ce1b867155047ec4370e6727a8b994555eb3889f",
+    "version_command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/property-report-native335/version.tcl"
+    ],
+    "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+    "version_exit": 0,
+    "version_stdout_sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+    "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "",
+    "stderr_head": [
+      "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl:2: Error: invalid command name \"oo::configurable\"",
+      "Traceback (most recent call last):",
+      "  File \"/workspace/.proofs/property-report-native335/configure-all-configurable.tcl\", line 2"
+    ],
+    "version": "patchlevel 0.84-9-g5bac7c9\nexecutable /workspace/.proofs/native-providers/jimtcl/jimsh\n"
+  }
+]

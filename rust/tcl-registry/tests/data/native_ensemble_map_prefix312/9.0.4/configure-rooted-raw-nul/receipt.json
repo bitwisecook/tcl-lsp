@@ -1,0 +1,53 @@
+{
+  "provider": "9.0.4",
+  "case": {
+    "index": 3,
+    "id": "configure-rooted-raw-nul"
+  },
+  "command": [
+    "/workspace/.proofs/native-ensemble-map-prefix312-capture/9.0.4/probe.elf",
+    "3"
+  ],
+  "exit": 0,
+  "seconds": 0.0035065870033577085,
+  "rows": [
+    "VERSION|0|392e302e34",
+    "SETUP|0|",
+    "INITIAL|0|3a3a72323238365f6d61705f45",
+    "INPUT|21|3a3a72323238365f6d61705f4e3a3a70007461696c",
+    "OPERATION|0|",
+    "STORED_HEAD|21|3a3a72323238365f6d61705f4e3a3a70007461696c",
+    "MAP_QUERY|0|676f207b3a3a72323238365f6d61705f4e3a3a70007461696c2046495253547d",
+    "CALL|0|4e204649525354"
+  ],
+  "executable_sha256": "7abf20df85ba5dfa75bcb8dca8e264c2c17e53d98044a87f40cecbc8d8c96a37",
+  "compile_receipt_sha256": "e831765948167c339c7ed5901fe3a68b67c61ac705b7076d1107d67ffa0b37c5",
+  "source_sha256": "a54fbcb61246d7ab55944af90578043c8a42f9af0e85c5b700fdc30b42aadd76",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c": "c89585f9d38a913ce03b9a700987cfe18cb39dec2a24293336eb85b67cd67c8c",
+    "/workspace/.proofs/native-info-original-dispatch292-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdAH.c": "b1fd4aec514b23bbca0a43d99e25a613ec570752e50fadf1caf5c499b1a54ec1",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEncoding.c": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtf.c": "1574311b441c745dac0c1cc4f0e4ca0e7cbc09b86261d463a62d9ee3e317027c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclObj.c": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEnsemble.c": "6d0c49c5a53f2c7f89eafb3dc9113b4f2f418e48d6b9256f3c99150be9dd12e7",
+    "/workspace/.proofs/native-ensemble-map-prefix312-capture/probe.c": "a54fbcb61246d7ab55944af90578043c8a42f9af0e85c5b700fdc30b42aadd76"
+  },
+  "stdout_sha256": "01fa86f6465651a0a34dca5923d5c0640efb116067666b2fffa4a725a98a420e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "request_sha256": "5c262bd83996939cdb172c66ad744d0401f88682ba0cc7e6b2014e74b9721fc2",
+  "provider_version_row": "VERSION|0|392e302e34",
+  "channel": "A registered original C/Jim callback is invoked in an actual entered namespace by fixed ASCII namespace eval source. The callback constructs head with Tcl_NewStringObj/Jim_NewStringObj from explicit raw bytes and length, constructs original prefix and map list objects, and invokes the actual namespace ensemble create/configure vector without parsing or serialising the map. Readback query and subsequent public invocation are distinct original vectors. Each provider/case is a fresh fullInit process; no binary NUL construction or ByteArray substitutes the original String."
+}

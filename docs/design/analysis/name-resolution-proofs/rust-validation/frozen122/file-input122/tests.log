@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 1 test
+test analyser::input::tests::original_file_ingress_keeps_supplied_bom_configuration_and_default_source_policy ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8118 filtered out; finished in 0.88s
+

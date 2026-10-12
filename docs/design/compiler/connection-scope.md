@@ -1,78 +1,84 @@
 # Connection scope — cross-event variable flow (iRules)
 
-How variable flow between iRules `when` event handlers is tracked, so that a
-variable set in one handler and read in another is not reported as a
-read-before-set (W210) or a dead store (O109).
+The connection-scope analysis resolves variable cells before comparing event
+handlers. A spelling does not establish shared storage: bare `config` in
+`RULE_INIT` names a global namespace cell, while bare `config` in a traffic
+handler names a connection-frame cell. Absolute `::static::config` and the
+relative root spelling `static::config` name the same worker-local cell when
+namespace resolution proves that target.
 
-In iRules, `when` event handlers share a connection-scoped variable stack.
-Variables set in `CLIENT_ACCEPTED` persist until the connection closes, so
-reads in `HTTP_REQUEST` are legitimate — not read-before-set errors.
-`ConnectionScope` analysis tracks this flow to suppress false positives.
+## Owners
 
-Source: `rust/tcl-compiler/src/connection_scope.rs`
+- `tcl-registry::events` declares variable frames and typed lifecycle relations.
+- `tcl-registry::f5::storage` declares the TMM namespace availability and storage
+  overlay. Initialisation has no virtual-server/connection context. The static
+namespace is shared across rules within each worker; runtime writes do not
+propagate to other workers.
+- `var_resolve`, `variable_bindings` and `place_bridge` resolve point-specific
+  cells, aliases and observable reads. Source-text searches never manufacture
+  `info exists` reads.
+- `connection_scope` projects those facts into per-handler summaries. Individual
+  handlers remain distinct; an event-name union cannot prove execution order.
 
-### Analysis flow
+## Certainty
 
-```
-when CLIENT_ACCEPTED { set conn_start [clock seconds]; set count 0 }
-when HTTP_REQUEST    { incr count; log ... $conn_start }
-```
+`EventVarSummary::cell_defs` contains possible definitions. `must_defs` contains
+cells established by proven non-observed constant assignments on every normal
+CFG exit, after destructive writes. Generic calls and callbacks invalidate this
+proof; conditional or partial writers remain possible definitions. Exception
+edges conservatively retain the state before a block could have partially
+executed. A successful earlier event still is not proof that the event ran:
+optional lifecycle phases, disabled handlers and repeated requests matter.
 
-**Step 1 — `EventVarSummary` per handler:**
+The compatibility `cross_event_defs` and `cross_event_imports` sets describe
+possible observable flow for liveness and conditional diagnostic suppression.
+They are not definite initialisation or constant-value facts. Optimisers must
+not seed values or fold existence from those sets.
 
-For each event, walk SSA blocks and record:
-- `defs`: variables definitely assigned (any SSA version > 0)
-- `uses_before_def`: variables read at version 0 (no preceding assignment)
-- `unsets`: variables explicitly unset
+The registry's lifecycle relation distinguishes initialisation before traffic,
+same-event handlers, possible order, a reader earlier than its writer, and
+unknown order. Missing event metadata is unknown rather than valid flow.
+Priority-sensitive same-event transfer requires explicit handler ordering.
 
-When an iRule defines multiple `when` blocks for the same event (possibly
-with different priorities), each handler's summary is merged — defs, uses,
-and unsets are unioned — producing a single combined summary per event name.
+## Runtime counterpart
 
-`CLIENT_ACCEPTED`: defs=`{conn_start, count}`, uses_before_def=`{}`
-`HTTP_REQUEST`: defs=`{count}`, uses_before_def=`{count, conn_start}`
+The test framework retains a real coroutine activation for a connection.
+Traffic scripts execute in that activation, preserving arrays, aliases and
+traces without copying values. `RULE_INIT` executes in the interpreter's root
+frame. The host provides private coroutine control commands while event code
+retains the measured F5 language surface. A host lacking coroutine support
+reports that persistent frames are unsupported.
 
-**Step 2 — Cross-event set computation:**
+Each simulated CMP worker owns a real child interpreter. `RULE_INIT` executes
+in each worker's root namespace; ordinary globals and runtime-defined procedures
+remain per worker. `LiveSession` explicitly installs the authored
+`RuleInitPublication` policy: reached initialisation writes to resolved static
+cells publish to enrolled actual namespace incarnations. Aliases are resolved
+before classification, recipient traces use normal mutation ordering, and late
+enrollment replays the journal's original Values. Event and traffic updates
+outside that policy remain per worker. This authored simulator contract does
+not establish identical appliance initialisation values or a shared physical
+Tcl cell across TMMs. Arrays, aliases, traces and user command tables survive
+worker switches. Shared commands such as `table` and data groups use the
+orchestrator's mock state; switching itself reads, deletes or recreates no
+user cells.
 
-`build_connection_scope()` compares every pair of events:
-- `CLIENT_ACCEPTED` defines `{conn_start, count}`
-- `HTTP_REQUEST` uses-before-def `{count, conn_start}`
-- Intersection: `{conn_start, count}` — these flow across events
+The simulator validates the implementation against these contracts; it is not
+independent evidence of F5 semantics. Public [static namespace documentation](https://clouddocs.f5.com/api/irules/static.html),
+[RULE_INIT documentation](https://clouddocs.f5.com/api/irules/RULE_INIT.html),
+[CMP compatibility guidance](https://clouddocs.f5.com/api/irules/CMPCompatibility.html)
+and recorded appliance transcripts own the expected runtime behaviour. The
+`AES::key` example documents independent per-TMM initialisation, so an analyser
+must not assume identical initial values across workers.
 
-**Step 3 — Result:**
+## Validation
 
-```rust
-ConnectionScope {
-    summaries: /* per-event EventVarSummary */,
-    cross_event_defs: HashSet::from(["conn_start".into(), "count".into()]),
-    cross_event_imports: HashSet::from(["conn_start".into(), "count".into()]),
-    racy_static_defs: HashSet::new(),
-}
-```
+Connection-scope tests cover root initialisation versus connection locals,
+absolute/relative static identities, conditional assignments and inert
+`info exists` text. The live-session frame test covers helper `upvar`, persistent
+same-frame aliases and arrays, exact read-trace counts and connection reset.
 
-### Effect on diagnostics
-
-`CompilationUnit::connection_scope` carries the result (`Some` when at least
-one `::when::*` procedure exists). Three consumers read it:
-
-- **W210 (read before set)** — the analyser treats
-  `cross_event_defs ∪ cross_event_imports` as defined inside a `::when::*`
-  procedure (`when_proc_cross_event_names`, `analyser/diagnostics.rs`).
-- **O109 (dead store)** and the other optimiser passes — `PassContext::cross_event_vars`
-  holds the same names while a handler is processed.
-- **IRULE4005** — reads `racy_static_defs`.
-
-## Decision rule
-
-- A new iRules event needs no change to `connection_scope.rs` — the analysis
-  is event-name agnostic; only `EventRegistry::variable_scope_note` decides
-  whether a pair of events shares scope.
-- An `unset` is recorded in the handler's summary; it does not remove the
-  name from `cross_event_defs`.
-- Connection scope applies only to iRules. Plain Tcl procedures never use it.
-
-## Related docs
-
-- [Example 24 in walkthroughs](example-walkthroughs.md#example-24-connection-scope--cross-event-variable-flow-irules)
-- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
-- [side-effects-system.md](side-effects-system.md)
+The worker-interpreter test verifies zero read-trace callbacks during worker
+switches, isolated runtime procedure definitions, retained connection aliases and
+per-worker initialisation globals. Stock C Tcl can validate these Tcl mechanics;
+TMM-specific build facts remain separately attributed F5 evidence.

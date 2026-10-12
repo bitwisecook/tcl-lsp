@@ -34,7 +34,8 @@ use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::diagnostic_policy::{Directives, Policy, PolicyBuilder, Reason, Report};
 use tcl_lsp_core::diagnostic_report::{
-    DocumentSource, SourcePass, StandaloneDocument, document_report, standalone_findings,
+    DocumentSource, SourcePass, StandaloneDocument, document_report, document_report_with_analysis,
+    standalone_findings,
 };
 use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 
@@ -49,6 +50,8 @@ struct DiagItem {
     severity: &'static str,
     code: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
 }
 
 /// One `--show-suppressed` entry: a suppressed finding (positioned), a
@@ -74,6 +77,8 @@ struct SuppressedItem {
 /// Per-file diagnostic report entry.
 #[derive(Serialize)]
 struct FileReport {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    analysis_context_unavailable: Option<serde_json::Value>,
     file: String,
     diagnostics: Vec<DiagItem>,
     /// `--show-suppressed`'s rows; absent (and so unserialised) without the
@@ -91,6 +96,8 @@ struct ValidateError {
     severity: &'static str,
     code: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
 }
 
 /// `validate --json` payload.
@@ -178,6 +185,7 @@ struct Row {
     severity: Severity,
     code: String,
     message: String,
+    data: Option<serde_json::Value>,
 }
 
 /// One `--show-suppressed` row: a suppressed finding (positioned, the
@@ -199,6 +207,7 @@ struct HiddenRow {
 /// [`collect_rows`]'s result: the shown rows, and — for `--show-suppressed`
 /// — the hidden ones. [`run_validate`] reads `shown` only.
 struct DocumentRows {
+    analysis_context_unavailable: Option<serde_json::Value>,
     shown: Vec<Row>,
     hidden: Vec<HiddenRow>,
 }
@@ -256,6 +265,7 @@ fn cross_file_call_site_evidence(
 
 /// The qualified names of every procedure `document` declares, from the same
 /// [`tcl_compiler::signature_scan`] the analyser and the LSP index use.
+/// The fresh complete-document ingress selects the actual file grammar.
 fn document_proc_names(
     document: &InputDocument,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -264,8 +274,9 @@ fn document_proc_names(
         &document.analysis_source(),
         &registry_for_dialect(dialect.name),
     )
-    .procs
-    .into_keys()
+    .procedure_declarations
+    .into_iter()
+    .filter_map(|declaration| declaration.source_spelling())
     .collect()
 }
 
@@ -368,7 +379,12 @@ fn collect_rows(
             line_length: DEFAULT_LINE_LENGTH,
         },
     };
-    let mut report = document_report(&doc, standalone.produced, &policy);
+    let mut report = document_report_with_analysis(
+        &doc,
+        standalone.produced,
+        &policy,
+        Some(&standalone.analysis),
+    );
     report.declare_analyser_skip(&policy);
     // Nor did this verb run the optimiser (`diag_policy`): it is declared
     // too, so `--show-suppressed` says why a rewrite-only code is absent
@@ -403,6 +419,7 @@ fn rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<Row> {
                 severity: shown.severity,
                 code: shown.finding.code.to_string(),
                 message: shown.finding.message.clone(),
+                data: shown.finding.structured_data(),
             }
         })
         .collect();
@@ -476,6 +493,7 @@ fn hidden_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<
 /// [`rows_of`] and [`hidden_rows_of`] together.
 fn document_rows_of(report: &Report, source: &str, line_index: &LineIndex) -> DocumentRows {
     DocumentRows {
+        analysis_context_unavailable: report.analysis_context_status_data(),
         shown: rows_of(report, source, line_index),
         hidden: hidden_rows_of(report, source, line_index),
     }
@@ -568,6 +586,7 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyh
                 severity: severity_label(r.severity),
                 code: r.code,
                 message: r.message,
+                data: r.data,
             });
         }
         // `hidden` is always collected (`collect_rows` decides nothing); only
@@ -596,7 +615,11 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyh
         } else {
             None
         };
+        if rows.analysis_context_unavailable.is_some() {
+            problem_count += 1;
+        }
         files.push(FileReport {
+            analysis_context_unavailable: rows.analysis_context_unavailable,
             file: document.label.clone(),
             diagnostics: items,
             suppressed,
@@ -611,13 +634,19 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyh
     } else {
         let mut lines: Vec<String> = Vec::new();
         for item in &files {
+            if let Some(status) = &item.analysis_context_unavailable {
+                lines.push(format!(
+                    "{}: analysis input unavailable: {status}",
+                    item.file
+                ));
+            }
             lines.extend(file_text_lines(
                 &item.file,
                 &item.diagnostics,
                 item.suppressed.as_deref().unwrap_or(&[]),
             ));
         }
-        if diagnostic_count == 0 && suppressed_count == 0 {
+        if diagnostic_count == 0 && suppressed_count == 0 && problem_count == 0 {
             lines.push("no diagnostics".to_owned());
         }
         lines.join("\n")
@@ -652,7 +681,11 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         let slice = evidence
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
-        for r in collect_rows(document, dialect, &layers, slice.as_ref()).shown {
+        let rows = collect_rows(document, dialect, &layers, slice.as_ref());
+        if let Some(status) = rows.analysis_context_unavailable {
+            anyhow::bail!("analysis input unavailable: {status}");
+        }
+        for r in rows.shown {
             if r.severity == Severity::Error {
                 errors.push(ValidateError {
                     file: document.label.clone(),
@@ -661,6 +694,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
                     severity: severity_label(r.severity),
                     code: r.code,
                     message: r.message,
+                    data: r.data,
                 });
             }
         }
@@ -694,4 +728,29 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     write_text_output(&target, &rendered)?;
     eprintln!("validation failed: {} error(s)", errors.len());
     Ok(1)
+}
+
+#[cfg(test)]
+mod original_document_signature_tests {
+    use super::*;
+
+    #[test]
+    fn cli_cross_file_procedure_discovery_keeps_the_document_bom_and_body_purpose() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Actual CLI discovery adapter; no interprocedural fold or interpreter execution claim.
+        let document = InputDocument {
+            label: "<original-document>".to_owned(),
+            source: "\u{feff}proc visible {} {}\rif 1 {\u{feff}proc hidden {} {}}\rif 1 {proc nested {} {}}".to_owned(),
+            path: None,
+            decode: tcl_lsp_core::source_decode::DecodeReport::default(),
+        };
+        let environment = tcl_registry::model::resolve_known_environment("tcl9.1").unwrap();
+        let names = document_proc_names(&document, environment.unit_profile());
+        assert!(names.iter().any(|name| name == "::visible"));
+        assert!(names.iter().any(|name| name == "::nested"));
+        assert!(!names.iter().any(|name| name == "::hidden"));
+        assert!(document.source.contains('\r'));
+        assert!(!document.analysis_source().contains('\r'));
+    }
 }

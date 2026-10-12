@@ -1,0 +1,37 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/current-native-interpreter-create-handle174/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.003656602988485247,
+  "reported_version": "8.5.19",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+  "source_sha256": "b4c398938320243da4d60bff017baa511eeaa7bd5728e1f3ae7db060e7626741",
+  "runner_sha256": "0145a2d08bc910597cad3d885ff97deb8fafa05ea61235b250534239f2b4a2f9",
+  "stdout_sha256": "a79da7678cbd0874e31843e420706cdedb0f5252b7364528f996b306e2babf5c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "rows": [
+    "version 8.5.19",
+    "observation create status 0 result s errorCode {}",
+    "observation parent-command status 0 result s errorCode {}",
+    "observation handle-return status 0 result ok errorCode {}",
+    "observation path-return status 0 result ok errorCode {}",
+    "observation handle-value status 0 result ok errorCode {}",
+    "observation path-value status 0 result ok errorCode {}",
+    "observation delete status 0 result {} errorCode {}",
+    "observation parent-command-after-delete status 0 result {} errorCode {}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; independent interpreter creation and parent-handle observations",
+  "boundary": "Question: does creating a child install a callable parent command, how do handle/path eval propagate return and value completion, and does deletion remove the command? Sequential catch observations retain actual unsupported outcomes. No arbitrary constructor Normal, entered frame, runtime handle token or compiler admission is inferred."
+}

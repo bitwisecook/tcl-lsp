@@ -1,0 +1,98 @@
+		&cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = 0;
+	if (count == callPtr->numChain) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+    } else {
+	if (hPtr == NULL) {
+	    if (clsPtr->classChainCache == NULL) {
+		clsPtr->classChainCache = (Tcl_HashTable *)
+			Tcl_Alloc(sizeof(Tcl_HashTable));
+		Tcl_InitObjHashTable(clsPtr->classChainCache);
+	    }
+	    hPtr = Tcl_CreateHashEntry(clsPtr->classChainCache,
+		    methodNameObj, NULL);
+	}
+	callPtr->refCount++;
+	Tcl_SetHashValue(hPtr, callPtr);
+	StashCallChain(methodNameObj, callPtr);
+    }
+    return callPtr;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * AddClassFiltersToCallContext --
+ *
+ *	Logic to make extracting all the filters from the class context much
+ *	easier.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+AddClassFiltersToCallContext(
+    Object *const oPtr,		/* Object that the filters operate on. */
+    Class *clsPtr,		/* Class to get the filters from. */
+    ChainBuilder *const cbPtr,	/* Context to fill with call chain entries. */
+    Tcl_HashTable *const doneFilters,
+				/* Where to record what filters have been
+				 * processed. Keys are objects, values are
+				 * ignored. */
+    int flags)			/* Whether we've gone along a mixin link
+				 * yet. */
+{
+    Tcl_Size i;
+    int clearedFlags =
+	    flags & ~(TRAVERSED_MIXIN|OBJECT_MIXIN|BUILDING_MIXINS);
+    Class *superPtr, *mixinPtr;
+    Tcl_Obj *filterObj;
+
+  tailRecurse:
+    if (clsPtr == NULL) {
+	return;
+    }
+
+    /*
+     * Add all the filters defined by classes mixed into the main class
+     * hierarchy.
+     */
+
+    FOREACH(mixinPtr, clsPtr->mixins) {
+	AddClassFiltersToCallContext(oPtr, mixinPtr, cbPtr, doneFilters,
+		flags|TRAVERSED_MIXIN);
+    }
+
+    /*
+     * Add all the class filters from the current class. Note that the filters
+     * are added starting at the object root, as this allows the object to
+     * override how filters work to extend their behaviour.
+     */
+
+    if (MIXIN_CONSISTENT(flags)) {
+	FOREACH(filterObj, clsPtr->filters) {
+	    int isNew;
+
+	    (void) Tcl_CreateHashEntry(doneFilters, filterObj, &isNew);
+	    if (isNew) {
+		AddSimpleChainToCallContext(oPtr, NULL, filterObj, cbPtr,
+			doneFilters, clearedFlags|BUILDING_MIXINS, clsPtr);
+		AddSimpleChainToCallContext(oPtr, NULL, filterObj, cbPtr,
+			doneFilters, clearedFlags, clsPtr);
+	    }
+	}
+    }
+
+    /*
+     * Now process the recursive case. Notice the tail-call optimization.
+     */
+
+    switch (clsPtr->superclasses.num) {
+    case 1:
+	clsPtr = clsPtr->superclasses.list[0];
+	goto tailRecurse;
+    default:
+	FOREACH(superPtr, clsPtr->superclasses) {

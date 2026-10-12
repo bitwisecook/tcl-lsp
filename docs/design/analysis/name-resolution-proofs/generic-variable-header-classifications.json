@@ -1,0 +1,20 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/native_generic_variable_consumers/header-manifest.json",
+    "sha256": "9c2ddfa6056d3390df06d204ad73767dedf78491b0572b6b27c07da60f46e99f",
+    "classification": "native-observation",
+    "proof_ids": [
+      "naming.variable-argv.lassign-output-name",
+      "naming.variable-argv.scan-output-name",
+      "naming.variable-argv.binary-scan-output-name",
+      "naming.variable-argv.string-failindex-output-name",
+      "naming.variable-argv.info-default-output-name",
+      "naming.variable-argv.lset-prestored-receiver-name",
+      "naming.variable-argv.append-prestored-receiver-name",
+      "naming.variable-argv.lappend-prestored-receiver-name",
+      "naming.variable-argv.empty-lappend-prestored-receiver-name",
+      "naming.variable-argv.catch-result-output-name"
+    ],
+    "reason": "Exact one observer source, ten distinct actual command purposes, five counted original name objects each and six original provider captures. All300 before/code/after/result windows and compiler/dependency/execution stream hashes verified; rejected C84 lassign and Jim failindex/default forms retained. This physical argv/header question is separate from sibling semantic script and setter/getter manifests."
+  }
+]

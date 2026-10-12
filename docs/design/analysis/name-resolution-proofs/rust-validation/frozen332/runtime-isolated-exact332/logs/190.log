@@ -1,0 +1,15 @@
+
+running 1 test
+test expr::native_values::tests::authored_f5_predicates_require_policy_checked_unicode_and_owned_cleanup ... 
+thread 'expr::native_values::tests::authored_f5_predicates_require_policy_checked_unicode_and_owned_cleanup' (1217535) panicked at src/expr/native_values.rs:351:81:
+called `Result::unwrap()` on an `Err` value: ExprError { msg: [], command_error: None, code: None, preserve_result: false, native_access_refusal: None, native_execution_refusal: Some(ValueAccessRefusal(CommandProtocolUnavailable("variable naming"))), string_result: None, error_stage: None }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::native_values::tests::authored_f5_predicates_require_policy_checked_unicode_and_owned_cleanup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.58s
+

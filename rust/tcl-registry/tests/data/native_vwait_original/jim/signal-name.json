@@ -1,0 +1,17 @@
+{
+  "case": "signal-name",
+  "command": [
+    "/workspace/.proofs/captured-native-vwait-forms137/jim/probe",
+    "signal-name"
+  ],
+  "external_timeout": false,
+  "timeout_seconds": 3,
+  "process_exit": 0,
+  "seconds": 0.003415485000004992,
+  "stdout_sha256": "ec42032197fa278fdba319e3434a7fbb0eedb43dab958262a7587c5b4e127a70",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "V|actual-provider|0|15|302e38342d392d6735626163376339",
+    "R|signal-name|0|3|4e4557"
+  ]
+}

@@ -1,0 +1,302 @@
+[
+  {
+    "path": "tmp/tcl8.4.20/generic/tclEncoding.c",
+    "symbol": "Tcl_GetEncoding",
+    "first_physical_lf_line": 495,
+    "last_physical_lf_line": 519,
+    "full_source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+    "body_sha256": "2d09318841b755ee7992860175e127e175d62c19450ca4c838858990844f4517",
+    "excerpt": "tcl8.4.20-tclEncoding.c-Tcl_GetEncoding.txt",
+    "excerpt_sha256": "9b604f69fa14f45ce33484f29de83022bdc7e517762a429cee35f2e096948adb"
+  },
+  {
+    "path": "tmp/tcl8.4.20/generic/tclEncoding.c",
+    "symbol": "Tcl_SetSystemEncoding",
+    "first_physical_lf_line": 765,
+    "last_physical_lf_line": 792,
+    "full_source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+    "body_sha256": "699e9385271ec49ab220f38ce290e1f37805bb55744a15c24e19b3d6928f80c3",
+    "excerpt": "tcl8.4.20-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+    "excerpt_sha256": "c78933322d4ad52d756b53adffd6a81befab2c610d3703fd48bd119a448db9f1"
+  },
+  {
+    "path": "tmp/tcl8.4.20/generic/tclEncoding.c",
+    "symbol": "LoadEncodingFile",
+    "first_physical_lf_line": 1291,
+    "last_physical_lf_line": 1371,
+    "full_source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+    "body_sha256": "8018e4442c25afdc1e7ba4c42a6582ecbae6e26e7ee435849fa8dda8f1bafe7a",
+    "excerpt": "tcl8.4.20-tclEncoding.c-LoadEncodingFile.txt",
+    "excerpt_sha256": "7d9f330d72b641f9646fa7f978ba9bbb882a10543581cee4306a3e7cb04a2244"
+  },
+  {
+    "path": "tmp/tcl8.4.20/generic/tclCmdAH.c",
+    "symbol": "Tcl_EncodingObjCmd",
+    "first_physical_lf_line": 423,
+    "last_physical_lf_line": 527,
+    "full_source_sha256": "4119b635cc3677728baa21df8ee8c683c3f37aa87bf9ca80fcab74eec948fd75",
+    "body_sha256": "26f19f6ca80266663f4c19a7a8e4fbf02ae5e5bfd5ffe2d00e8d78590c0b4bbf",
+    "excerpt": "tcl8.4.20-tclCmdAH.c-Tcl_EncodingObjCmd.txt",
+    "excerpt_sha256": "2199d10f6fa5dbab66299360fc4b966c60dcce589e50384d535bcf3709670489"
+  },
+  {
+    "path": "tmp/tcl8.4.20/generic/tclCmdMZ.c",
+    "symbol": "Tcl_SourceObjCmd",
+    "first_physical_lf_line": 1056,
+    "last_physical_lf_line": 1068,
+    "full_source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+    "body_sha256": "c86f4f1bc8fe91f73a73fd32fdd29fe8e5d274c21f5451d5b730763e578198db",
+    "excerpt": "tcl8.4.20-tclCmdMZ.c-Tcl_SourceObjCmd.txt",
+    "excerpt_sha256": "80de1b70d48625832263c3f6e20b399261beb02b8599d9bcbb595bf6ae7ce8dd"
+  },
+  {
+    "path": "tmp/tcl8.5.19/generic/tclEncoding.c",
+    "symbol": "Tcl_GetEncoding",
+    "first_physical_lf_line": 768,
+    "last_physical_lf_line": 793,
+    "full_source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+    "body_sha256": "af6b48541ca980f4e48c8f2a54c3785bbabeab2e19510eaab41167fc4c3c6c0a",
+    "excerpt": "tcl8.5.19-tclEncoding.c-Tcl_GetEncoding.txt",
+    "excerpt_sha256": "d4911812488dc4e170490c52250191cbad1bfcecfe0ee3bf8e11a1be8044fa6d"
+  },
+  {
+    "path": "tmp/tcl8.5.19/generic/tclEncoding.c",
+    "symbol": "Tcl_SetSystemEncoding",
+    "first_physical_lf_line": 988,
+    "last_physical_lf_line": 1015,
+    "full_source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+    "body_sha256": "6ea93b199f44c093698e605d6771e51f3bfd9c0e682edb94c11c8179cf922013",
+    "excerpt": "tcl8.5.19-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+    "excerpt_sha256": "896b4dbffba6ad0496f5f82a9a750c19374b956ca385d13bade59cae3f7edeaf"
+  },
+  {
+    "path": "tmp/tcl8.5.19/generic/tclEncoding.c",
+    "symbol": "LoadEncodingFile",
+    "first_physical_lf_line": 1584,
+    "last_physical_lf_line": 1632,
+    "full_source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+    "body_sha256": "2647d51bf505f6af60632830aad8c669422e19a9920c73908ea603ffc5d480cd",
+    "excerpt": "tcl8.5.19-tclEncoding.c-LoadEncodingFile.txt",
+    "excerpt_sha256": "240dcc946f4585295ae84fd4b84df5e20fd7512935591fad9bc0cf0f78af6f16"
+  },
+  {
+    "path": "tmp/tcl8.5.19/generic/tclCmdAH.c",
+    "symbol": "Tcl_EncodingObjCmd",
+    "first_physical_lf_line": 426,
+    "last_physical_lf_line": 528,
+    "full_source_sha256": "cdd328ee0a0d0c3ec7b67da50c90ae22b40591cc52e9492f19d7b257355fcf43",
+    "body_sha256": "6a2179a7a174a850fd8bfc1406d2d9e284b32d5bc218b8b3343ce8eedaa92a18",
+    "excerpt": "tcl8.5.19-tclCmdAH.c-Tcl_EncodingObjCmd.txt",
+    "excerpt_sha256": "400fc03cb450abdcd8d861af8f35e3b158847f0b4789698228dc46473a2dca6d"
+  },
+  {
+    "path": "tmp/tcl8.5.19/generic/tclCmdMZ.c",
+    "symbol": "Tcl_SourceObjCmd",
+    "first_physical_lf_line": 936,
+    "last_physical_lf_line": 966,
+    "full_source_sha256": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+    "body_sha256": "fc3a7900554f41ee62b352f3a7cf43268fd7b2b0f8eef46ad66dbf4383998f2b",
+    "excerpt": "tcl8.5.19-tclCmdMZ.c-Tcl_SourceObjCmd.txt",
+    "excerpt_sha256": "9043e538bce92348d2adf6272ef579201f852415b8be5381f75edf8d0bae8c1f"
+  },
+  {
+    "path": "tmp/tcl8.5.19/generic/tclIOUtil.c",
+    "symbol": "Tcl_FSEvalFileEx",
+    "first_physical_lf_line": 1770,
+    "last_physical_lf_line": 1892,
+    "full_source_sha256": "24e13e612b8207a7109d6cb6175a8972d4b5233ec1088b7fbfbf632bf47b9b73",
+    "body_sha256": "75c626fd79b254f6398b18be82255f088f22775e88193bb297ef71dfc23ffb51",
+    "excerpt": "tcl8.5.19-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+    "excerpt_sha256": "c72fbb10de3ee199a7d63037bc78d1f2419e0ecbdeb854503cbf70d1a8c3e738"
+  },
+  {
+    "path": "tmp/tcl8.6.18/generic/tclEncoding.c",
+    "symbol": "Tcl_GetEncoding",
+    "first_physical_lf_line": 755,
+    "last_physical_lf_line": 780,
+    "full_source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+    "body_sha256": "19efd7bbf833e65ca1689222d57ad4123a059a17024b880700f69de72cbbf663",
+    "excerpt": "tcl8.6.18-tclEncoding.c-Tcl_GetEncoding.txt",
+    "excerpt_sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a"
+  },
+  {
+    "path": "tmp/tcl8.6.18/generic/tclEncoding.c",
+    "symbol": "Tcl_SetSystemEncoding",
+    "first_physical_lf_line": 978,
+    "last_physical_lf_line": 1006,
+    "full_source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+    "body_sha256": "f9dac89f9d503584f8d0dd16297fcb821387230ddf5a5b60c68c12399213f448",
+    "excerpt": "tcl8.6.18-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+    "excerpt_sha256": "41d196054cc62afa3fd8e255d4feddbea6647c7f668527ac7fcd303865fdc2b3"
+  },
+  {
+    "path": "tmp/tcl8.6.18/generic/tclEncoding.c",
+    "symbol": "LoadEncodingFile",
+    "first_physical_lf_line": 1611,
+    "last_physical_lf_line": 1661,
+    "full_source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+    "body_sha256": "dae0d390633ed0677c236bd49dc2fde7dfe2716a11800b06539574223bb39249",
+    "excerpt": "tcl8.6.18-tclEncoding.c-LoadEncodingFile.txt",
+    "excerpt_sha256": "19b943118f80f7c8fd2c0fa8f5d514bb61deb522ceadd24d9d1f75bec9a1d65a"
+  },
+  {
+    "path": "tmp/tcl8.6.18/generic/tclCmdAH.c",
+    "symbol": "EncodingSystemObjCmd",
+    "first_physical_lf_line": 849,
+    "last_physical_lf_line": 866,
+    "full_source_sha256": "752473fb5c05d166602ed00b2afff8e123dafd34f4c585628e941b8c5691ae88",
+    "body_sha256": "85ca2211106df3b52289b4de188c12b112f4d684489b8194910e81c6bfa03253",
+    "excerpt": "tcl8.6.18-tclCmdAH.c-EncodingSystemObjCmd.txt",
+    "excerpt_sha256": "8b10aa1b064765bc4ffffd1bc000875d2d19b84dd0bb0240ef84502f80c97f33"
+  },
+  {
+    "path": "tmp/tcl8.6.18/generic/tclCmdMZ.c",
+    "symbol": "TclNRSourceObjCmd",
+    "first_physical_lf_line": 985,
+    "last_physical_lf_line": 1015,
+    "full_source_sha256": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+    "body_sha256": "8c933576c174a762018cf85468dafcf47b8052bf410092038f0fb3e64151c845",
+    "excerpt": "tcl8.6.18-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+    "excerpt_sha256": "7e90d5fcad7d151b938fba44889b4e0812424f7a8dfb248bc63c2ba1a4658122"
+  },
+  {
+    "path": "tmp/tcl8.6.18/generic/tclIOUtil.c",
+    "symbol": "Tcl_FSEvalFileEx",
+    "first_physical_lf_line": 1727,
+    "last_physical_lf_line": 1860,
+    "full_source_sha256": "efc2579a7e21c6e4490116ddee386d3ea83819a3bcad76215127b480f5934f00",
+    "body_sha256": "8fa63c791f6bef47da31eb2a47540a0cabf2ae645cd64681834533b7e4e3ba2a",
+    "excerpt": "tcl8.6.18-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+    "excerpt_sha256": "99708366d088e82ca8ec9adf808d926816f676cbfc3a1944439346f19288601a"
+  },
+  {
+    "path": "tmp/tcl9.0.4/generic/tclEncoding.c",
+    "symbol": "Tcl_GetEncoding",
+    "first_physical_lf_line": 732,
+    "last_physical_lf_line": 757,
+    "full_source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+    "body_sha256": "19efd7bbf833e65ca1689222d57ad4123a059a17024b880700f69de72cbbf663",
+    "excerpt": "tcl9.0.4-tclEncoding.c-Tcl_GetEncoding.txt",
+    "excerpt_sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a"
+  },
+  {
+    "path": "tmp/tcl9.0.4/generic/tclEncoding.c",
+    "symbol": "Tcl_SetSystemEncoding",
+    "first_physical_lf_line": 981,
+    "last_physical_lf_line": 1023,
+    "full_source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+    "body_sha256": "001637c4f0d335eb5f5f124ee0281f0d5194dbbe37fb321a5f0627c07048ac47",
+    "excerpt": "tcl9.0.4-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+    "excerpt_sha256": "ad5352fb15b1ed2323a95b6c27046504150b46c214e3329224b05b9c4b4b1a30"
+  },
+  {
+    "path": "tmp/tcl9.0.4/generic/tclEncoding.c",
+    "symbol": "LoadEncodingFile",
+    "first_physical_lf_line": 1878,
+    "last_physical_lf_line": 1928,
+    "full_source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+    "body_sha256": "4971c7928bd7785190b4536d1daffd46c59de1c10e0e9aeee00ef70d63905c05",
+    "excerpt": "tcl9.0.4-tclEncoding.c-LoadEncodingFile.txt",
+    "excerpt_sha256": "7a86210ebc3cabc74903d59cffcc1e3754551237092cea0b44b9fe26f18fc4bd"
+  },
+  {
+    "path": "tmp/tcl9.0.4/generic/tclCmdAH.c",
+    "symbol": "EncodingSystemObjCmd",
+    "first_physical_lf_line": 820,
+    "last_physical_lf_line": 837,
+    "full_source_sha256": "b1fd4aec514b23bbca0a43d99e25a613ec570752e50fadf1caf5c499b1a54ec1",
+    "body_sha256": "570fe9593cf26d9f5a06535c13b5fc7b58a0f07e88202e96ba0cced3ede2ba6a",
+    "excerpt": "tcl9.0.4-tclCmdAH.c-EncodingSystemObjCmd.txt",
+    "excerpt_sha256": "a3520d93f7c6c81c13f5a3395fe8b3915e31c747534de653019bca8a5fa27aaf"
+  },
+  {
+    "path": "tmp/tcl9.0.4/generic/tclCmdMZ.c",
+    "symbol": "TclNRSourceObjCmd",
+    "first_physical_lf_line": 1104,
+    "last_physical_lf_line": 1158,
+    "full_source_sha256": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+    "body_sha256": "3322bd951bb18cc86327d1fa928fb63a0698925cf2a1be85dd49d510d889661b",
+    "excerpt": "tcl9.0.4-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+    "excerpt_sha256": "0a690aa7c36dc4393d6eae55827a952cf5f4197178d5c4679a6ec0b2f4f993f2"
+  },
+  {
+    "path": "tmp/tcl9.0.4/generic/tclIOUtil.c",
+    "symbol": "Tcl_FSEvalFileEx",
+    "first_physical_lf_line": 1691,
+    "last_physical_lf_line": 1826,
+    "full_source_sha256": "a92cd056226140169ef4789870156962b7219d99cb72218a999ca5b8d9ce8770",
+    "body_sha256": "5233658279c3911c88eceb2dd36850721eb720e72d3644d5daf5638466cb5101",
+    "excerpt": "tcl9.0.4-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+    "excerpt_sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d"
+  },
+  {
+    "path": "tmp/tcl9.1.0/generic/tclEncoding.c",
+    "symbol": "Tcl_GetEncoding",
+    "first_physical_lf_line": 740,
+    "last_physical_lf_line": 765,
+    "full_source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+    "body_sha256": "19efd7bbf833e65ca1689222d57ad4123a059a17024b880700f69de72cbbf663",
+    "excerpt": "tcl9.1.0-tclEncoding.c-Tcl_GetEncoding.txt",
+    "excerpt_sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a"
+  },
+  {
+    "path": "tmp/tcl9.1.0/generic/tclEncoding.c",
+    "symbol": "Tcl_SetSystemEncoding",
+    "first_physical_lf_line": 989,
+    "last_physical_lf_line": 1026,
+    "full_source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+    "body_sha256": "cbeb6eca637972b97518d903b96319bf64683f2622b28394cdd56a2b0cb0cc9e",
+    "excerpt": "tcl9.1.0-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+    "excerpt_sha256": "4defff683f856608ffe2088a108e9c43d67b79eb6231f6733366bb09c7a6d5df"
+  },
+  {
+    "path": "tmp/tcl9.1.0/generic/tclEncoding.c",
+    "symbol": "LoadEncodingFile",
+    "first_physical_lf_line": 2420,
+    "last_physical_lf_line": 2470,
+    "full_source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+    "body_sha256": "4971c7928bd7785190b4536d1daffd46c59de1c10e0e9aeee00ef70d63905c05",
+    "excerpt": "tcl9.1.0-tclEncoding.c-LoadEncodingFile.txt",
+    "excerpt_sha256": "7a86210ebc3cabc74903d59cffcc1e3754551237092cea0b44b9fe26f18fc4bd"
+  },
+  {
+    "path": "tmp/tcl9.1.0/generic/tclCmdAH.c",
+    "symbol": "EncodingSystemObjCmd",
+    "first_physical_lf_line": 841,
+    "last_physical_lf_line": 858,
+    "full_source_sha256": "56db5fdd8c4bd688cb0beda3b91ad60111adb802fd63c28821055140b582fe04",
+    "body_sha256": "33388114ee47b09e6bd7d99d3e535ccfe4e535c16c5f7cfd261396460c16158f",
+    "excerpt": "tcl9.1.0-tclCmdAH.c-EncodingSystemObjCmd.txt",
+    "excerpt_sha256": "ed9e2cfa7a2e1767b8587a1793d30f883b584c2d9030038c0905382662ebbd1d"
+  },
+  {
+    "path": "tmp/tcl9.1.0/generic/tclCmdMZ.c",
+    "symbol": "TclNRSourceObjCmd",
+    "first_physical_lf_line": 1169,
+    "last_physical_lf_line": 1223,
+    "full_source_sha256": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+    "body_sha256": "b7f614611e2eb3de677d09bada503382d5c680d311f34c2aa5fe409c09427b1d",
+    "excerpt": "tcl9.1.0-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+    "excerpt_sha256": "f17dd80b646a218b4a9e91bd3a6909741b527ebd3096290e6f1de7ba2dd5bda4"
+  },
+  {
+    "path": "tmp/tcl9.1.0/generic/tclIOUtil.c",
+    "symbol": "Tcl_FSEvalFileEx",
+    "first_physical_lf_line": 1690,
+    "last_physical_lf_line": 1825,
+    "full_source_sha256": "0e7e89671b5840ab90267b9ef5a4a9cac35b702c1a5b62a8a42de066dff514fd",
+    "body_sha256": "5233658279c3911c88eceb2dd36850721eb720e72d3644d5daf5638466cb5101",
+    "excerpt": "tcl9.1.0-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+    "excerpt_sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d"
+  },
+  {
+    "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "symbol": "Jim_SourceCoreCommand",
+    "first_physical_lf_line": 16711,
+    "last_physical_lf_line": 16716,
+    "full_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "body_sha256": "d3b5055ce63094fabcbeb8982cd23aa9960c0d6c6cf2d1bc1556402bdb7dd4c1",
+    "excerpt": "native-providers-jim.c-Jim_SourceCoreCommand.txt",
+    "excerpt_sha256": "06f50ddd7d96c6cf52b7de221ead820052a94493441f3e1f3d016bb7708981b5"
+  }
+]

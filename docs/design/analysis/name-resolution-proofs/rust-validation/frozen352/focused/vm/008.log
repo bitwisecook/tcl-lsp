@@ -1,0 +1,3 @@
+
+running 1 test
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... 

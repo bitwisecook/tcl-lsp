@@ -1,0 +1,27 @@
+{
+  "question_scope": "Original lambda conversion result/error code and C parameter error frame only; no object header/cache/namespace/compiler/body/normal-completion grant.",
+  "variants": {
+    "v1": "13 original values x two channels per provider",
+    "v2": "14 values x two channels; adds valid outer lambda with raw zero in body and invalid formal fields"
+  },
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "protocol_rows": 1308,
+  "input_channels": [
+    "Direct counted original Tcl_NewStringObj/Jim_NewStringObj vector",
+    "Counted source apply quote + exact input bytes + quote; Tcl_EvalEx/Jim_EvalObj"
+  ],
+  "limitations": [
+    "C8.4 has no apply",
+    "Jim and C8.4 no C return-options API",
+    "Fresh ordinary original string objects only",
+    "Counted source has no Document encoding/read channel",
+    "No cache/object callback or procedure-body equivalence assertion"
+  ]
+}

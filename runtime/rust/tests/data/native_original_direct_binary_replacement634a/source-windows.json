@@ -1,0 +1,65 @@
+{
+  "anchors": [
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c",
+      "function": "TclStringReplace",
+      "lines": [
+        4189,
+        4304
+      ],
+      "source_sha256": "d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4",
+      "snippet": "TclStringReplace(\n    Tcl_Interp *interp,\t\t/* For error reporting, may be NULL */\n    Tcl_Obj *objPtr,\t\t/* String to act upon */\n    Tcl_Size first,\t\t/* First index to replace */\n    Tcl_Size count,\t\t/* How many chars to replace */\n    Tcl_Obj *insertPtr,\t\t/* Replacement string, may be NULL */\n    int flags)\t\t\t/* TCL_STRING_IN_PLACE => attempt in-place */\n{\n    int inPlace = flags & TCL_STRING_IN_PLACE;\n    Tcl_Obj *result;\n\n    /* Replace nothing with nothing */\n    if ((insertPtr == NULL) && (count <= 0)) {\n\tif (inPlace) {\n\t    return objPtr;\n\t} else {\n\t    return Tcl_DuplicateObj(objPtr);\n\t}\n    }\n    if (first < 0) {\n\tfirst = 0;\n    }\n\n    /*\n     * The caller very likely had to call Tcl_GetCharLength() or similar\n     * to be able to process index values.  This means it is likely that\n     * objPtr is either a proper \"byte-array\" or a \"string\" or else it has\n     * a known and short string rep.\n     */\n\n    if (TclIsPureByteArray(objPtr)) {\n\tTcl_Size numBytes = 0;\n\tunsigned char *bytes = Tcl_GetBytesFromObj(NULL, objPtr, &numBytes);\n\n\tif (insertPtr == NULL) {\n\t    /* Replace something with nothing. */\n\n\t    assert ( first <= numBytes ) ;\n\t    assert ( count <= numBytes ) ;\n\t    assert ( first + count <= numBytes ) ;\n\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count);/* PANIC? */\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Replace everything */\n\tif ((first == 0) && (count == numBytes)) {\n\t    return insertPtr;\n\t}\n\n\tif (TclIsPureByteArray(insertPtr)) {\n\t    Tcl_Size newBytes = 0;\n\t    unsigned char *iBytes\n\t\t    = Tcl_GetBytesFromObj(NULL, insertPtr, &newBytes);\n\n\t    if (count == newBytes && inPlace && !Tcl_IsShared(objPtr)) {\n\t\t/*\n\t\t * Removal count and replacement count are equal.\n\t\t * Other conditions permit. Do in-place splice.\n\t\t */\n\n\t\tmemcpy(bytes + first, iBytes, count);\n\t\tTcl_InvalidateStringRep(objPtr);\n\t\treturn objPtr;\n\t    }\n\n\t    if (newBytes > (TCL_SIZE_MAX - (numBytes - count))) {\n\t\tif (interp) {\n\t\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t    \"max size for a Tcl value (%\" TCL_SIZE_MODIFIER \"d bytes) exceeded\",\n\t\t\t    TCL_SIZE_MAX));\n\t\t    Tcl_SetErrorCode(interp, \"TCL\", \"MEMORY\", (char *)NULL);\n\t\t}\n\t\treturn NULL;\n\t    }\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count + newBytes);\n\t\t\t\t\t\t\t\t/* PANIC? */\n\t    Tcl_SetByteArrayLength(result, 0);\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, iBytes, newBytes);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Flow through to try other approaches below */\n    }\n\n    /*\n     * TODO: Figure out how not to generate a Tcl_UniChar array rep\n     * when it can be determined objPtr->bytes points to a string of\n     * all single-byte characters so we can index it directly.\n     */\n\n    /* The traditional implementation... */\n    {\n\tTcl_Size numChars;\n\tTcl_UniChar *ustring = Tcl_GetUnicodeFromObj(objPtr, &numChars);\n\n\t/* TODO: Is there an in-place option worth pursuing here? */\n\n\tresult = Tcl_NewUnicodeObj(ustring, first);\n\tif (insertPtr) {\n\t    Tcl_AppendObjToObj(result, insertPtr);\n\t}\n\tif ((first + count) < numChars) {\n\t    Tcl_AppendUnicodeToObj(result, ustring + first + count,\n\t\t    numChars - first - count);\n\t}\n\n\treturn result;\n    }\n}\n",
+      "snippet_sha256": "042f4ccded53127fb70a28760d34fba835483c1d57d52f78c17fcf718bce92ea",
+      "evidence": "exact-source-windows"
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBinary.c",
+      "function": "Tcl_SetByteArrayObj",
+      "lines": [
+        315,
+        341
+      ],
+      "source_sha256": "5660d9f82d02f1ca213a0e9e0b96ff959a81d6f6a474229fb7eada8edfde40bf",
+      "snippet": "Tcl_SetByteArrayObj(\n    Tcl_Obj *objPtr,\t\t/* Object to initialize as a ByteArray. */\n    const unsigned char *bytes,\t/* The array of bytes to use as the new value.\n\t\t\t\t * May be NULL even if numBytes > 0. */\n    Tcl_Size numBytes)\t\t/* Number of bytes in the array,\n\t\t\t\t * must be >= 0 */\n{\n    ByteArray *byteArrayPtr;\n    Tcl_ObjInternalRep ir;\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_SetByteArrayObj\");\n    }\n    TclInvalidateStringRep(objPtr);\n\n    assert(numBytes >= 0);\n    byteArrayPtr = (ByteArray *)Tcl_Alloc(BYTEARRAY_SIZE(numBytes));\n    byteArrayPtr->used = numBytes;\n    byteArrayPtr->allocated = numBytes;\n\n    if ((bytes != NULL) && (numBytes > 0)) {\n\tmemcpy(byteArrayPtr->bytes, bytes, numBytes);\n    }\n    SET_BYTEARRAY(&ir, byteArrayPtr);\n\n    Tcl_StoreInternalRep(objPtr, &properByteArrayType, &ir);\n}\n",
+      "snippet_sha256": "27908deda03f1103aa76bf019a780f614b3c6b03b2cc654846a68346702a8991",
+      "evidence": "exact-source-windows"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c",
+      "function": "TclStringReplace",
+      "lines": [
+        4197,
+        4312
+      ],
+      "source_sha256": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+      "snippet": "TclStringReplace(\n    Tcl_Interp *interp,\t\t/* For error reporting, may be NULL */\n    Tcl_Obj *objPtr,\t\t/* String to act upon */\n    Tcl_Size first,\t\t/* First index to replace */\n    Tcl_Size count,\t\t/* How many chars to replace */\n    Tcl_Obj *insertPtr,\t\t/* Replacement string, may be NULL */\n    int flags)\t\t\t/* TCL_STRING_IN_PLACE => attempt in-place */\n{\n    int inPlace = flags & TCL_STRING_IN_PLACE;\n    Tcl_Obj *result;\n\n    /* Replace nothing with nothing */\n    if ((insertPtr == NULL) && (count <= 0)) {\n\tif (inPlace) {\n\t    return objPtr;\n\t} else {\n\t    return Tcl_DuplicateObj(objPtr);\n\t}\n    }\n    if (first < 0) {\n\tfirst = 0;\n    }\n\n    /*\n     * The caller very likely had to call Tcl_GetCharLength() or similar\n     * to be able to process index values.  This means it is likely that\n     * objPtr is either a proper \"byte-array\" or a \"string\" or else it has\n     * a known and short string rep.\n     */\n\n    if (TclIsPureByteArray(objPtr)) {\n\tTcl_Size numBytes = 0;\n\tunsigned char *bytes = Tcl_GetBytesFromObj(NULL, objPtr, &numBytes);\n\n\tif (insertPtr == NULL) {\n\t    /* Replace something with nothing. */\n\n\t    assert ( first <= numBytes ) ;\n\t    assert ( count <= numBytes ) ;\n\t    assert ( first + count <= numBytes ) ;\n\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count);/* PANIC? */\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Replace everything */\n\tif ((first == 0) && (count == numBytes)) {\n\t    return insertPtr;\n\t}\n\n\tif (TclIsPureByteArray(insertPtr)) {\n\t    Tcl_Size newBytes = 0;\n\t    unsigned char *iBytes\n\t\t    = Tcl_GetBytesFromObj(NULL, insertPtr, &newBytes);\n\n\t    if (count == newBytes && inPlace && !Tcl_IsShared(objPtr)) {\n\t\t/*\n\t\t * Removal count and replacement count are equal.\n\t\t * Other conditions permit. Do in-place splice.\n\t\t */\n\n\t\tmemcpy(bytes + first, iBytes, count);\n\t\tTcl_InvalidateStringRep(objPtr);\n\t\treturn objPtr;\n\t    }\n\n\t    if (newBytes > (TCL_SIZE_MAX - (numBytes - count))) {\n\t\tif (interp) {\n\t\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t    \"max size for a Tcl value (%\" TCL_SIZE_MODIFIER \"d bytes) exceeded\",\n\t\t\t    TCL_SIZE_MAX));\n\t\t    Tcl_SetErrorCode(interp, \"TCL\", \"MEMORY\", (char *)NULL);\n\t\t}\n\t\treturn NULL;\n\t    }\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count + newBytes);\n\t\t\t\t\t\t\t\t/* PANIC? */\n\t    Tcl_SetByteArrayLength(result, 0);\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, iBytes, newBytes);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Flow through to try other approaches below */\n    }\n\n    /*\n     * TODO: Figure out how not to generate a Tcl_UniChar array rep\n     * when it can be determined objPtr->bytes points to a string of\n     * all single-byte characters so we can index it directly.\n     */\n\n    /* The traditional implementation... */\n    {\n\tTcl_Size numChars;\n\tTcl_UniChar *ustring = Tcl_GetUnicodeFromObj(objPtr, &numChars);\n\n\t/* TODO: Is there an in-place option worth pursuing here? */\n\n\tresult = Tcl_NewUnicodeObj(ustring, first);\n\tif (insertPtr) {\n\t    Tcl_AppendObjToObj(result, insertPtr);\n\t}\n\tif ((first + count) < numChars) {\n\t    Tcl_AppendUnicodeToObj(result, ustring + first + count,\n\t\t    numChars - first - count);\n\t}\n\n\treturn result;\n    }\n}\n",
+      "snippet_sha256": "042f4ccded53127fb70a28760d34fba835483c1d57d52f78c17fcf718bce92ea",
+      "evidence": "exact-source-windows"
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "revision": "retained released source bytes",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBinary.c",
+      "function": "Tcl_SetByteArrayObj",
+      "lines": [
+        317,
+        343
+      ],
+      "source_sha256": "2c4d8facc256ec7e135164f92119d4dcf5f98fc3369c0b35a1e89ba950d61b7a",
+      "snippet": "Tcl_SetByteArrayObj(\n    Tcl_Obj *objPtr,\t\t/* Object to initialize as a ByteArray. */\n    const unsigned char *bytes,\t/* The array of bytes to use as the new value.\n\t\t\t\t * May be NULL even if numBytes > 0. */\n    Tcl_Size numBytes)\t\t/* Number of bytes in the array,\n\t\t\t\t * must be >= 0 */\n{\n    ByteArray *byteArrayPtr;\n    Tcl_ObjInternalRep ir;\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_SetByteArrayObj\");\n    }\n    TclInvalidateStringRep(objPtr);\n\n    assert(numBytes >= 0);\n    byteArrayPtr = (ByteArray *)Tcl_Alloc(BYTEARRAY_SIZE(numBytes));\n    byteArrayPtr->used = numBytes;\n    byteArrayPtr->allocated = numBytes;\n\n    if ((bytes != NULL) && (numBytes > 0)) {\n\tmemcpy(byteArrayPtr->bytes, bytes, numBytes);\n    }\n    SET_BYTEARRAY(&ir, byteArrayPtr);\n\n    Tcl_StoreInternalRep(objPtr, &properByteArrayType, &ir);\n}\n",
+      "snippet_sha256": "27908deda03f1103aa76bf019a780f614b3c6b03b2cc654846a68346702a8991",
+      "evidence": "exact-source-windows"
+    }
+  ],
+  "scope": "Exact physical LF windows joined to retained whole source. C9 partial deletion allocates a nonzero used ByteArray length with NULL input before appending; the setter does not initialise that leading storage. Recorded leading bytes are observations, not a deterministic constructor contract."
+}

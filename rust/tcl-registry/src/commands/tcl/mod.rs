@@ -24,6 +24,7 @@
 #![allow(non_snake_case)]
 
 mod after_;
+mod alias_;
 mod append_;
 mod apply;
 mod array_;
@@ -80,9 +81,14 @@ mod http;
 mod if_;
 mod incr_;
 mod info_;
+mod info_jim;
 pub use info_::{
     InfoOoEnsembleKind, InfoOoPropertiesOption, InfoOoSubcommands, info_oo_subcommands,
-    resolve_info_oo_properties_option,
+    resolve_info_oo_properties_option, resolve_info_oo_properties_option_original,
+};
+pub use info_jim::{
+    NativeJimAliasLookupFailure, NativeJimCommandInventory, NativeJimCommandInventoryKind,
+    NativeJimInfoDispatch, NativeJimInfoProtocol, NativeJimInfoReport, NativeJimInfoScope,
 };
 mod interp;
 mod join_;
@@ -158,7 +164,7 @@ pub(crate) use regsub_::{
 };
 mod rename_;
 mod return_;
-mod scan_;
+pub(crate) mod scan_;
 pub(crate) use scan_::fold_scan;
 mod seek_;
 mod set_;
@@ -166,14 +172,14 @@ mod socket_;
 mod source_;
 mod split_;
 mod string_;
-pub use string_::string_is_member_type;
 pub(crate) use string_::{
     fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_is, fold_last, fold_length,
     fold_match, fold_range, fold_range_unanimous, fold_repeat, fold_replace, fold_reverse,
     fold_string_map, fold_tolower, fold_totitle, fold_toupper, fold_trim, fold_trimleft,
     fold_trimright,
 };
-mod subst_;
+pub use string_::{string_is_member_type, string_is_member_type_for_dialect};
+pub(crate) mod subst_;
 pub(crate) use subst_::fold_subst;
 mod switch_;
 mod tailcall_;
@@ -194,6 +200,7 @@ mod timer;
 mod timerate;
 mod trace;
 mod try_;
+pub(crate) use try_::GRAMMAR as NATIVE_TRY_GRAMMAR;
 mod unicode_;
 mod unknown;
 mod unload;
@@ -271,11 +278,14 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         oo_callback::spec(),
         case_::spec(),
         catch_::spec(),
+        catch_::legacy_spec(),
+        catch_::jim_spec(),
         cd::spec(),
         chan_::spec(),
         clock_::spec(),
         close_::spec(),
         concat_::spec(),
+        concat_::jim_spec(),
         const_::spec(),
         continue_::spec(),
         coroinject::spec(),
@@ -286,10 +296,12 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         encoding_::spec(),
         eof_::spec(),
         error_::spec(),
+        error_::jim_spec(),
         eval_::spec(),
         exec_::spec(),
         exit_::spec(),
         expr_::spec(),
+        expr_::jim_spec(),
         fblocked::spec(),
         fconfigure_::spec(),
         fcopy::spec(),
@@ -306,10 +318,13 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         global_::spec(),
         if_::spec(),
         incr_::spec(),
+        info_jim::spec(),
         info_::spec(),
+        interp::jim_spec(),
         interp::spec(),
         join_::spec(),
         lappend_::spec(),
+        lappend_::jim_spec(),
         lassign::spec(),
         ledit::spec(),
         lfilter::spec(),
@@ -342,6 +357,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
     vec![
         mathfunc::spec(),
         mathop::spec(),
+        namespace_::jim_spec(),
         namespace_::spec(),
         oo_abstract::spec(),
         oo_class::spec(),
@@ -361,6 +377,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         oo_self::spec(),
         oo_singleton::spec(),
         open_::spec(),
+        package_::jim_spec(),
         package_::spec(),
         parray::spec(),
         pid::spec(),
@@ -373,16 +390,19 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         regex__quote::spec(),
         regex_quote::spec(),
         regexp_::spec(),
+        regexp_::jim_spec(),
         regexp_quote::spec(),
         registry_::spec(),
         regsub_::spec(),
         rename_::spec(),
+        alias_::spec(),
         return_::spec(),
         scan_::spec(),
         seek_::spec(),
         set_::spec(),
         socket_::spec(),
         source_::spec(),
+        source_::jim_spec(),
         split_::spec(),
         string_::spec(),
         subst_::spec(),
@@ -421,6 +441,10 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         zlib::spec(),
     ]
 }
+
+pub(crate) use if_::bpf_conditional_operands;
+pub(crate) use if_::check_if_shape as native_if_shape_error;
+pub(crate) use if_::native_compile_shape_message as native_if_compile_shape_message;
 
 #[cfg(test)]
 mod tests {

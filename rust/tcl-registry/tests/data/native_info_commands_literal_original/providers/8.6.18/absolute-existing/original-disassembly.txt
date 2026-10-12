@@ -1,0 +1,14 @@
+ByteCode 0x0x55b1a11095f0, refCt 1, epoch 17, interp 0x0x55b1a10cc810 (epoch 17)
+  Source "info commands ::alpha"
+  Cmds 1, src 21, inst 13, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x55b1a1117eb0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-11, src 0-20
+  Command 1: "info commands ::alpha"
+    (0) push1 0 	# "::alpha"
+    (2) resolveCmd 
+    (3) dup 
+    (4) strlen 
+    (5) jumpFalse1 +7 	# pc 12
+    (7) list 1 
+    (12) done 

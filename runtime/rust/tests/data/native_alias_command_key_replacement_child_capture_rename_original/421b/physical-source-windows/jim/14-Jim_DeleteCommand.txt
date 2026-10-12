@@ -1,0 +1,165 @@
+    }
+
+    return cmdPtr;
+}
+
+int Jim_DeleteCommand(Jim_Interp *interp, Jim_Obj *nameObj)
+{
+    int ret = JIM_OK;
+
+    nameObj = JimQualifyName(interp, nameObj);
+
+    if (Jim_DeleteHashEntry(&interp->commands, nameObj) == JIM_ERR) {
+        Jim_SetResultFormatted(interp, "can't delete \"%#s\": command doesn't exist", nameObj);
+        ret = JIM_ERR;
+    }
+    Jim_DecrRefCount(interp, nameObj);
+
+    return ret;
+}
+
+int Jim_RenameCommand(Jim_Interp *interp, Jim_Obj *oldNameObj, Jim_Obj *newNameObj)
+{
+    int ret = JIM_ERR;
+    Jim_HashEntry *he;
+    Jim_Cmd *cmdPtr;
+
+    if (Jim_Length(newNameObj) == 0) {
+        return Jim_DeleteCommand(interp, oldNameObj);
+    }
+
+    /* each name may need to have the current namespace added to it */
+
+    oldNameObj = JimQualifyName(interp, oldNameObj);
+    newNameObj = JimQualifyName(interp, newNameObj);
+
+    /* Does it exist? */
+    he = Jim_FindHashEntry(&interp->commands, oldNameObj);
+    if (he == NULL) {
+        Jim_SetResultFormatted(interp, "can't rename \"%#s\": command doesn't exist", oldNameObj);
+    }
+    else if (Jim_FindHashEntry(&interp->commands, newNameObj)) {
+        Jim_SetResultFormatted(interp, "can't rename to \"%#s\": command already exists", newNameObj);
+    }
+    else {
+        cmdPtr = Jim_GetHashEntryVal(he);
+        if (cmdPtr->prevCmd) {
+            /* If the command replaced another command with 'local', renaming it
+             * would break the usage of upcall, so don't allow it.
+             */
+            Jim_SetResultFormatted(interp, "can't rename local command \"%#s\"", oldNameObj);
+        }
+        else {
+            /* Add the new name first */
+            JimIncrCmdRefCount(cmdPtr);
+            JimUpdateProcNamespace(interp, cmdPtr, newNameObj);
+            Jim_AddHashEntry(&interp->commands, newNameObj, cmdPtr);
+
+            /* Now remove the old name */
+            Jim_DeleteHashEntry(&interp->commands, oldNameObj);
+
+            /* Increment the epoch */
+            Jim_InterpIncrProcEpoch(interp);
+
+            ret = JIM_OK;
+        }
+    }
+
+    Jim_DecrRefCount(interp, oldNameObj);
+    Jim_DecrRefCount(interp, newNameObj);
+
+    return ret;
+}
+
+/* -----------------------------------------------------------------------------
+ * Command object
+ * ---------------------------------------------------------------------------*/
+
+static void FreeCommandInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)
+{
+    Jim_DecrRefCount(interp, objPtr->internalRep.cmdValue.nsObj);
+}
+
+/* Duplicate the cached namespace information for a resolved command object. */
+static void DupCommandInternalRep(Jim_Interp *interp, Jim_Obj *srcPtr, Jim_Obj *dupPtr)
+{
+    dupPtr->internalRep.cmdValue = srcPtr->internalRep.cmdValue;
+    dupPtr->typePtr = srcPtr->typePtr;
+    Jim_IncrRefCount(dupPtr->internalRep.cmdValue.nsObj);
+}
+
+static const Jim_ObjType commandObjType = {
+    "command",
+    FreeCommandInternalRep,
+    DupCommandInternalRep,
+    NULL,
+    JIM_TYPE_REFERENCES,
+};
+
+/* This function returns the command structure for the command name
+ * stored in objPtr. It specializes the objPtr to contain
+ * cached info instead of performing the lookup into the hash table
+ * every time. The information cached may not be up-to-date, in this
+ * case the lookup is performed and the cache updated.
+ *
+ * Respects the 'upcall' setting.
+ */
+Jim_Cmd *Jim_GetCommand(Jim_Interp *interp, Jim_Obj *objPtr, int flags)
+{
+    Jim_Cmd *cmd;
+
+    /* In order to be valid, the proc epoch must match and
+     * the lookup must have occurred in the same namespace
+     */
+    if (objPtr->typePtr == &commandObjType
+        && objPtr->internalRep.cmdValue.procEpoch == interp->procEpoch
+#ifdef jim_ext_namespace
+        && Jim_StringEqObj(objPtr->internalRep.cmdValue.nsObj, interp->framePtr->nsObj)
+#endif
+        && objPtr->internalRep.cmdValue.cmdPtr->inUse) {
+        /* Cached value is valid */
+        cmd = objPtr->internalRep.cmdValue.cmdPtr;
+    }
+    else {
+        Jim_Obj *qualifiedNameObj = JimQualifyName(interp, objPtr);
+        Jim_HashEntry *he = Jim_FindHashEntry(&interp->commands, qualifiedNameObj);
+#ifdef jim_ext_namespace
+        if (he == NULL && Jim_Length(interp->framePtr->nsObj)) {
+            he = Jim_FindHashEntry(&interp->commands, objPtr);
+        }
+#endif
+        if (he == NULL) {
+            if (flags & JIM_ERRMSG) {
+                Jim_SetResultFormatted(interp, "invalid command name \"%#s\"", objPtr);
+            }
+            Jim_DecrRefCount(interp, qualifiedNameObj);
+            return NULL;
+        }
+        cmd = Jim_GetHashEntryVal(he);
+
+        /* Stash the resolved command name. Note that we don't incr the ref count here
+         * since we don't want to increase the ref count. The lifetime is the same as the key
+         * in the commands hash table
+         */
+        cmd->cmdNameObj = Jim_GetHashEntryKey(he);
+
+        /* Free the old internal rep and set the new one. */
+        Jim_FreeIntRep(interp, objPtr);
+        objPtr->typePtr = &commandObjType;
+        objPtr->internalRep.cmdValue.procEpoch = interp->procEpoch;
+        objPtr->internalRep.cmdValue.cmdPtr = cmd;
+        objPtr->internalRep.cmdValue.nsObj = interp->framePtr->nsObj;
+        Jim_IncrRefCount(interp->framePtr->nsObj);
+        Jim_DecrRefCount(interp, qualifiedNameObj);
+    }
+    while ((cmd->flags & JIM_CMD_ISPROC) && cmd->u.proc.upcall) {
+        cmd = cmd->prevCmd;
+    }
+    return cmd;
+}
+
+/* -----------------------------------------------------------------------------
+ * Variables
+ * ---------------------------------------------------------------------------*/
+
+/* -----------------------------------------------------------------------------

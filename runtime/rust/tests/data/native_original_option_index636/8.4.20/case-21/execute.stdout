@@ -1,0 +1,29 @@
+provider	C-Tcl
+case	21	original-list-arithmetic
+operation	lsort
+input-first	302b30
+input-last	
+input-roles	path-kind=1	nested=0	empty=0	repeat-option=0	observed-child-extra-owner=1
+before-path	list	0	1	0
+before-path-member0	none	1	2	3
+before-container	list	0	1	0
+before-key0	none	1	2	1
+before-key1	none	1	2	1
+before-key2	none	1	2	1
+before-key3	none	1	2	1
+code	1
+reached-path	list	1	1	3
+reached-path-member0	none	1	2	3
+reached-container	list	1	1	11
+reached-key0	none	1	2	1
+reached-key1	none	1	2	1
+reached-key2	none	1	2	1
+reached-key3	none	1	2	1
+reached-result	string	1	1	49
+result-alias	container=0	path=0
+result-bytes	62616420696e6465782022302b30223a206d75737420626520696e7465676572206f7220656e643f2d696e74656765723f
+materialised-result	string	1	1	49
+error-code-bytes	4e4f4e45
+error-info-bytes	62616420696e6465782022302b30223a206d75737420626520696e7465676572206f7220656e643f2d696e74656765723f0a202020207768696c6520657865637574696e670a226c736f7274202d696e64657820302b30207b7b4220417d207b4120427d7d22
+path-bytes	302b30
+path-member0-bytes	302b30

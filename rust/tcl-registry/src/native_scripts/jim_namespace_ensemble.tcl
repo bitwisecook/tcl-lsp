@@ -1,0 +1,12 @@
+
+	if {$subcommand ne "create"} {
+		return -code error "only \[namespace ensemble create\] is supported"
+	}
+	set ns [uplevel 1 namespace canon]
+	set cmd $ns
+	if {$ns eq ""} {
+		return -code error "namespace ensemble create: must be called within a namespace"
+	}
+
+
+	ensemble $cmd -automap ${ns}:: {*}$args

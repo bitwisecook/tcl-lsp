@@ -1,0 +1,3 @@
+version 8.4.20
+observation capability status 1 result {bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} errorCode NONE
+conclusion namespace-ensemble unsupported

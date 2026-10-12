@@ -1,0 +1,77 @@
+{
+  "executable": "/workspace/.pins/naming-owned347/pinned-core347.elf",
+  "sha256": "b0ca516e0f62196617ec5de93f4f160f7c94d4ac7271218c06aee6bcc626194a",
+  "size": 174761736,
+  "package": "tcl-lsp-core",
+  "target": {
+    "kind": [
+      "lib"
+    ],
+    "crate_types": [
+      "lib"
+    ],
+    "name": "tcl_lsp_core",
+    "src_path": "/workspace/.checkpoints/naming-current-validation323/rust/tcl-lsp-core/src/lib.rs",
+    "edition": "2024",
+    "doc": true,
+    "doctest": true,
+    "test": true
+  },
+  "features": [],
+  "cargo_artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/.checkpoints/naming-current-validation323/rust/tcl-lsp-core#0.1.0",
+    "manifest_path": "/workspace/.checkpoints/naming-current-validation323/rust/tcl-lsp-core/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_lsp_core",
+      "src_path": "/workspace/.checkpoints/naming-current-validation323/rust/tcl-lsp-core/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_lsp_core-ff8efa1ff2b55103"
+    ],
+    "executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+    "fresh": false
+  },
+  "original_path": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "original_stat": {
+    "st_dev": 27,
+    "st_ino": 549012,
+    "st_mode": 33216,
+    "st_size": 174761736,
+    "st_nlink": 1,
+    "st_mtime_ns": 1791724283319368454,
+    "st_ctime_ns": 1791724283335368327
+  },
+  "sealed_stat": {
+    "st_dev": 27,
+    "st_ino": 549012,
+    "st_mode": 33216,
+    "st_size": 174761736,
+    "st_nlink": 1,
+    "st_mtime_ns": 1791724283319368454,
+    "st_ctime_ns": 1791724456190007217
+  },
+  "build_receipt": "/workspace/.proofs/integration-core-own-test-build347.json",
+  "build_receipt_sha256": "ae04a1511461d32db543f73d3a8a88fc1ca844e793f9f79428095f8c46786d06",
+  "source_snapshot": "/workspace/.checkpoints/naming347/snapshot.json",
+  "source_snapshot_sha256": "2646b0fe8116cf0ebe0ede682f11ad4abcbdfbd82115997ffd70602b72ca9ed2",
+  "storage_rule": "The exact own-target Cargo-emitted ELF is sealed by same-filesystem rename retaining its inode and all full bytes. Permission mode is set to 0700. No dependency executable or stale/list-only target supplies ownership or assertion credit."
+}

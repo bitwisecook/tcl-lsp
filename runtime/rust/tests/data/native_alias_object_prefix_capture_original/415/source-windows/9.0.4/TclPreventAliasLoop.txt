@@ -1,0 +1,156 @@
+1387:  *	file) because it is also used from TclRenameCommand.
+1388:  *
+1389:  *----------------------------------------------------------------------
+1390:  */
+1391: 
+1392: int
+1393: TclPreventAliasLoop(
+1394:     Tcl_Interp *interp,		/* Interp in which to report errors. */
+1395:     Tcl_Interp *cmdInterp,	/* Interp in which the command is being
+1396: 				 * defined. */
+1397:     Tcl_Command cmd)		/* Tcl command we are attempting to define. */
+1398: {
+1399:     Command *cmdPtr = (Command *) cmd;
+1400:     Alias *aliasPtr, *nextAliasPtr;
+1401:     Tcl_Command aliasCmd;
+1402:     Command *aliasCmdPtr;
+1403: 
+1404:     /*
+1405:      * If we are not creating or renaming an alias, then it is always OK to
+1406:      * create or rename the command.
+1407:      */
+1408: 
+1409:     if (cmdPtr->objProc != TclAliasObjCmd
+1410: 	    && cmdPtr->objProc != TclLocalAliasObjCmd) {
+1411: 	return TCL_OK;
+1412:     }
+1413: 
+1414:     /*
+1415:      * OK, we are dealing with an alias, so traverse the chain of aliases. If
+1416:      * we encounter the alias we are defining (or renaming to) any in the
+1417:      * chain then we have a loop.
+1418:      */
+1419: 
+1420:     aliasPtr = (Alias *) cmdPtr->objClientData;
+1421:     nextAliasPtr = aliasPtr;
+1422:     while (1) {
+1423: 	Tcl_Obj *cmdNamePtr;
+1424: 
+1425: 	/*
+1426: 	 * If the target of the next alias in the chain is the same as the
+1427: 	 * source alias, we have a loop.
+1428: 	 */
+1429: 
+1430: 	if (Tcl_InterpDeleted(nextAliasPtr->targetInterp)) {
+1431: 	    /*
+1432: 	     * The child interpreter can be deleted while creating the alias.
+1433: 	     * [Bug #641195]
+1434: 	     */
+1435: 
+1436: 	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+1437: 		    "cannot define or rename alias \"%s\": interpreter deleted",
+1438: 		    Tcl_GetCommandName(cmdInterp, cmd)));
+1439: 	    return TCL_ERROR;
+1440: 	}
+1441: 	cmdNamePtr = nextAliasPtr->objPtr;
+1442: 	aliasCmd = Tcl_FindCommand(nextAliasPtr->targetInterp,
+1443: 		TclGetString(cmdNamePtr),
+1444: 		Tcl_GetGlobalNamespace(nextAliasPtr->targetInterp),
+1445: 		/*flags*/ 0);
+1446: 	if (aliasCmd == NULL) {
+1447: 	    return TCL_OK;
+1448: 	}
+1449: 	aliasCmdPtr = (Command *) aliasCmd;
+1450: 	if (aliasCmdPtr == cmdPtr) {
+1451: 	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+1452: 		    "cannot define or rename alias \"%s\": would create a loop",
+1453: 		    Tcl_GetCommandName(cmdInterp, cmd)));
+1454: 	    Tcl_SetErrorCode(interp, "TCL", "OPERATION", "INTERP",
+1455: 		    "ALIASLOOP", (char *)NULL);
+1456: 	    return TCL_ERROR;
+1457: 	}
+1458: 
+1459: 	/*
+1460: 	 * Otherwise, follow the chain one step further. See if the target
+1461: 	 * command is an alias - if so, follow the loop to its target command.
+1462: 	 * Otherwise we do not have a loop.
+1463: 	 */
+1464: 
+1465: 	if (aliasCmdPtr->objProc != TclAliasObjCmd
+1466: 		&& aliasCmdPtr->objProc != TclLocalAliasObjCmd) {
+1467: 	    return TCL_OK;
+1468: 	}
+1469: 	nextAliasPtr = (Alias *) aliasCmdPtr->objClientData;
+1470:     }
+1471: }
+1472: 
+1473: 
+1474: /*
+1475:  *----------------------------------------------------------------------
+1476:  *
+1477:  * TclAliasCreate --
+1478:  *
+1479:  *	Helper function to do the work to actually create an alias.
+1480:  *
+1481:  * Results:
+1482:  *	A standard Tcl result.
+1483:  *
+1484:  * Side effects:
+1485:  *	An alias command is created and entered into the alias table for the
+1486:  *	child interpreter.
+1487:  *
+1488:  *----------------------------------------------------------------------
+1489:  */
+1490: 
+1491: int
+1492: TclAliasCreate(
+1493:     Tcl_Interp *interp,		/* Interp for error reporting. */
+1494:     Tcl_Interp *childInterp,	/* Interp where alias cmd will live or from
+1495: 				 * which alias will be deleted. */
+1496:     Tcl_Interp *parentInterp,	/* Interp in which target command will be
+1497: 				 * invoked. */
+1498:     Tcl_Obj *namePtr,		/* Name of alias cmd. */
+1499:     Tcl_Obj *targetCmdPtr,	/* Name of target cmd. */
+1500:     Tcl_Size objc,		/* Additional arguments to store */
+1501:     Tcl_Obj *const objv[])	/* with alias. */
+1502: {
+1503:     Alias *aliasPtr;
+1504:     Tcl_HashEntry *hPtr;
+1505:     Target *targetPtr;
+1506:     Child *childPtr;
+1507:     Parent *parentPtr;
+1508:     Tcl_Obj **prefv;
+1509:     int isNew;
+1510:     Tcl_Size i;
+1511: 
+1512:     aliasPtr = (Alias *) Tcl_Alloc(sizeof(Alias) + objc * sizeof(Tcl_Obj *));
+1513:     aliasPtr->token = namePtr;
+1514:     Tcl_IncrRefCount(aliasPtr->token);
+1515:     aliasPtr->targetInterp = parentInterp;
+1516: 
+1517:     aliasPtr->objc = objc + 1;
+1518:     prefv = &aliasPtr->objPtr;
+1519: 
+1520:     *prefv = targetCmdPtr;
+1521:     Tcl_IncrRefCount(targetCmdPtr);
+1522:     for (i = 0; i < objc; i++) {
+1523: 	*(++prefv) = objv[i];
+1524: 	Tcl_IncrRefCount(objv[i]);
+1525:     }
+1526: 
+1527:     Tcl_Preserve(childInterp);
+1528:     Tcl_Preserve(parentInterp);
+1529: 
+1530:     if (childInterp == parentInterp) {
+1531: 	aliasPtr->childCmd = Tcl_NRCreateCommand(childInterp,
+1532: 		TclGetString(namePtr), TclLocalAliasObjCmd, AliasNRCmd,
+1533: 		aliasPtr, AliasObjCmdDeleteProc);
+1534:     } else {
+1535: 	aliasPtr->childCmd = Tcl_CreateObjCommand(childInterp,
+1536: 		TclGetString(namePtr), TclAliasObjCmd, aliasPtr,
+1537: 		AliasObjCmdDeleteProc);
+1538:     }
+1539: 
+1540:     if (TclPreventAliasLoop(interp, childInterp,
+1541: 	    aliasPtr->childCmd) != TCL_OK) {
+1542: 	/*

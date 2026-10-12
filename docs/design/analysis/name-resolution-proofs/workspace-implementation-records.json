@@ -1,0 +1,132 @@
+[
+  {
+    "id": "naming.workspace.original-declaration-transport",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/workspace-original-declaration-transport.md",
+    "problem_statement": "Workspace presentation maps can collapse or omit original procedure/class names, including opaque source units. Equal source images can also occur in different documents. A cross-file consumer that derives declaration identity from displayed names or equal source alone can lose a declaration or attribute it to another file; candidate lookup must keep the original metadata and document owner separate.",
+    "question": "Does workspace declaration inventory and lookup transport preserve original name bytes, canonical source slots and URI ownership independently of display maps and copied source images?",
+    "conclusion": "The workspace stores complete original procedure/class declaration metadata separately from presentation rows and pairs every inventory/query result with its document URI. Shared original publication matching returns candidate declarations without collapsing opaque name bytes or identical-source documents. Indexed command occurrences retain their original input. Document removal and replacement withdraw the corresponding owned rows. These declaration/candidate projections do not prove loading, callability at an observation, normal completion, complete references or writable edit geometry.",
+    "scope": "Current Core workspace transport implementation contract. The named regression removes display maps, indexes the same analysis under two URIs, distinguishes two surrogate-unit names, checks exact candidate/input bytes, then removes/replaces a document. It contains no native execution evidence or claimed Rust test outcome. Class inventory uses the same document-owned metadata transport; the concrete test assertions cover procedure declarations and command inputs.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "not tested",
+        "input_channel": "not tested",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "workspace-owner",
+        "role": "implementation",
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "sha256": "dabdaa43f7d963ad998c46079fff2ecacb1e99e6f93a7b04f188968abe647cf4",
+        "description": "Current document-owned original declaration storage, shared candidate projections and regression assertions; source evidence grants no native execution or editor authority."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "selector": "tests::original_declaration_inventory_retains_bytes_and_document_ownership",
+        "assertion": "Opaque original declarations and invocation bytes survive removed display maps, remain independently URI-owned for identical-source documents, and withdraw on removal/replacement.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "DocumentRecords",
+        "purpose": "Owns original declaration metadata and source occurrences under the independent workspace document URI."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "original_procedure_declarations",
+        "purpose": "Projects complete original procedure metadata with its document owner."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "original_class_declarations",
+        "purpose": "Projects complete original class metadata with its document owner."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "original_procedure_candidates",
+        "purpose": "Uses the shared original publication matcher and preserves URI-qualified candidates."
+      },
+      {
+        "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+        "symbol": "original_class_candidates",
+        "purpose": "Uses the same shared lookup purpose for document-owned class candidates."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The linked regression is an actual current test function, with no executed-test receipt attached. Declaration/candidate assistance is distinct from an observed dispatch selection or rename completeness; those require their own source/lifetime/coverage manufacturers."
+    }
+  }
+]

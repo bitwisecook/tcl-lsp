@@ -1,0 +1,76 @@
+{
+  "request_id": "naming.info.original-root-and-explicit-nons-command-inventory",
+  "question": "How does exact info commands option grammar differ between execution at the actual root and explicit -nons inside an actual nonroot namespace, and does exact -all retain caller-owned command names with spaces?",
+  "problem": "A rooted ::info invocation alone still follows Jim namespace forwarding. Authentic scripted ensemble helper inventory needs a selected direct-core purpose that preserves -all and -nons rather than assuming rooting selects core enumeration. Prior254 and256 measure actual nonroot forwarding, independently of these direct-core cases.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "driver": "Reuse unchanged Native236/245 original counted C API driver with independently checked existing provider pins. Fresh full Tcl_Init or Jim core/static extensions per original source. Preserve VERSION and whole original code/result hex rows, process stdout/stderr/exit, source hashes and build hashes. No outer catch/eval normalization or custom stack size; catches shown in the source are the original public controls.",
+  "cases": [
+    {
+      "id": "root-exact-all-pattern",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/root-exact-all-pattern.tcl",
+      "source_sha256": "01a3fede218243d732af20e76272bfefa05ef00155f8fb85df7c19402d845c19",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "root-plain-pattern",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/root-plain-pattern.tcl",
+      "source_sha256": "681ad4c72cc64296bcfae523a85871ce18f9ec9b2e840571357fca3b60cf8d05",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "root-all-qualified-pattern",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/root-all-qualified-pattern.tcl",
+      "source_sha256": "8cce4853c236deec1ae0fc563ab3133bc0671a595fd4a15535217cb8e2ff5c2f",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "root-option-without-pattern",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/root-option-without-pattern.tcl",
+      "source_sha256": "f3fff5457e909268f26dbb05f93a098b90328b33edb20a09be25a0b6cc74e7a6",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "root-original-option-arity",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/root-original-option-arity.tcl",
+      "source_sha256": "73c84c5a2b0788bcc275894e4e412c6bbcd9eea9ab8a1d8e36feaa0ff4fee402",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "namespace-explicit-nons-all-patterns",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/namespace-explicit-nons-all-patterns.tcl",
+      "source_sha256": "8abe5a1cd5eb1b06a2089240c2c048dd00bcc55639d45b6b005da0922ea469e0",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "namespace-explicit-nons-absent-and-all",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/namespace-explicit-nons-absent-and-all.tcl",
+      "source_sha256": "40fe0411ff6860a583208fd9e72b9d12c2ed07a6e2fa9bf3df69533c0dbec901",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    },
+    {
+      "id": "namespace-explicit-nons-original-option-arity",
+      "source_file": "/workspace/.proofs/native-jim-core-command-inventory257-request/namespace-explicit-nons-original-option-arity.tcl",
+      "source_sha256": "6247457a8654d4468de2867a113024b984c30c56f738b026b1bb52cb6a4ba036",
+      "source_encoding": "ASCII LF; exact -all, -al and -nons tokens. The braced ::r2286 spaced procedure name contains one literal ASCII space. Root cases execute outside namespace eval; explicit -nons cases execute inside actual ::r2286_holder. Sorted/filtering observations include only caller-owned r2286 names and do not assert the complete stock inventory."
+    }
+  ],
+  "inspected_source": [
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        16008,
+        16132
+      ],
+      "scope": "Jim_InfoCoreCommand selected -nons scope, inventory exact -all mode and original namespace forwarding. Source inspection remains separate from public observations."
+    }
+  ],
+  "scope": "Exact whole original public results and sorted caller-owned command reports for the authored root and -nons controls. Native254/256 original forwarding results remain immutable and independent. No private table/token/cache equality, arbitrary Unicode/NUL, full stock roster, other provider -nons support, or successful helper implementation is inferred."
+}

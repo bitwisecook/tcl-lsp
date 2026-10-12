@@ -1,0 +1,269 @@
+{
+  "purpose": "Native namespace original dispatcher error noun and ambiguity across all6; no primary/return-option proof",
+  "rows": [
+    {
+      "engine": "8.4",
+      "subcommand": "upvar",
+      "exit": 0,
+      "stdout": "1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n",
+      "stderr": "",
+      "seconds": 0.0029231510125100613,
+      "budget": 60,
+      "script_sha256": "782826cfe62e98c77bfef96ff9f382d6c25036bf95c23841ff11447c13a32154",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "8.4",
+      "subcommand": "NOPE",
+      "exit": 0,
+      "stdout": "1 {bad option \"NOPE\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n",
+      "stderr": "",
+      "seconds": 0.002137203002348542,
+      "budget": 60,
+      "script_sha256": "fd1f21980b5cba868ee08068545eaa376215062e0e9c8e51d48f58134eaa7988",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "8.4",
+      "subcommand": "e",
+      "exit": 0,
+      "stdout": "1 {ambiguous option \"e\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n",
+      "stderr": "",
+      "seconds": 0.0019381649908609688,
+      "budget": 60,
+      "script_sha256": "b55788e21a460ca36f64f4bca649afb4a7f3ee09e26019adfe7764d266e786b8",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "8.4",
+      "subcommand": "u",
+      "exit": 0,
+      "stdout": "1 {bad option \"u\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n",
+      "stderr": "",
+      "seconds": 0.0028778239502571523,
+      "budget": 60,
+      "script_sha256": "a6ebe78c9671dc10dc99597a823535c856da384de3a68ab9a7d6b7d40765382b",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    {
+      "engine": "8.5",
+      "subcommand": "upvar",
+      "exit": 0,
+      "stdout": "1 {wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\"}\n",
+      "stderr": "",
+      "seconds": 0.0031432899995706975,
+      "budget": 60,
+      "script_sha256": "782826cfe62e98c77bfef96ff9f382d6c25036bf95c23841ff11447c13a32154",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "8.5",
+      "subcommand": "NOPE",
+      "exit": 0,
+      "stdout": "1 {bad option \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.0022054780274629593,
+      "budget": 60,
+      "script_sha256": "fd1f21980b5cba868ee08068545eaa376215062e0e9c8e51d48f58134eaa7988",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "8.5",
+      "subcommand": "e",
+      "exit": 0,
+      "stdout": "1 {ambiguous option \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.0022562340018339455,
+      "budget": 60,
+      "script_sha256": "b55788e21a460ca36f64f4bca649afb4a7f3ee09e26019adfe7764d266e786b8",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "8.5",
+      "subcommand": "u",
+      "exit": 0,
+      "stdout": "1 {ambiguous option \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.0030179749592207372,
+      "budget": 60,
+      "script_sha256": "a6ebe78c9671dc10dc99597a823535c856da384de3a68ab9a7d6b7d40765382b",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    {
+      "engine": "8.6",
+      "subcommand": "upvar",
+      "exit": 0,
+      "stdout": "1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n",
+      "stderr": "",
+      "seconds": 0.0033291829749941826,
+      "budget": 60,
+      "script_sha256": "782826cfe62e98c77bfef96ff9f382d6c25036bf95c23841ff11447c13a32154",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "8.6",
+      "subcommand": "NOPE",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.003530499991029501,
+      "budget": 60,
+      "script_sha256": "fd1f21980b5cba868ee08068545eaa376215062e0e9c8e51d48f58134eaa7988",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "8.6",
+      "subcommand": "e",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.004779584996867925,
+      "budget": 60,
+      "script_sha256": "b55788e21a460ca36f64f4bca649afb4a7f3ee09e26019adfe7764d266e786b8",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "8.6",
+      "subcommand": "u",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.0032122909906320274,
+      "budget": 60,
+      "script_sha256": "a6ebe78c9671dc10dc99597a823535c856da384de3a68ab9a7d6b7d40765382b",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    {
+      "engine": "9.0",
+      "subcommand": "upvar",
+      "exit": 0,
+      "stdout": "1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n",
+      "stderr": "",
+      "seconds": 0.006767924001906067,
+      "budget": 60,
+      "script_sha256": "782826cfe62e98c77bfef96ff9f382d6c25036bf95c23841ff11447c13a32154",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "subcommand": "NOPE",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.006951904972083867,
+      "budget": 60,
+      "script_sha256": "fd1f21980b5cba868ee08068545eaa376215062e0e9c8e51d48f58134eaa7988",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "subcommand": "e",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.00607795303221792,
+      "budget": 60,
+      "script_sha256": "b55788e21a460ca36f64f4bca649afb4a7f3ee09e26019adfe7764d266e786b8",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "subcommand": "u",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.006211297994013876,
+      "budget": 60,
+      "script_sha256": "a6ebe78c9671dc10dc99597a823535c856da384de3a68ab9a7d6b7d40765382b",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.1",
+      "subcommand": "upvar",
+      "exit": 0,
+      "stdout": "1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n",
+      "stderr": "",
+      "seconds": 0.006052385026123375,
+      "budget": 60,
+      "script_sha256": "782826cfe62e98c77bfef96ff9f382d6c25036bf95c23841ff11447c13a32154",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "subcommand": "NOPE",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"NOPE\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.006191320018842816,
+      "budget": 60,
+      "script_sha256": "fd1f21980b5cba868ee08068545eaa376215062e0e9c8e51d48f58134eaa7988",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "subcommand": "e",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"e\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.00619505497161299,
+      "budget": 60,
+      "script_sha256": "b55788e21a460ca36f64f4bca649afb4a7f3ee09e26019adfe7764d266e786b8",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "subcommand": "u",
+      "exit": 0,
+      "stdout": "1 {unknown or ambiguous subcommand \"u\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which}\n",
+      "stderr": "",
+      "seconds": 0.007083534030243754,
+      "budget": 60,
+      "script_sha256": "a6ebe78c9671dc10dc99597a823535c856da384de3a68ab9a7d6b7d40765382b",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "jim",
+      "subcommand": "upvar",
+      "exit": 0,
+      "stdout": "1 {wrong # args: should be \"namespace upvar ns ?arg ...?\"}\n",
+      "stderr": "",
+      "seconds": 0.003542217949870974,
+      "budget": 60,
+      "script_sha256": "782826cfe62e98c77bfef96ff9f382d6c25036bf95c23841ff11447c13a32154",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "subcommand": "NOPE",
+      "exit": 0,
+      "stdout": "1 {namespace, unknown command \"NOPE\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}\n",
+      "stderr": "",
+      "seconds": 0.0031676250509917736,
+      "budget": 60,
+      "script_sha256": "fd1f21980b5cba868ee08068545eaa376215062e0e9c8e51d48f58134eaa7988",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "subcommand": "e",
+      "exit": 0,
+      "stdout": "1 {namespace, ambiguous command \"e\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}\n",
+      "stderr": "",
+      "seconds": 0.0023987930035218596,
+      "budget": 60,
+      "script_sha256": "b55788e21a460ca36f64f4bca649afb4a7f3ee09e26019adfe7764d266e786b8",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    },
+    {
+      "engine": "jim",
+      "subcommand": "u",
+      "exit": 0,
+      "stdout": "1 {wrong # args: should be \"namespace upvar ns ?arg ...?\"}\n",
+      "stderr": "",
+      "seconds": 0.0022940789931453764,
+      "budget": 60,
+      "script_sha256": "a6ebe78c9671dc10dc99597a823535c856da384de3a68ab9a7d6b7d40765382b",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0"
+    }
+  ]
+}

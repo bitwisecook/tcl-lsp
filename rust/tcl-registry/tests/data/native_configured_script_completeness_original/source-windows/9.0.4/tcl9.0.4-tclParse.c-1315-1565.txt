@@ -1,0 +1,251 @@
+Tcl_ParseVarName(
+    Tcl_Interp *interp,		/* Interpreter to use for error reporting; if
+				 * NULL, then no error message is provided. */
+    const char *start,		/* Start of variable substitution string.
+				 * First character must be "$". */
+    Tcl_Size numBytes,		/* Total number of bytes in string. If -1,
+				 * the string consists of all bytes up to the
+				 * first null character. */
+    Tcl_Parse *parsePtr,	/* Structure to fill in with information about
+				 * the variable name. */
+    int append)			/* Non-zero means append tokens to existing
+				 * information in parsePtr; zero means ignore
+				 * existing tokens in parsePtr and
+				 * reinitialize it. */
+{
+    Tcl_Token *tokenPtr;
+    const char *src;
+    int varIndex;
+    unsigned array;
+
+    if (numBytes < 0 && start) {
+	numBytes = strlen(start);
+    }
+    if (!append) {
+	TclParseInit(interp, start, numBytes, parsePtr);
+    }
+    if ((numBytes == 0) || (start == NULL)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Generate one token for the variable, an additional token for the name,
+     * plus any number of additional tokens for the index, if there is one.
+     */
+
+    src = start;
+    TclGrowParseTokenArray(parsePtr, 2);
+    tokenPtr = &parsePtr->tokenPtr[parsePtr->numTokens];
+    tokenPtr->type = TCL_TOKEN_VARIABLE;
+    tokenPtr->start = src;
+    varIndex = parsePtr->numTokens;
+    parsePtr->numTokens++;
+    tokenPtr++;
+    src++;
+    numBytes--;
+    if (numBytes == 0) {
+	goto justADollarSign;
+    }
+    tokenPtr->type = TCL_TOKEN_TEXT;
+    tokenPtr->start = src;
+    tokenPtr->numComponents = 0;
+
+    /*
+     * The name of the variable can have three forms:
+     * 1. The $ sign is followed by an open curly brace. Then the variable
+     *	  name is everything up to the next close curly brace, and the
+     *	  variable is a scalar variable.
+     * 2. The $ sign is not followed by an open curly brace. Then the variable
+     *	  name is everything up to the next character that isn't a letter,
+     *	  digit, or underscore. :: sequences are also considered part of the
+     *	  variable name, in order to support namespaces. If the following
+     *	  character is an open parenthesis, then the information between
+     *	  parentheses is the array element name.
+     * 3. The $ sign is followed by something that isn't a letter, digit, or
+     *	  underscore: in this case, there is no variable name and the token is
+     *	  just "$".
+     */
+
+    if (*src == '{') {
+	char ch;
+	int braceCount = 0;
+	src++;
+	numBytes--;
+	tokenPtr->type = TCL_TOKEN_TEXT;
+	tokenPtr->start = src;
+	tokenPtr->numComponents = 0;
+
+	ch = *src;
+	while (numBytes && (braceCount>0 || ch != '}')) {
+	    switch (ch) {
+	    case '{':
+		braceCount++;
+		break;
+	    case '}':
+		braceCount--;
+		break;
+	    case '\\':
+		/* if 2 or more left, consume 2, else consume
+		 * just the \ and let it run into the end */
+		if (numBytes > 1) {
+		   src++; numBytes--;
+		}
+	    }
+	    numBytes--;
+	    src++;
+	    ch= *src;
+	}
+	if (numBytes == 0) {
+	    if (parsePtr->interp != NULL) {
+		Tcl_SetObjResult(parsePtr->interp, Tcl_NewStringObj(
+			"missing close-brace for variable name", -1));
+	    }
+	    parsePtr->errorType = TCL_PARSE_MISSING_VAR_BRACE;
+	    parsePtr->term = tokenPtr->start-1;
+	    parsePtr->incomplete = 1;
+	    goto error;
+	}
+	tokenPtr->size = src - tokenPtr->start;
+	tokenPtr[-1].size = src - tokenPtr[-1].start;
+	parsePtr->numTokens++;
+	src++;
+    } else {
+	tokenPtr->type = TCL_TOKEN_TEXT;
+	tokenPtr->start = src;
+	tokenPtr->numComponents = 0;
+
+	while (numBytes) {
+	    if (TclIsBareword(*src)) {
+		src += 1;
+		numBytes -= 1;
+		continue;
+	    }
+	    if ((src[0] == ':') && (numBytes != 1) && (src[1] == ':')) {
+		src += 2;
+		numBytes -= 2;
+		while (numBytes && (*src == ':')) {
+		    src++;
+		    numBytes--;
+		}
+		continue;
+	    }
+	    break;
+	}
+
+	/*
+	 * Support for empty array names here.
+	 */
+
+	array = (numBytes && (*src == '('));
+	tokenPtr->size = src - tokenPtr->start;
+	if ((tokenPtr->size == 0) && !array) {
+	    goto justADollarSign;
+	}
+	parsePtr->numTokens++;
+	if (array) {
+	    /*
+	     * This is a reference to an array element. Call ParseTokens
+	     * recursively to parse the element name, since it could contain
+	     * any number of substitutions.
+	     */
+
+	    if (TCL_OK != ParseTokens(src+1, numBytes-1, TYPE_BAD_ARRAY_INDEX,
+		    TCL_SUBST_ALL, parsePtr)) {
+		goto error;
+	    }
+	    if (parsePtr->term == src+numBytes){
+		if (parsePtr->interp != NULL) {
+		    Tcl_SetObjResult(parsePtr->interp, Tcl_NewStringObj(
+			    "missing )", -1));
+		}
+		parsePtr->errorType = TCL_PARSE_MISSING_PAREN;
+		parsePtr->term = src;
+		parsePtr->incomplete = 1;
+		goto error;
+	    } else if ((*parsePtr->term != ')')){
+		if (parsePtr->interp != NULL) {
+		    Tcl_SetObjResult(parsePtr->interp, Tcl_NewStringObj(
+			    "invalid character in array index", -1));
+		}
+		parsePtr->errorType = TCL_PARSE_SYNTAX;
+		parsePtr->term = src;
+		goto error;
+	    }
+	    src = parsePtr->term + 1;
+	}
+    }
+    tokenPtr = &parsePtr->tokenPtr[varIndex];
+    tokenPtr->size = src - tokenPtr->start;
+    tokenPtr->numComponents = parsePtr->numTokens - (varIndex + 1);
+    return TCL_OK;
+
+    /*
+     * The dollar sign isn't followed by a variable name. Replace the
+     * TCL_TOKEN_VARIABLE token with a TCL_TOKEN_TEXT token for the dollar
+     * sign.
+     */
+
+  justADollarSign:
+    tokenPtr = &parsePtr->tokenPtr[varIndex];
+    tokenPtr->type = TCL_TOKEN_TEXT;
+    tokenPtr->size = 1;
+    tokenPtr->numComponents = 0;
+    return TCL_OK;
+
+  error:
+    Tcl_FreeParse(parsePtr);
+    return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_ParseVar --
+ *
+ *	Given a string starting with a $ sign, parse off a variable name and
+ *	return its value.
+ *
+ * Results:
+ *	The return value is the contents of the variable given by the leading
+ *	characters of string. If termPtr isn't NULL, *termPtr gets filled in
+ *	with the address of the character just after the last one in the
+ *	variable specifier. If the variable doesn't exist, then the return
+ *	value is NULL and an error message will be left in interp's result.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+const char *
+Tcl_ParseVar(
+    Tcl_Interp *interp,		/* Context for looking up variable. */
+    const char *start,		/* Start of variable substitution. First
+				 * character must be "$". */
+    const char **termPtr)	/* If non-NULL, points to word to fill in with
+				 * character just after last one in the
+				 * variable specifier. */
+{
+    Tcl_Obj *objPtr;
+    int code;
+    Tcl_Parse *parsePtr = (Tcl_Parse *)TclStackAlloc(interp, sizeof(Tcl_Parse));
+
+    if (Tcl_ParseVarName(interp, start, TCL_INDEX_NONE, parsePtr, 0) != TCL_OK) {
+	TclStackFree(interp, parsePtr);
+	return NULL;
+    }
+
+    if (termPtr != NULL) {
+	*termPtr = start + parsePtr->tokenPtr->size;
+    }
+    if (parsePtr->numTokens == 1) {
+	/*
+	 * There isn't a variable name after all: the $ is just a $.
+	 */
+
+	TclStackFree(interp, parsePtr);
+	return "$";
+    }
+
+    code = TclSubstTokens(interp, parsePtr->tokenPtr, parsePtr->numTokens,

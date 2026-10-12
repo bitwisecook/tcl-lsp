@@ -1,0 +1,7 @@
+
+running 2 tests
+test command_binding::original_namespace_ensure::tests::original_namespace_ensure_does_not_close_unknown_operands_or_body_observers ... ok
+test command_binding::original_namespace_ensure::tests::original_namespace_ensure_shares_actual_allocations_without_widening_empty_cells ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8150 filtered out; finished in 2.66s
+

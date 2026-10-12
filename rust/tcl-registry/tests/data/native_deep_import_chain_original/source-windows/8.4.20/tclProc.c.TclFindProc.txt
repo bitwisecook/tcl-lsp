@@ -1,0 +1,134 @@
+ *	looked up using the usual rules: first in the current
+ *	namespace and then in the global namespace.
+ *
+ * Results:
+ *	NULL is returned if the name doesn't correspond to any
+ *	procedure. Otherwise, the return value is a pointer to
+ *	the procedure's record. If the name is found but refers
+ *	to an imported command that points to a "real" procedure
+ *	defined in another namespace, a pointer to that "real"
+ *	procedure's structure is returned.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Proc *
+TclFindProc(iPtr, procName)
+    Interp *iPtr;		/* Interpreter in which to look. */
+    CONST char *procName;		/* Name of desired procedure. */
+{
+    Tcl_Command cmd;
+    Tcl_Command origCmd;
+    Command *cmdPtr;
+
+    cmd = Tcl_FindCommand((Tcl_Interp *) iPtr, procName,
+            (Tcl_Namespace *) NULL, /*flags*/ 0);
+    if (cmd == (Tcl_Command) NULL) {
+        return NULL;
+    }
+    cmdPtr = (Command *) cmd;
+
+    origCmd = TclGetOriginalCommand(cmd);
+    if (origCmd != NULL) {
+	cmdPtr = (Command *) origCmd;
+    }
+    if (cmdPtr->proc != TclProcInterpProc) {
+	return NULL;
+    }
+    return (Proc *) cmdPtr->clientData;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclIsProc --
+ *
+ *	Tells whether a command is a Tcl procedure or not.
+ *
+ * Results:
+ *	If the given command is actually a Tcl procedure, the
+ *	return value is the address of the record describing
+ *	the procedure.  Otherwise the return value is 0.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Proc *
+TclIsProc(cmdPtr)
+    Command *cmdPtr;		/* Command to test. */
+{
+    Tcl_Command origCmd;
+
+    origCmd = TclGetOriginalCommand((Tcl_Command) cmdPtr);
+    if (origCmd != NULL) {
+	cmdPtr = (Command *) origCmd;
+    }
+    if (cmdPtr->proc == TclProcInterpProc) {
+	return (Proc *) cmdPtr->clientData;
+    }
+    return (Proc *) 0;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclProcInterpProc --
+ *
+ *	When a Tcl procedure gets invoked with an argc/argv array of
+ *	strings, this routine gets invoked to interpret the procedure.
+ *
+ * Results:
+ *	A standard Tcl result value, usually TCL_OK.
+ *
+ * Side effects:
+ *	Depends on the commands in the procedure.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclProcInterpProc(clientData, interp, argc, argv)
+    ClientData clientData;	/* Record describing procedure to be
+				 * interpreted. */
+    Tcl_Interp *interp;		/* Interpreter in which procedure was
+				 * invoked. */
+    int argc;			/* Count of number of arguments to this
+				 * procedure. */
+    register CONST char **argv;	/* Argument values. */
+{
+    register Tcl_Obj *objPtr;
+    register int i;
+    int result;
+
+    /*
+     * This procedure generates an objv array for object arguments that hold
+     * the argv strings. It starts out with stack-allocated space but uses
+     * dynamically-allocated storage if needed.
+     */
+
+#define NUM_ARGS 20
+    Tcl_Obj *(objStorage[NUM_ARGS]);
+    register Tcl_Obj **objv = objStorage;
+
+    /*
+     * Create the object argument array "objv". Make sure objv is large
+     * enough to hold the objc arguments plus 1 extra for the zero
+     * end-of-objv word.
+     */
+
+    if ((argc + 1) > NUM_ARGS) {
+	objv = (Tcl_Obj **)
+	    ckalloc((unsigned)(argc + 1) * sizeof(Tcl_Obj *));
+    }
+
+    for (i = 0;  i < argc;  i++) {
+	objv[i] = Tcl_NewStringObj(argv[i], -1);
+	Tcl_IncrRefCount(objv[i]);
+    }
+    objv[argc] = 0;

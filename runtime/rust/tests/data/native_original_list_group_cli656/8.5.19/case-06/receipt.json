@@ -1,0 +1,55 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/.proofs/root-native-list-group-cli656/probe.tcl",
+    "6"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-group-cli656/8.5.19/case-06",
+  "explicit_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCLLIBPATH": "",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "timeout_seconds": 20,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.019184886012226343,
+  "stdout": "/workspace/.proofs/root-native-list-group-cli656/8.5.19/case-06/execute.stdout",
+  "stderr": "/workspace/.proofs/root-native-list-group-cli656/8.5.19/case-06/execute.stderr",
+  "stdout_sha256": "1480e653ae9fbb2cee581f430fe4afac7ef01d8b31fb2549c18567986c7bf936",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "fields": {
+    "case": [
+      "6",
+      "command-valid-width"
+    ],
+    "script-hex": [
+      "6c736f7274202d636f6d6d616e64207232323836636d70202d7374726964652032202d696e6465782031207b322041203120427d"
+    ],
+    "guest-code": [
+      "1"
+    ],
+    "result-hex": [
+      "626164206f7074696f6e20222d737472696465223a206d757374206265202d61736369692c202d636f6d6d616e642c202d64656372656173696e672c202d64696374696f6e6172792c202d696e6372656173696e672c202d696e6465782c202d696e64696365732c202d696e74656765722c202d6e6f636173652c202d7265616c2c206f72202d756e69717565"
+    ],
+    "error-code-present": [
+      "1"
+    ],
+    "error-code-hex": [
+      "54434c204c4f4f4b555020494e444558206f7074696f6e202d737472696465"
+    ],
+    "error-info-present": [
+      "1"
+    ],
+    "error-info-hex": [
+      "626164206f7074696f6e20222d737472696465223a206d757374206265202d61736369692c202d636f6d6d616e642c202d64656372656173696e672c202d64696374696f6e6172792c202d696e6372656173696e672c202d696e6465782c202d696e64696365732c202d696e74656765722c202d6e6f636173652c202d7265616c2c206f72202d756e697175650a202020207768696c6520657865637574696e670a226c736f7274202d636f6d6d616e64207232323836636d70202d7374726964652032202d696e6465782031207b322041203120427d22"
+    ],
+    "callback-count": [
+      "0"
+    ]
+  },
+  "case": 6,
+  "complete_projection": true
+}

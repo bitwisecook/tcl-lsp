@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface ... 
+thread 'cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface' (1337163) panicked at src/cmd_info.rs:1253:9:
+assertion `left == right` failed: residual: 9 objs, 9 bufs
+  left: 18
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 8.78s
+

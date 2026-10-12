@@ -1,0 +1,17 @@
+{"path":"startup","op":"patchlevel","code":0,"type_before_get_string":"none","resident_before_get_string":true,"length":6,"bytes":"382e342e3230"}
+{"path":"counted-native-source","op":"eval-result","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":6,"bytes":"5c007461696c"}
+{"path":"counted-native-source","op":"plain","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":11,"bytes":"4100f09f98800d0a420d43"}
+{"path":"counted-native-source","op":"braced","code":0,"type_before_get_string":"none","resident_before_get_string":true,"length":11,"bytes":"4100f09f98800d0a420d43"}
+{"path":"counted-native-source","op":"escaped","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":5,"bytes":"c3b09f9880"}
+{"path":"counted-native-source","op":"numeric","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":9,"bytes":"41c080eda0bdedb880"}
+{"path":"counted-native-source","op":"slashzero","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":6,"bytes":"5c007461696c"}
+{"path":"character-channel","op":"encoding","code":0,"bytes":"7574662d38"}
+{"path":"character-channel","op":"translation","code":0,"bytes":"6175746f"}
+{"path":"character-channel","op":"read-count","count":124}
+{"path":"character-channel","op":"source","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":139,"bytes":"73657420706c61696e202241c080c3b0c29fc298c2800a420a43220a73657420627261636564207b41c080c3b0c29fc298c2800a420a437d0a736574206573636170656420225cc3b0c29fc298c280220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225cc0807461696c220a"}
+{"path":"character-channel-source","op":"eval-result","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":6,"bytes":"c0807461696c"}
+{"path":"character-channel-source","op":"plain","code":0,"type_before_get_string":"none","resident_before_get_string":true,"length":15,"bytes":"41c080c3b0c29fc298c2800a420a43"}
+{"path":"character-channel-source","op":"braced","code":0,"type_before_get_string":"none","resident_before_get_string":true,"length":15,"bytes":"41c080c3b0c29fc298c2800a420a43"}
+{"path":"character-channel-source","op":"escaped","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":8,"bytes":"c3b0c29fc298c280"}
+{"path":"character-channel-source","op":"numeric","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":9,"bytes":"41c080eda0bdedb880"}
+{"path":"character-channel-source","op":"slashzero","code":0,"type_before_get_string":"string","resident_before_get_string":true,"length":6,"bytes":"c0807461696c"}

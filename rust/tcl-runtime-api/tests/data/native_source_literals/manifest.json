@@ -1,0 +1,182 @@
+[
+  {
+    "version": "8.4.20",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe-8.4.20"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "runs": [
+      {
+        "script": "x",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=4\tcount=1\tself0=1\tlit0_type=bytecode\n",
+        "stderr": ""
+      },
+      {
+        "script": "",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=4\tcount=1\tself0=1\tlit0_type=bytecode\n",
+        "stderr": ""
+      }
+    ],
+    "source_sha256": "bbd7ec6b2a485c9ab96e6467f45215be47754583510350858f312bde5091b0ce",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011"
+  },
+  {
+    "version": "8.5.19",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe-8.5.19"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "runs": [
+      {
+        "script": "x",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=2\nafter\tcode=0\ttype=bytecode\trefs=2\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      },
+      {
+        "script": "",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=2\nafter\tcode=0\ttype=bytecode\trefs=2\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      }
+    ],
+    "source_sha256": "bbd7ec6b2a485c9ab96e6467f45215be47754583510350858f312bde5091b0ce",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+  },
+  {
+    "version": "8.6.18",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe-8.6.18"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "runs": [
+      {
+        "script": "x",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=3\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      },
+      {
+        "script": "",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=3\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      }
+    ],
+    "source_sha256": "bbd7ec6b2a485c9ab96e6467f45215be47754583510350858f312bde5091b0ce",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+  },
+  {
+    "version": "9.0.4",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe-9.0.4"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "runs": [
+      {
+        "script": "x",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=3\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      },
+      {
+        "script": "",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=3\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      }
+    ],
+    "source_sha256": "bbd7ec6b2a485c9ab96e6467f45215be47754583510350858f312bde5091b0ce",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+  },
+  {
+    "version": "9.1.0",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/source-literal-cycle/probe-9.1.0"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "runs": [
+      {
+        "script": "x",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=3\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      },
+      {
+        "script": "",
+        "exit": 0,
+        "stdout": "before\ttype=none\trefs=3\nafter\tcode=0\ttype=bytecode\trefs=3\tcount=1\tself0=0\tlit0_type=none\n",
+        "stderr": ""
+      }
+    ],
+    "source_sha256": "bbd7ec6b2a485c9ab96e6467f45215be47754583510350858f312bde5091b0ce",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+  }
+]

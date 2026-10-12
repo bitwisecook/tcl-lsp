@@ -1,0 +1,546 @@
+{
+  "purpose": "Fresh generic original argv variable object header controls. Original header type, native references, resident bytes and result are inspected before and after actual original generic command invocation. No Rust equivalence is implied by this capture.",
+  "source_sha256": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+  "compiler": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": {
+    "argv": [
+      "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout_seconds": 60,
+    "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler_target": {
+    "argv": [
+      "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "-dumpmachine"
+    ],
+    "exit": 0,
+    "timeout_seconds": 60,
+    "stdout_sha256": "08cababdf891ccbf96eb376f1e84f279f70302fb13d84e5f98637becdfc6d989",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "engines": [
+    {
+      "engine": "8.4.20",
+      "actual_probe_version": "engine_patchlevel=8.4.20",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "compiled_probe": "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.4.20",
+      "compiled_probe_sha256": "6aa0d19570609f7669dcea730aa34c9031f441f5752eb08e63917ac97272dd5f",
+      "compile": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c",
+          "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-lz",
+          "-o",
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.4.20"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "consumed_headers": {
+        "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+        "/usr/include/stdc-predef.h": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+        "/usr/include/stdio.h": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+        "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+        "/usr/include/features.h": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+        "/usr/include/features-time64.h": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+        "/usr/include/x86_64-linux-gnu/bits/wordsize.h": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "/usr/include/x86_64-linux-gnu/bits/timesize.h": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+        "/usr/include/x86_64-linux-gnu/sys/cdefs.h": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+        "/usr/include/x86_64-linux-gnu/bits/long-double.h": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs.h": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+        "/usr/include/x86_64-linux-gnu/bits/types.h": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+        "/usr/include/x86_64-linux-gnu/bits/typesizes.h": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+        "/usr/include/x86_64-linux-gnu/bits/time64.h": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "/usr/include/x86_64-linux-gnu/bits/types/FILE.h": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+        "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+        "/usr/include/x86_64-linux-gnu/bits/floatn.h": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+        "/usr/include/x86_64-linux-gnu/bits/floatn-common.h": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+        "/usr/include/string.h": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclDecls.h": "3e89c14101bbf1969da34f6a5fecc53c57fbb0cbd69137c0fe00a2750fcdb27e",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPlatDecls.h": "8d7d5a1c6319aeed472f670ae0fb67b41d6595751079c6b67dc40cc9521f8e89"
+      },
+      "dependency_command": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+          "-M",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "bb7862abdb30940000a38e78ce527b4fb1d4a9715d65da460eef93356016a3da",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "execution": {
+        "argv": [
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.4.20"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "ea45da1adcd9e78215a93a69a3c451f3280bf3da1804b46dba7db7df65322213",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cases": 50
+    },
+    {
+      "engine": "8.5.19",
+      "actual_probe_version": "engine_patchlevel=8.5.19",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "compiled_probe": "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.5.19",
+      "compiled_probe_sha256": "1dcff07afb1e78d775e0df19bb634c336e2767a0f57bd6fa9ddf8135ea553234",
+      "compile": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c",
+          "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-lz",
+          "-o",
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.5.19"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "consumed_headers": {
+        "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+        "/usr/include/stdc-predef.h": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+        "/usr/include/stdio.h": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+        "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+        "/usr/include/features.h": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+        "/usr/include/features-time64.h": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+        "/usr/include/x86_64-linux-gnu/bits/wordsize.h": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "/usr/include/x86_64-linux-gnu/bits/timesize.h": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+        "/usr/include/x86_64-linux-gnu/sys/cdefs.h": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+        "/usr/include/x86_64-linux-gnu/bits/long-double.h": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs.h": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+        "/usr/include/x86_64-linux-gnu/bits/types.h": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+        "/usr/include/x86_64-linux-gnu/bits/typesizes.h": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+        "/usr/include/x86_64-linux-gnu/bits/time64.h": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "/usr/include/x86_64-linux-gnu/bits/types/FILE.h": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+        "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+        "/usr/include/x86_64-linux-gnu/bits/floatn.h": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+        "/usr/include/x86_64-linux-gnu/bits/floatn-common.h": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+        "/usr/include/string.h": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclDecls.h": "3affefe8c9c5399ebdc9fcab7b2765aac0cfcb9d35c7f170e19f0c611e17b6bf",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPlatDecls.h": "1d6d63ee65d5f149099fdd24589b061b788b6eca0238ae6383274a138c4999ce"
+      },
+      "dependency_command": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+          "-M",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "ff164b0e831535fc2be9f04f8e206b07952bfc36a1874bd5dce66f2f3a3eba3d",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "execution": {
+        "argv": [
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.5.19"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "ecb14ea47f43f7e4b196eac4894c7121a7aca79e8d360e3996e9d01696c8a5ed",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cases": 50
+    },
+    {
+      "engine": "8.6.18",
+      "actual_probe_version": "engine_patchlevel=8.6.18",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "compiled_probe": "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.6.18",
+      "compiled_probe_sha256": "f711fc1720af01d4bf465122ebaf8dba864956640686c29c5fcab252f7f5b19b",
+      "compile": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c",
+          "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-lz",
+          "-o",
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.6.18"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "consumed_headers": {
+        "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+        "/usr/include/stdc-predef.h": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+        "/usr/include/stdio.h": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+        "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+        "/usr/include/features.h": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+        "/usr/include/features-time64.h": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+        "/usr/include/x86_64-linux-gnu/bits/wordsize.h": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "/usr/include/x86_64-linux-gnu/bits/timesize.h": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+        "/usr/include/x86_64-linux-gnu/sys/cdefs.h": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+        "/usr/include/x86_64-linux-gnu/bits/long-double.h": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs.h": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+        "/usr/include/x86_64-linux-gnu/bits/types.h": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+        "/usr/include/x86_64-linux-gnu/bits/typesizes.h": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+        "/usr/include/x86_64-linux-gnu/bits/time64.h": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "/usr/include/x86_64-linux-gnu/bits/types/FILE.h": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+        "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+        "/usr/include/x86_64-linux-gnu/bits/floatn.h": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+        "/usr/include/x86_64-linux-gnu/bits/floatn-common.h": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+        "/usr/include/string.h": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclDecls.h": "b4072e658d9026bd81a0706e9ff02bf40f8f1f137bcd882d2a23dd25b335a144",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPlatDecls.h": "9498557f03c1a6fa8b6f6c3b16988cba9efda86bbed8d1c6b4851b09db0da7de"
+      },
+      "dependency_command": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+          "-M",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "7339118b3abdffacc913256af6e8c32d3affb19857bf642b1e73087f0497d596",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "execution": {
+        "argv": [
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-8.6.18"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "6c834750ddab59378351cc6f9075ceed69fb508455c846d57169853fff9ff483",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cases": 50
+    },
+    {
+      "engine": "9.0.4",
+      "actual_probe_version": "engine_patchlevel=9.0.4",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "compiled_probe": "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-9.0.4",
+      "compiled_probe_sha256": "8cce5abcea20b8c3c855f5443bd5d6040cddb41e64711f62027b8e1892c943e5",
+      "compile": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c",
+          "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-lz",
+          "-o",
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-9.0.4"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "consumed_headers": {
+        "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+        "/usr/include/stdc-predef.h": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+        "/usr/include/stdio.h": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+        "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+        "/usr/include/features.h": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+        "/usr/include/features-time64.h": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+        "/usr/include/x86_64-linux-gnu/bits/wordsize.h": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "/usr/include/x86_64-linux-gnu/bits/timesize.h": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+        "/usr/include/x86_64-linux-gnu/sys/cdefs.h": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+        "/usr/include/x86_64-linux-gnu/bits/long-double.h": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs.h": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+        "/usr/include/x86_64-linux-gnu/bits/types.h": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+        "/usr/include/x86_64-linux-gnu/bits/typesizes.h": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+        "/usr/include/x86_64-linux-gnu/bits/time64.h": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "/usr/include/x86_64-linux-gnu/bits/types/FILE.h": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+        "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+        "/usr/include/x86_64-linux-gnu/bits/floatn.h": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+        "/usr/include/x86_64-linux-gnu/bits/floatn-common.h": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+        "/usr/include/string.h": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclDecls.h": "28ad708ea0738fbf8bfb13dcde87ea8064220982d29b8c082df87c7987ff2c70",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPlatDecls.h": "013fb34b4b876732a421dcd56009292e9b71b768be4b57a392599e347ea8f80d"
+      },
+      "dependency_command": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+          "-M",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "5256ec68aa010856b072be92b737166f80a76debe4961fabe63b0fa156e185d1",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "execution": {
+        "argv": [
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-9.0.4"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "d670a1e6e4ef99f607889d29982b469f5484c3b827717081e555c60c07afbc11",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cases": 50
+    },
+    {
+      "engine": "9.1.0",
+      "actual_probe_version": "engine_patchlevel=9.1.0",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "compiled_probe": "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-9.1.0",
+      "compiled_probe_sha256": "f5e681778af376a0257c112d5335b919789073b0146f3c8f39570a434db8bbef",
+      "compile": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c",
+          "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-lz",
+          "-o",
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-9.1.0"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "consumed_headers": {
+        "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+        "/usr/include/stdc-predef.h": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+        "/usr/include/stdio.h": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+        "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+        "/usr/include/features.h": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+        "/usr/include/features-time64.h": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+        "/usr/include/x86_64-linux-gnu/bits/wordsize.h": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "/usr/include/x86_64-linux-gnu/bits/timesize.h": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+        "/usr/include/x86_64-linux-gnu/sys/cdefs.h": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+        "/usr/include/x86_64-linux-gnu/bits/long-double.h": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs.h": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+        "/usr/include/x86_64-linux-gnu/bits/types.h": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+        "/usr/include/x86_64-linux-gnu/bits/typesizes.h": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+        "/usr/include/x86_64-linux-gnu/bits/time64.h": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "/usr/include/x86_64-linux-gnu/bits/types/FILE.h": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+        "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+        "/usr/include/x86_64-linux-gnu/bits/floatn.h": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+        "/usr/include/x86_64-linux-gnu/bits/floatn-common.h": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+        "/usr/include/string.h": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclDecls.h": "590a2f27f095e7150bfb648f43d00c9a9ec5dbb2b936e413b551f663dc972142",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPlatDecls.h": "09b4a4fef3c23a6af2a55c2864736587ecfd9e8ccebe28cb75e95b42417e007c"
+      },
+      "dependency_command": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+          "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+          "-M",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "806f1b74386590e1e99fc545cdd7a610831f23bb97a124245b8150a5d4503b61",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "execution": {
+        "argv": [
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-9.1.0"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "9ff021f87d2062786b08473463c9cbb1c0036bd16ef3d03e4246e8fb117a8c08",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cases": 50
+    },
+    {
+      "engine": "jim",
+      "actual_probe_version": "engine_patchlevel=0.84-9-g5bac7c9",
+      "library": "/tmp/2286-oracles/jimtcl/libjim.a",
+      "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "compiled_probe": "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-jim",
+      "compiled_probe_sha256": "0ef8e59239f27a4c7519f873cdbe921747a76319aae916766aecf81246b656fa",
+      "compile": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-DJIM_PROBE",
+          "-I/tmp/2286-oracles/jimtcl",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c",
+          "/tmp/2286-oracles/jimtcl/libjim.a",
+          "-lm",
+          "-ldl",
+          "-lssl",
+          "-lcrypto",
+          "-lz",
+          "-o",
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-jim"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "consumed_headers": {
+        "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c": "f46266455d37aa2ea7a4bba79994efe4b136f8f787616b35bf9362aee40c18bf",
+        "/usr/include/stdc-predef.h": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+        "/usr/include/stdio.h": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+        "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+        "/usr/include/features.h": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+        "/usr/include/features-time64.h": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+        "/usr/include/x86_64-linux-gnu/bits/wordsize.h": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "/usr/include/x86_64-linux-gnu/bits/timesize.h": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+        "/usr/include/x86_64-linux-gnu/sys/cdefs.h": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+        "/usr/include/x86_64-linux-gnu/bits/long-double.h": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs.h": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+        "/usr/include/x86_64-linux-gnu/bits/types.h": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+        "/usr/include/x86_64-linux-gnu/bits/typesizes.h": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+        "/usr/include/x86_64-linux-gnu/bits/time64.h": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "/usr/include/x86_64-linux-gnu/bits/types/FILE.h": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+        "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+        "/usr/include/x86_64-linux-gnu/bits/floatn.h": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+        "/usr/include/x86_64-linux-gnu/bits/floatn-common.h": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+        "/usr/include/string.h": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+        "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+        "/usr/include/time.h": "502077dfa1b92bb9d166d69ab07ba536afbc5188ff0ed4e55308845e7ef9752a",
+        "/usr/include/x86_64-linux-gnu/bits/time.h": "9b34f004f183bea846379580cb3d2f19588d96b4c7faafb3ebb7c9ffd9bafd59",
+        "/usr/include/x86_64-linux-gnu/bits/types/clock_t.h": "81e60e8a8d99b28bc723c14b156d7f7fc8ff663d98a857a3f5aea90431f577e3",
+        "/usr/include/x86_64-linux-gnu/bits/types/time_t.h": "d1cc45e24a80009117f61ee4ae9cae5d12f69f38d691e0a933f989f7a1d27bb0",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h": "e7bdda3f42eb0633850ed150fef0a0cf6193cbba8fa740e7505925424a595566",
+        "/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h": "798e773d0c7f3796033c043910db2b093d1e43116c4b3d2cf3be85f8c4304cf1",
+        "/usr/include/x86_64-linux-gnu/bits/endian.h": "f559fd70d8a24202805d1d8a3546e28c427f6ce7808296002687cb6c636fd21f",
+        "/usr/include/x86_64-linux-gnu/bits/endianness.h": "659a7060004eda113671a38852c4d1e9cb97a35932bcd1d8540f98c09c180747",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h": "bc572350077d8caa24f82d5439119aa2dc184e72cc4ea325b4cd0137db51580f",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h": "22dd0ab81baadd5a8d455b445855f341d419c7b0267beca235de00b7ec78e529",
+        "/usr/include/limits.h": "59dccd0e0f84037a0be75a01efe840b7b1ebe8502cdfb49742697c49290ce18f",
+        "/usr/include/stdlib.h": "999cb2acafbb64984f99ee410a42dfd79815de184a0312d7c136e31795a952d2",
+        "/usr/include/x86_64-linux-gnu/bits/stdlib-float.h": "fdd6c94e471e2aa2e03bae449f993392a6593044490fc82601b77d7116381201",
+        "/tmp/2286-oracles/jimtcl/jim-win32compat.h": "1989ec1c19765d3fdde5bec7b30b9d2c790773c7e895a90fdad6efef2b9933ab",
+        "/tmp/2286-oracles/jimtcl/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+      },
+      "dependency_command": {
+        "argv": [
+          "/usr/bin/x86_64-linux-gnu-gcc-14",
+          "-std=c11",
+          "-DJIM_PROBE",
+          "-I/tmp/2286-oracles/jimtcl",
+          "-M",
+          "/workspace/tcl-lsp/rust/tcl-syntax/tests/data/native_generic_variable_consumers/probe.c"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "7dfecaeb726f8b31ae9d9844842de58ad17fd639af85e6c0ade8351385a19b23",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "execution": {
+        "argv": [
+          "/workspace/.proofs/2286-generic-original-variable-consumers/headers/probe-jim"
+        ],
+        "exit": 0,
+        "timeout_seconds": 60,
+        "stdout_sha256": "59fe622a989cbf1cf852d57cb47d14b99909db1677e0060683e71e01085281ed",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cases": 50
+    }
+  ]
+}

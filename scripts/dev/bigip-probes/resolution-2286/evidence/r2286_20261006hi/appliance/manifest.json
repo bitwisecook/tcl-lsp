@@ -1,0 +1,376 @@
+{
+  "run": "r2286i",
+  "kind": "additional_procedure_scope_and_unicode_controls",
+  "encoding": "UTF-8",
+  "expected_appliance_results": "UNMEASURED",
+  "objects": {
+    "partition": "R2286_r2286i",
+    "folders_create_order": [
+      "/Common/__tcl_lsp_probe_2286_r2286i_fa",
+      "/Common/__tcl_lsp_probe_2286_r2286i_fb",
+      "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa",
+      "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb",
+      "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested"
+    ],
+    "folders_delete_order": [
+      "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested",
+      "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb",
+      "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa",
+      "/Common/__tcl_lsp_probe_2286_r2286i_fb",
+      "/Common/__tcl_lsp_probe_2286_r2286i_fa"
+    ],
+    "providers": {
+      "common_root": "/Common/__tcl_lsp_probe_2286_r2286i_rootlib",
+      "common_a": "/Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib",
+      "common_b": "/Common/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib",
+      "partition_root": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib",
+      "partition_a": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib",
+      "partition_b": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib",
+      "partition_nested": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_lib"
+    },
+    "callers": {
+      "common_root": "/Common/__tcl_lsp_probe_2286_r2286i_caller",
+      "common_a": "/Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller",
+      "partition_root": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller",
+      "partition_a": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller",
+      "partition_nested": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_caller"
+    },
+    "literal_unicode": {
+      "precomposed": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_precomposed",
+      "decomposed": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_decomposed",
+      "bmp_copyright": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright",
+      "bmp_snowman": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_snowman",
+      "bmp_heart": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_heart",
+      "emoji_grinning": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_grinning",
+      "emoji_text_vs": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_text_vs",
+      "emoji_skin_tone": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_skin_tone",
+      "emoji_zwj": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_zwj",
+      "emoji_family": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_family",
+      "emoji_flag": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_flag",
+      "emoji_rainbow_flag": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_rainbow_flag",
+      "emoji_keycap": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_keycap"
+    },
+    "dynamic_unicode": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_dynamic"
+  },
+  "unicode_values": {
+    "precomposed": {
+      "text": "é",
+      "utf8_hex": "c3a9",
+      "codepoints": [
+        "U+00E9"
+      ]
+    },
+    "decomposed": {
+      "text": "é",
+      "utf8_hex": "65cc81",
+      "codepoints": [
+        "U+0065",
+        "U+0301"
+      ]
+    },
+    "bmp_copyright": {
+      "text": "©",
+      "utf8_hex": "c2a9",
+      "codepoints": [
+        "U+00A9"
+      ]
+    },
+    "bmp_snowman": {
+      "text": "☃",
+      "utf8_hex": "e29883",
+      "codepoints": [
+        "U+2603"
+      ]
+    },
+    "bmp_heart": {
+      "text": "❤",
+      "utf8_hex": "e29da4",
+      "codepoints": [
+        "U+2764"
+      ]
+    },
+    "emoji_grinning": {
+      "text": "😀",
+      "utf8_hex": "f09f9880",
+      "codepoints": [
+        "U+1F600"
+      ]
+    },
+    "emoji_text_vs": {
+      "text": "❤️",
+      "utf8_hex": "e29da4efb88f",
+      "codepoints": [
+        "U+2764",
+        "U+FE0F"
+      ]
+    },
+    "emoji_skin_tone": {
+      "text": "👍🏽",
+      "utf8_hex": "f09f918df09f8fbd",
+      "codepoints": [
+        "U+1F44D",
+        "U+1F3FD"
+      ]
+    },
+    "emoji_zwj": {
+      "text": "👩🏽‍💻",
+      "utf8_hex": "f09f91a9f09f8fbde2808df09f92bb",
+      "codepoints": [
+        "U+1F469",
+        "U+1F3FD",
+        "U+200D",
+        "U+1F4BB"
+      ]
+    },
+    "emoji_family": {
+      "text": "👨‍👩‍👧‍👦",
+      "utf8_hex": "f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6",
+      "codepoints": [
+        "U+1F468",
+        "U+200D",
+        "U+1F469",
+        "U+200D",
+        "U+1F467",
+        "U+200D",
+        "U+1F466"
+      ]
+    },
+    "emoji_flag": {
+      "text": "🇳🇿",
+      "utf8_hex": "f09f87b3f09f87bf",
+      "codepoints": [
+        "U+1F1F3",
+        "U+1F1FF"
+      ]
+    },
+    "emoji_rainbow_flag": {
+      "text": "🏳️‍🌈",
+      "utf8_hex": "f09f8fb3efb88fe2808df09f8c88",
+      "codepoints": [
+        "U+1F3F3",
+        "U+FE0F",
+        "U+200D",
+        "U+1F308"
+      ]
+    },
+    "emoji_keycap": {
+      "text": "1️⃣",
+      "utf8_hex": "31efb88fe283a3",
+      "codepoints": [
+        "U+0031",
+        "U+FE0F",
+        "U+20E3"
+      ]
+    }
+  },
+  "fixtures": [
+    {
+      "case": "provider_common_root",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_rootlib",
+      "file": "provider_common_root.conf",
+      "sha256": "f175b40fe9a4949fbb412c82ce69d9c310ac95dfcb6ad92d8a37d3d764dfefaa",
+      "size": 240,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "provider_common_a",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib",
+      "file": "provider_common_a.conf",
+      "sha256": "73ac9cba93b9bb2b55e72142202c5375a822ba94ccc8ed90257ee13ca78d2fe5",
+      "size": 267,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "provider_common_b",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib",
+      "file": "provider_common_b.conf",
+      "sha256": "bf28e1f9eb2d1ae01eecddab331a9d0f9bc4ac02834ab8301a5f5aad81c9ba21",
+      "size": 267,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "provider_partition_root",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib",
+      "file": "provider_partition_root.conf",
+      "sha256": "02f9fe2c26043d3ed64b84abab14e05c853fb91db57542bd3fe38da770c995e5",
+      "size": 246,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "provider_partition_a",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib",
+      "file": "provider_partition_a.conf",
+      "sha256": "724a33c58eb56ee7e0108a8ef47bb9397a8d4f9b37adab88a7be8b8534d6fa84",
+      "size": 273,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "provider_partition_b",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib",
+      "file": "provider_partition_b.conf",
+      "sha256": "e7aa8135a2a0552f4b42fc95aebb4328a391a2e4922ccdf3bfe4db1d2b7a810a",
+      "size": 273,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "provider_partition_nested",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_lib",
+      "file": "provider_partition_nested.conf",
+      "sha256": "4fe61c50ea8164d022e868bca842967463c7e8d0bda01b7ac48b046a01a63da7",
+      "size": 308,
+      "purpose": "unattached F5 procedure provider returning namespace current and info level 0"
+    },
+    {
+      "case": "caller_common_root",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_caller",
+      "file": "caller_common_root.conf",
+      "sha256": "563e614bc89940bb1ed13e7bb00eaf21fdc7a2db7af5c85c9b959ce979160656",
+      "size": 1790,
+      "purpose": "F5 call routing and Tcl namespace introspection with backend forwarding"
+    },
+    {
+      "case": "caller_common_a",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller",
+      "file": "caller_common_a.conf",
+      "sha256": "2321b1c6432ac7a27e8ff6c27839586802c6fd9bd494c37f3fde22761127e953",
+      "size": 1623,
+      "purpose": "F5 call routing and Tcl namespace introspection with backend forwarding"
+    },
+    {
+      "case": "caller_partition_root",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller",
+      "file": "caller_partition_root.conf",
+      "sha256": "91ca82ed2058dfb24828500bcf43e160c56a1c9bd98cea0c47b7e3ca82582c36",
+      "size": 1600,
+      "purpose": "F5 call routing and Tcl namespace introspection with backend forwarding"
+    },
+    {
+      "case": "caller_partition_a",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller",
+      "file": "caller_partition_a.conf",
+      "sha256": "4b5d60778a3cc11ab4524d68978b6f633235521f76ffbd1eb90baa29a96f58d3",
+      "size": 1835,
+      "purpose": "F5 call routing and Tcl namespace introspection with backend forwarding"
+    },
+    {
+      "case": "caller_partition_nested",
+      "object": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_caller",
+      "file": "caller_partition_nested.conf",
+      "sha256": "2e78a17beda4df1405a276072ff03b2520adb6daebc9c403c73e90c7c65fa5c8",
+      "size": 1705,
+      "purpose": "F5 call routing and Tcl namespace introspection with backend forwarding"
+    },
+    {
+      "case": "unicode_literal_precomposed",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_precomposed",
+      "file": "unicode_literal_precomposed.conf",
+      "sha256": "d2f977f1efb19a48eb4a5a9a4c4c695d39b271a2f0d8ff71009b48d3292110e1",
+      "size": 535,
+      "purpose": "literal UTF-8 log payload precomposed"
+    },
+    {
+      "case": "unicode_literal_decomposed",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_decomposed",
+      "file": "unicode_literal_decomposed.conf",
+      "sha256": "a3b7cd89cddadeff5f10753739c3480b7dd010cde50eb12088dcefe1fa1120b9",
+      "size": 533,
+      "purpose": "literal UTF-8 log payload decomposed"
+    },
+    {
+      "case": "unicode_literal_bmp_copyright",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright",
+      "file": "unicode_literal_bmp_copyright.conf",
+      "sha256": "dece4ea7e4607fc9bc67fda95d2be4dabf8f9dfeb3d448db83b397d055b012bc",
+      "size": 541,
+      "purpose": "literal UTF-8 log payload bmp_copyright"
+    },
+    {
+      "case": "unicode_literal_bmp_snowman",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_snowman",
+      "file": "unicode_literal_bmp_snowman.conf",
+      "sha256": "0f17eeb43a70aa8ac3b15a8732a2893877340cf43c6511adff1d96fdbfb04b04",
+      "size": 536,
+      "purpose": "literal UTF-8 log payload bmp_snowman"
+    },
+    {
+      "case": "unicode_literal_bmp_heart",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_heart",
+      "file": "unicode_literal_bmp_heart.conf",
+      "sha256": "353b0791bdaff7d694784f108c5e433f158f209290312a72af0df41043c60f8f",
+      "size": 530,
+      "purpose": "literal UTF-8 log payload bmp_heart"
+    },
+    {
+      "case": "unicode_literal_emoji_grinning",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_grinning",
+      "file": "unicode_literal_emoji_grinning.conf",
+      "sha256": "c266cf15a90fe1268f634cb368375412db76928b44aa165945c82625ac47b5c3",
+      "size": 546,
+      "purpose": "literal UTF-8 log payload emoji_grinning"
+    },
+    {
+      "case": "unicode_literal_emoji_text_vs",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_text_vs",
+      "file": "unicode_literal_emoji_text_vs.conf",
+      "sha256": "8de5494c6657c985582d6c954f1403c46b0bd4c320fd707a989f55df227c8501",
+      "size": 545,
+      "purpose": "literal UTF-8 log payload emoji_text_vs"
+    },
+    {
+      "case": "unicode_literal_emoji_skin_tone",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_skin_tone",
+      "file": "unicode_literal_emoji_skin_tone.conf",
+      "sha256": "28299111b8efa2932abd3641d4ff509c8da1855ef713049c7d9a0dbbf3ee15a6",
+      "size": 553,
+      "purpose": "literal UTF-8 log payload emoji_skin_tone"
+    },
+    {
+      "case": "unicode_literal_emoji_zwj",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_zwj",
+      "file": "unicode_literal_emoji_zwj.conf",
+      "sha256": "2266bb32a2a6e3907501d82481f034b808f63b95d0a005cd2de3efd6a092d424",
+      "size": 542,
+      "purpose": "literal UTF-8 log payload emoji_zwj"
+    },
+    {
+      "case": "unicode_literal_emoji_family",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_family",
+      "file": "unicode_literal_emoji_family.conf",
+      "sha256": "688d1a51931e9a514e89d25ab50674e9a3aa854df3f174843259bfd405a89e3e",
+      "size": 561,
+      "purpose": "literal UTF-8 log payload emoji_family"
+    },
+    {
+      "case": "unicode_literal_emoji_flag",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_flag",
+      "file": "unicode_literal_emoji_flag.conf",
+      "sha256": "a1a4e4293de4c03d0c4986a7a6d35517b025d78a63bd977b190d16f7aab93c1c",
+      "size": 538,
+      "purpose": "literal UTF-8 log payload emoji_flag"
+    },
+    {
+      "case": "unicode_literal_emoji_rainbow_flag",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_rainbow_flag",
+      "file": "unicode_literal_emoji_rainbow_flag.conf",
+      "sha256": "564b41716adac132e4eb03fa012431eac01963689b6949b1280595cf7f228f12",
+      "size": 568,
+      "purpose": "literal UTF-8 log payload emoji_rainbow_flag"
+    },
+    {
+      "case": "unicode_literal_emoji_keycap",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_keycap",
+      "file": "unicode_literal_emoji_keycap.conf",
+      "sha256": "c3fad6b5aa70d9d123ac8fcce845ddda7c3e889a1074120deeec7d2a1cd3707b",
+      "size": 543,
+      "purpose": "literal UTF-8 log payload emoji_keycap"
+    },
+    {
+      "case": "unicode_dynamic",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_dynamic",
+      "file": "unicode_dynamic.conf",
+      "sha256": "34309b84609c9af7a76272f11e890cb79f07224092c7a03596f98ea43e372f31",
+      "size": 1089,
+      "purpose": "runtime-materialized UTF-8 log payloads with exact byte and character evidence"
+    }
+  ]
+}

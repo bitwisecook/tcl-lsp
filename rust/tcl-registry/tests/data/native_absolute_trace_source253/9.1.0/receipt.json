@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-trace-absolute-source253/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.012766343003022484,
+  "reported_version_row": "version 9.1.0",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "fedbb2fc9b26c70cfaf67624bfa331a48bc218f1674e3e8d484a16235d183855",
+  "stdout_sha256": "2b59a96f6148c0cba4c49c519553ce00dc7f2e10af956de448fe891d80b07905",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9"
+  },
+  "rows": [
+    "version 9.1.0",
+    "trace-command trace",
+    "fire variable cb 0 VALUE {{variable B 3 ::B}}",
+    "fire command cb 0 {} {{command B 3 ::B}}",
+    "fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}}",
+    "fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}}",
+    "fire command ::Dest::cb 0 {} {{command Dest 3 ::B}}",
+    "fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}}"
+  ],
+  "input_channel": "Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.",
+  "question": "naming.callback.absolute-trace-source-lookup"
+}

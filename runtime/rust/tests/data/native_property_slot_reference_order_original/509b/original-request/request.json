@@ -1,0 +1,748 @@
+{
+  "question_id": "naming.property.original-slot-storage-reference-order",
+  "status": "fixed unlaunched original-provider request",
+  "capture_owner": "Root only",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "supported_worker": "C91 public oo::define/oo::objdefine context -> actual configuresupport slot -set -> original ResolveAll/CallSlotSet -> selected property Set accessor",
+  "unavailable_lanes": "C84/C85/C86/C90/Jim initialized command/API availability only, measured per original core; no optional extension or interpreter-wide absence inference",
+  "case_map": {
+    "0": "Class readable replacement, old cache List not held by caller",
+    "1": "Class readable replacement, caller holds real old info -all List through replacement",
+    "2": "Object readable replacement, old cache List not held by caller",
+    "3": "Object readable replacement, caller holds real old info -all List through replacement",
+    "4": "Class writable replacement, old cache List not held by caller",
+    "5": "Class writable replacement, caller holds real old info -all List through replacement"
+  },
+  "original_roles": {
+    "m0": "Original old custom member; caller +1 is released after actual declaration/cache prime, before replacement. Actual old free callback reports all incoming member references. Header read stops on actual free.",
+    "m1": "Original first incoming p header with caller +1",
+    "m2": "Independent original duplicate-name p header with caller +1",
+    "m3": "Original incoming q header with caller +1",
+    "slot List": "Actual public Slot_Set/ResolveAll producer owns its genuine references; this is not an externally supplied Set List and its count roles must not be collapsed",
+    "cache": "Actual original info -all result List. Held cases retain exactly caller +1 on that List through replacement; member refs are owned by List backing, not increased again by retaining its header."
+  },
+  "phase_map": [
+    "setup",
+    "initial",
+    "cache-prime",
+    "worker (full public definition/slot entry, including original cleanup/error-context effects)",
+    "cache-release",
+    "post-info",
+    "presentation",
+    "interp-delete",
+    "held-release"
+  ],
+  "record_channels": {
+    "ROW": "Raw original members reference/header/String and callback counters only; no member getter",
+    "EVENT": "Actual custom member update/free/duplicate callback; snapshots of all original incoming references during reached callback",
+    "LIST": "Public Tcl_ListObjGetElements on actual info result, identity versus exact held original headers; no String presentation",
+    "RESULT": "Explicit result String presentation separately labelled, may reach member getters; not part of a stock property worker stop",
+    "VERSION/BUILD/ABI/AVAILABILITY": "Actual initialized original releases, SDK widths and command surface"
+  },
+  "source_files": [
+    {
+      "path": "/tmp/receiver-native-property-order509/availability.tcl",
+      "relative_path": "availability.tcl",
+      "sha256": "c24f3092796605d28ad03b0220e5b9804e1a96f6f67d99835c3d5e75a86bd49e",
+      "bytes": 213
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/c-version.tcl",
+      "relative_path": "c-version.tcl",
+      "sha256": "0e4973e37df90a3d43c7863a53fbbd057dde507b54eadfcfa6e66b641bfde0f9",
+      "bytes": 54
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/jim-version-probe.tcl",
+      "relative_path": "jim-version-probe.tcl",
+      "sha256": "06da7d50c8fbc4dad05c55acff7ab4692095879b112996b75cfd4f7adb393437",
+      "bytes": 44
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/jim-version.tcl",
+      "relative_path": "jim-version.tcl",
+      "sha256": "7ac778f7f7d6a8b7a6b655858676620395ff7f2c0817cdc34a46124d7e0643de",
+      "bytes": 51
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/probe.c",
+      "relative_path": "probe.c",
+      "sha256": "d9514aa3fdfb0fa3e7929165a36bb82acfdf9044cd037fa07e1a6c7b901c4ab0",
+      "bytes": 11085
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/setup.tcl",
+      "relative_path": "setup.tcl",
+      "sha256": "5e8e0b26f1ea797fe51ab804176c5ff61e321b8daec1224e9c398a9c689bc395",
+      "bytes": 73
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/8.4.20/tcl.h",
+      "relative_path": "source-inspection/8.4.20/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "bytes": 84169
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/8.4.20/tclBasic.c",
+      "relative_path": "source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "bytes": 203688
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/8.5.19/tcl.h",
+      "relative_path": "source-inspection/8.5.19/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "bytes": 86963
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/8.5.19/tclBasic.c",
+      "relative_path": "source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "bytes": 203084
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/8.6.18/tclOO.h",
+      "relative_path": "source-inspection/8.6.18/tclOO.h",
+      "sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "bytes": 4284
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/8.6.18/tclOODefineCmds.c",
+      "relative_path": "source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "bytes": 70128
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.0.4/tclOO.h",
+      "relative_path": "source-inspection/9.0.4/tclOO.h",
+      "sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "bytes": 5663
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.0.4/tclOODefineCmds.c",
+      "relative_path": "source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "bytes": 115346
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclHash.c",
+      "relative_path": "source-inspection/9.1.0/tclHash.c",
+      "sha256": "18c8fee878dd7729ec8745ff8e816416b57b067a2117001e8c8ff87946fbbd62",
+      "bytes": 28812
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclListObj.c",
+      "relative_path": "source-inspection/9.1.0/tclListObj.c",
+      "sha256": "6711651457a8f8813f37c71e5e8958aca9d2e83a6fc7c7e281ae3f7ada10e81b",
+      "bytes": 119004
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOO.h",
+      "relative_path": "source-inspection/9.1.0/tclOO.h",
+      "sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "bytes": 5729
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOOCall.c",
+      "relative_path": "source-inspection/9.1.0/tclOOCall.c",
+      "sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "bytes": 64701
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOODecls.h",
+      "relative_path": "source-inspection/9.1.0/tclOODecls.h",
+      "sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "bytes": 12613
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOODefineCmds.c",
+      "relative_path": "source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "bytes": 111662
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOOProp.c",
+      "relative_path": "source-inspection/9.1.0/tclOOProp.c",
+      "sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+      "bytes": 39406
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclObj.c",
+      "relative_path": "source-inspection/9.1.0/tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "bytes": 132032
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/jim/jim.c",
+      "relative_path": "source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-inspection/jim/jim.h",
+      "relative_path": "source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "bytes": 56502
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/source-windows.json",
+      "relative_path": "source-windows.json",
+      "sha256": "3741eb5a51cb2e2551b5fb61c0ad566679ee1985b50dd38f1918c4c9e0f393ec",
+      "bytes": 19979
+    },
+    {
+      "path": "/tmp/receiver-native-property-order509/version-probe.tcl",
+      "relative_path": "version-probe.tcl",
+      "sha256": "7c7dd5703a0b7dd07cc1b060be0263d994d17e1bbe6a58719fdb43d846a88905",
+      "bytes": 38
+    }
+  ],
+  "source_anchors": [
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOOProp.c",
+      "sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+      "windows": [
+        {
+          "anchor": "SetPropertyList(",
+          "anchor_line": 938,
+          "first_line": 934,
+          "last_line": 1042,
+          "window_sha256": "53fa83cdf40faf1fb764bb1d150ad893b9215256f26732e59641f44550efdd3d"
+        },
+        {
+          "anchor": "SetPropertyList(",
+          "anchor_line": 1013,
+          "first_line": 1009,
+          "last_line": 1117,
+          "window_sha256": "77ef02a3b56495c39f19d1c9d4df656223c970f5c3231def2fc4c74a83599e96"
+        },
+        {
+          "anchor": "SetPropertyList(",
+          "anchor_line": 1038,
+          "first_line": 1034,
+          "last_line": 1142,
+          "window_sha256": "b69e9cb6db43184ce67c151df25ba652cf974bd86f24fce80dfc8c7380f7f95f"
+        },
+        {
+          "anchor": "TclOOInstallReadableProperties(",
+          "anchor_line": 1003,
+          "first_line": 999,
+          "last_line": 1107,
+          "window_sha256": "ae5becfac3a74e66b7745ae3050eda30692c057449c331b065cc4da50b98e96f"
+        },
+        {
+          "anchor": "TclOOInstallWritableProperties(",
+          "anchor_line": 1028,
+          "first_line": 1024,
+          "last_line": 1132,
+          "window_sha256": "a4b45a87773bbf74dfc9e8c5ca198088a0fbd6062cac612892f3d9681453afc4"
+        },
+        {
+          "anchor": "GetAllClassProperties(",
+          "anchor_line": 744,
+          "first_line": 740,
+          "last_line": 848,
+          "window_sha256": "8d8b6256cc77ca9b7bc98793e94f0b8d3852c7bad3cc94fb20268c47f195e733"
+        },
+        {
+          "anchor": "GetAllClassProperties(",
+          "anchor_line": 1364,
+          "first_line": 1360,
+          "last_line": 1468,
+          "window_sha256": "fa8ab830c3fcb04c6e894950f1120595c24ee49ea285a62fb4104938b7d54d67"
+        },
+        {
+          "anchor": "GetAllObjectProperties(",
+          "anchor_line": 51,
+          "first_line": 47,
+          "last_line": 155,
+          "window_sha256": "bd91a2ccbcc2398fb1e613d2327cfabf28ae754a7989b05b89f2d254bc979201"
+        },
+        {
+          "anchor": "GetAllObjectProperties(",
+          "anchor_line": 288,
+          "first_line": 284,
+          "last_line": 392,
+          "window_sha256": "4a04362af584c4b5e2fa6e7de1c51b29b4cc3805cd516b459e699c8e16fb5e30"
+        },
+        {
+          "anchor": "GetAllObjectProperties(",
+          "anchor_line": 396,
+          "first_line": 392,
+          "last_line": 500,
+          "window_sha256": "055944c57be901d5049b1f84892e41a8a1e87efe35b846bfbe7ad0c8c4164cf3"
+        },
+        {
+          "anchor": "GetAllObjectProperties(",
+          "anchor_line": 864,
+          "first_line": 860,
+          "last_line": 968,
+          "window_sha256": "51e85ddbe0affde38bec267ea2a99479068647ac00fbc92ac2f0753d09cac3b6"
+        },
+        {
+          "anchor": "GetAllObjectProperties(",
+          "anchor_line": 1426,
+          "first_line": 1422,
+          "last_line": 1490,
+          "window_sha256": "665c5eba077e0e418cc8b7429ddbb8aff3279ae32545d99c3ab8bbcccf15cf32"
+        },
+        {
+          "anchor": "TclOOInfoClassPropCmd(",
+          "anchor_line": 1319,
+          "first_line": 1315,
+          "last_line": 1423,
+          "window_sha256": "6a743a1f7d08bfbcdf0cd56ce948df446801bfa8c0a3c49bbd5e3974db659c71"
+        },
+        {
+          "anchor": "TclOOInfoObjectPropCmd(",
+          "anchor_line": 1381,
+          "first_line": 1377,
+          "last_line": 1485,
+          "window_sha256": "22ec53b4e8b2fae9fdc72a9bd0273598b7c14d7909a19e7d60c64000d814b83b"
+        }
+      ],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "windows": [
+        {
+          "anchor": "Slot_Set(",
+          "anchor_line": 3084,
+          "first_line": 3080,
+          "last_line": 3188,
+          "window_sha256": "214040c4f78d3cc60c2506fe73e6f7bb8a4b42a16917793d4a195c65e9134da7"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2732,
+          "first_line": 2728,
+          "last_line": 2836,
+          "window_sha256": "3b18b53052b75b3d5a4cd9f35327ad914f16e6a0f4e4e063cf50079a0355fad1"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2785,
+          "first_line": 2781,
+          "last_line": 2889,
+          "window_sha256": "b26c372fa7296c3aab35ffd53f0772b85fc1261c929c2a758a48e58d670e3843"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2844,
+          "first_line": 2840,
+          "last_line": 2948,
+          "window_sha256": "45b70af11ac284d7b673aec3a8794fcb0be3594e9872c90c00f296e363fdeab9"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2952,
+          "first_line": 2948,
+          "last_line": 3056,
+          "window_sha256": "df56d53be720cf181ba881bdc5dc0a4e0861f0354b3d55130818eaf9485ca83a"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2998,
+          "first_line": 2994,
+          "last_line": 3102,
+          "window_sha256": "e46720f254b8574f75d016747d9553199aadf3ff6c10d9325cadbf3f772cc56f"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 3099,
+          "first_line": 3095,
+          "last_line": 3203,
+          "window_sha256": "ee9230dbcb19e933fc8daedfc3b55507b4b9d1fc869b44c59627da5dfaf14f82"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2698,
+          "first_line": 2694,
+          "last_line": 2802,
+          "window_sha256": "bbcb3535bdf79f146b7f8064469acb6f60de965ca736372a6708d9b35e03e155"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2814,
+          "first_line": 2810,
+          "last_line": 2918,
+          "window_sha256": "6651f7bca51ec97a961b160231fc95d3939e7895f53d89eff159981b6bf49725"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2891,
+          "first_line": 2887,
+          "last_line": 2995,
+          "window_sha256": "b4bed5f716c888bf6e8a1039447dcbfe2e4bf0f6fe4cd14860754a5895521630"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2922,
+          "first_line": 2918,
+          "last_line": 3026,
+          "window_sha256": "864488e2c691935027f752f6a733d6b614450f4c002324e34b2028b78e75ae71"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2968,
+          "first_line": 2964,
+          "last_line": 3072,
+          "window_sha256": "26240f9e6b84a8edf27fa6940aa03a7879edb0ca3488feb103b7f7a34e8a48ce"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 3040,
+          "first_line": 3036,
+          "last_line": 3144,
+          "window_sha256": "644d365b86163e65f0a62532de2836e808940a48459e80e03149cc6aa16fd1d7"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 3107,
+          "first_line": 3103,
+          "last_line": 3211,
+          "window_sha256": "29ddce1bdf513491dedddfd9116dc467e3a744d0f92f4b028e6e4c3e53ff8f7a"
+        },
+        {
+          "anchor": "Configurable_ClassReadableProps_Set(",
+          "anchor_line": 3984,
+          "first_line": 3980,
+          "last_line": 4088,
+          "window_sha256": "7d4a7f6e9aae4aadf44e1e6bf1637968bce91c4e6af2c6f963e85345e3aaa117"
+        },
+        {
+          "anchor": "Configurable_ObjectReadableProps_Set(",
+          "anchor_line": 4036,
+          "first_line": 4032,
+          "last_line": 4140,
+          "window_sha256": "97f946a4bd028e2c684ba948c0456f98e05facdace2be73721e310e17aa0c22e"
+        },
+        {
+          "anchor": "Configurable_ClassWritableProps_Set(",
+          "anchor_line": 4101,
+          "first_line": 4097,
+          "last_line": 4205,
+          "window_sha256": "cb49403c26f42434bdde75caa3f45cecf9720b9dffa4df204ff4596d6eec57ca"
+        },
+        {
+          "anchor": "configuresupport::readableproperties",
+          "anchor_line": 130,
+          "first_line": 126,
+          "last_line": 234,
+          "window_sha256": "72c5fb339ca93b7060f8873e692aa33316d7e7df89619f2e2afa44919274f4ed"
+        }
+      ],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOOCall.c",
+      "sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "windows": [],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOO.h",
+      "sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "windows": [],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclOODecls.h",
+      "sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "windows": [],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "windows": [],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclHash.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclHash.c",
+      "sha256": "18c8fee878dd7729ec8745ff8e816416b57b067a2117001e8c8ff87946fbbd62",
+      "windows": [],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclListObj.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.1.0/tclListObj.c",
+      "sha256": "6711651457a8f8813f37c71e5e8958aca9d2e83a6fc7c7e281ae3f7ada10e81b",
+      "windows": [],
+      "purpose": "Actual C91 slot/ResolveAll/SetPropertyList/cache/header/list callback source chain"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/8.6.18/tclOO.h",
+      "sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "windows": [
+        {
+          "anchor": "Slot_Set(",
+          "anchor_line": 110,
+          "first_line": 106,
+          "last_line": 214,
+          "window_sha256": "5791a03a2edba90b35f36d619c65acc1c62c69f5949aab4e1fe369452e334ea0"
+        },
+        {
+          "anchor": "Slot_Set(",
+          "anchor_line": 3148,
+          "first_line": 3144,
+          "last_line": 3252,
+          "window_sha256": "3f90c3a05a55ee5fdede0239d6ddeab2241dfca95e7797c0a450437a8cfe2727"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2787,
+          "first_line": 2783,
+          "last_line": 2891,
+          "window_sha256": "7bb8140b885bb7754d9f5117f78978ec333fef40d9a4c9b5d348b0f77853382c"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2845,
+          "first_line": 2841,
+          "last_line": 2949,
+          "window_sha256": "83b51389657b6b434037e236866de2aecc7ecf94090c8d72efc60838633e94de"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 2908,
+          "first_line": 2904,
+          "last_line": 3012,
+          "window_sha256": "39f2fce7c9412787f2c3efc4ec8a3ddc21215969b84db0add7c7dea13f79b85b"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 3015,
+          "first_line": 3011,
+          "last_line": 3119,
+          "window_sha256": "aa7da5a1f020a198c283be45d045289318dfec22175bcdab514f56f39e59e4bf"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 3065,
+          "first_line": 3061,
+          "last_line": 3169,
+          "window_sha256": "e8a2807d7e715d5ec25e92b6d6a2a1f7ed6b85c2e8bfa1d5023d2d7142e01b2c"
+        },
+        {
+          "anchor": "ResolveAll(",
+          "anchor_line": 3163,
+          "first_line": 3159,
+          "last_line": 3267,
+          "window_sha256": "601adff16f0e81f6b7e91582574399fa0babf61878f7a3afab927702775b8f42"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2753,
+          "first_line": 2749,
+          "last_line": 2857,
+          "window_sha256": "204b750d8254a108bdf2da02c4675fc364043b3971d1d692d0b952ce6d4e1577"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2874,
+          "first_line": 2870,
+          "last_line": 2978,
+          "window_sha256": "3e13a49626334a17de3fd4ad539f0c41cbe1521ba631a8ee2977d4c18273656c"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2951,
+          "first_line": 2947,
+          "last_line": 3055,
+          "window_sha256": "e49f014925d25413b552fbb032c5bf33d308234cf612b0c87efd6308115c5fcf"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 2984,
+          "first_line": 2980,
+          "last_line": 3088,
+          "window_sha256": "57c1a696971f94522583e07ce7cbbdedd154245453a965403975bcb1bd424171"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 3031,
+          "first_line": 3027,
+          "last_line": 3135,
+          "window_sha256": "b474f187bdb376b33915894b927290a99e1f69676d72c1a12ee76bb71735bbab"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 3104,
+          "first_line": 3100,
+          "last_line": 3208,
+          "window_sha256": "70e1c2cdd842dfcff8e18184f712db30a6a9da0804f3e04adf4730582b112454"
+        },
+        {
+          "anchor": "CallSlotSet(",
+          "anchor_line": 3171,
+          "first_line": 3167,
+          "last_line": 3275,
+          "window_sha256": "1259d402c4dc6b151e4ab03e38e6deaa4312b0298aff22a26cd5aa982f390ca4"
+        },
+        {
+          "anchor": "Configurable_ClassReadableProps_Set(",
+          "anchor_line": 164,
+          "first_line": 160,
+          "last_line": 268,
+          "window_sha256": "e35d165f0ecca4618bfb8b3d3eae507da37dfa124a0ab7752730303790956a78"
+        },
+        {
+          "anchor": "Configurable_ClassReadableProps_Set(",
+          "anchor_line": 4075,
+          "first_line": 4071,
+          "last_line": 4179,
+          "window_sha256": "2ffe4b5ccde7bc41ac803e5c42d5019cb44d502e6e057fc570ce4bb6ca06db2e"
+        },
+        {
+          "anchor": "Configurable_ObjectReadableProps_Set(",
+          "anchor_line": 176,
+          "first_line": 172,
+          "last_line": 280,
+          "window_sha256": "3692e87c2df21f7c9d2db9c38a284bc1cfb2c023fd3cbfd3cb1133f8fdc883c9"
+        },
+        {
+          "anchor": "Configurable_ObjectReadableProps_Set(",
+          "anchor_line": 4127,
+          "first_line": 4123,
+          "last_line": 4231,
+          "window_sha256": "b4c0d6a8f3e9275ac700eab6409dab0d4d2a9b1dc90ad4c10be3dfed6d4293bd"
+        },
+        {
+          "anchor": "Configurable_ClassWritableProps_Set(",
+          "anchor_line": 170,
+          "first_line": 166,
+          "last_line": 274,
+          "window_sha256": "b29800e6ba929a7bf16ed4a3e8b526fae40ee190482c434f325bb80aba2e5cef"
+        },
+        {
+          "anchor": "Configurable_ClassWritableProps_Set(",
+          "anchor_line": 4192,
+          "first_line": 4188,
+          "last_line": 4296,
+          "window_sha256": "42c7bf950622c357c7c6a90bc88ea312522b1b0f36262cd9c6a05ace3a511200"
+        },
+        {
+          "anchor": "configuresupport::readableproperties",
+          "anchor_line": 201,
+          "first_line": 197,
+          "last_line": 305,
+          "window_sha256": "d341106caa8be3e1e69e3b915359e3a48c5e2d9327a948f2c2b37ee669b7a832"
+        }
+      ],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/9.0.4/tclOO.h",
+      "sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/8.4.20/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "8.5.19",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "8.5.19",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/8.5.19/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "jim",
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    },
+    {
+      "provider": "jim",
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "copy_path": "/tmp/receiver-native-property-order509/source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "windows": [],
+      "purpose": "Actual initialized core/public SDK capability only; no optional class extension absence claim"
+    }
+  ],
+  "purpose_limits": [
+    "No result or native ordering assertion before Root closes exact original processes",
+    "Full public definition/Slot -set path is retained. Source join must distinguish helper-created List references from SetPropertyList all-incoming storage holds.",
+    "A ROW after non-OK public return may include original EvalObjv error-context String effects; do not assign every EVENT to the stock Set accessor.",
+    "Old cache release, old declaration-member release and held List lifetime are independent native roles, not namespace/incarnation or runtime Host currency evidence.",
+    "No source-owner, Native method/frame/lookup/edit, external BIG-IP, optional package or scalar ABI permission donated.",
+    "No Rust property boundary equivalence implied: current505 retains a different incoming-string/dedup versus old-retire chronology, which remains open until separate implementation and matched observation."
+  ],
+  "required_receipts": [
+    "All six exact compiler/dependency/link/CLI-version/execution status/stdout/stderr/argv/cwd/selected environment captured without source patch or silent retry",
+    "Original public/private headers/config/library/source/ELF/linker and source tree inputs pinned before and after each reached process",
+    "Full raw CASE/ROW/EVENT/LIST/RESULT records retained with source/ref-role association; six fresh C91 cases finite",
+    "Actual failed/unavailable lane records preserved as scoped core/API facts, not synthesized positives"
+  ]
+}

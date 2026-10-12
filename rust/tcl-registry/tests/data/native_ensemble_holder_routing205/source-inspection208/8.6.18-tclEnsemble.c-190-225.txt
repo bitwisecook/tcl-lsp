@@ -1,0 +1,36 @@
+	 * Check that we've got option-value pairs... [Bug 1558654]
+	 */
+
+	if (objc & 1) {
+	    Tcl_WrongNumArgs(interp, 2, objv, "?option value ...?");
+	    return TCL_ERROR;
+	}
+	objv += 2;
+	objc -= 2;
+
+	name = nsPtr->name;
+	cxtPtr = (Namespace *) nsPtr->parentPtr;
+
+	/*
+	 * Parse the option list, applying type checks as we go. Note that we
+	 * are not incrementing any reference counts in the objects at this
+	 * stage, so the presence of an option multiple times won't cause any
+	 * memory leaks.
+	 */
+
+	for (; objc>1 ; objc-=2,objv+=2) {
+	    if (Tcl_GetIndexFromObj(interp, objv[0], ensembleCreateOptions,
+		    "option", 0, &index) != TCL_OK) {
+		if (allocatedMapFlag) {
+		    Tcl_DecrRefCount(mapObj);
+		}
+		return TCL_ERROR;
+	    }
+	    switch ((enum EnsCreateOpts) index) {
+	    case CRT_CMD:
+		name = TclGetString(objv[1]);
+		cxtPtr = nsPtr;
+		continue;
+	    case CRT_SUBCMDS:
+		if (TclListObjLength(interp, objv[1], &len) != TCL_OK) {
+		    if (allocatedMapFlag) {

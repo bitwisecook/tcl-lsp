@@ -1,0 +1,41 @@
+{
+  "request": "/workspace/.proofs/grammar-owner-validation-current525-final/tcl-lsp-core-lib.json",
+  "request_sha256": "9139c605c90aef36e2fb8a123af1c3dd82fcc55cfc8d9043d8f8fd1a486139d6",
+  "additional_root_editor_packet": "/workspace/.proofs/root-editor-name-consumers400/manifest.json",
+  "own_image": "/workspace/.pins/naming-owned350/pinned-core350.elf",
+  "own_image_sha256": "1110a8023621cf852c8ee8b68cd8e20a70bca24bde6a8acf5591111bcaf813f0",
+  "own_inventory": "/workspace/.proofs/integration-core-own-list350.log",
+  "own_inventory_sha256": "e28ccec6ae64504f1d2ad20e17cc833b678d034de4be905c200c8dc3b215092b",
+  "inventory_count": 2967,
+  "literal_selectors": [
+    "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+    "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+    "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+    "executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates",
+    "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+    "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+    "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+    "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+    "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+    "package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom",
+    "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+    "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+    "refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence",
+    "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config"
+  ],
+  "literal_count": 14,
+  "scope": "Actual owned Core350 original14 comparator assertions only. Original347 outcomes are independent; no Server/Native/other package assertion grant.",
+  "frozen350_source_pins": {
+    "rust/tcl-lsp-core/src/caller_frame.rs": "9acf761b630c8aab84b7232f998b276f1f11f8867542c8d03954b8b38a498cb0",
+    "rust/tcl-lsp-core/src/declaration.rs": "cfc433a74bf3edd1fcfcda8a6bc8e9f28e7dd71cad4e8dd31707591449835fda",
+    "rust/tcl-lsp-core/src/executable_regions.rs": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+    "rust/tcl-lsp-core/src/formatting/engine.rs": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+    "rust/tcl-lsp-core/src/formatting/mod.rs": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+    "rust/tcl-lsp-core/src/minify.rs": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+    "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+    "rust/tcl-lsp-core/src/refactor/inline_proc.rs": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+    "rust/tcl-lsp-core/src/references.rs": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+    "rust/tcl-lsp-core/src/code_actions.rs": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d"
+  }
+}

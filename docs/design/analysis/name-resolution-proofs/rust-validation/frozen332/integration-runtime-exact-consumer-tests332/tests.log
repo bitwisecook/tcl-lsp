@@ -1,0 +1,119 @@
+
+running 291 tests
+test builtins::native_variable_operand_tests::original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold ... 
+thread 'builtins::native_variable_operand_tests::original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold' (1213867) panicked at src/builtins/native_variable_operand_tests.rs:246:66:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test builtins::native_variable_operand_tests::original_increment_successful_rows_keep_legacy_amount_before_modern_name ... ok
+test builtins::native_variable_operand_tests::original_increment_write_callback_keeps_reached_store_before_first_cause_settlement ... 
+thread 'builtins::native_variable_operand_tests::original_increment_write_callback_keeps_reached_store_before_first_cause_settlement' (1213921) panicked at src/builtins/native_variable_operand_tests.rs:347:66:
+called `Option::unwrap()` on a `None` value
+FAILED
+test builtins::native_variable_operand_tests::original_unset_prefix_effect_survives_host_refusal_without_reading_later_name ... 
+thread 'builtins::native_variable_operand_tests::original_unset_prefix_effect_survives_host_refusal_without_reading_later_name' (1213922) panicked at src/builtins/native_variable_operand_tests.rs:290:61:
+called `Option::unwrap()` on a `None` value
+FAILED
+test builtins::native_variable_operand_tests::original_unset_successful_rows_preserve_sequential_original_names ... ok
+test builtins::tests::a_cached_expression_is_revalidated_when_the_release_changes ... ok
+test builtins::tests::a_condition_object_caches_its_ast_and_keeps_its_spelling ... ok
+test builtins::tests::a_loop_condition_parses_once_for_the_whole_loop ... ok
+test bytearray::native_scalar_string_refusal_tests::original_primitive_scalar_storage_admission_precedes_bytearray_materialization ... ok
+test bytearray::native_scalar_string_refusal_tests::original_primitive_scalar_string_access_keeps_capacity_and_first_host_cause ... ok
+test capi::collections::tests::original_collection_dictionary_members_require_their_retained_protocol ... ok
+test capi::collections::tests::original_collection_empty_and_abstract_length_keep_their_actual_cache_purposes ... ok
+test capi::collections::tests::original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view ... ok
+test capi::collections::tests::original_collection_parse_failure_keeps_original_primary_and_owned_children ... ok
+test capi::collections::tests::original_collection_rc0_views_keep_header_and_backing_copy_on_write_separate ... ok
+test capi::collections::tests::original_collection_retirement_runs_once_before_later_cache_publication ... ok
+test capi::collections::tests::original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs ... ok
+test capi::collections::tests::original_index_cache_keeps_table_stride_protocol_and_selected_output_width ... ok
+test capi::scalar::tests::scalar_context_does_not_keep_engine_or_retired_object_alive ... ok
+test capi::scalar::tests::scalar_context_duplicate_and_replacement_keep_owner_without_native_refs ... ok
+test capi::scalar::tests::scalar_context_missing_numeric_abi_and_first_host_cause_are_terminal ... ok
+test capi::scalar::tests::scalar_context_recheck_retains_reached_cache_and_refuses_later_policy_change ... ok
+test capi::scalar::tests::scalar_context_rejects_foreign_engine_and_policy_change_and_restore ... ok
+test capi::scalar::tests::scalar_context_same_profile_world_change_and_restore_cannot_revive_issuer ... ok
+test capi::scalar::tests::scalar_engine_importer_issues_context_only_for_selected_scalar_purpose ... ok
+test capi::scalar::tests::scalar_jim_context_cannot_borrow_a_foreign_original_numeric_host ... ok
+test capi::scalar::tests::scalar_jim_public_boolean_keeps_raw_integer_separate_from_expression_truth ... ok
+test capi::scalar::tests::scalar_null_access_requires_original_engine_and_changes_no_guest_state ... ok
+test capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives ... 
+thread 'capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives' (1213947) panicked at src/capi/scalar/tests.rs:432:5:
+assertion `left == right` failed: tcl8.4: {"after": "NULL", "before": "NULL", "case": "16", "code": "1", "double_bits": "40884a0000000000", "errno": "0", "error_code": "53454544454420434f4445", "getter": "3", "input_after_observers": "626164", "int": "777", "long": "777", "mode": "live", "result": "657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202262616422", "string_after": "1", "string_before": "1", "string_same": "1", "wide": "777"}
+  left: "4088480000000000"
+ right: "40884a0000000000"
+FAILED
+test cmd_alias::original_alias_key_tests::original_alias_rename_keeps_measured_record_and_destination_key_roles ... ok
+test cmd_alias::original_alias_key_tests::original_alias_replacement_keeps_measured_name_key_and_query_roles ... ok
+test cmd_alias::original_alias_key_tests::original_jim_key_retirement_runs_before_value_cleanup_without_adopting_replacement ... ok
+test cmd_alias::original_alias_key_tests::original_jim_rename_qualification_and_table_key_keep_distinct_native_references ... ok
+test cmd_alias::original_alias_key_tests::original_jim_replacement_refusal_keeps_occupied_key_and_reached_name_result ... ok
+test cmd_alias::original_alias_storage_tests::original_alias_capture_and_query_match_the_measured_member_and_header_recipe ... 
+thread 'cmd_alias::original_alias_storage_tests::original_alias_capture_and_query_match_the_measured_member_and_header_recipe' (1213953) panicked at src/cmd_alias.rs:3906:22:
+actual original object command
+FAILED
+test cmd_alias::original_alias_storage_tests::original_alias_query_retains_unread_members_until_the_last_query_is_released ... ok
+test cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role ... 
+thread 'cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role' (1213955) panicked at src/cmd_alias.rs:4156:18:
+actual parent object command
+FAILED
+test cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation ... 
+thread 'cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation' (1213966) panicked at src/cmd_alias.rs:3325:79:
+called `Option::unwrap()` on a `None` value
+FAILED
+test cmd_alias::original_operand_tests::original_alias_reads_stop_before_later_prefix_and_publication ... ok
+test cmd_alias::original_operand_tests::original_child_alias_adapters_keep_guest_code_result_and_typed_refusal ... ok
+test cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication ... 
+thread 'cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication' (1213969) panicked at src/cmd_alias.rs:3580:79:
+called `Option::unwrap()` on a `None` value
+FAILED
+test cmd_alias::original_operand_tests::original_hidden_child_result_getter_preserves_namespace_cleanup_and_first_cause ... ok
+test cmd_alias::original_operand_tests::original_interpreter_options_and_names_keep_actual_read_order_and_refusal ... ok
+test cmd_alias::original_operand_tests::original_interpreter_path_reads_selected_list_and_original_elements ... ok
+test cmd_alias::original_rename_operation_tests::original_rename_observers_keep_reached_effects_and_stop_later_result_publication ... 
+thread 'cmd_alias::original_rename_operation_tests::original_rename_observers_keep_reached_effects_and_stop_later_result_publication' (1213973) panicked at src/cmd_alias.rs:3674:26:
+actual callback variable effect remains
+FAILED
+test cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header ... 
+thread 'cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header' (1213974) panicked at src/interp/native_operation_currency.rs:175:9:
+assertion `left == right` failed
+  left: 3
+ right: 2
+
+thread 'cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header' (1213974) panicked at src/interp/native_operation_currency.rs:175:9:
+assertion `left == right` failed
+  left: 2
+ right: 1
+stack backtrace:
+   0:     0x55c2780feb61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x55c27811778a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x55c278105b6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x55c2780d6906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x55c2780f47c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x55c2780f4aeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x55c2780d69b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x55c2780cf229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x55c2780d787d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x55c27811802c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x55c278117ec3 - core[a9090a07a7fa7517]::panicking::assert_failed_inner
+  11:     0x55c27811277d - core[a9090a07a7fa7517]::panicking::assert_failed::<usize, usize>
+  12:     0x55c276bfc9d2 - <tcl_runtime[a8162d2466741ade]::interp::native_operation_currency::NativeOperationScope as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  13:     0x55c27730b9fd - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::native_operation_currency::NativeOperationScope>
+  14:     0x55c277309f69 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::native_arguments::OriginalArguments>
+  15:     0x55c2774a4afa - tcl_runtime[a8162d2466741ade]::cmd_array::array_cmd
+  16:     0x55c276bcab8d - tcl_runtime[a8162d2466741ade]::cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header
+  17:     0x55c276b55fd3 - tcl_runtime[a8162d2466741ade]::cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header::{closure#0}
+  18:     0x55c2773960d6 - <tcl_runtime[a8162d2466741ade]::cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  19:     0x55c27772516b - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  20:     0x55c2777327d5 - test[de0ab365ed256f3]::run_test::{closure#0}
+  21:     0x55c27772d194 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  22:     0x55c277735932 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  23:     0x55c2780fda69 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  24:     0x7f99dd8b2b7b - <unknown>
+  25:     0x7f99dd9307f8 - <unknown>
+  26:                0x0 - <unknown>
+
+thread 'cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header' (1213974) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:233:5:
+panic in a destructor during cleanup
+thread caused non-unwinding panic. aborting.

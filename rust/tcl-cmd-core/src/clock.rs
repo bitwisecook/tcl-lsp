@@ -81,7 +81,7 @@ where
     let Some((sub, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("clock subcommand ?arg ...?"));
     };
-    let word = ops.as_str(sub).to_string();
+    let word = ops.try_as_str(sub)?.to_string();
     // `clock` is an ensemble, so an exact name wins and a unique prefix
     // resolves (`clock se` → `seconds`); the whole miss sentence — including
     // the ensemble's comma before `or` — belongs to `crate::ensemble`.
@@ -140,7 +140,7 @@ where
 {
     let val = match rest {
         [] => now.micros,
-        [opt] => match &*ops.as_str(opt) {
+        [opt] => match &*ops.try_as_str(opt)? {
             "-milliseconds" => now.millis,
             "-microseconds" => now.micros,
             other => {
@@ -177,12 +177,12 @@ where
     let mut gmt = false;
     let mut i = 0;
     while i < opts.len() {
-        let name = ops.as_str(&opts[i]).to_string();
+        let name = ops.try_as_str(&opts[i])?.to_string();
         let value = opts
             .get(i + 1)
             .ok_or_else(|| CmdError::new(format!("value for \"{name}\" missing")))?;
         match name.as_str() {
-            "-format" => fmt = ops.as_str(value).to_string(),
+            "-format" => fmt = ops.try_as_str(value)?.to_string(),
             "-gmt" => gmt = ops.as_bool(value)?,
             "-timezone" | "-locale" => {} // accepted, not yet honoured
             other => {
@@ -219,7 +219,7 @@ where
     let mut gmt = false;
     let mut i = 0;
     while i < rest.len() {
-        let word = ops.as_str(&rest[i]).to_string();
+        let word = ops.try_as_str(&rest[i])?.to_string();
         match word.as_str() {
             "-gmt" | "-timezone" | "-locale" | "-base" => {
                 let value = rest
@@ -236,7 +236,7 @@ where
                 let unit = rest
                     .get(i + 1)
                     .ok_or_else(|| CmdError::new("missing unit of measure"))?;
-                let unit = ops.as_str(unit).to_string();
+                let unit = ops.try_as_str(unit)?.to_string();
                 t = add_units(t, count, &unit, gmt, local_offset)?;
                 i += 2;
             }
@@ -335,18 +335,18 @@ where
             "clock scan inputString ?-base clockVal? ?-format string? ?-gmt boolean? ?-locale locale? ?-timezone zone?",
         ));
     };
-    let input = ops.as_str(input).to_string();
+    let input = ops.try_as_str(input)?.to_string();
     let mut fmt: Option<String> = None;
     let mut gmt = false;
     let mut base = now.secs;
     let mut i = 0;
     while i < opts.len() {
-        let name = ops.as_str(&opts[i]).to_string();
+        let name = ops.try_as_str(&opts[i])?.to_string();
         let value = opts
             .get(i + 1)
             .ok_or_else(|| CmdError::new(format!("value for \"{name}\" missing")))?;
         match name.as_str() {
-            "-format" => fmt = Some(ops.as_str(value).to_string()),
+            "-format" => fmt = Some(ops.try_as_str(value)?.to_string()),
             "-gmt" => gmt = ops.as_bool(value)?,
             "-base" => base = ops.as_int(value)?,
             "-timezone" | "-locale" => {}
@@ -903,11 +903,15 @@ mod tests {
         assert_eq!(
             parse_with_format("2023-13-01", "%Y-%m-%d")
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             "unable to convert input string: invalid month"
         );
         assert_eq!(
-            parse_with_format("xyz", "%Y").unwrap_err().message(),
+            parse_with_format("xyz", "%Y")
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "input string does not match supplied format"
         );
     }
@@ -955,26 +959,30 @@ mod tests {
         assert_eq!(
             add_units(0, i64::MAX, "weeks", true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         assert_eq!(
             add_units(i64::MAX, 1, "seconds", true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         // Calendar months/years go through the i128 month tally + civil clamp.
         assert_eq!(
             add_units(0, i64::MAX, "months", true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         assert_eq!(
             add_units(0, i64::MAX, "years", true, &off)
                 .unwrap_err()
-                .message(),
+                .message()
+                .unwrap(),
             msg
         );
         // A non-overflowing add still works on the i128 path.
@@ -987,7 +995,10 @@ mod tests {
         // accumulator — `read_uint` returns the clean overflow error.
         let mut ip = 0;
         let err = read_uint(b"9999999999999999999", &mut ip, 19).unwrap_err();
-        assert_eq!(err.message(), "integer value too large to represent");
+        assert_eq!(
+            err.message().unwrap(),
+            "integer value too large to represent"
+        );
         // In-range values still parse.
         let mut ip = 0;
         assert_eq!(read_uint(b"2023", &mut ip, 4).unwrap(), 2023);

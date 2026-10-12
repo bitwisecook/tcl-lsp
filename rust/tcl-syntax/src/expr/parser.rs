@@ -46,8 +46,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
 use tcl_lexer::{ExprToken, ExprTokenType};
 
-use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
-use crate::naming::normalise_var_name;
+use crate::expr::ast::{BinOp, ExprNode, ExprText, UnaryOp};
+use crate::naming::variable_reference_root_bytes;
 
 /// Binding powers for binary operators: `(left_bp, right_bp)`.
 ///
@@ -80,7 +80,7 @@ fn binary_bp(op_text: &str) -> Option<(u8, u8)> {
 }
 
 /// Map operator text to its [`BinOp`] variant.
-fn binop_from_text(text: &str) -> Option<BinOp> {
+pub(super) fn binop_from_text(text: &str) -> Option<BinOp> {
     Some(match text {
         "+" => BinOp::Add,
         "-" => BinOp::Sub,
@@ -123,7 +123,7 @@ fn binop_from_text(text: &str) -> Option<BinOp> {
 }
 
 /// Map operator text to its [`UnaryOp`] variant.
-fn unaryop_from_text(text: &str) -> Option<UnaryOp> {
+pub(super) fn unaryop_from_text(text: &str) -> Option<UnaryOp> {
     Some(match text {
         "-" => UnaryOp::Neg,
         "+" => UnaryOp::Pos,
@@ -149,13 +149,60 @@ pub(super) fn is_binary_operator(text: &str) -> bool {
     binop_from_text(text).is_some()
 }
 
+pub(super) fn parse_native_token_stream(
+    source: &[u8],
+    context: &ExprParseContext,
+    tokens: &mut Vec<ExprToken<Vec<u8>>>,
+    failures: Vec<tcl_lexer::ExprLexicalFailure>,
+) -> CheckedExprParse<Vec<u8>> {
+    checked::parse_native_tokens(source, context, tokens, failures)
+}
+
 /// Binding power for prefix unary operators (higher than any binary).
 const UNARY_BP: u8 = 24;
 
 /// Internal parse error — caught by [`parse_expr`] and converted to
 /// [`ExprNode::Raw`].
-#[derive(Debug)]
-struct ParseError;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParseError {
+    DepthLimit,
+    Syntax {
+        reason: ExprParseFailureReason,
+        in_function: bool,
+        token: Option<(crate::expr::ExprOffset, crate::expr::ExprOffset)>,
+    },
+}
+
+/// A parser failure distinguished from unsupported lexer or nesting evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ExprParseFailureReason {
+    /// An identifier has no argument parentheses and is not a Boolean word.
+    Bareword,
+    /// An expression or required operand ends before it is complete.
+    PrematureEnd,
+    /// A required delimiter or operand has a different token kind.
+    UnexpectedToken,
+    /// A completed function argument is not followed by its comma or closer.
+    MissingFunctionClose,
+    /// A numeric-looking token does not belong to the selected number grammar.
+    InvalidNumber,
+    /// A complete left expression has unconsumed tokens.
+    UnconsumedTokens,
+    /// An operator belongs to a later selected expression grammar.
+    UnavailableOperator,
+}
+
+/// Native function argument syntax, independently of function identity and arity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum NativeFunctionCallSyntax {
+    /// Every comma separates two expressions.
+    #[default]
+    Strict,
+    /// C Tcl 8.4 permits a comma immediately before the closing parenthesis.
+    TrailingComma,
+    /// Jim 0.84 ignores empty comma-separated argument segments.
+    IgnoreEmptyArguments,
+}
 
 /// Maximum nesting depth for the recursive-descent `expression`
 /// parser.  Deeply-nested input (`((((…))))`, chained unary/ternary)
@@ -167,48 +214,64 @@ struct ParseError;
 const MAX_EXPR_DEPTH: usize = 256;
 
 /// Pratt (top-down operator precedence) parser for Tcl expressions.
-struct PrattParser<'a> {
-    tokens: &'a [ExprToken],
+struct PrattParser<'a, Text: ExprText = String> {
+    tokens: &'a [ExprToken<Text>],
     pos: usize,
     /// Current recursion depth, bounded by [`MAX_EXPR_DEPTH`].
     depth: usize,
+    function_depth: usize,
+    function_syntax: NativeFunctionCallSyntax,
     /// The release's numeric-literal grammar, used to reject a `Number` token
     /// the lexer only delimited.
     numbers: NumberSyntax,
     /// The profile's word-operator grammar, paired with [`Self::numbers`] for
     /// the shared expression-number boundary validation.
     expr_grammar_base: Option<TclVersion>,
+    variable_config: tcl_lexer::LexerConfig,
 }
 
-impl<'a> PrattParser<'a> {
+impl<'a, Text: ExprText> PrattParser<'a, Text> {
     fn new(
-        tokens: &'a [ExprToken],
-        numbers: NumberSyntax,
+        tokens: &'a [ExprToken<Text>],
+        grammar: tcl_dialect::LexerGrammar,
         expr_grammar_base: Option<TclVersion>,
     ) -> Self {
         Self {
             tokens,
             pos: 0,
             depth: 0,
-            numbers,
+            function_depth: 0,
+            function_syntax: NativeFunctionCallSyntax::Strict,
+            numbers: grammar.numbers,
             expr_grammar_base,
+            variable_config: tcl_lexer::LexerConfig::from_grammar(grammar),
         }
     }
 
-    fn peek(&self) -> Option<&'a ExprToken> {
+    fn peek(&self) -> Option<&'a ExprToken<Text>> {
         self.tokens.get(self.pos)
     }
 
-    fn advance(&mut self) -> &'a ExprToken {
+    fn advance(&mut self) -> &'a ExprToken<Text> {
         let tok = &self.tokens[self.pos];
         self.pos += 1;
         tok
     }
 
-    fn expect(&mut self, kind: ExprTokenType) -> Result<&'a ExprToken, ParseError> {
-        let tok = self.peek().ok_or(ParseError)?;
+    fn failure(&self, reason: ExprParseFailureReason) -> ParseError {
+        ParseError::Syntax {
+            reason,
+            in_function: self.function_depth != 0,
+            token: self.peek().map(|token| (token.start, token.end)),
+        }
+    }
+
+    fn expect(&mut self, kind: ExprTokenType) -> Result<&'a ExprToken<Text>, ParseError> {
+        let tok = self
+            .peek()
+            .ok_or_else(|| self.failure(ExprParseFailureReason::PrematureEnd))?;
         if tok.kind != kind {
-            return Err(ParseError);
+            return Err(self.failure(ExprParseFailureReason::UnexpectedToken));
         }
         Ok(self.advance())
     }
@@ -218,18 +281,18 @@ impl<'a> PrattParser<'a> {
     /// Depth-guarded: every recursive descent (prefix unary, parens,
     /// ternary arms, function args) re-enters here, so bounding this one
     /// entry point caps the whole recursion at [`MAX_EXPR_DEPTH`].
-    fn expression(&mut self, min_bp: u8) -> Result<ExprNode, ParseError> {
+    fn expression(&mut self, min_bp: u8) -> Result<ExprNode<Text>, ParseError> {
         self.depth += 1;
         if self.depth > MAX_EXPR_DEPTH {
             self.depth -= 1;
-            return Err(ParseError);
+            return Err(ParseError::DepthLimit);
         }
         let result = self.expression_inner(min_bp);
         self.depth -= 1;
         result
     }
 
-    fn expression_inner(&mut self, min_bp: u8) -> Result<ExprNode, ParseError> {
+    fn expression_inner(&mut self, min_bp: u8) -> Result<ExprNode<Text>, ParseError> {
         let mut left = self.prefix()?;
 
         while let Some(tok) = self.peek() {
@@ -252,7 +315,7 @@ impl<'a> PrattParser<'a> {
 
             // Binary operators
             if tok.kind == ExprTokenType::Operator {
-                let Some(bp) = binary_bp(&tok.text) else {
+                let Some(bp) = binary_bp(tok.text.try_text().unwrap_or_default()) else {
                     break;
                 };
                 let (left_bp, right_bp) = bp;
@@ -261,7 +324,8 @@ impl<'a> PrattParser<'a> {
                 }
                 let op_text = self.advance().text.clone();
                 let right = self.expression(right_bp)?;
-                let binop = binop_from_text(&op_text).ok_or(ParseError)?;
+                let binop = binop_from_text(op_text.try_text().unwrap_or_default())
+                    .ok_or_else(|| self.failure(ExprParseFailureReason::UnexpectedToken))?;
                 left = ExprNode::Binary {
                     op: binop,
                     left: Box::new(left),
@@ -277,12 +341,14 @@ impl<'a> PrattParser<'a> {
     }
 
     /// Parse a prefix expression (atoms, unary operators, parens, function calls).
-    fn prefix(&mut self) -> Result<ExprNode, ParseError> {
-        let tok = self.peek().ok_or(ParseError)?;
+    fn prefix(&mut self) -> Result<ExprNode<Text>, ParseError> {
+        let tok = self
+            .peek()
+            .ok_or_else(|| self.failure(ExprParseFailureReason::PrematureEnd))?;
 
         // Unary operators
         if tok.kind == ExprTokenType::Operator
-            && let Some(op) = unaryop_from_text(&tok.text)
+            && let Some(op) = unaryop_from_text(tok.text.try_text().unwrap_or_default())
         {
             self.advance();
             let operand = self.expression(UNARY_BP)?;
@@ -309,8 +375,12 @@ impl<'a> PrattParser<'a> {
         // what produces `invalid bareword "0o8"` instead of silently evaluating
         // the literal to its own text.
         if tok.kind == ExprTokenType::Number {
-            if !crate::number::is_expr_number(&tok.text, self.numbers, self.expr_grammar_base) {
-                return Err(ParseError);
+            if !crate::number::is_expr_number(
+                tok.text.try_text().unwrap_or_default(),
+                self.numbers,
+                self.expr_grammar_base,
+            ) {
+                return Err(self.failure(ExprParseFailureReason::InvalidNumber));
             }
             let tok = self.advance();
             return Ok(ExprNode::Literal {
@@ -333,7 +403,7 @@ impl<'a> PrattParser<'a> {
         // Boolean literal. The lexer retains `Bool` for full-word highlighting,
         // while prefixes arrive as identifier-shaped `Function` tokens.
         if matches!(tok.kind, ExprTokenType::Bool | ExprTokenType::Function)
-            && crate::boolean::parse_boolean_word(&tok.text).is_some()
+            && crate::boolean::parse_boolean_word(tok.text.try_text().unwrap_or_default()).is_some()
         {
             let tok = self.advance();
             return Ok(ExprNode::Literal {
@@ -356,7 +426,10 @@ impl<'a> PrattParser<'a> {
         // Variable reference
         if tok.kind == ExprTokenType::Variable {
             let tok = self.advance();
-            let name = normalise_var_name(&tok.text).to_owned();
+            let name = variable_reference_root_bytes(tok.text.bytes(), self.variable_config)
+                .map_err(|_| self.failure(ExprParseFailureReason::UnexpectedToken))?
+                .ok_or_else(|| self.failure(ExprParseFailureReason::UnexpectedToken))?;
+            let name = Text::from_source_bytes(name);
             return Ok(ExprNode::Var {
                 text: tok.text.clone(),
                 name,
@@ -378,13 +451,20 @@ impl<'a> PrattParser<'a> {
         // Function call: name ( args ). The parenthesised form was handled
         // above boolean recognition; an identifier without `(` fails closed.
         if tok.kind == ExprTokenType::Function {
-            return self.parse_function_call();
+            return Err(self.failure(ExprParseFailureReason::Bareword));
         }
 
-        Err(ParseError)
+        Err(self.failure(ExprParseFailureReason::UnexpectedToken))
     }
 
-    fn parse_function_call(&mut self) -> Result<ExprNode, ParseError> {
+    fn parse_function_call(&mut self) -> Result<ExprNode<Text>, ParseError> {
+        self.function_depth += 1;
+        let result = self.function_call_inner();
+        self.function_depth -= 1;
+        result
+    }
+
+    fn function_call_inner(&mut self) -> Result<ExprNode<Text>, ParseError> {
         let func_tok = self.advance();
         let func_name = func_tok.text.clone();
         let func_start = func_tok.start;
@@ -392,6 +472,7 @@ impl<'a> PrattParser<'a> {
         self.expect(ExprTokenType::ParenOpen)?;
 
         let mut args = Vec::new();
+        self.skip_empty_function_arguments();
 
         // Check for empty argument list
         if let Some(peek) = self.peek()
@@ -411,7 +492,9 @@ impl<'a> PrattParser<'a> {
 
         // Parse remaining comma-separated arguments
         loop {
-            let peek = self.peek().ok_or(ParseError)?;
+            let peek = self
+                .peek()
+                .ok_or_else(|| self.failure(ExprParseFailureReason::MissingFunctionClose))?;
             if peek.kind == ExprTokenType::ParenClose {
                 let close_tok = self.advance();
                 return Ok(ExprNode::Call {
@@ -423,13 +506,45 @@ impl<'a> PrattParser<'a> {
             }
             if peek.kind == ExprTokenType::Comma {
                 self.advance();
+                self.skip_empty_function_arguments();
+                if self.function_syntax != NativeFunctionCallSyntax::Strict
+                    && self
+                        .peek()
+                        .is_some_and(|token| token.kind == ExprTokenType::ParenClose)
+                {
+                    continue;
+                }
                 args.push(self.expression(0)?);
             } else {
-                return Err(ParseError);
+                return Err(self.failure(ExprParseFailureReason::MissingFunctionClose));
+            }
+        }
+    }
+
+    fn skip_empty_function_arguments(&mut self) {
+        if self.function_syntax == NativeFunctionCallSyntax::IgnoreEmptyArguments {
+            while self
+                .peek()
+                .is_some_and(|token| token.kind == ExprTokenType::Comma)
+            {
+                self.advance();
             }
         }
     }
 }
+
+#[path = "checked.rs"]
+mod checked;
+
+pub(super) use checked::parse_source_expression_checked;
+
+pub use checked::{
+    CheckedExprParse, ExprParseContext, ExprParseUnsupported, ExprSyntaxFailure,
+    ExpressionSourceCachePreparation, NativeExprSyntax, NativeExprSyntaxDiagnostic,
+    NativeExprSyntaxErrorCodeUpdate, NativeExprSyntaxErrorState, NativeFunctionNameResolution,
+    parse_expr_bytes_checked_with_context, parse_expr_checked_for_profile,
+    parse_expr_checked_with_context, prepare_expr_bytes_checked_with_context,
+};
 
 /// Parse a Tcl expression string into a structured AST.
 ///
@@ -486,7 +601,37 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
 #[must_use]
 pub fn parse_expr_with_grammar(source: &str, grammar: &tcl_dialect::LexerGrammar) -> ExprNode {
     let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_with_grammar(source, grammar);
-    parse_raw_tokens(source, raw_tokens, has_unknown, grammar.numbers, None)
+    parse_raw_tokens(
+        source,
+        raw_tokens,
+        has_unknown,
+        *grammar,
+        None,
+        NativeFunctionCallSyntax::Strict,
+    )
+}
+
+/// Parse operand topology using all selected expression grammar axes.
+/// This permissive tree supplies no native preparation or diagnostic proof.
+#[must_use]
+pub fn parse_expr_with_syntax_context(source: &str, context: &ExprParseContext) -> ExprNode {
+    let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+        source,
+        &context.lexer_grammar,
+        context.expr_grammar_base,
+        context.f5_word_grammar,
+    );
+    parse_raw_tokens(
+        source,
+        raw_tokens,
+        has_unknown,
+        context.lexer_grammar,
+        context.expr_grammar_base,
+        context
+            .native_syntax
+            .function_call_syntax()
+            .unwrap_or_default(),
+    )
 }
 
 /// The parse proper, once the tokens exist: shared by every entry point so
@@ -495,8 +640,9 @@ fn parse_raw_tokens(
     source: &str,
     raw_tokens: Vec<ExprToken>,
     has_unknown: bool,
-    numbers: tcl_dialect::NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    function_syntax: NativeFunctionCallSyntax,
 ) -> ExprNode {
     if has_unknown {
         return ExprNode::Raw {
@@ -515,7 +661,8 @@ fn parse_raw_tokens(
         };
     }
 
-    let mut parser = PrattParser::new(&tokens, numbers, expr_grammar_base);
+    let mut parser = PrattParser::new(&tokens, grammar, expr_grammar_base);
+    parser.function_syntax = function_syntax;
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
         _ => ExprNode::Raw {
@@ -533,12 +680,20 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
     // instead — the one way codegen and the lexer could disagree again.
     let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
     let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
+    let grammar = tcl_dialect::LexerGrammar {
+        numbers: numbers_for(profile, resolved),
+        ..resolved.grammar
+    };
     parse_raw_tokens(
         source,
         raw_tokens,
         has_unknown,
-        numbers_for(profile, resolved),
+        grammar,
         resolved.expr_grammar_base,
+        ExprParseContext::for_profile(resolved)
+            .native_syntax
+            .function_call_syntax()
+            .unwrap_or_default(),
     )
 }
 
@@ -548,10 +703,8 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
 // `parse_expr` stays uncached; this sibling is for the VM, which
 // re-evaluates loop conditions on every iteration.
 //
-// Key shape: `(source, profile identity)` — the dialect string is
-// resolved through the catalogue lookup (plain-sink fallback) and the canonical
-// profile name is the key, so alias spellings and unknown-dialect
-// typos share one entry per behaviour instead of one per spelling.
+// Keys retain source and all selected grammar/native function-syntax axes.
+// A profile name cannot identify overrides or a projected environment grammar.
 // The cache is process-global (a `OnceLock<Mutex<…>>`) and capped at
 // 4096 entries with simple LRU eviction (move-to-back on hit, evict
 // front on capacity overflow). Entries return `Arc<ExprNode>` so
@@ -563,7 +716,7 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
 /// per proc); larger workloads stress the LRU eviction path.
 const EXPR_CACHE_CAPACITY: usize = 4096;
 
-type ExprCacheKey = (String, &'static str);
+type ExprCacheKey = (String, ExprParseContext);
 
 struct ExprCache {
     map: HashMap<ExprCacheKey, Arc<ExprNode>>,
@@ -662,7 +815,9 @@ pub fn parse_expr_cached_for_profile(
     // which has no catalogue row) and parse under the permissive fallback
     // instead — the one way codegen and the lexer could disagree again.
     let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
-    let key: ExprCacheKey = (source.to_owned(), resolved.name);
+    let mut context = ExprParseContext::for_profile(resolved);
+    context.lexer_grammar.numbers = numbers_for(profile, resolved);
+    let key: ExprCacheKey = (source.to_owned(), context);
     {
         let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
         if let Some(hit) = cache.get(&key) {
@@ -698,6 +853,52 @@ pub fn expr_cache_len_for_tests() -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn all_expression_ingress_keeps_selected_reference_roots_and_close_rules() {
+        // Implementation contract: naming.expression.selected-reference-root
+        // docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md
+        for version in TclVersion::ALL {
+            let profile = DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let context = ExprParseContext::for_profile(profile);
+            for (source, expected) in [
+                ("${scalar(open}", "scalar(open"),
+                ("${scalar(open)tail}", "scalar(open)tail"),
+                ("${arr(key)}", "arr"),
+                ("$arr(key)", "arr"),
+                ("${arr(inner)(key)}", "arr"),
+                ("${cash$name}", "cash$name"),
+                ("${café🙂(key)}", "café🙂"),
+            ] {
+                for node in [
+                    parse_expr_for_profile(source, Some(profile)),
+                    parse_expr_with_grammar(source, &profile.grammar),
+                    parse_expr_with_syntax_context(source, &context),
+                ] {
+                    assert!(
+                        matches!(node, ExprNode::Var { text, name, .. } if text == source && name == expected)
+                    );
+                }
+            }
+            for style in [
+                tcl_dialect::BracedVarStyle::FirstClose,
+                tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ] {
+                let mut selected = profile.clone();
+                selected.grammar.braced_var = style;
+                let context = ExprParseContext::for_profile(&selected);
+                for (source, accepts) in [("${a{b}", !style.nests()), ("${a{b}c}", style.nests())] {
+                    for node in [
+                        parse_expr_for_profile(source, Some(&selected)),
+                        parse_expr_with_grammar(source, &selected.grammar),
+                        parse_expr_with_syntax_context(source, &context),
+                    ] {
+                        assert_eq!(matches!(node, ExprNode::Var { .. }), accepts);
+                    }
+                }
+            }
+        }
+    }
+
     use super::*;
     use crate::expr::ast::*;
 
@@ -1085,7 +1286,7 @@ mod tests {
         let node = parse("rand()");
         if let ExprNode::Call { function, args, .. } = &node {
             assert_eq!(function, "rand");
-            assert!(args.is_empty());
+            assert_eq!(args.as_slice(), []);
         } else {
             panic!("expected Call, got {node:?}");
         }
@@ -1410,12 +1611,38 @@ mod tests {
     /// process-wide cache.  The eviction logic under test is the
     /// same — `parse_expr_cached` is a thin wrapper.
     #[test]
+    fn expression_cache_keys_actual_grammar_and_native_function_syntax() {
+        let native = DialectProfile::find("tcl8.6").unwrap();
+        let original = super::parse_expr_cached_for_profile("0d10", Some(native));
+        assert!(matches!(original.as_ref(), ExprNode::Raw { .. }));
+        let mut numerals = native.clone();
+        numerals.grammar.numbers = DialectProfile::find("tcl9.0").unwrap().grammar.numbers;
+        let modified = super::parse_expr_cached_for_profile("0d10", Some(&numerals));
+        assert!(matches!(modified.as_ref(), ExprNode::Literal { .. }));
+        assert!(!std::sync::Arc::ptr_eq(&original, &modified));
+        let strict = super::parse_expr_cached_for_profile("abs(1,)", Some(native));
+        assert!(matches!(strict.as_ref(), ExprNode::Raw { .. }));
+        let mut legacy = native.clone();
+        legacy.runtime_base = Some(TclVersion::V8_4);
+        let forgiving = super::parse_expr_cached_for_profile("abs(1,)", Some(&legacy));
+        assert!(matches!(forgiving.as_ref(), ExprNode::Call { args, .. } if args.len() == 1));
+        assert!(!std::sync::Arc::ptr_eq(&strict, &forgiving));
+        assert!(std::sync::Arc::ptr_eq(
+            &strict,
+            &super::parse_expr_cached_for_profile("abs(1,)", Some(native))
+        ));
+    }
+
+    #[test]
     fn expr_cache_capacity_eviction_isolated() {
         let mut cache = super::ExprCache::new();
         let cap = super::EXPR_CACHE_CAPACITY;
         // Fill exactly to capacity.
         for i in 0..cap {
-            let key = (format!("expr_seed_{i}"), "tcl");
+            let key = (
+                format!("expr_seed_{i}"),
+                super::ExprParseContext::for_profile(DialectProfile::plain_tcl()),
+            );
             cache.insert(
                 key,
                 std::sync::Arc::new(crate::expr::ast::ExprNode::Raw {
@@ -1424,11 +1651,17 @@ mod tests {
             );
         }
         assert_eq!(cache.len(), cap);
-        let first_key = ("expr_seed_0".to_owned(), "tcl");
+        let first_key = (
+            "expr_seed_0".to_owned(),
+            super::ExprParseContext::for_profile(DialectProfile::plain_tcl()),
+        );
         assert!(cache.map.contains_key(&first_key));
         // One more insert evicts the front (the LRU entry).
         cache.insert(
-            ("expr_seed_extra".to_owned(), "tcl"),
+            (
+                "expr_seed_extra".to_owned(),
+                super::ExprParseContext::for_profile(DialectProfile::plain_tcl()),
+            ),
             std::sync::Arc::new(crate::expr::ast::ExprNode::Raw {
                 text: "expr_seed_extra".to_owned(),
             }),

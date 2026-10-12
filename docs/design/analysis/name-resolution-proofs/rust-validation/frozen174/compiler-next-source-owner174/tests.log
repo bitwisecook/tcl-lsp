@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::per_item::tests::original_next_advice_reconstructs_whole_source_after_preceding_edits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8266 filtered out; finished in 3.88s
+

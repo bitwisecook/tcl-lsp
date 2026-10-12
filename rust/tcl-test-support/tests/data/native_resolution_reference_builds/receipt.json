@@ -1,0 +1,226 @@
+{
+  "question": "Which exact native reference providers, builds and input channels are available for reproducing naming questions?",
+  "scope": "Build identity/version evidence; naming outcomes require their own question inputs and observations. BIG-IP is an external independently measured provider.",
+  "providers": [
+    {
+      "provider": "tcl8.4.20",
+      "patchlevel": "8.4.20",
+      "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+      "configure_command": [
+        "env",
+        "CFLAGS=-O2 -Wno-error=implicit-int -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types",
+        "./configure",
+        "--cache-file=/dev/null",
+        "--disable-shared",
+        "--enable-threads",
+        "--prefix=/workspace/.proofs/native-providers/gcc14-compatibility/8.4.20/install"
+      ],
+      "make_command": [
+        "make",
+        "-j2"
+      ],
+      "source_header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "configure_source_sha256": "8214c917c2d06af3cfc671acd45612aaf65aa4d4011c85cc1a78eff18c6fe971",
+      "static_library_sha256": "e75f3f9f6bbdb74e2dbafcfb428dad12ee8ffaed512618af5a6ee279daf1d457",
+      "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "probe_sha256": "ba81356322298d29b22f609d90a4afb9429c9d11058f2dc1196cb4c94f11b7ed",
+      "input_channel": "CLI stdin",
+      "process_exit": 0,
+      "stdout": "8.4\n8.4.20\n",
+      "stdout_sha256": "18d2a10c48ef5e1b1590d78cf1b128abe21578d166c897c824737b66800bef9c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logs": {
+        "configure": {
+          "path": "tcl8.4.20.configure.log",
+          "sha256": "b2e5194736fa35965929852bc57bdff4f263c11f68d7fb65dec1998e703cbcb5"
+        },
+        "make": {
+          "path": "tcl8.4.20.make.log",
+          "sha256": "8fb0a4bb03796f68d0b093c3b82d6c662239edc911e95455908879456d422320"
+        }
+      },
+      "scope": "Provider build/version validation only; no naming-semantic result is inferred."
+    },
+    {
+      "provider": "tcl8.5.19",
+      "patchlevel": "8.5.19",
+      "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+      "configure_command": [
+        "./configure",
+        "--cache-file=/dev/null",
+        "--disable-shared",
+        "--enable-threads",
+        "CFLAGS=-O2 -Wno-error=implicit-int -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types",
+        "--prefix=/workspace/.proofs/native-providers/gcc14-compatibility/8.5.19/install"
+      ],
+      "make_command": [
+        "make",
+        "-j2"
+      ],
+      "source_header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "configure_source_sha256": "dfee60f343fc354c05d15c4a71b958b1a22ff7ae9119e6826669143cc07e71c7",
+      "static_library_sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+      "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "probe_sha256": "ba81356322298d29b22f609d90a4afb9429c9d11058f2dc1196cb4c94f11b7ed",
+      "input_channel": "CLI stdin",
+      "process_exit": 0,
+      "stdout": "8.5\n8.5.19\n",
+      "stdout_sha256": "04473de8bb3aeaf3c38dfe932a8538588d405c14306da9756d988bacf0e124ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logs": {
+        "configure": {
+          "path": "tcl8.5.19.configure.log",
+          "sha256": "526ca4cb1997dd1951edd9c6f7a5a41aff539dd757455ee9e460df4084ad2987"
+        },
+        "make": {
+          "path": "tcl8.5.19.make.log",
+          "sha256": "b7dddc05b34c8644d7e4aeecc346b0de2bc5373bfeec58011b1c8d56e1e3a78e"
+        }
+      },
+      "scope": "Provider build/version validation only; no naming-semantic result is inferred."
+    },
+    {
+      "provider": "tcl8.6.18",
+      "patchlevel": "8.6.18",
+      "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+      "configure_command": [
+        "./configure",
+        "--disable-shared",
+        "--enable-threads",
+        "--prefix=/workspace/.proofs/native-providers/8.6.18/install"
+      ],
+      "make_command": [
+        "make",
+        "-j2"
+      ],
+      "source_header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "configure_source_sha256": "0dee5da08940d097f4722d59666029cd99ae55b1056f4cbd4aa03ccba0305a8d",
+      "static_library_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "probe_sha256": "ba81356322298d29b22f609d90a4afb9429c9d11058f2dc1196cb4c94f11b7ed",
+      "input_channel": "CLI stdin",
+      "process_exit": 0,
+      "stdout": "8.6\n8.6.18\n",
+      "stdout_sha256": "a29e02a9c1264e2dc6d2a8b6bdbfc0d633cd73e71cfbaaf8f0502f08122619e4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logs": {
+        "configure": {
+          "path": "tcl8.6.18.configure.log",
+          "sha256": "705ba2ba4f569c027a540188e30e15b70759cf57815fb09f3635ae4564760f53"
+        },
+        "make": {
+          "path": "tcl8.6.18.make.log",
+          "sha256": "90397ef9f59c453ee019a96c5f29cf57ac403e00505054ad8ca2606a152c368a"
+        }
+      },
+      "scope": "Provider build/version validation only; no naming-semantic result is inferred."
+    },
+    {
+      "provider": "tcl9.0.4",
+      "patchlevel": "9.0.4",
+      "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+      "configure_command": [
+        "./configure",
+        "--disable-shared",
+        "--enable-threads",
+        "--prefix=/workspace/.proofs/native-providers/9.0.4/install"
+      ],
+      "make_command": [
+        "make",
+        "-j2"
+      ],
+      "source_header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "configure_source_sha256": "3e0b294fb6ad42fee92bc5e4abd70873a33927b29c624d541789d52b0910e681",
+      "static_library_sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+      "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "probe_sha256": "ba81356322298d29b22f609d90a4afb9429c9d11058f2dc1196cb4c94f11b7ed",
+      "input_channel": "CLI stdin",
+      "process_exit": 0,
+      "stdout": "9.0\n9.0.4\n",
+      "stdout_sha256": "76c2349a61397da4e30ef3c622a1903f980668373f78fe50cc0ce2d46d662976",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logs": {
+        "configure": {
+          "path": "tcl9.0.4.configure.log",
+          "sha256": "6eaf42effe93962033b5720d055e8904dd934359acdc0cef8390b91830f51891"
+        },
+        "make": {
+          "path": "tcl9.0.4.make.log",
+          "sha256": "b367af1cb90b91e4b6495a28e30df18bff38ae3ac5b65d884b99527dad5f7881"
+        }
+      },
+      "scope": "Provider build/version validation only; no naming-semantic result is inferred."
+    },
+    {
+      "provider": "tcl9.1.0",
+      "patchlevel": "9.1.0",
+      "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+      "configure_command": [
+        "./configure",
+        "--disable-shared",
+        "--enable-threads",
+        "--prefix=/workspace/.proofs/native-providers/9.1.0/install"
+      ],
+      "make_command": [
+        "make",
+        "-j2"
+      ],
+      "source_header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "configure_source_sha256": "73542ffa4a233ba488c7cbbdc3448007fe84cd736520b31961879928c72ad74a",
+      "static_library_sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "probe_sha256": "ba81356322298d29b22f609d90a4afb9429c9d11058f2dc1196cb4c94f11b7ed",
+      "input_channel": "CLI stdin",
+      "process_exit": 0,
+      "stdout": "9.1\n9.1.0\n",
+      "stdout_sha256": "ad656d15fcdc9c50a98e9c850f3c006258827324e2c2f18d239942e22d0a824d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logs": {
+        "configure": {
+          "path": "tcl9.1.0.configure.log",
+          "sha256": "33580369a26fbbe8448b361143d2bc6a0af06f08e883897027a7f11ed123f1f8"
+        },
+        "make": {
+          "path": "tcl9.1.0.make.log",
+          "sha256": "41c66628c39dac2fd78114c97b50dac90aaba94b60fbe9a3b2d24273a809ad35"
+        }
+      },
+      "scope": "Provider build/version validation only; no naming-semantic result is inferred."
+    },
+    {
+      "provider": "jim",
+      "version": "0.84",
+      "patchlevel": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+      "configure_command": [
+        "./configure",
+        "--prefix=/workspace/.proofs/native-providers/jimtcl/install"
+      ],
+      "make_command": [
+        "make",
+        "-j2"
+      ],
+      "utf8_enabled": true,
+      "config_sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "probe_sha256": "84332730c215f593408e8fb3d47c5990d01f83cb721aa25bd43addafd703da16",
+      "input_channel": "CLI stdin",
+      "process_exit": 0,
+      "stdout": "0.84\n0.84-9-g5bac7c9\n",
+      "stdout_sha256": "7998419aaf32a1309bdc3aae6f73bedcedc01fbd7e9048e10a1f17ecc4788e65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logs": {
+        "configure": {
+          "path": "jim.configure.log",
+          "sha256": "8eca78c51d04546ef05afaaf9a8e9546dcf08771e0c70724529d6442e26f4b6d"
+        },
+        "make": {
+          "path": "jim.make.log",
+          "sha256": "a276d7eb5ec1082a80a965218b0bf51e38559d493a69894c0b7542d7b5fc8218"
+        }
+      },
+      "scope": "Provider build/version validation only; no naming-semantic result is inferred."
+    }
+  ]
+}

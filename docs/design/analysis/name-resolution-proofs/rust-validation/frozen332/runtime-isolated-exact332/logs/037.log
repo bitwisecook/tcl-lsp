@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation ... 
+thread 'cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation' (1215322) panicked at src/cmd_alias.rs:3325:79:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.56s
+

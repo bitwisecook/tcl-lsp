@@ -43,7 +43,10 @@ use std::sync::Arc;
 use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
-use tcl_compiler::optimiser::{Optimisation, optimise_source_multipass_admitting};
+use tcl_compiler::optimiser::{
+    Optimisation, optimise_source_multipass_admitting,
+    optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
+};
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectProfile;
@@ -102,18 +105,40 @@ pub fn document_report(
     produced: Vec<Finding>,
     policy: &Policy,
 ) -> Report {
+    document_report_with_analysis(doc, produced, policy, None)
+}
+
+/// Report with the actual retained analysis for source/comment ownership.
+/// A supplied analysis whose original image is unavailable cannot borrow a
+/// profile-default comment world.
+#[must_use]
+pub fn document_report_with_analysis(
+    doc: &DocumentSource<'_>,
+    produced: Vec<Finding>,
+    policy: &Policy,
+    analysis: Option<&AnalysisResult>,
+) -> Report {
     let mut findings = produced;
     let line_index = LineIndex::new_lsp(doc.text);
     match doc.pass {
         SourcePass::Tcl { line_length } => {
             findings.extend(
-                style_diagnostics(
-                    doc.text,
-                    line_length,
-                    DEFAULT_LINE_ENDING,
-                    doc.decode,
-                    doc.dialect,
-                )
+                match analysis {
+                    Some(analysis) => crate::source_style::style_facts_from_analysis(
+                        doc.text,
+                        line_length,
+                        DEFAULT_LINE_ENDING,
+                        doc.decode,
+                        analysis,
+                    ),
+                    None => style_diagnostics(
+                        doc.text,
+                        line_length,
+                        DEFAULT_LINE_ENDING,
+                        doc.decode,
+                        doc.dialect,
+                    ),
+                }
                 .into_iter()
                 .map(|d| Finding::from_style(d, doc.text, &line_index)),
             );
@@ -134,7 +159,11 @@ pub fn document_report(
     if sslictcl_diagnostics::applies_to(doc.dialect) {
         findings.extend(sslictcl_diagnostics::diagnostics(doc.analysis_text));
     }
-    apply(findings, policy)
+    let mut report = apply(findings, policy);
+    if let Some(analysis) = analysis {
+        report.retain_analysis_context(analysis);
+    }
+    report
 }
 
 /// One document as a surface without the salsa database analyses it.
@@ -162,6 +191,46 @@ pub struct StandaloneFindings {
     /// The analyser's findings, the O111 hints over them
     /// ([`brace_expr_hints`]), then the compiler checks', converted.
     pub produced: Vec<Finding>,
+    /// The actual unit shared by these producers; absence is terminal.
+    unit: Option<Arc<CompilationUnit>>,
+}
+
+impl StandaloneFindings {
+    /// Single-pass optimisation candidates from the unit that produced this
+    /// document analysis. Source, complete input, grammar and command-store
+    /// currency must still match; refusal returns no candidates. This does
+    /// not rebuild from a dialect label or grant rewrite/execution authority.
+    #[must_use]
+    pub fn optimisation_candidates(&self, source: &str) -> Vec<Optimisation> {
+        let Some(current) =
+            crate::original_context::CurrentSourceContext::capture(source, &self.analysis)
+        else {
+            return Vec::new();
+        };
+        let Some(unit) = &self.unit else {
+            return Vec::new();
+        };
+        let Some(input) = self.analysis.resolved_input.as_ref() else {
+            return Vec::new();
+        };
+        let module = &unit.ir_module;
+        if unit.source != source
+            || module.source != tcl_lexer::SourceImage::document(source)
+            || module.lexer_config != current.config()
+            || module.dialect_profile != Some(input.unit_profile())
+            || module.source_metadata_input.as_ref() != Some(input)
+            || module.registry_snapshot.as_ref() != Some(&current.registry().snapshot())
+        {
+            return Vec::new();
+        }
+        // Enrich the retained source unit, preserving its independent entry
+        // and original metadata. No source re-lowering occurs here.
+        let unit = unit
+            .as_ref()
+            .clone()
+            .with_interprocedural(current.registry(), Some(input.unit_profile()));
+        optimise_unit(&unit, current.registry(), Some(input.unit_profile()))
+    }
 }
 
 /// The analyser under `skip` — the policy's production skip — the O111
@@ -186,26 +255,57 @@ pub fn standalone_findings(
     doc: &StandaloneDocument<'_>,
     skip: &BTreeSet<DiagCode>,
 ) -> StandaloneFindings {
+    let environment = tcl_registry::model::resolve_environment(doc.dialect.name);
+    let context = match environment.context_registry(
+        &tcl_registry::model::KeyedVersions::default(),
+        doc.pack_overlay,
+    ) {
+        Ok(context) => context.with_command_store(doc.registry.snapshot().shared_registry()),
+        Err(miss) => {
+            let mut analysis = AnalysisResult::default();
+            analysis.analysis_context_unavailable = Some(miss);
+            return StandaloneFindings {
+                analysis,
+                produced: Vec::new(),
+                unit: None,
+            };
+        }
+    };
     let declared = tcl_compiler::analyser::utils::document_declared_surface(
         doc.source,
         doc.file_path,
         doc.dialect.name,
     );
-    let unit = Arc::new(CompilationUnit::build_with_options(
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        doc.dialect,
+        doc.dialect,
+        Arc::new(context),
+        LexerConfig::for_profile(Some(doc.dialect)),
+    );
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        doc.registry,
+        &input,
+        input.lexer_config(),
+        Some(input.unit_profile()),
+    );
+    let unit = Arc::new(CompilationUnit::build_with_analysis_input(
         doc.source,
         UnitBuildOptions {
             registry: doc.registry,
             defer_top_level: false,
-            config: LexerConfig::for_profile(Some(doc.dialect)),
-            dialect: Some(doc.dialect),
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
             external_call_sites: doc.external_call_sites,
             declared_commands: Some(&declared),
         },
+        Some(&entry),
+        &input,
     ));
     let mut analyser =
         Analyser::with_disabled_diagnostics(skip.iter().map(ToString::to_string).collect())
             .with_file_path(doc.file_path.map(str::to_owned))
-            .with_pack_overlay(doc.pack_overlay);
+            .with_pack_overlay(doc.pack_overlay)
+            .with_resolved_input(input);
     analyser.set_cu_override(Arc::clone(&unit));
     let analysis = analyser.analyse(doc.source, doc.dialect.name);
     let mut produced: Vec<Finding> = analysis
@@ -221,7 +321,11 @@ pub fn standalone_findings(
             .into_iter()
             .map(Finding::from),
     );
-    StandaloneFindings { analysis, produced }
+    StandaloneFindings {
+        analysis,
+        produced,
+        unit: Some(unit),
+    }
 }
 
 /// The O111 producer over the unbraced-expression fact: one finding at the
@@ -284,9 +388,9 @@ pub struct OptimisedSource {
 /// squiggles are decided under (#2119). A single-pass profile is
 /// `max_iterations == 1`.
 ///
-/// This is the shared loop behind `tcl opt`, the MCP `optimize` tool and
-/// the server's `tcl-lsp.optimiseDocument` command. The loop itself is the
-/// optimiser's ([`optimise_source_multipass_admitting`]), which re-runs the
+/// This explicit standalone facade serves `tcl opt` and the MCP `optimize`
+/// tool. Current document callers use [`optimise_under_policy_from_analysis`].
+/// The loop is the optimiser's ([`optimise_source_multipass_admitting`]), which re-runs the
 /// optimiser over each pass's text; this function is what it admits on a
 /// pass, so the multipass loop has one owner.
 #[must_use]
@@ -325,6 +429,61 @@ pub fn optimise_under_policy(
     }
 }
 
+/// Apply policy to rewrites over a current document's complete input. The
+/// input remains fixed while each changed text is analysed and lowered anew.
+/// Unavailable, missing, stale or foreign source ownership returns unchanged.
+#[must_use]
+pub fn optimise_under_policy_from_analysis(
+    source: &str,
+    registry: &CommandRegistry,
+    analysis: &AnalysisResult,
+    max_iterations: usize,
+    policy: &Policy,
+) -> OptimisedSource {
+    let Some(input) =
+        tcl_compiler::source_graph::current_analysis(source, analysis).and_then(|(_, config)| {
+            analysis.resolved_input.as_ref().filter(|input| {
+                tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+                    registry,
+                    input,
+                    config,
+                    analysis.resolved_profile(),
+                )
+                .is_some()
+            })
+        })
+    else {
+        return OptimisedSource {
+            text: source.to_owned(),
+            applied: Vec::new(),
+            iterations: 0,
+        };
+    };
+    let (text, applied, iterations) = optimise_source_multipass_admitting_with_analysis_input(
+        source,
+        registry,
+        Some(input),
+        max_iterations,
+        |current, candidates| {
+            let current_analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(current, input.analyser_profile().name);
+            let mut pass_policy = policy.clone();
+            pass_policy.directives = Directives::from_analysis(&current_analysis, current);
+            apply(
+                candidates.iter().cloned().map(Finding::from).collect(),
+                &pass_policy,
+            )
+            .applicable_items(candidates)
+        },
+    );
+    OptimisedSource {
+        text,
+        applied,
+        iterations,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,6 +502,330 @@ mod tests {
             dialect: tcl9(),
             pass: SourcePass::Tcl { line_length: 120 },
         }
+    }
+
+    fn supplied_source_analysis(
+        source: &str,
+        context: Arc<tcl_registry::model::ContextRegistry>,
+    ) -> AnalysisResult {
+        let profile = DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            LexerConfig {
+                strict_quoting: true,
+                ..LexerConfig::for_profile(Some(profile))
+            },
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional Logical source rewrites receive no Native command entry.
+        let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
+        let registry = Arc::clone(context.commands());
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let analysis = supplied_source_analysis(source, context);
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+        let result = optimise_under_policy_from_analysis(source, &registry, &analysis, 3, &policy);
+        let rewrite = result
+            .applied
+            .iter()
+            .find(|row| row.code == DiagCode::O100)
+            .expect("current Logical branch advice reaches the real rewrite loop");
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(config.strict_quoting);
+        assert!(
+            analysis.matches_original_source_image(&tcl_lexer::SourceImage::from(source), config)
+        );
+        assert_eq!(
+            analysis
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+        assert!(source.get(rewrite.span.as_range()).is_some());
+        assert!(rewrite.replacement.contains("retained"));
+        assert!(result.text.contains("retained"));
+        assert!(!result.text.contains("omitted"));
+        assert!(result.iterations >= 2);
+        let marked = format!("# noqa: O100\n{source}");
+        let marked_analysis = Analyser::new()
+            .with_resolved_input(analysis.resolved_input.as_ref().unwrap().clone())
+            .analyse(&marked, "tcl");
+        let kept =
+            optimise_under_policy_from_analysis(&marked, &registry, &marked_analysis, 3, &policy);
+        assert_eq!(kept.text, marked);
+        assert!(kept.applied.iter().all(|row| row.code != DiagCode::O100));
+        assert!(
+            optimise_under_policy_from_analysis(&marked, &registry, &analysis, 3, &policy)
+                .applied
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
+        let registry = Arc::clone(context.commands());
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let analysis = supplied_source_analysis(source, context);
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+        assert!(
+            !optimise_under_policy_from_analysis(source, &registry, &analysis, 3, &policy)
+                .applied
+                .is_empty()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut unavailable = analysis.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl8.6".to_owned(),
+            overlay: u64::MAX - 353,
+        });
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        let mut foreign = analysis;
+        foreign.resolved_input = supplied_source_analysis(
+            source,
+            tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
+        )
+        .resolved_input;
+        for refused in [missing, unavailable, stale, foreign] {
+            let result =
+                optimise_under_policy_from_analysis(source, &registry, &refused, 3, &policy);
+            assert_eq!(result.text, source);
+            assert!(result.applied.is_empty());
+            assert_eq!(result.iterations, 0);
+        }
+    }
+
+    #[test]
+    fn original_standalone_candidates_keep_the_shared_unit_and_source_currency() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source candidates preserve their separate edit obligations.
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let profile = DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "originalCandidateStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let mut findings = standalone_findings(
+            &StandaloneDocument {
+                source,
+                file_path: Some("original-candidates.tcl"),
+                dialect: profile,
+                registry: &registry,
+                pack_overlay: 0,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        let input = findings.analysis.resolved_input.as_ref().unwrap().clone();
+        let unit = Arc::clone(findings.unit.as_ref().unwrap());
+        assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(&input));
+        assert_eq!(
+            unit.ir_module.registry_snapshot.as_ref(),
+            Some(&registry.snapshot())
+        );
+        assert!(
+            findings
+                .analysis
+                .resolved_registry()
+                .unwrap()
+                .get("originalCandidateStoreMarker")
+                .is_some()
+        );
+        let candidates = findings.optimisation_candidates(source);
+        let branch = candidates
+            .iter()
+            .find(|row| row.code == DiagCode::O100)
+            .expect("the shared current Logical unit produces branch advice");
+        assert!(source.get(branch.span.as_range()).is_some());
+        assert!(branch.replacement.contains("retained"));
+        assert!(!branch.replacement.contains("omitted"));
+        assert!(
+            findings
+                .optimisation_candidates(&source.replace("retained", "changed"))
+                .is_empty()
+        );
+        findings.unit = None;
+        assert!(findings.analysis.resolved_input.is_some());
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.unit = Some(unit);
+        let original = findings.analysis.clone();
+        findings.analysis.resolved_input = None;
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.analysis = original.clone();
+        findings.analysis.body_lexer_config = None;
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.analysis = original.clone();
+        findings.analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl".to_owned(),
+            overlay: u64::MAX - 436,
+        });
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.analysis = original;
+        assert_eq!(findings.optimisation_candidates(source), candidates);
+    }
+
+    #[test]
+    fn original_standalone_candidates_refuse_current_foreign_availability_config_and_store() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let profile = DialectProfile::plain_tcl();
+        let registry = CommandRegistry::build_default();
+        let mut findings = standalone_findings(
+            &StandaloneDocument {
+                source,
+                file_path: None,
+                dialect: profile,
+                registry: &registry,
+                pack_overlay: 0,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        assert!(
+            findings
+                .optimisation_candidates(source)
+                .iter()
+                .any(|row| row.code == DiagCode::O100)
+        );
+        let original = findings.analysis.clone();
+        let input = original.resolved_input.as_ref().unwrap();
+        let older = tcl_registry::model::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(Arc::clone(input.borrowed_context_registry().commands()));
+        let older_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::new(older),
+            input.lexer_config(),
+        );
+        assert!(Arc::ptr_eq(
+            input.borrowed_context_registry().commands(),
+            older_input.borrowed_context_registry().commands()
+        ));
+        assert_ne!(input, &older_input);
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed_config = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let mut foreign_store = CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreignCandidateStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert_ne!(foreign_store.snapshot(), registry.snapshot());
+        let foreign_context = input
+            .borrowed_context_registry()
+            .with_command_store(foreign_store.snapshot().shared_registry());
+        let changed_store = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::new(foreign_context),
+            input.lexer_config(),
+        );
+        for changed in [older_input, changed_config, changed_store] {
+            findings.analysis = Analyser::new()
+                .with_resolved_input(changed)
+                .analyse(source, profile.name);
+            assert!(
+                crate::original_context::CurrentSourceContext::capture(source, &findings.analysis)
+                    .is_some(),
+                "the replacement analysis is genuine and current for its own input"
+            );
+            assert!(
+                findings.optimisation_candidates(source).is_empty(),
+                "a current replacement analysis cannot borrow the retained unit's owner"
+            );
+        }
+        findings.analysis = original;
+        assert!(
+            findings
+                .optimisation_candidates(source)
+                .iter()
+                .any(|row| row.code == DiagCode::O100)
+        );
+    }
+
+    #[test]
+    fn an_unavailable_overlay_is_not_a_successfully_empty_report() {
+        // naming.diagnostic.typed-subject-reporting
+        // docs/design/analysis/name-resolution-proofs/diagnostic-typed-subject-reporting.md
+        // A missing generation is reported as typed input refusal before any source walk.
+        let source = "proc should_not_be_walked {} {}\n";
+        let registry = crate::registry_for_dialect("tcl9.0");
+        let standalone = standalone_findings(
+            &StandaloneDocument {
+                source,
+                file_path: None,
+                dialect: tcl9(),
+                registry,
+                pack_overlay: u64::MAX,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        assert!(standalone.produced.is_empty());
+        assert!(standalone.analysis.all_procs.is_empty());
+        let miss = standalone
+            .analysis
+            .analysis_context_unavailable
+            .as_ref()
+            .unwrap();
+        assert_eq!(miss.overlay, u64::MAX);
+        let report = document_report_with_analysis(
+            &tcl_doc(source),
+            standalone.produced,
+            &Policy::unrestricted(),
+            Some(&standalone.analysis),
+        );
+        assert_eq!(report.analysis_context_unavailable(), Some(miss));
+        assert_eq!(
+            report.analysis_context_status_data().unwrap()["overlay"],
+            u64::MAX
+        );
+        let successful = standalone_findings(
+            &StandaloneDocument {
+                source: "",
+                file_path: None,
+                dialect: tcl9(),
+                registry,
+                pack_overlay: 0,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        assert!(successful.analysis.resolved_input.is_some());
+        let empty = document_report_with_analysis(
+            &tcl_doc(""),
+            successful.produced,
+            &Policy::unrestricted(),
+            Some(&successful.analysis),
+        );
+        assert!(empty.analysis_context_unavailable().is_none());
+        assert!(empty.analysis_context_status_data().is_none());
     }
 
     fn codes(report: &Report) -> Vec<DiagCode> {

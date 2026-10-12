@@ -1,0 +1,30 @@
+{
+  "source_sha256": "05146bbdf986d745924d0e0f790835ce29930564a294a30e477508c72f034187",
+  "observations": [
+    {
+      "release": "8.4.20",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "expected": "c8.4.20.scope.txt"
+    },
+    {
+      "release": "8.5.19",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "expected": "c8.5.19.scope.txt"
+    },
+    {
+      "release": "8.6.18",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "expected": "c8.6.18.scope.txt"
+    },
+    {
+      "release": "9.0.4",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "expected": "c9.0.4.scope.txt"
+    },
+    {
+      "release": "9.1.0",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "expected": "c9.1.0.scope.txt"
+    }
+  ]
+}

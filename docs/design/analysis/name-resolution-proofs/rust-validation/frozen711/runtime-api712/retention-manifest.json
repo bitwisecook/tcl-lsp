@@ -1,0 +1,116 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/build-receipt.json.gz",
+      "sha256": "5f1d7afdc67d080973b42a6182ee7d7648e8235f52e6006e3f5fdaebbc467e8b",
+      "compression": "gzip",
+      "uncompressed_sha256": "67286e06112ce78a0709958f943d6d24c67c73fc2823fea680fba22ef30424db",
+      "uncompressed_bytes": 1832
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/producer.log.gz",
+      "sha256": "bbd3e83f0af3db73687b8b41ee173b5929d3267c995677d93aeddccabea18e6b",
+      "compression": "gzip",
+      "uncompressed_sha256": "63f910346af3c002ee9f396743067b867950a72acf0513624c58f48a8a88b844",
+      "uncompressed_bytes": 16357
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/admission.json.gz",
+      "sha256": "71251718cbe695db238cd3f4c5029345befbcf6a3f852be6ec09134483fd445a",
+      "compression": "gzip",
+      "uncompressed_sha256": "aa9d8969aca1ae6eacca96fd3bfed5a189a421746f12e8036e67e252f7e15e27",
+      "uncompressed_bytes": 9753
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/discovery.log.gz",
+      "sha256": "cfdda068c5ab13a29b1cd74db24a750fc4783bc8bd6194c9ae1e5f4737f981a5",
+      "compression": "gzip",
+      "uncompressed_sha256": "3a1d42cf74958e2f201c536da27ac7edb629fb615dcc05648a052fe39595732e",
+      "uncompressed_bytes": 7724
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/receipt.json.gz",
+      "sha256": "a2933aebc39eb54e636ae84195cf16a4159d658fa77736d1d46c23e58eaa4a89",
+      "compression": "gzip",
+      "uncompressed_sha256": "8b4f6524b7a2da60b2544fb505e065354b8ce55b91839b385b9c59460f8f5cc9",
+      "uncompressed_bytes": 1318
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/stdout-stderr.log.gz",
+      "sha256": "527d697c25e9073a4122a23b98b1b1fa231da8c635a5ae2687409f9b39d7fd06",
+      "compression": "gzip",
+      "uncompressed_sha256": "9b6c85c9f173d384e0c1682e98ab5de1d83254cc9948b27a466360afd1fe690a",
+      "uncompressed_bytes": 8367
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/source-snapshot.json.gz",
+      "sha256": "647e2b559eeef960ff871fbdb8ce5673df1e855fb4ddd8b1ec6bb9ee2a91fda4",
+      "compression": "gzip",
+      "uncompressed_sha256": "6579a2b9cc8bc8908222006b54a3733c35347b8b44d43d403d4c418d6aeae872",
+      "uncompressed_bytes": 8109279
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/native-test-env.json.gz",
+      "sha256": "a20fccf7b925674270e3c9caf48f3ec090303a82aae3e405234ff290bc2bc75c",
+      "compression": "gzip",
+      "uncompressed_sha256": "1630b9459e67feb19f8c4af6826f61306ff875c2b718a69e45bf521c049706fa",
+      "uncompressed_bytes": 1829
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/pinned-runtime-api712.elf.gz",
+      "sha256": "be559d76b506e7c463de4154a409bfaa3b7b3830464ed05b70e12ae853f4f19f",
+      "compression": "gzip",
+      "uncompressed_sha256": "79720483b85b9d40450798f3ced1780b4d5cbd0483f25d1b857355b71c419301",
+      "uncompressed_bytes": 1491848
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/selected-source/backing.rs.gz",
+      "sha256": "8582a59091bc9f32205741ee4e988cb57f38fb6dc63c441aaba063f27db6c84b",
+      "compression": "gzip",
+      "uncompressed_sha256": "6e3efe91879f96f1bcabaf1c7c467fbcb0fe5f14b01e4b092f037f9629fb433e",
+      "uncompressed_bytes": 8786
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/selected-source/lib.rs.gz",
+      "sha256": "007f1fdbfce263a8b77ad3c4d2603937bcc990ef6181183568003ace3c2be72c",
+      "compression": "gzip",
+      "uncompressed_sha256": "fe42db83096235dfa8e8b375afe740e09d14301d99f253ad3227629953003206",
+      "uncompressed_bytes": 92169
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/selected-source/Cargo.toml.gz",
+      "sha256": "994c95a454e643fda0fcbcba9edd162401da6cc25954d0f3cb1b2db155e43f9d",
+      "compression": "gzip",
+      "uncompressed_sha256": "13b93280fd965ba23beb88d1688b0427e5ec608584fd1fb8191f6e78b53ce92d",
+      "uncompressed_bytes": 1912
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/independent-verification.json",
+      "sha256": "07ebf2c60fec7f18d4ffc71a187a04b121634a0cbf909251595eb53e5dabf736"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/question-body-outcomes.json",
+      "sha256": "0fea266b1e71b61a465da57e238e5c2d556e2ad7197798c9a0dd11385816c037"
+    }
+  ],
+  "frozen_head": "915e74fe4268224e4c8b905806ddab6557f6e3c7",
+  "source_snapshot_sha256": "6579a2b9cc8bc8908222006b54a3733c35347b8b44d43d403d4c418d6aeae872",
+  "owned_image_sha256": "79720483b85b9d40450798f3ced1780b4d5cbd0483f25d1b857355b71c419301",
+  "one_q_body_correspondence": {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md",
+    "operation": "runtime-api-owned-all712",
+    "selector": "backing::tests::exact_unrooted_backing_keys_keep_literal_leading_colons",
+    "outcome": "passed",
+    "original_source_path": "rust/tcl-runtime-api/src/backing.rs",
+    "whole_original_source_sha256": "6e3efe91879f96f1bcabaf1c7c467fbcb0fe5f14b01e4b092f037f9629fb433e",
+    "original_body_sha256": "6020926bcf3f78c27fc4578f399741c7844be5f74a9f33fed725327fe70c1555",
+    "original_source_definition_line": 199,
+    "raw_start_byte": 92,
+    "raw_end_byte": 176,
+    "raw_excerpt_sha256": "c570d45c7b3400efb1cc77ca194187831f5de92d393f3d3f7a600ea27b25ecde",
+    "current_source_outcome": false,
+    "purpose": "Exact original711 API pure-map diagnostic report control only. No Runtime placed-slot, physical C Tcl, Jim, BIG-IP, command-dispatch or new Native authority outcome."
+  },
+  "limitations": "Only the genuine owned API712 image, original711 full source map, actual discovery and unchanged raw all88 result support this one software pure-map association. Existing catalogue tests remain linked, all Native/provider/frozen/source-anchor/replay fields remain exact, and Runtime actual placed-slot control receives no outcome. Current same body/source equality identifies purpose but transfers no result to another source or image. Root producer/run receipts retain source/image-before-after assertions; independently retained full frozen producer/immutable maps and owned ELF bytes verify. Complete inherited subprocess environment, original execution wrapper byte pins, historical inode facts, build/load closure and external Tcl/Jim/BIG-IP outcomes are not supplied."
+}

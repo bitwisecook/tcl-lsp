@@ -1,0 +1,15 @@
+
+running 1 test
+test state_transition::created_handle_source_tests::created_handle_eval_body_owns_only_the_canonical_single_script_ordinal ... 
+thread 'state_transition::created_handle_source_tests::created_handle_eval_body_owns_only_the_canonical_single_script_ordinal' (622098) panicked at rust/tcl-registry/src/state_transition.rs:3095:87:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    state_transition::created_handle_source_tests::created_handle_eval_body_owns_only_the_canonical_single_script_ordinal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1466 filtered out; finished in 0.00s
+

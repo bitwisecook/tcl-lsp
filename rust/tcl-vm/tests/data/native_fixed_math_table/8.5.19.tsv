@@ -1,0 +1,4 @@
+abs 4 pow 8.0 randRange 1
+arity 1 1 {too many arguments for math function "abs"}
+missing 1 1 {invalid command name "tcl::mathfunc::missing_function"}
+commandShadow COMMAND_SHADOW

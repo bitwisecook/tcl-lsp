@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::family_b_tests::logical_parser_capability_has_explicit_host_cache_and_child_ownership ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.42s
+

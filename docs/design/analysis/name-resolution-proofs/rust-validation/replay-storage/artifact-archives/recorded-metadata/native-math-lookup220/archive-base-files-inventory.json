@@ -1,0 +1,411 @@
+{
+  "kind": "lossless-archive-of-exact-applied-inactive-packet-base-files",
+  "archive": "/workspace/.proofs/native-math-lookup220.base-files.tar.gz",
+  "archive_sha256": "b477bde00bce0ad28cfcf645c487c801d2316d9e79b85583b20f7c3f30d0a024",
+  "archive_bytes": 149032,
+  "uncompressed_bytes": 711061,
+  "source_manifest_sha256": "ef7be7e142f5b48ea5a3d0efcfe3b74602fd38c8629d87b7b81cde8946b5140a",
+  "source_patch_sha256": "357bbd62d0232133e57807ca9eb74444ce24d0e15ee54b5ba87551bf02bee486",
+  "original_application_journal": "/workspace/.proofs/root-applied-packets/357bbd62d0232133e57807ca9eb74444ce24d0e15ee54b5ba87551bf02bee486.patch",
+  "original_application_journal_sha256": "357bbd62d0232133e57807ca9eb74444ce24d0e15ee54b5ba87551bf02bee486",
+  "member_count": 44,
+  "members": {
+    "native-math-lookup220/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.908715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.908715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.908715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.908715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.908715,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/docs/design/analysis/name-resolution-proofs/original-function-navigation.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9108918,
+      "size": 6509,
+      "sha256": "380605a199914e87284f3649fe2957b145a54f405a4f4eb545eb877fe0e16af9"
+    },
+    "native-math-lookup220/base/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2889285,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2889285,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2934716,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2934716,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2934716,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2938142,
+      "size": 39755,
+      "sha256": "22addf19efd2f01e5b997590d8acaf4382de65ce95ef2e0bb905ef80334b51d8"
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570829.1244245,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/command_binding/command_presence.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.291816,
+      "size": 43974,
+      "sha256": "0570892d56db2e4d0243714cbd7631b231242b10b2c89966fd6a206f47822071"
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/command_binding/original_command_table.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.290692,
+      "size": 101266,
+      "sha256": "7de51f0ad7f8101365e78ba5076169128edf2a9436a08c10da786dccac59636f"
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570829.1294181,
+      "size": 16784,
+      "sha256": "536f479a1bf8715d34d7507067227208a9a9f0407bd1b034fa5e4d767b7f94b8"
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/command_binding/original_math_function.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2894328,
+      "size": 30443,
+      "sha256": "c969a56124053632b8dc017cf7819513872449a0b737c0480595242ec106b916"
+    },
+    "native-math-lookup220/base/rust/tcl-compiler/src/realm.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2928088,
+      "size": 59593,
+      "sha256": "d8ab097f90f1a7580cebd8c2e1e22a59dbfab637edceac2427f5f776f7bedb7e"
+    },
+    "native-math-lookup220/base/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2854402,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2880774,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/base/rust/tcl-registry/src/conditional_expression.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2886028,
+      "size": 12690,
+      "sha256": "5a9c925c80edfa118cd742aa667ba0bcfa482f2cfb74e50474737948bea85cf1"
+    },
+    "native-math-lookup220/base/rust/tcl-registry/src/mathfunc.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2872534,
+      "size": 34883,
+      "sha256": "44b2c4931b847ee42fc696b53558acefe4a9fb3d7ee337f51a5a7a00b09c69c6"
+    },
+    "native-math-lookup220/files": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9108918,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/docs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9108918,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/docs/design": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9108918,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/docs/design/analysis": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9108918,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/docs/design/analysis/name-resolution-proofs": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9108918,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/docs/design/analysis/name-resolution-proofs/original-function-navigation.md": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.9111578,
+      "size": 7291,
+      "sha256": "538ec2969163cc00b4b777eac92ed124f50066d481ffbe5b6c642c7531dd203e"
+    },
+    "native-math-lookup220/files/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2894402,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-compiler": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2894402,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2938142,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/analyser": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2938142,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/analyser/diagnostics": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2938142,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570843.1283135,
+      "size": 39978,
+      "sha256": "d51a94196984c6e2b20fa22eee136fb2568aeaa8e03b0cccc0a584822d45de7e"
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/command_binding": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570829.1294181,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/command_binding/command_presence.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570989.908715,
+      "size": 44347,
+      "sha256": "e76bb472d4c64eba8259229901a97b17c4e8efa9b313c77e8fb46b60006cbd89"
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/command_binding/original_command_table.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570843.1043139,
+      "size": 105167,
+      "sha256": "999a54d4a95bfd8a995a8040c5650dfdd507367f74bbc2a4590bf2d9e244d55e"
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570829.129875,
+      "size": 16795,
+      "sha256": "556c89c807ba32e7f4ba932831c6240eb1bd45fb0fb42e939b87b68d8d520609"
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/command_binding/original_math_function.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570941.6558232,
+      "size": 37583,
+      "sha256": "e473a035c7d0a526c6e0e12ed3d9bfa1eb114efb64382b04682cc6e5fa0d7c79"
+    },
+    "native-math-lookup220/files/rust/tcl-compiler/src/realm.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570829.1314716,
+      "size": 59639,
+      "sha256": "f3bd2db9d04df6e23148ee372030fb6bb540c882c7e5e54cd2fbaddd7c2354e6"
+    },
+    "native-math-lookup220/files/rust/tcl-registry": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2872534,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-registry/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570699.2886028,
+      "size": 0,
+      "sha256": null
+    },
+    "native-math-lookup220/files/rust/tcl-registry/src/conditional_expression.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570743.725185,
+      "size": 13307,
+      "sha256": "6bdf709e0b4600901bdaa44f21ab5d1368560c1bd0ed1ff4ccc0ab5f96c2ca03"
+    },
+    "native-math-lookup220/files/rust/tcl-registry/src/mathfunc.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791570941.656103,
+      "size": 41057,
+      "sha256": "35a7e5611c531518c453bb81de46152058ea10e573bde80ad9e1a6b78fed043b"
+    }
+  },
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

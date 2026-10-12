@@ -1,0 +1,133 @@
+TclCompileRegexpCmd(
+    Tcl_Interp *interp,		/* Tcl interpreter for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the
+				 * command. */
+    TCL_UNUSED(Command *),
+    CompileEnv *envPtr)		/* Holds the resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *varTokenPtr;	/* Pointer to the Tcl_Token representing the
+				 * parse of the RE or string. */
+    size_t len;
+    Tcl_Size i, numWords = parsePtr->numWords;
+    int nocase, exact, sawLast, simple;
+    const char *str;
+
+    /*
+     * We are only interested in compiling simple regexp cases. Currently
+     * supported compile cases are:
+     *   regexp ?-nocase? ?--? staticString $var
+     *   regexp ?-nocase? ?--? {^staticString$} $var
+     */
+
+    if (numWords < 3 || OutOfUintRange(numWords)) {
+	return TCL_ERROR;
+    }
+
+    simple = 0;
+    nocase = 0;
+    sawLast = 0;
+    varTokenPtr = parsePtr->tokenPtr;
+
+    /*
+     * We only look for -nocase and -- as options. Everything else gets pushed
+     * to runtime execution. This is different than regexp's runtime option
+     * handling, but satisfies our stricter needs.
+     */
+
+    for (i = 1; i < numWords - 2; i++) {
+	varTokenPtr = TokenAfter(varTokenPtr);
+	if (IS_TOKEN_LITERALLY(varTokenPtr, "--")) {
+	    sawLast++;
+	    i++;
+	    break;
+	} else if (IS_TOKEN_PREFIX(varTokenPtr, 2, "-nocase")) {
+	    nocase = 1;
+	} else {
+	    /*
+	     * Not an option we recognize or something the compiler can't see.
+	     */
+
+	    return TCL_ERROR;
+	}
+    }
+
+    if (numWords - i != 2) {
+	/*
+	 * We don't support capturing to variables.
+	 */
+
+	return TCL_ERROR;
+    }
+
+    /*
+     * Get the regexp string. If it is not a simple string or can't be
+     * converted to a glob pattern, push the word for the INST_REGEXP.
+     * Keep changes here in sync with TclCompileSwitchCmd Switch_Regexp.
+     */
+
+    varTokenPtr = TokenAfter(varTokenPtr);
+
+    if (varTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	Tcl_DString ds;
+
+	str = varTokenPtr[1].start;
+	len = varTokenPtr[1].size;
+
+	/*
+	 * If it has a '-', it could be an incorrectly formed regexp command.
+	 */
+
+	if ((*str == '-') && !sawLast) {
+	    return TCL_ERROR;
+	}
+
+	/*
+	 * Note: do not optimize for len == 0, as error should be generated
+	 * at runtime if operand is not a resolvable variable.
+	 * Bug https://core.tcl-lang.org/tcl/info/cb03e57a7b24d22c
+	 */
+
+	/*
+	 * Attempt to convert pattern to glob.  If successful, push the
+	 * converted pattern as a literal.
+	 */
+
+	if (TclReToGlob(NULL, str, len, &ds, &exact, NULL) == TCL_OK) {
+	    simple = 1;
+	    TclPushDString(envPtr, &ds);
+	    Tcl_DStringFree(&ds);
+	}
+    }
+
+    if (!simple) {
+	PUSH_TOKEN(		varTokenPtr, numWords - 2);
+    }
+
+    /*
+     * Push the string arg.
+     */
+
+    varTokenPtr = TokenAfter(varTokenPtr);
+    PUSH_TOKEN(			varTokenPtr, numWords - 1);
+
+    if (simple) {
+	if (exact && !nocase) {
+	    OP(			STR_EQ);
+	} else {
+	    OP1(		STR_MATCH, nocase);
+	}
+    } else {
+	/*
+	 * Pass correct RE compile flags.  We use only Int1 (8-bit), but
+	 * that handles all the flags we want to pass.
+	 * Don't use TCL_REG_NOSUB as we may have backrefs.
+	 */
+
+	int cflags = TCL_REG_ADVANCED | (nocase ? TCL_REG_NOCASE : 0);
+
+	OP1(			REGEXP, cflags);
+    }
+
+    return TCL_OK;
+}

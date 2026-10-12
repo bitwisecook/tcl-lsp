@@ -1,0 +1,7 @@
+collision-bfirst-read status=0 port=34000
+collision-bfirst-write-a status=0 port=34132
+collision-bfirst-read-after-a status=0 port=34137
+collision-bfirst-write-b status=0 port=34269
+collision-bfirst-read-after-b status=0 port=34274
+procedure-bfirst-create status=0 port=35000
+cleanup-after-reverse-creation status=0

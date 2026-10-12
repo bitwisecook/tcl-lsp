@@ -57,6 +57,154 @@ fn lower(
     lower_function(&input)
 }
 
+/// Retain the real interpreter and its entry independently of source metadata.
+fn original_boolean_unit(
+    source: &str,
+    environment: &str,
+) -> (
+    tcl_vm::Vm,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    CompilationUnit,
+) {
+    original_boolean_unit_with_compilation(
+        source,
+        environment,
+        crate::environment_ingress::authoring_native_compilation(),
+    )
+}
+
+/// Caller-selected original compilation purpose, retaining the same actual
+/// interpreter entry and independently supplied source metadata.
+fn original_boolean_unit_with_compilation(
+    source: &str,
+    environment: &str,
+    compilation: tcl_registry::native_compilation::NativeCompilationContext,
+) -> (
+    tcl_vm::Vm,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    CompilationUnit,
+) {
+    let environment = tcl_registry::model::ingress::resolve_known_environment(environment)
+        .expect("original Boolean control requires a known native environment");
+    let context = environment.default_context_registry();
+    let registry = context.commands();
+    let profile = environment.unit_profile();
+    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::clone(&context),
+        config,
+    );
+    let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+    assert_eq!(native.execution_point, environment.point());
+    assert!(native.execution_point.is_some());
+    let entry = crate::command_binding::SourceAnalysisEntry {
+        metadata_context:
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &input,
+            )),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: compilation,
+        native_entry: Some(std::sync::Arc::new(native)),
+        ..crate::command_binding::SourceAnalysisEntry::default()
+    };
+    let unit = CompilationUnit::build_with_analysis_input(
+        source,
+        crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        Some(&entry),
+        &input,
+    );
+    (owner, context, unit)
+}
+
+fn lower_original_boolean_unit(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
+    let facts = &unit.top_level.semantic_facts;
+    if std::env::var_os("TCL_LSP_TRACE_NATIVE_BOOLEAN_SOURCE").is_some() {
+        let mut pending = vec![(Vec::<usize>::new(), &module.top_level)];
+        while let Some((path, script)) = pending.pop() {
+            eprintln!(
+                "NATIVE_BOOLEAN_SOURCE path={path:?} statements={} source={:?} namespace={:?} sites={}",
+                script.statements.len(),
+                script.executed_source.as_ref().map(|source| (
+                    source.base(),
+                    source.text.len(),
+                    source.origin.kind(),
+                )),
+                script.namespace_context,
+                script.command_binding_sites.iter().count(),
+            );
+            for (index, statement) in script.statements.iter().enumerate() {
+                let inline = statement.tokens();
+                let retained = script.retained_source_tokens_for_statement(statement);
+                let (kind, reason) = match statement {
+                    crate::ir::Statement::Call { .. } => ("Call", None),
+                    crate::ir::Statement::Barrier { reason, .. } => {
+                        ("Barrier", Some(reason.as_str()))
+                    }
+                    crate::ir::Statement::NativeCall { .. } => ("NativeCall", None),
+                    crate::ir::Statement::If { .. } => ("If", None),
+                    crate::ir::Statement::AssignConst { .. } => ("AssignConst", None),
+                    crate::ir::Statement::AssignValue { .. } => ("AssignValue", None),
+                    crate::ir::Statement::AssignExpr { .. } => ("AssignExpr", None),
+                    _ => ("Other", None),
+                };
+                eprintln!(
+                    "NATIVE_BOOLEAN_STATEMENT path={path:?} index={index} kind={kind} reason={reason:?} span={:?} inline_words={:?} retained_words={:?} synthetic={:?}",
+                    statement.span(),
+                    inline.map(|tokens| tokens.words().len()),
+                    retained.map(|tokens| tokens.words().len()),
+                    inline.and_then(|tokens| tokens.synthetic),
+                );
+                for (child, body) in statement.child_scripts().into_iter().enumerate().rev() {
+                    let mut child_path = path.clone();
+                    child_path.extend([index, child]);
+                    pending.push((child_path, body));
+                }
+            }
+        }
+    }
+    let function = facts.executable().function().unwrap_or_else(|| {
+        panic!(
+            "actual source builds executable IR; retained availability={:?}; module metadata current={}; function metadata current={}; module grammar={:?}; function grammar={:?}",
+            facts.executable(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                .is_some(),
+            unit.top_level
+                .invocation_metadata_context_for_module(registry, module)
+                .is_some(),
+            module.lexer_config,
+            unit.top_level.source_lexer_config(),
+        )
+    });
+    let hints = BTreeMap::new();
+    lower_function(&LoweringInput {
+        registry,
+        context: facts.context(),
+        function,
+        source: &unit.source,
+        module,
+        mutations: &unit.command_mutations,
+        config: native_config(),
+        escape: None,
+        top_level: true,
+        line_origin: 0,
+        entry_assumption: facts.dispatch_entry_assumption(),
+        type_hints: &hints,
+    })
+}
+
 /// Every operation in the function, arms of `IfElse` included.
 fn all_ops(function: &NativeFunction) -> Vec<&NativeOp> {
     fn walk<'a>(ops: &'a [NativeOp], out: &mut Vec<&'a NativeOp>) {
@@ -177,7 +325,10 @@ fn the_arithmetic_chain_is_straight_line_proven_i64() {
 #[test]
 fn loop_counters_read_from_the_cell_take_the_dynamic_fast_path() {
     let source = "set i 0\nset sum 0\nwhile {$i < 20} {\n    incr i\n    if {$i % 3 == 0} continue\n    if {$i > 15} break\n    incr sum $i\n}\nputs \"$i $sum\"\n";
-    let (function, report) = lower(source, native_config()).expect("lowers");
+    let (_owner, context, unit) = original_boolean_unit(source, "tcl9.0");
+    let (function, report) =
+        lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+            .expect("lowers under its genuine native entry");
     let rungs: Vec<String> = all_ops(&function)
         .iter()
         .filter_map(|op| match op {
@@ -239,27 +390,40 @@ fn a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge() {
 
 #[test]
 fn renaming_a_math_function_stops_the_native_arm() {
+    fn retains_runtime_dispatch(function: &NativeFunction) {
+        let literals: BTreeMap<_, _> = all_ops(function)
+            .into_iter()
+            .filter_map(|op| match op {
+                NativeOp::ConstStr { dst, text } => Some((*dst, text.as_str())),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            all_ops(function).into_iter().any(|op| {
+                matches!(op, NativeOp::MathFunc { name, args, .. }
+                    if name == "abs" && args.len() == 1)
+                    || matches!(op, NativeOp::NestedInvoke { argv, .. }
+                if argv.len() == 2
+                && literals.get(&argv[0]) == Some(&"expr")
+                && literals.get(&argv[1]) == Some(&"abs($a)"))
+            }),
+            "runtime math dispatch must be retained: {:?}",
+            all_ops(function)
+        );
+    }
     // `expr` resolves `abs(…)` through the command table: after
     // `rename ::tcl::mathfunc::abs {}` tclsh raises `invalid command name`,
     // so the compiler must not keep folding it to a native absolute value.
     let renamed = "rename ::tcl::mathfunc::abs {}\nset a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(renamed, native_config()).expect("lowers");
-    assert!(
-        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
-        "the call must go back through the command table: {:?}",
-        all_ops(&function)
-    );
+    retains_runtime_dispatch(&function);
     // A `namespace import` into `::tcl::mathfunc` replaces the function just
-    // as a rename does — tclsh answers `EVIL` for the sheet below — and no
-    // name is *rebound*, so only the resolution-changed signal catches it.
-    let imported = "namespace eval ::tcl::mathfunc { namespace import -force ::evil::abs }\n\
+    // as a rename does — C9.0 answers 999 for this source.
+    let imported = "namespace eval ::evil {proc abs x {return 999}; namespace export abs}\n\
+         namespace eval ::tcl::mathfunc { namespace import -force ::evil::abs }\n\
          set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(imported, native_config()).expect("lowers");
-    assert!(
-        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
-        "{:?}",
-        all_ops(&function)
-    );
+    retains_runtime_dispatch(&function);
     // The namespace transition may itself be reached through an alias prefix.
     // The closed binding owner must carry that lookup effect into every
     // compiler consumer; a second syntax-only scan would miss `mutate` here.
@@ -268,11 +432,7 @@ fn renaming_a_math_function_stops_the_native_arm() {
          namespace eval ::tcl::mathfunc { ::mutate ::evil::abs }\n\
          set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(alias_imported, native_config()).expect("lowers");
-    assert!(
-        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
-        "an alias-resolved import must return math dispatch to the command table: {:?}",
-        all_ops(&function)
-    );
+    retains_runtime_dispatch(&function);
     // Untouched, `abs` still folds to the inline compare/negate arm.
     let plain = "set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(plain, native_config()).expect("lowers");
@@ -281,6 +441,11 @@ fn renaming_a_math_function_stops_the_native_arm() {
         0,
         "{:?}",
         all_ops(&function)
+    );
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::NestedInvoke { .. })),
+        0,
+        "the unchanged installed abs implementation retains its native path"
     );
 }
 
@@ -357,7 +522,7 @@ fn a_traced_variable_keeps_its_barrier_and_its_runtime_incr() {
 
 #[test]
 fn a_dynamic_trace_target_guards_incr_with_the_runtime_trace_bit() {
-    let source = "set name a\ntrace add variable $name write puts\nset a 1\nincr a\n";
+    let source = "proc watch args {}\nset name [read stdin]\ntrace add variable $name write watch\nset a 1\nincr a\n";
     let (function, _) = lower(source, native_config()).expect("lowers");
     assert!(all_ops(&function).iter().any(|op| matches!(
         op,
@@ -708,4 +873,376 @@ fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
         count(&lowered, |op| matches!(op, NativeOp::DefineProc { .. })),
         1
     );
+}
+
+#[test]
+fn native_lowering_cannot_bypass_an_unresolved_chunk_entry() {
+    use crate::command_binding::{CommandAllocationSite, ExecutedScriptSource, SourceOriginId};
+    use crate::native_compilation_admission::NativeCompilationAdmission;
+    use std::sync::Arc;
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect("set before 1", &registry, false, "tcl9.0");
+    let facts = &unit.top_level.semantic_facts;
+    let mut function = facts.executable().function().unwrap().clone();
+    let source = ExecutedScriptSource::materialised(
+        CommandAllocationSite {
+            source: Arc::new(SourceOriginId::authored(&Arc::from(unit.source.as_str()))),
+            offset: 0,
+        },
+        vec![0],
+        &unit.source,
+    );
+    function.native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
+        source: Some(source),
+        failure: None,
+        provider_required: true,
+    }));
+    let hints = BTreeMap::new();
+    let input = LoweringInput {
+        registry: &registry,
+        context: facts.context(),
+        function: &function,
+        source: &unit.source,
+        module: &unit.ir_module,
+        mutations: &unit.command_mutations,
+        config: native_config(),
+        escape: None,
+        top_level: true,
+        line_origin: 0,
+        entry_assumption: facts.dispatch_entry_assumption(),
+        type_hints: &hints,
+    };
+    assert_eq!(
+        lower_function(&input).unwrap_err(),
+        FunctionDecline::NativeCompilationAdmissionRequired
+    );
+}
+
+#[test]
+fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    // Software source/IR observation only. The independently measured original
+    // opcode rows own actual truth values and getter effects.
+    use tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
+    let source = "if {!$lhs} {set result A}; if {$lhs ? $rhs : $other} {set result B}; if {$lhs && $rhs} {set result C}; if {$lhs || $rhs} {set result D}";
+    for environment in ["tcl8.4", "tcl9.1"] {
+        // The selected original script-object compiler visits all four
+        // expressions before their possible runtime condition outcomes.
+        let (_owner, context, unit) = original_boolean_unit_with_compilation(
+            source,
+            environment,
+            tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                ..crate::environment_ingress::authoring_native_compilation()
+            },
+        );
+        let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+            .expect("genuine original condition source lowers");
+        let purposes: Vec<_> = all_ops(&function)
+            .into_iter()
+            .filter_map(|op| match op {
+                NativeOp::UnboxBool { purpose, .. } => Some(*purpose),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            purposes.contains(&Purpose::LogicalNot),
+            "{environment}: {purposes:?}"
+        );
+        assert!(
+            purposes.contains(&Purpose::ConditionalJump),
+            "{environment}: {purposes:?}"
+        );
+        assert!(
+            purposes.contains(&Purpose::LogicalAnd),
+            "{environment}: {purposes:?}"
+        );
+        assert!(
+            purposes.contains(&Purpose::LogicalOr),
+            "{environment}: {purposes:?}"
+        );
+        assert_eq!(
+            count(&function, |op| matches!(
+                op,
+                NativeOp::BooleanExpressionResult { .. }
+            )),
+            4
+        );
+        assert_eq!(
+            count(&function, |op| matches!(
+                op,
+                NativeOp::Unbox {
+                    target: super::ir::NativeType::Bool,
+                    ..
+                } | NativeOp::Truth { .. }
+            )),
+            0
+        );
+        if environment == "tcl8.4" {
+            for (jump, final_instruction) in [
+                (Purpose::LogicalAnd, Purpose::LogicalAndInstruction),
+                (Purpose::LogicalOr, Purpose::LogicalOrInstruction),
+            ] {
+                let conversions: Vec<_> = all_ops(&function)
+                    .into_iter()
+                    .filter_map(|op| match op {
+                        NativeOp::UnboxBool { src, purpose, .. }
+                            if *purpose == jump || *purpose == final_instruction =>
+                        {
+                            Some((*src, *purpose))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(conversions.len(), 3);
+                assert_eq!(conversions[0].1, jump);
+                assert_eq!(
+                    conversions[1],
+                    (conversions[0].0, final_instruction),
+                    "same original lhs is reconverted first"
+                );
+                assert_eq!(conversions[2].1, final_instruction);
+                assert_ne!(
+                    conversions[2].0, conversions[0].0,
+                    "the genuine right operand remains separate"
+                );
+            }
+        } else {
+            assert!(!purposes.contains(&Purpose::LogicalAndInstruction));
+            assert!(!purposes.contains(&Purpose::LogicalOrInstruction));
+        }
+    }
+}
+
+#[test]
+fn original_boolean_lowering_separates_inline_and_public_expression_result_producers() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
+    let (_owner, context, unit) = original_boolean_unit(
+        "if {$condition} {set result A}; if {[set condition]} {set result B}",
+        "tcl8.6",
+    );
+    let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+        .expect("both actual expression source routes lower");
+    let productions: Vec<_> = all_ops(&function)
+        .into_iter()
+        .filter_map(|op| match op {
+            NativeOp::BooleanExpressionResult { production, .. } => Some(*production),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(productions, [Production::InlineExpression]);
+    let combined: Vec<_> = all_ops(&function)
+        .into_iter()
+        .filter_map(|op| match op {
+            NativeOp::ExprBoolEval { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(combined, ["[set condition]"]);
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
+        0,
+        "a public condition has one completion-bearing result producer"
+    );
+    for block in &function.blocks {
+        if let super::ir::NativeTerminator::Branch { condition, .. } = &block.terminator {
+            assert_eq!(
+                function.values[condition.0 as usize].ty,
+                super::ir::NativeType::Bool
+            );
+        }
+    }
+}
+
+#[test]
+fn original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    let (_owner, context, unit) =
+        original_boolean_unit("if {$condition} {set result yes}", "tcl8.6");
+    assert!(lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module).is_ok());
+    let mut missing_entry = unit.ir_module.clone();
+    missing_entry.source_entry.native_entry = None;
+    let mut missing_point = unit.ir_module.clone();
+    std::sync::Arc::make_mut(missing_point.source_entry.native_entry.as_mut().unwrap())
+        .execution_point = None;
+    let mut missing_input = unit.ir_module.clone();
+    missing_input.source_metadata_input = None;
+    let mut missing_entry_input = unit.ir_module.clone();
+    missing_entry_input.source_entry.metadata_context =
+        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+    let mut changed_grammar = unit.ir_module.clone();
+    changed_grammar.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+    let mut foreign = unit.ir_module.clone();
+    let foreign_context =
+        tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+    let original = unit.ir_module.source_metadata_input.as_ref().unwrap();
+    foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+        original.analyser_profile(),
+        original.unit_profile(),
+        foreign_context,
+        original.lexer_config(),
+    ));
+    let mut changed_availability = unit.ir_module.clone();
+    let older = std::sync::Arc::new(
+        tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(context.commands())),
+    );
+    changed_availability.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+        original.analyser_profile(),
+        original.unit_profile(),
+        older,
+        original.lexer_config(),
+    ));
+    for refused in [
+        missing_entry,
+        missing_point,
+        missing_input,
+        missing_entry_input,
+        changed_grammar,
+        foreign,
+        changed_availability,
+    ] {
+        assert_eq!(
+            lower_original_boolean_unit(&unit, context.commands(), &refused).unwrap_err(),
+            FunctionDecline::NativeCompilationAdmissionRequired
+        );
+    }
+}
+
+#[test]
+fn original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
+    let source = "set original 4294967296; if {$original} {set result cell}; if {4294967296} {set result literal}; if {1 + 2} {set result arithmetic}";
+    let (_owner, context, unit) = original_boolean_unit(source, "tcl8.4");
+    let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+        .expect("original read and generic expression paths lower");
+    let ops = all_ops(&function);
+    let cell_read = ops
+        .iter()
+        .find_map(|op| match op {
+            NativeOp::CellRead { dst, place, .. } if place.base() == "original" => Some(*dst),
+            _ => None,
+        })
+        .expect("truth retains an actual object read despite its known numeric value");
+    let stages: Vec<_> = ops
+        .iter()
+        .filter_map(|op| match op {
+            NativeOp::BooleanExpressionResult {
+                src, production, ..
+            } => Some((*src, *production)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stages, [(cell_read, Production::InlineExpression)]);
+    let combined: Vec<_> = ops
+        .iter()
+        .filter_map(|op| match op {
+            NativeOp::ExprBoolEval { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(combined, ["4294967296", "1 + 2"]);
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
+        0
+    );
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::Truth { .. })),
+        0
+    );
+}
+
+#[test]
+fn original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal() {
+    // Actual retained C compiler structure; no entered handler or callback chronology.
+    let source = "if {$a} {set one 1}; if {$b} {set two 2}; if {$c} {set three 3}";
+    for environment in ["tcl8.4", "tcl9.1"] {
+        let (_owner, context, unit) = original_boolean_unit_with_compilation(
+            source,
+            environment,
+            tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                ..crate::environment_ingress::authoring_native_compilation()
+            },
+        );
+        assert_eq!(unit.ir_module.top_level.statements.len(), 3);
+        assert!(
+            unit.ir_module
+                .top_level
+                .statements
+                .iter()
+                .all(|statement| matches!(statement, crate::ir::Statement::If { .. }))
+        );
+        let script = &unit.ir_module.top_level;
+        let last = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            context.commands(),
+            &unit.ir_module,
+        )
+        .unwrap();
+        assert!(
+            last.source_binding
+                .as_ref()
+                .unwrap()
+                .original_inline_control_metadata_for_input(
+                    last,
+                    unit.ir_module.source_metadata_input.as_ref().unwrap(),
+                    context.commands()
+                )
+                .is_some()
+        );
+        assert!(
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                context.commands(),
+                Some(metadata),
+                last
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                context.commands(),
+                metadata,
+                last
+            )
+            .is_some()
+        );
+        assert!(
+            unit.top_level
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some()
+        );
+        let (_direct_owner, direct_context, direct) = original_boolean_unit(source, environment);
+        let direct_script = &direct.ir_module.top_level;
+        let direct_tokens = direct_script
+            .retained_source_tokens_for_statement(direct_script.statements.first().unwrap())
+            .unwrap();
+        assert!(
+            direct_tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_inline_control_compilation(direct_tokens)
+                .is_none()
+        );
+        assert!(
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                direct_context.commands(),
+                &direct.ir_module
+            )
+            .is_some()
+        );
+    }
 }

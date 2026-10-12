@@ -1,0 +1,6 @@
+
+running 1 test
+test typed_value::native_number_tests::currency::original_increment_keeps_real_copy_on_write_and_pending_first_host ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.54s
+

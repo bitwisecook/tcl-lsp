@@ -1,0 +1,18 @@
+{
+  "question": "naming.variable.original-w216-literal-replacement-public-values",
+  "problem": "Under the original stock variable-reading ::set implementation, do these proposed array-element source spellings select the exact literal dollar/quote/bracket/backslash/Unicode/split-line variable roots and preserve quoted or nested-command index substitution? Does replacing the inserted ::set head independently change its result?",
+  "source_implementation_question": "naming.diagnostics.original-w216-literal-source-replacement",
+  "channel": "Exact UTF-8 source-file CLI with a literal U+00E9 and literal split-line root, ASCII escaped proposal strings. Public catch codes/value equality/info-exists/results only. No native name/header pointers/current-cell completeness/compiler-entry claims.",
+  "source_sha256": "cb4ad7c2bea77e75c7588d3ee7992c6090ba2798c92176ef919f054b0a4f6513",
+  "required_providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested",
+  "bounds": "Fixed8 stock-set value-context examples plus1 direct known-replaced-set public value. No all-index/editor safety/native object/cell inference.",
+  "relationship": "Independent value-context source. Original324 uses proposed command substitution as the entire script and attempts to dispatch VALUE_label as a command; retain324 whole failed public observations. Here list receives the proposed substitution as a value."
+}

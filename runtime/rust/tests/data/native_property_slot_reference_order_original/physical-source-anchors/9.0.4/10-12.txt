@@ -1,0 +1,107 @@
+    Tcl_ListObjAppendList(NULL, list, oldList);
+    Tcl_ResetResult(interp);
+
+    /* Set slot contents */
+    code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Remove --
+ *
+ *	Implementation of the "-remove" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Remove(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    int skip = Tcl_ObjectContextSkippedArgs(context), code, isNew;
+    Tcl_Size listc, i;
+    Tcl_Obj *resolved, *oldList, *newList, **listv;
+    Tcl_HashTable removeSet;
+
+    if (skip == objc) {
+	return TCL_OK;
+    }
+
+    /* Resolve all values */
+    resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    /* Get slot contents; store in list */
+    oldList = CallSlotGet(interp, oPtr);
+    if (oldList == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(oldList);
+    Tcl_ResetResult(interp);
+
+    /* Prepare a set of items in the list to remove */
+    TclListObjGetElements(NULL, resolved, &listc, &listv);
+    Tcl_InitObjHashTable(&removeSet);
+    for (i=0 ; i<listc; i++) {
+	Tcl_CreateHashEntry(&removeSet, listv[i], &isNew);
+    }
+    Tcl_DecrRefCount(resolved);
+
+    /* Append the new items from the old items if they're not in the remove set */
+    if (TclListObjGetElements(interp, oldList, &listc, &listv) != TCL_OK) {
+	Tcl_DecrRefCount(oldList);
+	Tcl_DeleteHashTable(&removeSet);
+	return TCL_ERROR;
+    }
+    newList = Tcl_NewObj();
+    for (i=0 ; i<listc; i++) {
+	if (Tcl_FindHashEntry(&removeSet, listv[i]) == NULL) {
+	    Tcl_ListObjAppendElement(NULL, newList, listv[i]);
+	}
+    }
+    Tcl_DecrRefCount(oldList);
+    Tcl_DeleteHashTable(&removeSet);
+
+    /* Set slot contents */
+    Tcl_IncrRefCount(newList);
+    code = CallSlotSet(interp, oPtr, newList);
+    Tcl_DecrRefCount(newList);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Resolve --
+ *
+ *	Default implementation of the "Resolve" slot accessor. Just returns
+ *	its argument unchanged; particular slots may override.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Resolve(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    int skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip + 1 != objc) {
+	Tcl_WrongNumArgs(interp, skip, objv, "list");
+	return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, objv[objc - 1]);
+    return TCL_OK;
+}

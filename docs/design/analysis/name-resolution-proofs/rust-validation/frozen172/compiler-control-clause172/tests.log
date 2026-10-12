@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::state::tests::no_duplicate_e002_alongside_e004 ... 
+thread 'analyser::state::tests::no_duplicate_e002_alongside_e004' (647064) panicked at rust/tcl-compiler/src/analyser/state.rs:6376:13:
+src="if\n" got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::state::tests::no_duplicate_e002_alongside_e004
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8255 filtered out; finished in 0.30s
+

@@ -1,0 +1,14 @@
+{
+  "input_channel_comparison": [
+    "counted-native-source",
+    "UTF-8 character channel with auto newline translation"
+  ],
+  "source_sha256": "82a59529ab061c1ae09226fbeb6ba25896e3452df8f20e64575128384c6587e2",
+  "source_hex": "73657420706c61696e20224100f09f98800d0a420d43220a73657420627261636564207b4100f09f98800d0a420d437d0a736574206573636170656420225cf09f9880220a736574206e756d657269632022415c75303030305c75443833445c7544453030220a73657420736c6173687a65726f20225c007461696c220a",
+  "source_bytes": 126,
+  "probe_sha256": "3a937804542861da9882bc62253838f2ded0cfb8bc2fcba98d9ffffd297edf0e",
+  "contains_literal_zero_bytes": 3,
+  "supplementary_character": "U+1F600 GRINNING FACE, actual 4-byte UTF-8 source characters",
+  "numeric_source": "literal ASCII backslash-u0000, backslash-uD83D, backslash-uDE00",
+  "results": "not run; expected rows must be recorded from actual providers"
+}

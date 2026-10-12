@@ -1,0 +1,92 @@
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/workspace/.targets/naming-verify065/debug/deps/tcl_compiler-467d8584812a250d)
+
+running 1 test
+test taint::tests::hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims ... HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=0 hosted=true spellings=true origins=3 uses=1
+HOSTED_TAINT_SINK site=0 code=None args=2 uses=1
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=5
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=19 hosted=true spellings=true origins=3 uses=0
+HOSTED_TAINT_SINK site=19 code=None args=2 uses=0
+HOSTED_TAINT_SOURCE site=Some(40) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(40) stage=issuer-selected words=4 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=40 hosted=true spellings=true origins=4 uses=0
+HOSTED_TAINT_SINK site=40 code=Some(Irule3001) args=3 uses=0
+HOSTED_TAINT_READ site=66 read=false version=false lattice=false tainted=true
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=0 hosted=true spellings=true origins=3 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=2 uses=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-selected words=4 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=19 hosted=true spellings=true origins=4 uses=0
+HOSTED_TAINT_SINK site=19 code=Some(Irule3001) args=3 uses=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=0 hosted=true spellings=true origins=3 uses=1
+HOSTED_TAINT_SINK site=0 code=None args=2 uses=1
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-selected words=4 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=19 hosted=true spellings=true origins=4 uses=1
+HOSTED_TAINT_SINK site=19 code=Some(Irule3001) args=3 uses=1
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=0 hosted=true spellings=true origins=3 uses=2
+HOSTED_TAINT_SINK site=0 code=None args=2 uses=2
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-selected words=4 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=19 hosted=true spellings=true origins=4 uses=0
+HOSTED_TAINT_SINK site=19 code=Some(Irule3001) args=3 uses=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-selected words=4 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=0 hosted=true spellings=true origins=4 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=3 uses=0
+HOSTED_TAINT_SOURCE site=Some(30) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(30) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=30 hosted=true spellings=true origins=3 uses=0
+HOSTED_TAINT_SINK site=30 code=None args=2 uses=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=1
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(49) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(49) stage=guarded-catalogue-unavailable words=4 binding=true context=true
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=guarded-catalogue-unavailable words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(25) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(25) stage=issuer-selected words=3 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=25 hosted=true spellings=true origins=3 uses=0
+HOSTED_TAINT_SINK site=25 code=None args=2 uses=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(44) stage=issuer-enter words=4 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(44) stage=issuer-selected words=4 binding=true context=true
+HOSTED_TAINT_CANDIDATE site=44 hosted=true spellings=true origins=4 uses=0
+HOSTED_TAINT_SINK site=44 code=Some(Irule3001) args=3 uses=0
+HOSTED_TAINT_READ site=70 read=false version=false lattice=false tainted=true
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8118 filtered out; finished in 0.43s
+

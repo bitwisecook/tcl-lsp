@@ -1,0 +1,22 @@
+{
+  "ordinal": 228,
+  "selector": "frame::rmw::tests::trace_shell_definition_survives_trace_removal_without_leaking",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::rmw::tests::trace_shell_definition_survives_trace_removal_without_leaking",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.01543234899872914,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/228.log",
+  "log_sha256": "45e52fc8af3ca2db38b97c15978ff3ac3aa09e38f644f46f8a1131239b74145a"
+}

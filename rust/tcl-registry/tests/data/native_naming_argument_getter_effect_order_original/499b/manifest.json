@@ -1,0 +1,119 @@
+{
+  "status": "prepared-only",
+  "question_id": "naming.invocation.original-naming-argument-getter-and-effect-order",
+  "request_sha256": "5d7129d90ca9276845641097fb24b49c03b7367ec293cc814e043cd49acbbfb7",
+  "files": [
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/launch.py",
+      "sha256": "892d10eca2516da856761a5de9a0e6443c4ba254ea168f0114a78542d6cd6061"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/prepare.py",
+      "sha256": "41c005aec9005bfe7e202d344e59c3d69a69129f9a34d769472dd092e9a5c4b6"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/probe.c",
+      "sha256": "136dd54982a1cd3170ff68375b410980359d950a90fa7da2ce1b575fc083f453"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/request.json",
+      "sha256": "5d7129d90ca9276845641097fb24b49c03b7367ec293cc814e043cd49acbbfb7"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.4.20/tclNamesp.c-3124.txt",
+      "sha256": "2b4483b6e83051e983dd1e6a17fc922b3a2dd9e20038bfc57169b845e22a7849"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.4.20/tclNamesp.c-3206.txt",
+      "sha256": "ea454ac67dd00f501e2c8710f76b47d443b8c2c1d65b10a0ae0b79086c052b10"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.4.20/tclNamesp.c-3268.txt",
+      "sha256": "704f0a37b5c4127a7ad2a224995390ff7ace5ca63ec181faf6381cf7425d2417"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.4.20/tclProc.c-67.txt",
+      "sha256": "e4774ffe0b92598980af28c865613accf307968cf2269af78b572f2d710dc4fa"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.5.19/tclNamesp.c-3429.txt",
+      "sha256": "c7615f5e29c1ff42314b7d208e2933390c1ad8dc4d5636e977564bad6efff39c"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.5.19/tclNamesp.c-3510.txt",
+      "sha256": "45addb27d8846c3547a727207a1fd5a92c211053a1f56da1705bf765adde8e18"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.5.19/tclNamesp.c-3575.txt",
+      "sha256": "454eaad59c129a31fe65103036123f244fd79b2760ef2921221d9bc4d5095f38"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.5.19/tclProc.c-113.txt",
+      "sha256": "1d4906b2c337cc7f56fb1182144ed8c7be0cd1e13cc9491a3a13601fa6ac6c4d"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.6.18/tclNamesp.c-3460.txt",
+      "sha256": "e558171f704e253c82202b30e37653bae172cc6398ff2d666da6eed6c4ac602b"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.6.18/tclNamesp.c-3542.txt",
+      "sha256": "c9bc5d4c98943488f20b6a5ff1f8cbb40e85e3b55bb056204ac541c4bae4d2b5"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.6.18/tclNamesp.c-3607.txt",
+      "sha256": "698081dbfad8f9a14e8c0a87a0120908b780062cce05e07e4157b12c24741dc2"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/8.6.18/tclProc.c-119.txt",
+      "sha256": "ac9f9355f7f7facb1f1d9a2cc592a23b76748fa67b05c1517038d55aeafa3d54"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.0.4/tclNamesp.c-3666.txt",
+      "sha256": "9af80c94641c085c3f45faf0b29b096df96779d91cd26b9e35dd587ed04ed36e"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.0.4/tclNamesp.c-3748.txt",
+      "sha256": "a9529ea1c3b220baa14252496661ef1f52c5e6db0bdfcba60662b083f322c398"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.0.4/tclNamesp.c-3813.txt",
+      "sha256": "3400cb006fe36f2f0482a9f0e6ce1179e65094b03eae0f3f75139a3899fe6ae9"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.0.4/tclProc.c-158.txt",
+      "sha256": "8e75fc54addf3d9a0fc7e993f2b128c39143a1bdb3539428c3ef2999b1c131a9"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.1.0/tclNamesp.c-3638.txt",
+      "sha256": "f63993a994935b8a86ff649ed976a69315600207388001a3c9c6eb9058b1d346"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.1.0/tclNamesp.c-3720.txt",
+      "sha256": "dfe7541003b7e5e1c45d441d74a397c594c927c443f8f3b128183ad21049fa43"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.1.0/tclNamesp.c-3786.txt",
+      "sha256": "158d63d99c92b90dcc35fdeec8543429d3d9745b8ec149bea21ef9e58d162948"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/9.1.0/tclProc.c-146.txt",
+      "sha256": "f1b94158f3592c1ed0493078ef87088ab94f4bb4604e1b45c9fdd956010d6e16"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/jim/jim-namespace.c-333.txt",
+      "sha256": "820f990f9615ed52db051dc6a7a938ff2cbda79ca029a64222710c685d12d851"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/jim/jim.c-2235.txt",
+      "sha256": "649806e8c929b9beda6dcd5f05ded8da07daeda1e45ddc90a275602668365d45"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/jim/jim.h-446.txt",
+      "sha256": "0a29e671b95d9b386e2fa22ec9ff8df32cc6858c1eed728666d9dc7fcb7abd84"
+    },
+    {
+      "path": "/workspace/.proofs/native-naming-argument-order499b/source-windows/jim/nshelper.tcl-61.txt",
+      "sha256": "7f84edf34436924e62e19a9aec98b79e52d70cf38f2c6b27205c479851435f8a"
+    }
+  ]
+}

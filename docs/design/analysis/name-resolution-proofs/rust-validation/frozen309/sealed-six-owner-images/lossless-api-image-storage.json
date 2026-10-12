@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen309/sealed-six-owner-images/pinned-api309.elf.gz",
+  "stored_sha256": "d0fd0d592b9116d4d40fab14336221713b738c1cc95b48a57f39901284a22cac",
+  "stored_bytes": 835724,
+  "original_sha256": "e9aa1186a5226f952e116780f0549c502b98b932295d4a493bea0809be45a9af",
+  "original_bytes": 2778584,
+  "original_recorded_executable": "/workspace/.proofs/pinned-api309.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen309/sealed-six-owner-images/pinned-api309.json",
+  "pin_metadata_sha256": "be0371a5eb38f7e24d2458b2133c715d7cc9633fec3693fa5536084966ca19c9",
+  "build_receipt_id": "rust.frozen309.integration-shared-owner-own-test-build309",
+  "build_receipt_sha256": "aca9fb33bf8fa45411ccf0f2e62c996c9e763b88cea982af571a45293fceecbd",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen309/sealed-six-owner-images/source-snapshot.json.gz",
+    "sha256": "4f2042032348ec1609864bf1f7da6ac0b49d5aa4c27dd90dd388265304fdbda8",
+    "compression": "gzip",
+    "uncompressed_sha256": "69a296eeb7ec4899faa9d492f4d664972d17578ee9fbdbf041e3f6a1533d87cd"
+  },
+  "verification": "Actual successful six-owner own no-run receipt, exact original strict pin/source association, full decompressed byte SHA/size verification and unchanged original before/after. Compression runs no assertion, changes no original file and donates no result to changed current sources or the separate Runtime crate."
+}

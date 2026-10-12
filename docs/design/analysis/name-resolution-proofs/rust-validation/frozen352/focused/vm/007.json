@@ -1,0 +1,22 @@
+{
+  "ordinal": 7,
+  "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 284.15461747103836,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 284.13s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/007.log",
+  "log_sha256": "74f31826db1a4f22c9ba2c008ae852233ea05fb1160dc2b78b1793c5c08a7ef1"
+}

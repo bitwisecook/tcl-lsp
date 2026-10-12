@@ -1,0 +1,18 @@
+
+running 1 test
+test analyser::diagnostics::tests::original_shape_advice_keeps_effective_roles_and_whole_written_operands ... 
+thread 'analyser::diagnostics::tests::original_shape_advice_keeps_effective_roles_and_whole_written_operands' (647022) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16240:9:
+assertion `left == right` failed: interp alias {} clean {} unset -nocomplain
+clean
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::original_shape_advice_keeps_effective_roles_and_whole_written_operands
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8255 filtered out; finished in 4.68s
+

@@ -1,0 +1,1798 @@
+{
+  "scope": "Exact unchanged original absolute paths mapped to retained bytes or byte-identical prior evidence; no compiler or inherited-environment provenance is invented.",
+  "required_pin_associations": [
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tcl.h"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "sha256": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/libtcl8.4.a"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile",
+      "sha256": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/Makefile"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c",
+      "sha256": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclInterp.c"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c",
+      "sha256": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclPkg.c"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.4.20/provider.elf"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--init.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl",
+      "sha256": "695157c85d3a27c435abd2998ba06fb24cad7b1e7ecb280fc1c60986749634f0",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--ldAout.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl",
+      "sha256": "a04176d99af9264972f25f115bf3a354a47d6791b0fb65dc956698147454fd13",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--auto.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl",
+      "sha256": "c4b31e1a407db7566ab0f0b1e36eecc5e5d72dd9eac1916c5d69304e0df4c26e",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--word.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl",
+      "sha256": "cff00c9471fa6941bca5a934ea331cc63ecf750c93c320f3cb378cd27c77b89a",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--parray.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl",
+      "sha256": "6c7262b1ed5b376d84776d347e1d3ade7d565fabf1ac956a61649b95318a5d5b",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--history.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+      "sha256": "3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--package.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl",
+      "sha256": "c975b8db8a368d4eee415eaa2d9cfca0cf98445c314772f82a64ebde07bce906",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--safe.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl",
+      "sha256": "d2c0e68e0b9d53faf7d9a34ecc49560b14eaae108eb25681335f51e231755c6e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--platform--platform.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl",
+      "sha256": "6611d96f69fff00d09b625786298b001c7b794147057a1f57163d910cf2b5d0a",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--platform--shell.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl",
+      "sha256": "fbb2ece354ab60a262509773cc9c28b77940e26af005963ea1402547d43fae8a",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--platform--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl",
+      "sha256": "0e8c796d23795489ca9f710ee963f685a67ce6a0052ebcde4eefe40295221779",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl",
+      "sha256": "d9ce3119271af29ac600a3cbec9866be750a306c01c3d28897f655e3e9b35c46",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http--http.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl",
+      "sha256": "21ed0584bad0589bad98c5684cea7c113ef0d0339599ee20fa45d835683eb64e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--msgcat--msgcat.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl",
+      "sha256": "df9750e9a99622ca48727f45f32db3313d1d6487c3f92de60d730209708622c7",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--msgcat--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl",
+      "sha256": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--reg--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl",
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http1.0--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl",
+      "sha256": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http1.0--http.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl",
+      "sha256": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--dde--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl",
+      "sha256": "a7665fe9abcc7340f34e6470b94001c67d6c68824f214ed736dd27e8d62a8d32",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--opt--optparse.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl",
+      "sha256": "c4a5c0dc93486d7ac086313410983f34717e431128212a4e2c4dec82ae834f77",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--opt--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--tcltest--tcltest.tcl"
+    },
+    {
+      "provider": "8.4.20",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+      "sha256": "30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--tcltest--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tcl.h"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "sha256": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/libtcl8.5.a"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile",
+      "sha256": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/Makefile"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c",
+      "sha256": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclInterp.c"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c",
+      "sha256": "2365436253e7777a7773f3fa00d9099929fae8406590cd2daebb2914a0a4f0b3",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclPkg.c"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.5.19/provider.elf"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--init.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl",
+      "sha256": "f33b4e6ca8ac8a86ace39ad57628d7588ef04ec3d8d86c700f54ccba77b242fc",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--auto.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl",
+      "sha256": "64585c5327b0710d31bff61c14564ff289acaad8743174f95544d8c04306d8c7",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--word.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl",
+      "sha256": "71966a6cecd4d718b8b6286573bf50539c1d4bffad26a1126d056a5da48a66e4",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--clock.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+      "sha256": "5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--tm.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl",
+      "sha256": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--parray.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl",
+      "sha256": "f136e0db9e71468e4d9d93200cd2d04e6915d5546681bfeca6cb9a620ba648ba",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--history.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+      "sha256": "be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--package.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl",
+      "sha256": "953bc6cbf03a7ff492de59828c6d31a12d80b45873d85c03cb62a6099fed976c",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--safe.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl",
+      "sha256": "d4b3d9601454ea4828dff3be426c33fb845d005e98d2cc139dbb0d69cad3168b",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--platform--platform.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl",
+      "sha256": "2f812a0550716b88930174a8ca245698427cd286680c0968558ae269ab52440d",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--platform--shell.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl",
+      "sha256": "1d808c59aaf46b7a24ea360246a5fa3824a510d703750eb234b702f8106c708c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--platform--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl",
+      "sha256": "f33a19dafa35af4765cd1a6dd8557047a73a21b2b8a7288d52cec6bdf7cea6cc",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl",
+      "sha256": "425f41cbee04fe48b5803a77f1649257e4dcb475491c01f6d58704c3af4399c1",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http--http.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl",
+      "sha256": "2efa43679969abd5748f6e7d64408617396300b469e1ec9d0b6c1a7764c886e5",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--msgcat--msgcat.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl",
+      "sha256": "8989f8e8d7f96da5fd51f5271cd32aadc4fa5c23d7c4010838378d921c3d8d1e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--msgcat--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl",
+      "sha256": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--reg--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl",
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http1.0--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl",
+      "sha256": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http1.0--http.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl",
+      "sha256": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--dde--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl",
+      "sha256": "217074e45fc877ceddb0eb10fca94fcf43dc235dd8dc4bd1c9b6ec3121ae726c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--opt--optparse.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl",
+      "sha256": "a088e549d18ade683273e31c004daa7e614642fe801afb3861eb85445250186b",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--opt--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--tcltest--tcltest.tcl"
+    },
+    {
+      "provider": "8.5.19",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+      "sha256": "29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--tcltest--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/generic/tcl.h"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/libtcl8.6.a"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile",
+      "sha256": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+      "sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c",
+      "sha256": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclInterp.c"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c",
+      "sha256": "83845b75b4da27d7ae67afd5b15135153d68557681cd9659f75d4d4e027135a2",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclPkg.c"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.6.18/provider.elf"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--init.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl",
+      "sha256": "67be04b5aa4c0845f8c5143171acf31ad6b3f23eb1a0be98133133e8abc9822b",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--auto.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl",
+      "sha256": "f18e8ae29aa8ed2be2cbb5568b4243f654f7fb0aa2066e16977863ee1415b9bc",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--word.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl",
+      "sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--clock.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+      "sha256": "0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--tm.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl",
+      "sha256": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--parray.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl",
+      "sha256": "e2eb8bdf39732ca48173e61d9ada4f0d095ddaa3ed1fcce21c0a520c75493d8f",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--history.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+      "sha256": "0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--package.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl",
+      "sha256": "bd70548ea2090135918f2e61a39bfdd6163ec8cef82f400ce220a1edc4bedd6c",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--safe.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl",
+      "sha256": "ec8cca09e045ecc3d61d7aa2a336f4c6366a5bc0e8207feca37eab38fc0cd292",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--platform--platform.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl",
+      "sha256": "3e9a139b7d2d768a8b94327feb402c4fc7afeda156e46ab2d22e8c40266142a5",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--platform--shell.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl",
+      "sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--platform--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl",
+      "sha256": "0345d47af9786eb20eab98519140306b924f32cd7c685d34bc40d3b6f1f6f27e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl",
+      "sha256": "803ca646b09304bc21b79f3c5618ac1359a0bc34a2762d40dea933c23e4f7ae6",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http--http.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl",
+      "sha256": "5732951b02b45c3702c2f9ee7c43deabfcfe0aaae893f89bcc59e32bd9444ce3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--msgcat--msgcat.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl",
+      "sha256": "3d391b5c9219666880499e6e5c87edb05e64c5d25fe2c0e66874fb0271f2e3d1",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--msgcat--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl",
+      "sha256": "5a3a93234a418f3a8e1814dd8e6d95344045a6d3a4e62af6a8fad2c48d2aa1ce",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--reg--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl",
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http1.0--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl",
+      "sha256": "f115d9d2be5886175fe610484eaac8e17d9feb1c71d419af66c6e31b0c215523",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http1.0--http.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl",
+      "sha256": "c2e7fd1110cf83cf9b8c5dcc823e02955576615dd67d8f912c151ced735c0d8f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--dde--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl",
+      "sha256": "04f4b2f34d959cff47c6502a137d15ac9dc4f54d4a6e78478f64c8c7e14849a8",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--opt--optparse.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl",
+      "sha256": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--opt--pkgIndex.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--tcltest--tcltest.tcl"
+    },
+    {
+      "provider": "8.6.18",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+      "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--tcltest--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/generic/tcl.h"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/libtcl9.0.a"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile",
+      "sha256": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c",
+      "sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c",
+      "sha256": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclInterp.c"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c",
+      "sha256": "c89585f9d38a913ce03b9a700987cfe18cb39dec2a24293336eb85b67cd67c8c",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclPkg.c"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.0.4/provider.elf"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/readfile.tcl",
+      "sha256": "eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--readfile.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--init.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/auto.tcl",
+      "sha256": "629dc86958aa1c5f8697a638f296c706458e7a3418d2d81a2e81ce945f3828c6",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--auto.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/word.tcl",
+      "sha256": "3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--word.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl",
+      "sha256": "6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--clock.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+      "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tm.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/icu.tcl",
+      "sha256": "bc125ef0732af6e67367e324c0b3de87e03f04f48c72c42fbb8f77b7b5849a8d",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--icu.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/parray.tcl",
+      "sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--parray.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/writefile.tcl",
+      "sha256": "b454723873db2e587ac1323bcebff2e8929f5dc98a6fe001ed34fcaf0c2aa320",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--writefile.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/install.tcl",
+      "sha256": "5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--install.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/history.tcl",
+      "sha256": "ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--history.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+      "sha256": "473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--package.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/safe.tcl",
+      "sha256": "0d3e8ddb147d713206139b7c4c915f11d0a53aebeee3a5ca3e7aebf26854e238",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--safe.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl",
+      "sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--foreachline.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/platform.tcl",
+      "sha256": "4af798475ffe6a0af32f0202a7cbc7b07b59de5ddcd7f89fcbdd1b07ffe5f6e1",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--platform--platform.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/shell.tcl",
+      "sha256": "54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--platform--shell.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/pkgIndex.tcl",
+      "sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--platform--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/pkgIndex.tcl",
+      "sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--http--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/http.tcl",
+      "sha256": "56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--http--http.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/msgcat.tcl",
+      "sha256": "80301481addb70362ffd4eb1c301471a41e59987d39dbbc2a6096ddfb415071e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--msgcat--msgcat.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/pkgIndex.tcl",
+      "sha256": "6b7f3bf260c40ecf823f6fb7246ef3b833597e97bfd0e6963aa117ae196cd602",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--msgcat--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/idna.tcl",
+      "sha256": "fa329853cd186ea405f4bec122913f1e4286c54488d0ffd445f7f120c71583fe",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--cookiejar--idna.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/pkgIndex.tcl",
+      "sha256": "7d6f5e0236fad3b60cf5b7b10fa5629effcebead382083a7d9543c9526095d1f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--cookiejar--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/cookiejar.tcl",
+      "sha256": "9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--cookiejar--cookiejar.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/registry/pkgIndex.tcl",
+      "sha256": "f485327543f043f62c1ad12416d3c959b98aa2b77320503cb2db0e16e773fb78",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--registry--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/dde/pkgIndex.tcl",
+      "sha256": "f140827f677c522b3dce28b61609142da79c565e43ce176141c36766bc95265e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--dde--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/optparse.tcl",
+      "sha256": "3d14ecf300f9fdd21875e22ce348988f852c177c4bf25fb6a7f37ba4be9fca73",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--opt--optparse.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/pkgIndex.tcl",
+      "sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--opt--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tcltest--tcltest.tcl"
+    },
+    {
+      "provider": "9.0.4",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+      "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tcltest--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/generic/tcl.h"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/libtcl9.1.a"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile",
+      "sha256": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+      "published_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+      "sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c",
+      "sha256": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+      "published_path": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclInterp.c"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c",
+      "sha256": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclPkg.c"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.1.0/provider.elf"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/readfile.tcl",
+      "sha256": "eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--readfile.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--init.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/autoexecok.tcl",
+      "sha256": "92c9f7d88e023844fd51d400c41144ad8d71f99099c896044d5693b190e3e3fa",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--autoexecok.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/auto.tcl",
+      "sha256": "1953e3830f90106aa322cfc66644cc36ae39f8350bf214f07fa4d75afd80da02",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--auto.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/word.tcl",
+      "sha256": "3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--word.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl",
+      "sha256": "f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--clock.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+      "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tm.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/icu.tcl",
+      "sha256": "4ef7e224231e5430270ae03eebf54d3d0e8ca6b976cb8d8b2e7e6bf9147eaefe",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--icu.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/parray.tcl",
+      "sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--parray.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/writefile.tcl",
+      "sha256": "b5e9def32c99ee9b2199b46d3e37e7d075091d7e3c42921c754ee9e18cfff233",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--writefile.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/install.tcl",
+      "sha256": "5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--install.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/history.tcl",
+      "sha256": "ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--history.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+      "sha256": "a1b01ef4a09299dc30efcf3cfd647a3b99efc945bf8f1980a43d9fc43f075b26",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--package.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/safe.tcl",
+      "sha256": "02af9afd6f876e6432bd67084b2e8983213ba33cba036bb4d78cca9072b3de96",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--safe.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl",
+      "sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8",
+      "published_path": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--foreachline.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/platform.tcl",
+      "sha256": "c1a9ceabcd60f33cd80a1187916ded8df6e319ded07347bbc7c7255f08c87442",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--platform--platform.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/shell.tcl",
+      "sha256": "54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--platform--shell.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/pkgIndex.tcl",
+      "sha256": "8dd8f2d040863b062283f9e569502e014cac14a0989175e553ad5bc181fd9361",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--platform--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/pkgIndex.tcl",
+      "sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--http--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/http.tcl",
+      "sha256": "56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--http--http.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/msgcat.tcl",
+      "sha256": "446a2dad2b197c17cd6ff4b638b1fbc5f93a5337548330c6bc6ac6886058b7eb",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--msgcat--msgcat.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/pkgIndex.tcl",
+      "sha256": "17c82510641fa0048bc1e8b3cc47e2f18cac46e594f0171bdc3100c6c09a5221",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--msgcat--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/idna.tcl",
+      "sha256": "c0a3df8e2d0f4681be9e4078e56d294406073131d2be0cd3d0b63b20fa0c4feb",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--cookiejar--idna.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/pkgIndex.tcl",
+      "sha256": "9a13ce96018100685b26aa450f5a8cbce925ac70d5c1bdb2b323259c9956a5f7",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--cookiejar--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/cookiejar.tcl",
+      "sha256": "9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--cookiejar--cookiejar.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/registry/pkgIndex.tcl",
+      "sha256": "c61f803073c3183a49d5524221c05f295dee6cbef57272ceacc8ee5cc0d54c2c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--registry--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/dde/pkgIndex.tcl",
+      "sha256": "c3a195332dd743956eb38ebc22f1873eeea06501c2cd3ba91cee3838eb62da5f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--dde--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/optparse.tcl",
+      "sha256": "49a8824f7d1d44e1ae5f1a0b9f3e8c363d89014e2e31bcdf1ae7045d698ff512",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--opt--optparse.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/pkgIndex.tcl",
+      "sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--opt--pkgIndex.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--tcltest--tcltest.tcl"
+    },
+    {
+      "provider": "9.1.0",
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+      "sha256": "7372fd028e8165994e6c1e0ee2e3f3f7551ff75def535a414443e9e6c0138c65",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--tcltest--pkgIndex.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim.h"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+      "sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/libjim.a"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/Makefile",
+      "sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/Makefile"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c",
+      "sha256": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-interp.c",
+      "sha256": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+      "published_path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim-interp.c"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/oo.tcl",
+      "sha256": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/oo.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_oo.c",
+      "sha256": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_oo.c"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c",
+      "sha256": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+      "published_path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/source/_load-static-exts.c"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tree.tcl",
+      "sha256": "f474fa4b8d655ef75b89efec33fc34639884037cbaa491c11de268f6b484ffa7",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tree.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tclcompat.tcl",
+      "sha256": "38b692f0b36959df1e4f5ffeca482fb573d3664c294f80e4739d0624a98c0694",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tclcompat.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/glob.tcl",
+      "sha256": "d4f1a38089f199c1324ebec31305d6858961f4346ce4872ec82ebb4a9ad89112",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--glob.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/regtest.tcl",
+      "sha256": "56d3b5932e55098348899e9d02b45f7d5e9374793cda4fe25b3db13501ebd7b2",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--regtest.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tcltest.tcl",
+      "sha256": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tcltest.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/initjimsh.tcl",
+      "sha256": "8e0cf2dee783435d849882f6f0cfa1917d4ceeee3b60e1d53d9eb361017a601a",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--initjimsh.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/binary.tcl",
+      "sha256": "4ab254890a9911314244df656851fa317c67fbe702279a38c2f42a8a63925222",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--binary.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/bootstrap.tcl",
+      "sha256": "350fbbdd47ff4a2a11de5c8a4aea1b0e2f960c05be389acb4e99422af021a243",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--bootstrap.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/rlprompt.tcl",
+      "sha256": "5b095f75b48244b60ae07d7787f2f3c66c34efaa0bbd9ce291db293f0cfa90a9",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--rlprompt.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/ensemble.tcl",
+      "sha256": "9ca704e877070759aeada3c5a326a2d960ebe5184abce6428c97cec73fed32de",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/ensemble.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/parse-unidata.tcl",
+      "sha256": "00f546e9ed43f0bf06811b34683914a61a3d0b96f3de2051e8d0ca3de2492d3c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--parse-unidata.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/bench.tcl",
+      "sha256": "e5b116b9ee23bbbea6e97f8a829ab1ac71146f21342f95d2a7d11b289bf37ce3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--bench.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl",
+      "sha256": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/nshelper.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jsonencode.tcl",
+      "sha256": "94434e3906e88992960ba8be151c777e8df709b61dc31e5847bd85a2f6fec065",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--jsonencode.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/make-load-static-exts.tcl",
+      "sha256": "4774a82aa1cffdbfc980a65960588372e94c9f2891605781d04f5fbc3624d653",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--make-load-static-exts.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/make-c-ext.tcl",
+      "sha256": "9bb912cd204260dd4da720e5d48640a8743eb1098daee39f341d6635b900e32c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--make-c-ext.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/cc-shared.tcl",
+      "sha256": "027fa233775db2d1f57b39106e025477a2943fba4cf1b9a9c7c0e70cf294be87",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc-shared.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/local.tcl",
+      "sha256": "8a93e638fb95014310f36c92442b25ed74281d556834028450b5c0df64bd08e3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--local.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/system.tcl",
+      "sha256": "fc0e4f05f7c75e24955e233ba93871e3b5b54e9f1f5e69f869c768a389bf4d4e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--system.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/cc.tcl",
+      "sha256": "3a5960da00d17b71f8083e65af3623d6872f82680c2f53aea585ea64cc029787",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/cc-db.tcl",
+      "sha256": "455ba84859a051c72e607d789ae652264f657195ce2c76ea66d3113684e1e522",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc-db.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/pkg-config.tcl",
+      "sha256": "331aa6a7e638dea9b509ca094ffd664299594f5c478986d7b1822e19cc349ba8",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--pkg-config.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/tmake.tcl",
+      "sha256": "fd89371053c5d3e57897d32304fafedc0fcbaec95ff299ccde2aefd4b26add56",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--tmake.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/autosetup/cc-lib.tcl",
+      "sha256": "07614cb53758c5cc99362f6c369b9728ace86a3ed2cfd4c7ff8462d746e8f89d",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc-lib.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/redis-async.tcl",
+      "sha256": "71993d2bed48826c8073a128b0e88a140c4549b8ac4ffb47a008014941c3943f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--redis-async.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/dnstest.tcl",
+      "sha256": "6fc2c63a17f4a23117ddf85ee42dd708b8f604ecfcf13f6981e967ccf418043d",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--dnstest.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/sdlcircles.tcl",
+      "sha256": "19fd4e265a3543b3746176f03b4c4f32c10c8ba735fc733267308cd2e1316eb8",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sdlcircles.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/dbgtest.tcl",
+      "sha256": "5f7bbd2c77ba1b290d0719f9296044022bb05168bd2c53e94746e35fcb5ce25e",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--dbgtest.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/sqlite3test.tcl",
+      "sha256": "23124ba3d811904c0b71893f7e16d107a4bae6c997082ee09ec2617ac2560dba",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sqlite3test.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/sdlevents.tcl",
+      "sha256": "2034a48ddf6a06655649b24480aa926041ead041f886ef312e242af4c53ac643",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sdlevents.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/pipe.tcl",
+      "sha256": "b82b757cfd9e2223dcbdcea37614beccd81bf60b75cecaf02cbe208d443ed05b",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--pipe.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/popen.tcl",
+      "sha256": "0cc40cc7bb8b4f16c07abaf722e99e89f0caaccd5f618a86816e2a9243007cfa",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--popen.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/ootest.tcl",
+      "sha256": "3801d45416b201c4ecd43edb558527d77b1f2da232a77b19dc89b2c5683b4503",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--ootest.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/metakit.tcl",
+      "sha256": "e76f2ca1b01578064c23e62f727d21e487b6f6abbe9f09d6e30a8176540fe60d",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--metakit.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/sdltest.tcl",
+      "sha256": "0b2af35de699afb73bcc518ee4ebc4b5cdc8f5da89688de156ef62a6b8ff554c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sdltest.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/socket-show-filename.tcl",
+      "sha256": "fa0ca0ad665fd71eb1fef8d2f3e86a78ab23f873affa74d3d7890b3384bfceff",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--socket-show-filename.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/tip.tcl",
+      "sha256": "eb7b86a396bd77b5cfa17a759f52ae2e4a894cc48ddfb3ab402a945ef6915197",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--tip.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/redis-pubsub.tcl",
+      "sha256": "e5620bdb327e3eb1b9cf94a09bbf9895dd976a22d651e3ae4ef49052c80ce5b6",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--redis-pubsub.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/parray.tcl",
+      "sha256": "3d18764788997dec9d1587c4baf908e02bb5dc002bc74f8d39876963772dda6f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--parray.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/nonblocking-gets.tcl",
+      "sha256": "5dcdabf3ab40b884eef36fbc5c1e933aa35469af60eb713d127efdb070eedf61",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--nonblocking-gets.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/jtclsh.tcl",
+      "sha256": "36c0a7719112520436fe025d618fececc0982ca6c322aeeb9f9dcc72b041815c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--jtclsh.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/vwaitsignal.tcl",
+      "sha256": "82bd1cb6a7db88a3ef1b0153b1a26c4f6d4d98b1e5f0076d19e167ae98a32b1f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--vwaitsignal.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/redis.tcl",
+      "sha256": "f55c871f168cf772327294c7ce56bd26a6f59ce6373af4edeef156fe4171093c",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--redis.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/client-server.tcl",
+      "sha256": "6309ab75985e280586881fd380a0c631c23637fa89ab810d8c0fa2a45728958f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--client-server.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/timedread.tcl",
+      "sha256": "dbac2fab7ff12baef16909d846282353dc3fcdcce9960e677857eb24de42bcf5",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--timedread.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples/dns.tcl",
+      "sha256": "082711a2eb1db96288d74a2ac6838e82a8d65cf2421bb0b9ea037ce1735f76b3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--dns.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/sqlite3/test-sqlite.tcl",
+      "sha256": "0f1b89eb62b615e24200d2e0ed03eb0e6dc90cc0b566e0448bdee06576f3e168",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--sqlite3--test-sqlite.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/return-break.tcl",
+      "sha256": "637e9d33d569e088963a66c27517c1dcbae299da75522762687c28ef27285ad8",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--return-break.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/runall.tcl",
+      "sha256": "f69bcd9d034369f7c1b837bca5f194a91bd438391525ea85a992e32a9aaa8a68",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--runall.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/expect.tcl",
+      "sha256": "312651fd12d9cb7d3591be3819937387bfa439c3a7b65900640a883b2ada7739",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--expect.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/exitpackage.tcl",
+      "sha256": "2cf828bc54364b3d20098be109ab75181eb269e2b1bb3f5732152d35e8814226",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--exitpackage.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/testing.tcl",
+      "sha256": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--testing.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/forget-test.tcl",
+      "sha256": "61f56cbdafa5836411f4e2804a0fea39758a339f0fc0f3664568467173fe3b9f",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--forget-test.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/break.tcl",
+      "sha256": "84a6ea824cac8e3bf385b549447fac0ea11f5b3c95dc67bcb342388e64f3fab3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--break.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/errors.tcl",
+      "sha256": "65981e339e175ef4ba75b00c3f9a2698d9fe40b91e14edb1dfffceb778c8a0b8",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--errors.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tests/dummy.tcl",
+      "sha256": "15327d983da5a5d6eea48de955057b036e9401dad6e451a35f04af167c52b7b2",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--dummy.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/tools/benchtable.tcl",
+      "sha256": "42635b5d417edc0a3da19a68a22fbdbcd0f55c47391e96a034f625bd972edaa8",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tools--benchtable.tcl"
+    },
+    {
+      "provider": "jim",
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/examples.api/print.tcl",
+      "sha256": "91324714fac27decb3b23e3dd8f659199eaa335ee480705a17104d67cbaa95e3",
+      "published_path": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples.api--print.tcl"
+    }
+  ],
+  "recorded_to_published": {
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.4.20/package-query.stderr": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.4.20/package-query.stderr",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.4.20/package-query.stdout": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.4.20/package-query.stdout",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.4.20/receipt.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.4.20/receipt.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.4.20/stderr.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.4.20/stderr.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.4.20/stdout.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.4.20/stdout.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.5.19/package-query.stderr": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.5.19/package-query.stderr",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.5.19/package-query.stdout": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.5.19/package-query.stdout",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.5.19/receipt.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.5.19/receipt.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.5.19/stderr.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.5.19/stderr.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.5.19/stdout.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.5.19/stdout.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.6.18/package-query.stderr": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.6.18/package-query.stderr",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.6.18/package-query.stdout": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.6.18/package-query.stdout",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.6.18/receipt.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.6.18/receipt.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.6.18/stderr.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.6.18/stderr.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/8.6.18/stdout.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/8.6.18/stdout.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.0.4/package-query.stderr": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.0.4/package-query.stderr",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.0.4/package-query.stdout": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.0.4/package-query.stdout",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.0.4/receipt.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.0.4/receipt.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.0.4/stderr.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.0.4/stderr.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.0.4/stdout.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.0.4/stdout.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.1.0/package-query.stderr": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.1.0/package-query.stderr",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.1.0/package-query.stdout": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.1.0/package-query.stdout",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.1.0/receipt.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.1.0/receipt.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.1.0/stderr.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.1.0/stderr.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/9.1.0/stdout.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/9.1.0/stdout.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/jim/package-query.stderr": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/jim/package-query.stderr",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/jim/package-query.stdout": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/jim/package-query.stdout",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/jim/receipt.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/jim/receipt.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/jim/stderr.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/jim/stderr.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/jim/stdout.txt": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/jim/stdout.txt",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/package-query.tcl",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/probe.tcl",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/request.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/request.json",
+    "/workspace/.proofs/native-tcltest-alias-caller-frame437/summary.json": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/summary.json",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/libtcl8.4.a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.4.20/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.4.20/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--init.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--ldAout.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--auto.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--word.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--parray.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--history.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--package.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--safe.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--platform--platform.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--platform--shell.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--platform--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--msgcat--msgcat.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--msgcat--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--reg--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http1.0--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--http1.0--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--dde--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--opt--optparse.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--opt--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--tcltest--tcltest.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--library--tcltest--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/libtcl8.5.a",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.5.19/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.5.19/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--init.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--auto.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--word.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--clock.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--tm.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--parray.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--history.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--package.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--safe.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--platform--platform.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--platform--shell.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--platform--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--msgcat--msgcat.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--msgcat--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--reg--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http1.0--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--http1.0--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--dde--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--opt--optparse.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--opt--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--tcltest--tcltest.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--tcltest--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/libtcl8.6.a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/8.6.18/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.6.18/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--init.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--auto.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--word.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--clock.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--tm.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.5.19--library--parray.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--history.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--package.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--safe.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--platform--platform.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--platform--shell.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--platform--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--msgcat--msgcat.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--msgcat--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--reg--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http1.0--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--http1.0--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--dde--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--opt--optparse.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--opt--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--tcltest--tcltest.tcl",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--library--tcltest--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/libtcl9.0.a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.0.4/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.0.4/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/readfile.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--readfile.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--init.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/auto.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--auto.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/word.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--word.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--clock.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tm.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/icu.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--icu.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/parray.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--parray.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/writefile.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--writefile.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/install.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--install.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/history.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--history.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--package.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/safe.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--safe.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--foreachline.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/platform.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--platform--platform.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/shell.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--platform--shell.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--platform--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--http--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--http--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/msgcat.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--msgcat--msgcat.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--msgcat--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/idna.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--cookiejar--idna.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--cookiejar--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/cookiejar.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--cookiejar--cookiejar.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/registry/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--registry--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/dde/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--dde--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/optparse.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--opt--optparse.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--opt--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tcltest--tcltest.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tcltest--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/generic/tcl.h",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/libtcl9.1.a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclInterp.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/9.1.0/generic/tclPkg.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.1.0/provider.elf",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/readfile.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--readfile.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--init.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/autoexecok.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--autoexecok.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/auto.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--auto.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/word.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--word.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--clock.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--tm.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/icu.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--icu.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/parray.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--parray.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/writefile.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--writefile.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/install.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--install.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/history.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--history.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--package.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/safe.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--safe.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl": "rust/tcl-registry/tests/data/native_deep_import_chain_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--library--foreachline.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/platform.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--platform--platform.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/shell.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--platform--shell.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--platform--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--http--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/http.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--http--http.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/msgcat.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--msgcat--msgcat.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--msgcat--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/idna.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--cookiejar--idna.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--cookiejar--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/cookiejar.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--cookiejar--cookiejar.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/registry/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--registry--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/dde/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--dde--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/optparse.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--opt--optparse.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--opt--pkgIndex.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--tcltest--tcltest.tcl",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--library--tcltest--pkgIndex.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim.h",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/libjim.a",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/Makefile",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim-interp.c",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/oo.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_oo.c",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/source/_load-static-exts.c",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf",
+    "/workspace/.proofs/native-providers/jimtcl/tree.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tree.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tclcompat.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tclcompat.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/glob.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--glob.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/regtest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--regtest.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tcltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tcltest.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/initjimsh.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--initjimsh.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/binary.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--binary.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/bootstrap.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--bootstrap.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/rlprompt.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--rlprompt.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/ensemble.tcl": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/ensemble.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/parse-unidata.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--parse-unidata.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/bench.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--bench.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/nshelper.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/jsonencode.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--jsonencode.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/make-load-static-exts.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--make-load-static-exts.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/make-c-ext.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--make-c-ext.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/cc-shared.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc-shared.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/local.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--local.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/system.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--system.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/cc.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/cc-db.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc-db.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/pkg-config.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--pkg-config.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/tmake.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--tmake.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/autosetup/cc-lib.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--autosetup--cc-lib.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/redis-async.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--redis-async.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/dnstest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--dnstest.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/sdlcircles.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sdlcircles.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/dbgtest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--dbgtest.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/sqlite3test.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sqlite3test.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/sdlevents.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sdlevents.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/pipe.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--pipe.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/popen.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--popen.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/ootest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--ootest.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/metakit.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--metakit.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/sdltest.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--sdltest.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/socket-show-filename.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--socket-show-filename.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/tip.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--tip.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/redis-pubsub.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--redis-pubsub.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/parray.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--parray.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/nonblocking-gets.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--nonblocking-gets.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/jtclsh.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--jtclsh.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/vwaitsignal.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--vwaitsignal.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/redis.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--redis.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/client-server.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--client-server.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/timedread.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--timedread.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples/dns.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples--dns.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/sqlite3/test-sqlite.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--sqlite3--test-sqlite.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/return-break.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--return-break.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/runall.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--runall.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/expect.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--expect.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/exitpackage.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--exitpackage.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/testing.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--testing.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/forget-test.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--forget-test.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/break.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--break.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/errors.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--errors.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tests/dummy.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tests--dummy.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/tools/benchtable.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--tools--benchtable.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/examples.api/print.tcl": "rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original/original-inputs/workspace--.proofs--native-providers--jimtcl--examples.api--print.tcl"
+  },
+  "main_command_and_environment": [
+    {
+      "provider": "8.4.20",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+      ],
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+      },
+      "separate_query_command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+      ],
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+      },
+      "separate_query_command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+      ],
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+      },
+      "separate_query_command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+      ],
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+      },
+      "separate_query_command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+      ],
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+      },
+      "separate_query_command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+      ]
+    },
+    {
+      "provider": "jim",
+      "command": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/probe.tcl"
+      ],
+      "selected_environment": {},
+      "separate_query_command": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/native-tcltest-alias-caller-frame437/package-query.tcl"
+      ]
+    }
+  ]
+}

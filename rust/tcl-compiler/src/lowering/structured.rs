@@ -28,10 +28,7 @@ use tcl_lexer::{Span, Token, TokenType};
 
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::spec::CaseListSpec;
-use tcl_registry::{
-    ClauseAbstention, ClausePlan, ClauseRowId, ClauseShapeError, ClauseTiming, InvocationWord,
-    InvocationWords,
-};
+use tcl_registry::{ClauseAbstention, ClausePlan, ClauseRowId, ClauseShapeError, ClauseTiming};
 
 use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{
@@ -39,7 +36,6 @@ use crate::ir::{
 };
 use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
-use crate::registry_invocation::{EffectiveInvocationWord, effective_command_arguments};
 use crate::segmenter::SegmentedCommand;
 
 use super::{Lowerer, parse_var_list_names};
@@ -58,6 +54,7 @@ struct SwitchPair {
     body_text: String,
     body_span: Option<Span>,
     body_arg_idx: Option<usize>,
+    body_source: Option<crate::command_binding::ExecutedScriptSource>,
 }
 
 /// One element of a switch's braced case list.
@@ -69,7 +66,6 @@ struct SwitchElement {
     value: String,
     /// The element's raw interior text as written (delimiters stripped,
     /// backslashes untouched) — what a braced body's script lowering reads.
-    raw: String,
     /// Local span, delimiter-inclusive for `{…}` / `"…"` elements, in the
     /// body text's own offset space — callers relocate it to the full
     /// source buffer by adding the body text's starting offset.
@@ -125,7 +121,6 @@ fn switch_body_elements(
                 let next = el.next;
                 elements.push(SwitchElement {
                     value,
-                    raw,
                     span: local_span,
                 });
                 if next <= scan {
@@ -320,6 +315,7 @@ fn inline_switch_pairs(
             body_text: args[body_tok_idx].clone(),
             body_span: arg_tokens.get(body_tok_idx).map(|t| t.span),
             body_arg_idx: Some(body_tok_idx),
+            body_source: None,
         });
     }
     Ok(pairs)
@@ -390,22 +386,16 @@ impl Lowerer<'_> {
         seg: &SegmentedCommand,
     ) -> Option<Result<ClausePlan, ClauseAbstention>> {
         let tokens = self.cmd_tokens(seg);
-        let values = effective_command_arguments(
-            &tokens,
-            self.config.escapes,
-            WordValueRules::from_config(&self.config),
-        );
-        let words: Vec<InvocationWord<'_>> = values
-            .iter()
-            .map(EffectiveInvocationWord::as_registry_word)
-            .collect();
-        self.registry
-            .resolve_structured_invocation(
-                InvocationWords::structured(InvocationWord::Literal(seg.name()), &words),
-                self.registry.own_surface_query(),
-            )
-            .resolved()?
-            .clause_walk()
+        let context = self.invocation_metadata_context()?;
+        let invocation = self.logical_structured_invocation(&tokens)?;
+        let realm = tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.invocation_realm);
+        invocation.with_metadata_schema(self.registry, context, realm, |selected| {
+            selected.clause_walk()
+        })
     }
 
     /// Lower `if cond ?then? body ?elseif cond ?then? body ...? ?else? ?body?`
@@ -495,7 +485,7 @@ impl Lowerer<'_> {
                 condition_base: cond_tok
                     .and_then(|t| word_content_base(t.span, cond_single, &cond_text)),
                 body,
-                body_span: body_tok.map_or(seg.span, |t| t.span),
+                body_span: body_tok.map_or(seg.span, |t| self.script_word_span(t)),
             });
             // Static-true condition latches the dead-code flag so
             // remaining clauses + the else branch are suppressed.
@@ -564,7 +554,7 @@ impl Lowerer<'_> {
         Statement::For {
             span: seg.span,
             init,
-            init_span: arg_tokens[0].span,
+            init_span: self.script_word_span(&arg_tokens[0]),
             condition: parse_expr_for_profile(
                 &condition_source_text(arg_tokens.get(1), arg_single[1], &args[1]),
                 self.dialect,
@@ -576,11 +566,11 @@ impl Lowerer<'_> {
                 &condition_source_text(arg_tokens.get(1), arg_single[1], &args[1]),
             ),
             next,
-            next_span: arg_tokens[2].span,
+            next_span: self.script_word_span(&arg_tokens[2]),
             body,
-            body_span: arg_tokens[3].span,
+            body_span: self.script_word_span(&arg_tokens[3]),
             raw_args: args.to_vec(),
-            raw_tokens: Some(self.cmd_tokens(seg)),
+            raw_tokens: Some(Box::new(self.cmd_tokens(seg))),
         }
     }
 
@@ -627,7 +617,7 @@ impl Lowerer<'_> {
                 &condition_source_text(arg_tokens.first(), arg_single[0], &args[0]),
             ),
             body,
-            body_span: arg_tokens[1].span,
+            body_span: self.script_word_span(&arg_tokens[1]),
             raw_args: args.to_vec(),
             raw_tokens: Some(self.cmd_tokens(seg)),
         }
@@ -719,7 +709,7 @@ impl Lowerer<'_> {
             span: seg.span,
             iterators,
             body,
-            body_span: body_tok.map_or(seg.span, |t| t.span),
+            body_span: body_tok.map_or(seg.span, |t| self.script_word_span(t)),
             is_lmap,
             raw_args: args.to_vec(),
             is_dict_iteration: false,
@@ -769,7 +759,7 @@ impl Lowerer<'_> {
         // word is still dynamic and must not be compiled as a
         // static loop body.
         let body_tok = arg_tokens.get(2);
-        if !super::seg_word_is_static_braced(seg, 3) {
+        if !self.can_lower_body_word(seg, 3) {
             return self.barrier(seg, "foreachLine with dynamic body");
         }
 
@@ -797,7 +787,7 @@ impl Lowerer<'_> {
             span: seg.span,
             iterators,
             body,
-            body_span: body_tok.map_or(seg.span, |t| t.span),
+            body_span: body_tok.map_or(seg.span, |t| self.script_word_span(t)),
             is_lmap: false,
             raw_args: args.to_vec(),
             is_dict_iteration: false,
@@ -813,7 +803,12 @@ impl Lowerer<'_> {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
 
-        if args.is_empty() {
+        let arity = self
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::catch_positional_arity);
+        if arity
+            .is_none_or(|arity| !u16::try_from(args.len()).is_ok_and(|count| arity.accepts(count)))
+        {
             return self.barrier(seg, "malformed catch");
         }
         // Body must be a single brace-literal (`Str` kind) token to
@@ -823,7 +818,7 @@ impl Lowerer<'_> {
         // `eval_catch`, which calls `eval_script` on the substituted
         // value.  Without the kind check, ``catch $cmd res`` would
         // be compiled as "call the proc named by ``$cmd``" — wrong.
-        if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
+        if arg_tokens.is_empty() || !self.can_lower_body_word(seg, 1) {
             return self.barrier(seg, "catch with dynamic body");
         }
 
@@ -834,7 +829,7 @@ impl Lowerer<'_> {
         Statement::Catch {
             span: seg.span,
             body,
-            body_span: arg_tokens[0].span,
+            body_span: self.script_word_span(&arg_tokens[0]),
             result_var,
             options_var,
             raw_args: args.to_vec(),
@@ -888,7 +883,7 @@ impl Lowerer<'_> {
         let Some(body_tok) = arg_tokens.get(body_idx) else {
             return self.barrier(seg, "try with dynamic body");
         };
-        if !super::seg_word_is_static_braced(seg, body_idx + 1) {
+        if !self.can_lower_body_word(seg, body_idx + 1) {
             return self.barrier(seg, "try with dynamic body");
         }
 
@@ -914,9 +909,7 @@ impl Lowerer<'_> {
                     // call — a `finally` word that is not a
                     // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`,
                     // deferring the whole `try` to the runtime command.
-                    if clause_tok.is_none()
-                        || !super::seg_word_is_static_braced(seg, clause_body + 1)
-                    {
+                    if clause_tok.is_none() || !self.can_lower_body_word(seg, clause_body + 1) {
                         return self.barrier(seg, "try with dynamic finally body");
                     }
                     finally_body =
@@ -951,12 +944,38 @@ impl Lowerer<'_> {
         Statement::Try {
             span: seg.span,
             body,
-            body_span: body_tok.span,
+            body_span: self.script_word_span(body_tok),
             handlers,
             finally_body,
             finally_span,
             raw_args: args.to_vec(),
         }
+    }
+
+    /// Decode only a statically selected trap operand through the retained grammar.
+    fn try_trap_pattern(
+        &self,
+        seg: &SegmentedCommand,
+        written: usize,
+        keyword: &str,
+        match_arg: &str,
+    ) -> Result<Option<Vec<String>>, ()> {
+        if keyword != "trap" || !super::seg_word_is_static_literal(seg, written) {
+            return Ok(None);
+        }
+        let match_tok = seg.arg_tokens().get(written - 1);
+        let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
+            std::borrow::Cow::Borrowed(match_arg)
+        } else {
+            let bytes =
+                tcl_lexer::backslash_subst_bytes_in(match_arg.as_bytes(), self.config.escapes);
+            let text = std::str::from_utf8(&bytes).map_err(|_| ())?;
+            std::borrow::Cow::Owned(text.to_owned())
+        };
+        Ok(WordValueRules::from_config(&self.config)
+            .split_list(&value)
+            .ok()
+            .map(|elements| elements.into_iter().map(Into::into).collect()))
     }
 
     /// One handler clause of [`Self::lower_try`]: `words` are its pattern,
@@ -981,22 +1000,14 @@ impl Lowerer<'_> {
         // `{A {$B}}` and `{A \$B}`. A substitution-free bare/quoted word still
         // needs backslash substitution before list parsing, whereas a braced
         // word's content is already its literal runtime value.
-        let trap_pattern = if kind == HandlerMatch::ErrorCodePrefix
-            && super::seg_word_is_static_literal(seg, pattern_idx + 1)
-        {
-            let match_tok = arg_tokens.get(pattern_idx);
-            let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
-                std::borrow::Cow::Borrowed(match_arg.as_str())
-            } else {
-                tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
-            };
-            WordValueRules::from_config(&self.config)
-                .split_list(&value)
-                .ok()
-                .map(|elements| elements.into_iter().map(Into::into).collect())
+        let keyword = if kind == HandlerMatch::ErrorCodePrefix {
+            "trap"
         } else {
-            None
+            "on"
         };
+        let trap_pattern = self
+            .try_trap_pattern(seg, pattern_idx + 1, keyword, &match_arg)
+            .map_err(|()| "try trap native byte pattern is not represented")?;
         let Some(var_names) = parse_var_list_names(
             &args[var_list_idx],
             WordValueRules::from_config(&self.config),
@@ -1023,9 +1034,7 @@ impl Lowerer<'_> {
         // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile` — so the whole
         // `try` defers to the runtime command, exactly as the primary-body
         // gate does.
-        if !fallthrough
-            && (handler_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1))
-        {
+        if !fallthrough && (handler_tok.is_none() || !self.can_lower_body_word(seg, body_idx + 1)) {
             return Err("try with dynamic handler body");
         }
         let body = if fallthrough {
@@ -1040,7 +1049,7 @@ impl Lowerer<'_> {
             var_name,
             options_var,
             body,
-            body_span: handler_tok.map_or(seg.span, |t| t.span),
+            body_span: handler_tok.map_or(seg.span, |t| self.script_word_span(t)),
             fallthrough,
         })
     }
@@ -1055,16 +1064,22 @@ impl Lowerer<'_> {
     /// keyword patterns are the registry's, never spellings in the lowering.
     /// The call's case-list descriptor, and whether its command reads any
     /// option rows — `case` has none, so no word of it is an option.
-    fn case_list_of(&self, seg: &SegmentedCommand) -> Option<(&'static CaseListSpec, bool)> {
-        let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        self.registry
-            .resolve_call(seg.name(), &arg_refs, self.registry.own_surface_query())
-            .and_then(|resolved| {
-                resolved
-                    .spec
-                    .case_list
-                    .map(|case| (case, !resolved.spec.options.is_empty()))
-            })
+    fn case_list_of(&self, seg: &SegmentedCommand) -> Option<(CaseListSpec, bool)> {
+        let tokens = self.cmd_tokens(seg);
+        let context = self.invocation_metadata_context()?;
+        let invocation = self.logical_structured_invocation(&tokens)?;
+        let realm = tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.invocation_realm);
+        invocation.with_metadata_schema(self.registry, context, realm, |selected| {
+            Some((
+                *selected.semantics.options.case_list?,
+                !selected.semantics.options.base.is_empty()
+                    || !selected.semantics.options.form.is_empty(),
+            ))
+        })
     }
 
     /// Build the `(arms, default_body, default_span)` triple from
@@ -1103,27 +1118,12 @@ impl Lowerer<'_> {
             }
 
             let body_tok = pair.body_arg_idx.and_then(|idx| arg_tokens.get(idx));
-            let body = if let Some(tok) = body_tok {
+            let body = if let Some(source) = &pair.body_source {
+                self.lower_retained_script(source.clone())
+            } else if let Some(tok) = body_tok {
                 self.lower_body_from_tok(&pair.body_text, Some(tok), namespace)
-            } else if let Some(bspan) = pair.body_span {
-                // The single-braced form
-                // (`switch $x { a {body} … }`) has no arg token — the
-                // body tokens live inside the braced word. Lower from
-                // the body's source span instead of returning an empty
-                // script. `body_span` is brace-inclusive (the element
-                // parser extends it over the closing delimiter), so the
-                // content starts after any leading `{` / `"`; the
-                // even-sized delimiter difference recovers that shift
-                // and matches the offset `lower_body_from_tok` would
-                // have computed from a token's `content_offset`.
-                let span_len = (bspan.end().saturating_sub(bspan.start())) as usize;
-                let skip = span_len.saturating_sub(pair.body_text.len()) / 2;
-                let base = bspan
-                    .start()
-                    .saturating_add(u32::try_from(skip).unwrap_or(0));
-                self.lower_body(&pair.body_text, base, namespace)
             } else {
-                crate::ir::Script::new()
+                Script::new()
             };
 
             // A keyword pattern (`default`) matches unconditionally — in the
@@ -1148,24 +1148,134 @@ impl Lowerer<'_> {
         (arms, default_body, default_span)
     }
 
+    fn switch_list_source(
+        &self,
+        seg: &SegmentedCommand,
+        argument: usize,
+    ) -> Option<crate::command_binding::ExecutedScriptSource> {
+        let bindings = self.source_bindings.as_ref()?;
+        let origin = bindings.source_origin()?.clone();
+        let tokens = self.cmd_tokens(seg);
+        let word = tokens.words().get(argument + 1)?;
+        let crate::registry_invocation::EffectiveInvocationWord::Literal(value) =
+            crate::registry_invocation::effective_invocation_word(
+                word,
+                self.config.escapes,
+                WordValueRules::from_config(&self.config),
+            )
+        else {
+            return None;
+        };
+        Some(crate::command_binding::ExecutedScriptSource::from_word(
+            crate::command_binding::CommandAllocationSite {
+                source: origin,
+                offset: seg.span.start(),
+            },
+            argument,
+            word,
+            &value,
+            self.config,
+        ))
+    }
+
+    fn switch_list_pairs(
+        &self,
+        seg: &SegmentedCommand,
+        i: usize,
+    ) -> Result<Vec<SwitchPair>, &'static str> {
+        let arg_tokens = seg.arg_tokens();
+        let mut pairs = Vec::new();
+        let Some(list_source) = self.switch_list_source(seg, i) else {
+            return Err("switch case list value is unproved");
+        };
+        let body_text = list_source
+            .try_text()
+            .map_err(|_| "switch case list has no Unicode analysis view")?;
+        // Starting offset of the body *content* inside the
+        // outer source. For a braced word the content begins
+        // one byte after the opening `{`.
+        let body_base = list_source.base();
+
+        // Not a well-formed Tcl list — bail to the runtime `switch`,
+        // which reports the list error exactly as C Tcl does.
+        let Some(elements) = switch_body_elements(body_text, self.config.escapes) else {
+            return Err("switch case list is not a list");
+        };
+        // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
+        // no-op — bail to the runtime command, which reports it.
+        if elements.is_empty() {
+            return Err("switch with no arms");
+        }
+        if !elements.len().is_multiple_of(2) {
+            return Err("switch odd pattern count");
+        }
+        let relocate = |local: Span| {
+            let start = body_base.saturating_add(local.start());
+            let end = body_base.saturating_add(local.end());
+            Span::new(start, end)
+        };
+        let mut j = 0;
+        while j + 1 < elements.len() {
+            let pat = &elements[j];
+            let body = &elements[j + 1];
+            pairs.push(SwitchPair {
+                // The pattern is the element's decoded list VALUE
+                // (`a\ b` matches the subject `a b`); the body keeps
+                // its raw spelling for script lowering.
+                pattern: pat.value.clone(),
+                // Every element of a single braced arm list is literal.
+                pattern_braced: true,
+                pattern_span: relocate(pat.span),
+                body_text: body.value.clone(),
+                body_span: Some(relocate(body.span)),
+                body_arg_idx: None,
+                body_source: self
+                    .source_bindings
+                    .as_ref()
+                    .and_then(|bindings| {
+                        bindings.executed_script_for_list_element(arg_tokens[i].span, j + 1)
+                    })
+                    .cloned()
+                    .or_else(|| {
+                        list_source.list_element(
+                            crate::command_binding::CommandAllocationSite {
+                                source: self
+                                    .source_bindings
+                                    .as_ref()
+                                    .and_then(|bindings| bindings.source_origin())
+                                    .cloned()
+                                    .unwrap_or_else(|| list_source.origin.clone()),
+                                offset: seg.span.start(),
+                            },
+                            i,
+                            j + 1,
+                            WordValueRules::from_config(&self.config),
+                        )
+                    }),
+            });
+            j += 2;
+        }
+        Ok(pairs)
+    }
+
     pub(super) fn lower_switch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
         if args.len() < 2 {
-            return self.barrier(seg, "malformed switch");
+            return self.lower_default(seg, namespace);
         }
         let Some((case, reads_options)) = self.case_list_of(seg) else {
             return self.barrier(seg, "switch without a case list");
         };
 
-        let (mut i, mode, nocase) = match case_list_head(case, reads_options, args) {
+        let (mut i, mode, nocase) = match case_list_head(&case, reads_options, args) {
             Ok(head) => head,
             Err(reason) => return self.barrier(seg, reason),
         };
         if i >= args.len() {
-            return self.barrier(seg, "malformed switch options");
+            return self.lower_default(seg, namespace);
         }
 
         let subject = args[i].clone();
@@ -1192,7 +1302,7 @@ impl Lowerer<'_> {
             }
         }
         if i >= args.len() {
-            return self.barrier(seg, "switch missing arms");
+            return self.lower_default(seg, namespace);
         }
 
         // Collect pattern/body pairs. Each pair carries a
@@ -1200,75 +1310,26 @@ impl Lowerer<'_> {
         // space plus an optional `body_arg_idx` into
         // `arg_tokens` so the body lowerer can still pick up
         // the right content offset / encoding flags.
-        let mut pairs: Vec<SwitchPair> = Vec::new();
-
-        // Patterns from a single braced body are literal list elements;
-        // patterns supplied as separate words undergo runtime
-        // `$var` / `[cmd]` substitution (the `switch $s $pat {body}`
-        // wrapper form).
-        let mut patterns_braced = true;
-
-        // Single braced body form: switch subject { pat1 body1 pat2 body2 ... }
-        if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
-            let body_text = &args[i];
-            // Starting offset of the body *content* inside the
-            // outer source. For a braced word the content begins
-            // one byte after the opening `{`.
-            let outer_arg_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
-            let content_shift = 1_u32; // skip leading `{`
-            let body_base = outer_arg_span.start().saturating_add(content_shift);
-
-            // Not a well-formed Tcl list — bail to the runtime `switch`,
-            // which reports the list error exactly as C Tcl does.
-            let Some(elements) = switch_body_elements(body_text, self.config.escapes) else {
-                return self.barrier(seg, "switch case list is not a list");
+        // A single braced list supplies literal patterns; separate words
+        // retain their runtime substitutions.
+        let (pairs, patterns_braced) =
+            if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
+                match self.switch_list_pairs(seg, i) {
+                    Ok(pairs) => (pairs, true),
+                    Err(_) => return self.lower_default(seg, namespace),
+                }
+            } else {
+                match inline_switch_pairs(seg, &case, i) {
+                    Ok(pairs) => (pairs, false),
+                    Err(reason) => return self.barrier(seg, reason),
+                }
             };
-            // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
-            // no-op — bail to the runtime command, which reports it.
-            if elements.is_empty() {
-                return self.barrier(seg, "switch with no arms");
-            }
-            if !elements.len().is_multiple_of(2) {
-                return self.barrier(seg, "switch odd pattern count");
-            }
-            let relocate = |local: Span| {
-                let start = body_base.saturating_add(local.start());
-                let end = body_base.saturating_add(local.end());
-                Span::new(start, end)
-            };
-            let mut j = 0;
-            while j + 1 < elements.len() {
-                let pat = &elements[j];
-                let body = &elements[j + 1];
-                pairs.push(SwitchPair {
-                    // The pattern is the element's decoded list VALUE
-                    // (`a\ b` matches the subject `a b`); the body keeps
-                    // its raw spelling for script lowering.
-                    pattern: pat.value.clone(),
-                    // Every element of a single braced arm list is literal.
-                    pattern_braced: true,
-                    pattern_span: relocate(pat.span),
-                    body_text: body.raw.clone(),
-                    body_span: Some(relocate(body.span)),
-                    body_arg_idx: None,
-                });
-                j += 2;
-            }
-        } else {
-            // Multi-arg form: remaining args are pattern body pairs —
-            // each pattern word substitutes at runtime.
-            patterns_braced = false;
-            match inline_switch_pairs(seg, case, i) {
-                Ok(inline) => pairs = inline,
-                Err(reason) => return self.barrier(seg, reason),
-            }
-        }
 
-        if let Some(reason) = case_list_unrepresentable(case, &pairs) {
+        if let Some(reason) = case_list_unrepresentable(&case, &pairs) {
             return self.barrier(seg, reason);
         }
         let (arms, default_body, default_span) =
-            self.build_switch_arms(case, &pairs, arg_tokens, namespace);
+            self.build_switch_arms(&case, &pairs, arg_tokens, namespace);
 
         Statement::Switch {
             span: seg.span,
@@ -1323,7 +1384,7 @@ impl Lowerer<'_> {
                 // single-token but dynamic body (`$body`, `[cmd]`) must
                 // barrier rather than be lowered as if it were the literal
                 // text.
-                if body_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1) {
+                if body_tok.is_none() || !self.can_lower_body_word(seg, body_idx + 1) {
                     return self.barrier(seg, &format!("dict {sub} with dynamic body"));
                 }
                 let body = self.lower_body_from_tok(&sub_args[2], body_tok, namespace);
@@ -1339,7 +1400,7 @@ impl Lowerer<'_> {
                         list_braced: self.cmd_tokens(seg).arg_is_braced_literal(2),
                     }],
                     body,
-                    body_span: body_tok.map_or(seg.span, |t| t.span),
+                    body_span: body_tok.map_or(seg.span, |t| self.script_word_span(t)),
                     is_lmap: sub == "map",
                     raw_args: args.to_vec(),
                     is_dict_iteration: true,
@@ -1411,30 +1472,108 @@ impl Lowerer<'_> {
         }
     }
 
-    /// Lower a body argument using token offset info.
-    ///
-    /// Rebasing the body's spans by one offset is truthful only while `text`
-    /// maps 1:1 onto the source region `tok` covers.  A compound `{body}x`
-    /// word does not: its value is the brace content welded to the trailing
-    /// fragment with the `}` dropped, so every token past the drop slides one
-    /// byte left — an off-by-one span on ASCII, an offset inside a UTF-8
-    /// sequence on anything else.  Clamp to the part that does
-    /// map, exactly as the analyser's `analyse_body` does, so the welded tail
-    /// — which is not a script in the first place — is dropped rather than
-    /// lowered at fictional offsets.  An ordinary braced body fills its
-    /// region and passes through untouched.
+    /// Whole written script operand, including its closing delimiter.
+    /// IR body ranges use this convention even though lexer token spans exclude
+    /// nonempty closers. List-form switch elements already supply whole words.
+    pub(super) fn script_word_span(&self, token: &tcl_lexer::Token) -> Span {
+        tcl_lexer::word_span_at(&self.source, token.span)
+    }
+
+    /// Analysis can enter a frozen body with an exact retained source inventory.
+    /// Backend compilation still requires its separately authored inline grammar.
+    pub(super) fn can_lower_body_word(&self, seg: &SegmentedCommand, word: usize) -> bool {
+        super::seg_word_is_static_braced(seg, word)
+            || (!self.target.is_bytecode()
+                && seg.argv.get(word).is_some_and(|token| {
+                    self.source_bindings.as_ref().is_some_and(|bindings| {
+                        bindings.executed_script_for_word(token.span).is_some()
+                    })
+                }))
+    }
+
+    /// Lower the executed operand value in its retained source instance.
+    /// Escapes and substitutions never receive estimated document offsets.
     pub(super) fn lower_body_from_tok(
         &mut self,
         text: &str,
         tok: Option<&tcl_lexer::Token>,
-        namespace: &str,
+        _namespace: &str,
     ) -> Script {
         let Some(tok) = tok else {
             return Script::new();
         };
-        let offset = tok.span.start() + u32::from(tok.content_offset);
-        let text = self.guarded_body_text(*tok, text);
-        self.lower_body(text, offset, namespace)
+        if let Some(script) = self
+            .source_bindings
+            .as_ref()
+            .and_then(|bindings| bindings.executed_script_for_word(tok.span))
+            .cloned()
+        {
+            return self.lower_retained_script(script);
+        }
+        // The retained parent owns the argument ordinal and compiler word
+        // span. Its shared owner joins the Native whole extent independently;
+        // a cooked body never borrows an equal-text written site.
+        if let Some(source) = self.structured_source_parent.as_deref().and_then(|parent| {
+            parent
+                .source_binding
+                .as_ref()?
+                .original_body_source_for_word(parent, tok.span, self.config)
+        }) {
+            return self.lower_retained_script(source);
+        }
+        let Some(origin) = self
+            .source_bindings
+            .as_ref()
+            .and_then(|bindings| bindings.source_origin())
+            .cloned()
+        else {
+            return super::over_depth_script(tok.span.start(), text.len());
+        };
+        let span = tcl_lexer::word_span_at(&self.source, tok.span);
+        let Some(raw) = self.source.get(span.as_range()) else {
+            return super::over_depth_script(tok.span.start(), text.len());
+        };
+        let Some(commands) = self.segment_source(
+            raw,
+            span.start(),
+            super::SourceSegmentationPurpose::NestedScript,
+        ) else {
+            return super::over_depth_script(tok.span.start(), text.len());
+        };
+        let Some(command) = commands.first() else {
+            return Script::new();
+        };
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_bytes_with_channel(
+                self.source.as_bytes(),
+                self.current_source_channel(),
+            ),
+            self.config,
+            command,
+        );
+        let Some(word) = tokens.words().first() else {
+            return Script::new();
+        };
+        let crate::registry_invocation::EffectiveInvocationWord::Literal(value) =
+            crate::registry_invocation::effective_invocation_word(
+                word,
+                self.config.escapes,
+                WordValueRules::from_config(&self.config),
+            )
+        else {
+            return super::over_depth_script(tok.span.start(), text.len());
+        };
+        let script = crate::command_binding::ExecutedScriptSource::from_word(
+            crate::command_binding::CommandAllocationSite {
+                source: origin,
+                offset: span.start(),
+            },
+            0,
+            word,
+            &value,
+            self.config,
+        );
+        self.lower_retained_script(script)
     }
 }
 
@@ -1498,10 +1637,10 @@ mod tests {
             "switch $x a {puts a} b $other",
         ] {
             let m = lower_to_ir(src, &reg());
-            assert!(
-                matches!(&m.top_level.statements[0], Statement::Barrier { .. }),
-                "expected Barrier (defer to runtime) for {src:?}, got {:?}",
-                m.top_level.statements[0],
+            super::super::tests::assert_runtime_opaque_call(
+                &m.top_level.statements[0],
+                &reg(),
+                "switch",
             );
         }
     }
@@ -1775,8 +1914,8 @@ mod tests {
             ],
         );
         // The fallthrough handler carries no statements of its own.
-        assert!(handlers[0].body.statements.is_empty());
-        assert!(!handlers[1].body.statements.is_empty());
+        assert_eq!(handlers[0].body.statements, [] as [crate::ir::Statement; 0]);
+        assert_ne!(handlers[1].body.statements, [] as [crate::ir::Statement; 0]);
     }
 
     #[test]
@@ -1788,7 +1927,7 @@ mod tests {
             panic!("expected Try");
         };
         assert!(handlers[0].fallthrough);
-        assert!(handlers[0].body.statements.is_empty());
+        assert_eq!(handlers[0].body.statements, [] as [crate::ir::Statement; 0]);
     }
 
     #[test]
@@ -1826,7 +1965,7 @@ mod tests {
             panic!("expected Try");
         };
         assert!(handlers[0].fallthrough);
-        assert!(handlers[0].body.statements.is_empty());
+        assert_eq!(handlers[0].body.statements, [] as [crate::ir::Statement; 0]);
     }
 
     #[test]
@@ -1844,8 +1983,9 @@ mod tests {
                 panic!("expected Try for {src:?}");
             };
             assert!(handlers[0].fallthrough, "expected fallthrough for {src:?}");
-            assert!(
-                handlers[0].body.statements.is_empty(),
+            assert_eq!(
+                handlers[0].body.statements.len(),
+                0,
                 "expected empty body for {src:?}",
             );
         }
@@ -1919,10 +2059,11 @@ mod tests {
         // ``catch [build] res`` — single-token but command-subst,
         // not brace-literal.  Must hit the Barrier path.
         let m = lower_to_ir("catch [build] res", &reg());
-        assert!(matches!(
+        super::super::tests::assert_runtime_opaque_call(
             &m.top_level.statements[0],
-            Statement::Barrier { reason, .. } if reason == "catch with dynamic body"
-        ));
+            &reg(),
+            "catch",
+        );
     }
 
     #[test]
@@ -2220,5 +2361,213 @@ mod switch_span_tests {
             assert_eq!(pattern_under("tcl8.6", source), "aAb", "{source}");
             assert_eq!(pattern_under("tcl9.0", source), "aAb", "{source}");
         }
+    }
+}
+
+#[cfg(test)]
+mod original_body_word_caller_tests {
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use crate::ir::{CommandTokens, Statement};
+    use std::sync::Arc;
+    use tcl_registry::model::ContextRegistry;
+
+    fn original_unit(
+        source: &str,
+        environment: &str,
+    ) -> (
+        Arc<ContextRegistry>,
+        crate::environment_ingress::RetainedNativeUnit,
+    ) {
+        let environment = tcl_registry::model::ingress::resolve_known_environment(environment)
+            .expect("actual selected source environment");
+        let context = environment.default_context_registry();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert_eq!(native.execution_point, environment.point());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            native_entry: Some(Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (
+            context,
+            crate::environment_ingress::RetainedNativeUnit::new(unit, owner),
+        )
+    }
+
+    fn original_parent(unit: &CompilationUnit) -> &CommandTokens {
+        let top = &unit.ir_module.top_level;
+        top.retained_source_tokens_for_statement(&top.statements[0])
+            .expect("actual structured parent source vector")
+    }
+
+    #[test]
+    fn original_structured_body_caller_keeps_parent_ordinal_and_namespace() {
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        // Actual software lowering and selected source context; no external
+        // provider execution or proof that a conditional body entered.
+        for source in [
+            "if {$condition} {set first café} else {set second two}",
+            "if {$condition} {set first \\\n café} else {set second \\\n two}",
+        ] {
+            for environment in ["tcl8.4", "tcl9.0"] {
+                let (context, unit) = original_unit(source, environment);
+                let module = &unit.ir_module;
+                let parent = original_parent(&unit);
+                let binding = parent.source_binding.as_ref().unwrap();
+                let input = module.source_metadata_input.as_ref().unwrap();
+                let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+                    context.commands(),
+                    module,
+                )
+                .unwrap();
+                let Statement::If {
+                    clauses, else_body, ..
+                } = &module.top_level.statements[0]
+                else {
+                    panic!("actual original source retains its structured If");
+                };
+                assert_eq!(clauses.len(), 1);
+                let bodies = [&clauses[0].body, else_body.as_ref().unwrap()];
+                for (body, word) in bodies.into_iter().zip([2, 4]) {
+                    let expected = binding
+                        .original_body_source_for_word(
+                            parent,
+                            parent.words()[word].source().span,
+                            input.lexer_config(),
+                        )
+                        .unwrap();
+                    assert_eq!(body.executed_source.as_deref(), Some(&expected));
+                    if let crate::command_binding::SourceOriginKind::Derived {
+                        parent: actual_parent,
+                        arguments,
+                        source: actual_source,
+                        ..
+                    } = expected.origin.kind()
+                    {
+                        assert_eq!(actual_parent, binding.invocation_site().unwrap());
+                        assert_eq!(arguments.as_slice(), &[word - 1]);
+                        assert_eq!(actual_source, &expected.text);
+                        assert_eq!(expected.base(), 0);
+                    } else {
+                        assert!(!source.contains('\\'));
+                    }
+                    let namespace = binding
+                        .original_body_namespace_context(
+                            context.commands(),
+                            metadata,
+                            parent,
+                            &expected,
+                        )
+                        .expect("authentic selected immediate-body namespace");
+                    assert_eq!(body.namespace_context.as_deref(), Some(&namespace));
+                    assert!(!body.statements.is_empty());
+                    assert!(body.statements.iter().all(|statement| !matches!(
+                        statement, Statement::Barrier { reason, .. }
+                            if reason == "original body namespace context is unavailable"
+                    )));
+                    let child = body
+                        .retained_source_tokens_for_statement(&body.statements[0])
+                        .expect("lowered child keeps its original source tokens");
+                    assert_eq!(child.argv_texts.first().map(String::as_str), Some("set"));
+                    assert_eq!(child.words().len(), 3);
+                    assert_eq!(
+                        child
+                            .source_binding
+                            .as_ref()
+                            .unwrap()
+                            .original_lexer_config_for_tokens(child),
+                        Some(input.lexer_config()),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_structured_body_word_caller_refuses_full_extent_and_changed_parent() {
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        let source = "if {$condition} {set first café} else {set second two}";
+        let (_, unit) = original_unit(source, "tcl9.0");
+        let parent = original_parent(&unit);
+        let config = unit.ir_module.lexer_config;
+        let binding = parent.source_binding.as_ref().unwrap();
+        let span = parent.words()[2].source().span;
+        let whole = tcl_lexer::word_span_at(source, span);
+        assert_ne!(
+            span, whole,
+            "nonempty original braced word has distinct extents"
+        );
+        assert!(
+            binding
+                .original_body_source_for_word(parent, span, config)
+                .is_some()
+        );
+        assert!(
+            binding
+                .original_body_source_for_word(parent, whole, config)
+                .is_none()
+        );
+        let changed = tcl_lexer::Span::new(span.start().checked_add(1).unwrap(), span.end());
+        assert!(
+            binding
+                .original_body_source_for_word(parent, changed, config)
+                .is_none()
+        );
+        let mut changed_vector = parent.clone();
+        changed_vector.argv_texts[2] = "set first changed".into();
+        assert!(
+            binding
+                .original_body_source_for_word(&changed_vector, span, config)
+                .is_none()
+        );
+        let (_, foreign) = original_unit(
+            "if {$condition} {set first élan} else {set second two}",
+            "tcl9.0",
+        );
+        let mut changed_source = parent.clone();
+        changed_source.source_binding = original_parent(&foreign).source_binding.clone();
+        assert!(
+            changed_source
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_body_source_for_word(&changed_source, span, config)
+                .is_none()
+        );
+        let mut changed_config = config;
+        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        assert!(
+            binding
+                .original_body_source_for_word(parent, span, changed_config)
+                .is_none()
+        );
     }
 }

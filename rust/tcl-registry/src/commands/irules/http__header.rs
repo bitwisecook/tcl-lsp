@@ -141,6 +141,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "value",
+        // Published header getter returns a value without Tcl callbacks or cell writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         arity: Arity::exact(1),
         detail: "Get first header value.",
         synopsis: "HTTP::header value <name>",
@@ -149,6 +151,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "values",
+        // As for `value`, this reads only the host HTTP header storage domain.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         arity: Arity::exact(1),
         detail: "Get all values for header.",
         synopsis: "HTTP::header values <name>",

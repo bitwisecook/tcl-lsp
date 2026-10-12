@@ -1,0 +1,122 @@
+[
+  {
+    "provider": "8.4.20",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "Tcl_InfoObjCmd selector table and conditional frame",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+    "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "start_line": 416,
+    "end_line": 451,
+    "snippet_sha256": "e93f01f2a45093826f38b93e34e25da2681f57a9c92e35bbda3e44a83cdc0613",
+    "snippet": "Tcl_InfoObjCmd(clientData, interp, objc, objv)\n    ClientData clientData;\t/* Arbitrary value passed to the command. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    static CONST char *subCmds[] = {\n\t     \"args\", \"body\", \"cmdcount\", \"commands\",\n\t     \"complete\", \"default\", \"exists\",\n#ifdef TCL_TIP280\n\t     \"frame\",\n#endif\n\t     \"functions\",\n\t     \"globals\", \"hostname\", \"level\", \"library\", \"loaded\",\n\t     \"locals\", \"nameofexecutable\", \"patchlevel\", \"procs\",\n\t     \"script\", \"sharedlibextension\", \"tclversion\", \"vars\",\n\t     (char *) NULL};\n    enum ISubCmdIdx {\n\t    IArgsIdx, IBodyIdx, ICmdCountIdx, ICommandsIdx,\n\t    ICompleteIdx, IDefaultIdx, IExistsIdx,\n#ifdef TCL_TIP280\n\t    IFrameIdx,\n#endif\n\t    IFunctionsIdx,\n\t    IGlobalsIdx, IHostnameIdx, ILevelIdx, ILibraryIdx, ILoadedIdx,\n\t    ILocalsIdx, INameOfExecutableIdx, IPatchLevelIdx, IProcsIdx,\n\t    IScriptIdx, ISharedLibExtensionIdx, ITclVersionIdx, IVarsIdx\n    };\n    int index, result;\n\n    if (objc < 2) {\n        Tcl_WrongNumArgs(interp, 1, objv, \"option ?arg arg ...?\");\n        return TCL_ERROR;\n    }\n    \n    result = Tcl_GetIndexFromObj(interp, objv[1], subCmds, \"option\", 0,\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c"
+  },
+  {
+    "provider": "8.5.19",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "defaultInfoMap",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+    "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "start_line": 155,
+    "end_line": 179,
+    "snippet_sha256": "995bafaf40d8072c0cc4184721765f5da7bed258bca61e58142d87f0ac2a32f3",
+    "snippet": "static const EnsembleImplMap defaultInfoMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    NULL},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    NULL},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    NULL},\n    {\"commands\",\t   InfoCommandsCmd,\t    NULL},\n    {\"complete\",\t   InfoCompleteCmd,\t    NULL},\n    {\"default\",\t\t   InfoDefaultCmd,\t    NULL},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd},\n    {\"frame\",\t\t   InfoFrameCmd,\t    NULL},\n    {\"functions\",\t   InfoFunctionsCmd,\t    NULL},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    NULL},\n    {\"hostname\",\t   InfoHostnameCmd,\t    NULL},\n    {\"level\",\t\t   InfoLevelCmd,\t    NULL},\n    {\"library\",\t\t   InfoLibraryCmd,\t    NULL},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    NULL},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    NULL},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, NULL},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    NULL},\n    {\"procs\",\t\t   InfoProcsCmd,\t    NULL},\n    {\"script\",\t\t   InfoScriptCmd,\t    NULL},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    NULL},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    NULL},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    NULL},\n    {NULL, NULL, NULL}\n};\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c"
+  },
+  {
+    "provider": "8.6.18",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "defaultInfoMap",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+    "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "start_line": 155,
+    "end_line": 183,
+    "snippet_sha256": "86b8519e944827bc538133c1b18b64ca2417308e2e331c86f01de3f74d77b91e",
+    "snippet": "static const EnsembleImplMap defaultInfoMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"commands\",\t   InfoCommandsCmd,\t    TclCompileInfoCommandsCmd, NULL, NULL, 0},\n    {\"complete\",\t   InfoCompleteCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"coroutine\",\t   TclInfoCoroutineCmd,     TclCompileInfoCoroutineCmd, NULL, NULL, 0},\n    {\"default\",\t\t   InfoDefaultCmd,\t    TclCompileBasic3ArgCmd, NULL, NULL, 0},\n    {\"errorstack\",\t   InfoErrorStackCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd, NULL, NULL, 0},\n    {\"frame\",\t\t   InfoFrameCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"functions\",\t   InfoFunctionsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"hostname\",\t   InfoHostnameCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"level\",\t\t   InfoLevelCmd,\t    TclCompileInfoLevelCmd, NULL, NULL, 0},\n    {\"library\",\t\t   InfoLibraryCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"procs\",\t\t   InfoProcsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"script\",\t\t   InfoScriptCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n\f\n/*\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+  },
+  {
+    "provider": "8.6.18",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "TclOOInitInfo actual additions",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+    "source_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "start_line": 90,
+    "end_line": 122,
+    "snippet_sha256": "ee18443f6dc24435299ccd26080e361c19b477ba3b8e6c11dd369c640f7749a6",
+    "snippet": " * TclOOInitInfo --\n *\n *\tAdjusts the Tcl core [info] command to contain subcommands (\"object\"\n *\tand \"class\") for introspection of objects and classes.\n *\n * ----------------------------------------------------------------------\n */\n\nvoid\nTclOOInitInfo(\n    Tcl_Interp *interp)\n{\n    Tcl_Command infoCmd;\n    Tcl_Obj *mapDict;\n\n    /*\n     * Build the ensembles used to implement [info object] and [info class].\n     */\n\n    TclMakeEnsemble(interp, \"::oo::InfoObject\", infoObjectCmds);\n    TclMakeEnsemble(interp, \"::oo::InfoClass\", infoClassCmds);\n\n    /*\n     * Install into the [info] ensemble.\n     */\n\n    infoCmd = Tcl_FindCommand(interp, \"info\", NULL, TCL_GLOBAL_ONLY);\n    if (infoCmd) {\n\tTcl_GetEnsembleMappingDict(NULL, infoCmd, &mapDict);\n\tTclDictPutString(NULL, mapDict, \"object\", \"::oo::InfoObject\");\n\tTclDictPutString(NULL, mapDict, \"class\", \"::oo::InfoClass\");\n\tTcl_SetEnsembleMappingDict(interp, infoCmd, mapDict);\n    }\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c"
+  },
+  {
+    "provider": "9.0.4",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "defaultInfoMap",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+    "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "start_line": 151,
+    "end_line": 182,
+    "snippet_sha256": "4e60312f6520d17bc71a094debc74d8b18784b6c0a48c80a4f75ca6d4a26bcc7",
+    "snippet": "static const EnsembleImplMap defaultInfoMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"cmdtype\",\t\t   InfoCmdTypeCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 1},\n    {\"commands\",\t   InfoCommandsCmd,\t    TclCompileInfoCommandsCmd, NULL, NULL, 0},\n    {\"complete\",\t   InfoCompleteCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"constant\",\t   TclInfoConstantCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"consts\",\t\t   TclInfoConstsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"coroutine\",\t   TclInfoCoroutineCmd,     TclCompileInfoCoroutineCmd, NULL, NULL, 0},\n    {\"default\",\t\t   InfoDefaultCmd,\t    TclCompileBasic3ArgCmd, NULL, NULL, 0},\n    {\"errorstack\",\t   InfoErrorStackCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd, NULL, NULL, 0},\n    {\"frame\",\t\t   InfoFrameCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"functions\",\t   InfoFunctionsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"hostname\",\t   InfoHostnameCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"level\",\t\t   InfoLevelCmd,\t    TclCompileInfoLevelCmd, NULL, NULL, 0},\n    {\"library\",\t\t   InfoLibraryCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, TclCompileBasic0ArgCmd, NULL, NULL, 1},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"procs\",\t\t   InfoProcsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"script\",\t\t   InfoScriptCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n\f\n/*\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+  },
+  {
+    "provider": "9.0.4",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "TclOOInitInfo actual additions",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c",
+    "source_sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "start_line": 112,
+    "end_line": 144,
+    "snippet_sha256": "ee18443f6dc24435299ccd26080e361c19b477ba3b8e6c11dd369c640f7749a6",
+    "snippet": " * TclOOInitInfo --\n *\n *\tAdjusts the Tcl core [info] command to contain subcommands (\"object\"\n *\tand \"class\") for introspection of objects and classes.\n *\n * ----------------------------------------------------------------------\n */\n\nvoid\nTclOOInitInfo(\n    Tcl_Interp *interp)\n{\n    Tcl_Command infoCmd;\n    Tcl_Obj *mapDict;\n\n    /*\n     * Build the ensembles used to implement [info object] and [info class].\n     */\n\n    TclMakeEnsemble(interp, \"::oo::InfoObject\", infoObjectCmds);\n    TclMakeEnsemble(interp, \"::oo::InfoClass\", infoClassCmds);\n\n    /*\n     * Install into the [info] ensemble.\n     */\n\n    infoCmd = Tcl_FindCommand(interp, \"info\", NULL, TCL_GLOBAL_ONLY);\n    if (infoCmd) {\n\tTcl_GetEnsembleMappingDict(NULL, infoCmd, &mapDict);\n\tTclDictPutString(NULL, mapDict, \"object\", \"::oo::InfoObject\");\n\tTclDictPutString(NULL, mapDict, \"class\", \"::oo::InfoClass\");\n\tTcl_SetEnsembleMappingDict(interp, infoCmd, mapDict);\n    }\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c"
+  },
+  {
+    "provider": "9.1.0",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "tclInfoImplMap",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+    "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "start_line": 151,
+    "end_line": 183,
+    "snippet_sha256": "74dd0109b1c3e6563f3c9a3f1a6bb7fd0c40c3f8caec58d742ba34dcae86f14e",
+    "snippet": "\nconst EnsembleImplMap tclInfoImplMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"cmdtype\",\t\t   InfoCmdTypeCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 1},\n    {\"commands\",\t   InfoCommandsCmd,\t    TclCompileInfoCommandsCmd, NULL, NULL, 0},\n    {\"complete\",\t   InfoCompleteCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"constant\",\t   TclInfoConstantCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"consts\",\t\t   TclInfoConstsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"coroutine\",\t   TclInfoCoroutineCmd,     TclCompileInfoCoroutineCmd, NULL, NULL, 0},\n    {\"default\",\t\t   InfoDefaultCmd,\t    TclCompileBasic3ArgCmd, NULL, NULL, 0},\n    {\"errorstack\",\t   InfoErrorStackCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd, NULL, NULL, 0},\n    {\"frame\",\t\t   InfoFrameCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"functions\",\t   InfoFunctionsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"hostname\",\t   InfoHostnameCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"level\",\t\t   InfoLevelCmd,\t    TclCompileInfoLevelCmd, NULL, NULL, 0},\n    {\"library\",\t\t   InfoLibraryCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, TclCompileBasic0ArgCmd, NULL, NULL, 1},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"procs\",\t\t   InfoProcsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"script\",\t\t   InfoScriptCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n\f\n/*\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+  },
+  {
+    "provider": "9.1.0",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "TclOOInitInfo actual additions",
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start_line": 127,
+    "end_line": 162,
+    "snippet_sha256": "4d5027ac55aead1b7dfd3c9f7a45c90cdb9814d5986932d114f620b396493061",
+    "snippet": " * TclOOInitInfo --\n *\n *\tAdjusts the Tcl core [info] command to contain subcommands (\"object\"\n *\tand \"class\") for introspection of objects and classes.\n *\n * ----------------------------------------------------------------------\n */\n\nvoid\nTclOOInitInfo(\n    Tcl_Interp *interp)\n{\n    Tcl_Command infoCmd;\n    Tcl_Obj *mapDict;\n\n    /*\n     * Build the ensembles used to implement [info object] and [info class].\n     */\n\n    TclMakeEnsemble(interp, \"::oo::InfoObject\", infoObjectImplMap);\n    TclMakeEnsemble(interp, \"::oo::InfoClass\", infoClassImplMap);\n\n    /*\n     * Install into the [info] ensemble.\n     * We keep the subcommands with their existing names instead of the\n     * auto-generated ones supported by the ensemble guts because we're\n     * somewhat documented to work this way.\n     */\n\n    infoCmd = Tcl_FindCommand(interp, \"info\", NULL, TCL_GLOBAL_ONLY);\n    if (infoCmd) {\n\tTcl_GetEnsembleMappingDict(NULL, infoCmd, &mapDict);\n\tTclDictPutString(NULL, mapDict, \"object\", \"::oo::InfoObject\");\n\tTclDictPutString(NULL, mapDict, \"class\", \"::oo::InfoClass\");\n\tTcl_SetEnsembleMappingDict(interp, infoCmd, mapDict);\n    }\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c"
+  },
+  {
+    "provider": "jim",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "Jim_InfoCoreCommand table",
+    "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "start_line": 15986,
+    "end_line": 16053,
+    "snippet_sha256": "b53ce11a39fd5242bb9642fc4c7d5e440045c047ba69737d933890accf692878",
+    "snippet": "static int Jim_InfoCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    Jim_Obj *objPtr;\n    int mode = 1;\n\n    /* Must be kept in order with the array below */\n    enum {\n        INFO_ALIAS,\n        INFO_ALIASES,\n        INFO_ARGS,\n        INFO_BODY,\n        INFO_CHANNELS,\n        INFO_COMMANDS,\n        INFO_COMPLETE,\n        INFO_EXISTS,\n        INFO_FRAME,\n        INFO_GLOBALS,\n        INFO_HELP,\n        INFO_HOSTNAME,\n        INFO_LEVEL,\n        INFO_LOCALS,\n        INFO_NAMEOFEXECUTABLE,\n        INFO_PATCHLEVEL,\n        INFO_PROCS,\n        INFO_REFERENCES,\n        INFO_RETURNCODES,\n        INFO_SCRIPT,\n        INFO_SOURCE,\n        INFO_STACKTRACE,\n        INFO_STATICS,\n        INFO_TAINTED,\n        INFO_USAGE,\n        INFO_VARS,\n        INFO_VERSION,\n        INFO_COUNT\n    };\n    static const jim_subcmd_type cmds[INFO_COUNT + 1] = {\n        JIM_DEF_SUBCMD(\"alias\", \"command\", 1, 1),\n        JIM_DEF_SUBCMD(\"aliases\", \"?-all? ?pattern?\", 0, 2),\n        JIM_DEF_SUBCMD(\"args\", \"procname\", 1, 1),\n        JIM_DEF_SUBCMD(\"body\", \"procname\", 1, 1),\n        JIM_DEF_SUBCMD(\"channels\", \"?-all? ?pattern?\", 0, 2),\n        JIM_DEF_SUBCMD(\"commands\", \"?-all? ?pattern?\", 0, 2),\n        JIM_DEF_SUBCMD(\"complete\", \"script ?missing?\", 1, 2),\n        JIM_DEF_SUBCMD(\"exists\", \"varName\", 1, 1),\n        JIM_DEF_SUBCMD(\"frame\", \"?levelNum?\", 0, 1),\n        JIM_DEF_SUBCMD(\"globals\", \"?pattern?\", 0, 1),\n        JIM_DEF_SUBCMD(\"help\", \"command\", 1, 1),\n        JIM_DEF_SUBCMD(\"hostname\", NULL, 0, 0),\n        JIM_DEF_SUBCMD(\"level\", \"?levelNum?\", 0, 1),\n        JIM_DEF_SUBCMD(\"locals\", \"?pattern?\", 0, 1),\n        JIM_DEF_SUBCMD(\"nameofexecutable\", NULL, 0, 0),\n        JIM_DEF_SUBCMD(\"patchlevel\", NULL, 0, 0),\n        JIM_DEF_SUBCMD(\"procs\", \"?-all? ?pattern?\", 0, 2),\n        JIM_DEF_SUBCMD(\"references\", NULL, 0, 0),\n        JIM_DEF_SUBCMD(\"returncodes\", \"?code?\", 0, 1),\n        JIM_DEF_SUBCMD(\"script\", \"?filename?\", 0, 1),\n        JIM_DEF_SUBCMD(\"source\", \"source ?filename line?\", 1, 3),\n        JIM_DEF_SUBCMD(\"stacktrace\", NULL, 0, 0),\n        JIM_DEF_SUBCMD(\"statics\", \"procname\", 1, 1),\n        JIM_DEF_SUBCMD(\"tainted\", \"value\", 1, 1),\n        JIM_DEF_SUBCMD(\"usage\", \"command\", 1, 1),\n        JIM_DEF_SUBCMD(\"vars\", \"?pattern?\", 0, 1),\n        JIM_DEF_SUBCMD(\"version\", NULL, 0, 0),\n        { NULL }\n    };\n    const jim_subcmd_type *ct;\n#ifdef jim_ext_namespace\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c"
+  },
+  {
+    "provider": "jim",
+    "question": "Native public info selector inventory and prefix parsing",
+    "label": "Jim_ParseSubCmd and public -commands query",
+    "source_path": "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c",
+    "source_sha256": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "start_line": 99,
+    "end_line": 179,
+    "snippet_sha256": "070b18e2e4a1f2ef538634e9dc40317a72cb8ffdaaedb5a534f121fd06214856",
+    "snippet": "    NULL,\n    NULL,\n    JIM_TYPE_REFERENCES\n};\n\nconst jim_subcmd_type *Jim_ParseSubCmd(Jim_Interp *interp, const jim_subcmd_type * command_table,\n    int argc, Jim_Obj *const *argv)\n{\n    const jim_subcmd_type *ct;\n    const jim_subcmd_type *partial = 0;\n    int cmdlen;\n    Jim_Obj *cmd;\n    const char *cmdstr;\n    int help = 0;\n    int argsok = 1;\n\n    if (argc < 2) {\n        Jim_SetResultFormatted(interp, \"wrong # args: should be \\\"%#s command ...\\\"\\n\"\n            \"Use \\\"%#s -help ?command?\\\" for help\", argv[0], argv[0]);\n        return 0;\n    }\n\n    cmd = argv[1];\n\n    /* Use cached lookup if possible */\n    if (cmd->typePtr == &subcmdLookupObjType) {\n        if (cmd->internalRep.ptrIntValue.ptr == command_table) {\n            ct = command_table + cmd->internalRep.ptrIntValue.int1;\n            goto found;\n        }\n    }\n\n    /* Check for the help command */\n    if (Jim_CompareStringImmediate(interp, cmd, \"-help\")) {\n        if (argc == 2) {\n            /* Usage for the command, not the subcommand */\n            show_cmd_usage(interp, command_table, argc, argv);\n            return &dummy_subcmd;\n        }\n        help = 1;\n\n        /* Skip the 'help' command */\n        cmd = argv[2];\n    }\n\n    /* Check for special builtin '-commands' command first */\n    if (Jim_CompareStringImmediate(interp, cmd, \"-commands\")) {\n        Jim_SetResult(interp, subcmd_cmd_list(interp, command_table, \" \"));\n        return &dummy_subcmd;\n    }\n\n    cmdstr = Jim_GetString(cmd, &cmdlen);\n\n    for (ct = command_table; ct->cmd; ct++) {\n        if (Jim_CompareStringImmediate(interp, cmd, ct->cmd)) {\n            /* Found an exact match */\n            break;\n        }\n        if (strncmp(cmdstr, ct->cmd, cmdlen) == 0) {\n            if (partial) {\n                /* Ambiguous */\n                if (help) {\n                    /* Just show the top level help here */\n                    show_cmd_usage(interp, command_table, argc, argv);\n                    return &dummy_subcmd;\n                }\n                bad_subcmd(interp, command_table, \"ambiguous\", argv[0], argv[1 + help]);\n                return 0;\n            }\n            partial = ct;\n        }\n        continue;\n    }\n\n    /* If we had an unambiguous partial match */\n    if (partial && !ct->cmd) {\n        ct = partial;\n    }\n\n    if (!ct->cmd) {\n        /* No matching command */\n",
+    "retained_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c"
+  }
+]

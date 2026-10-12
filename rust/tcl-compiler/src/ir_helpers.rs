@@ -24,6 +24,13 @@
 //! modified before an exception, and at condition sites to track
 //! definitions produced by command substitutions.
 
+mod materialized_footprint;
+pub(crate) use materialized_footprint::{
+    command_possible_footprint_with_metadata_context, command_possible_reads_with_metadata_context,
+    expression_possible_writes_with_metadata_context, footprint_command_words,
+    immediate_same_frame_script_values, script_value_name_ownership_with_metadata_context,
+    script_value_possible_writes_with_metadata_context,
+};
 use std::collections::BTreeSet;
 
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
@@ -209,6 +216,56 @@ pub(crate) fn requires_runtime_command_namespace(
 /// defence-in-depth and consistency with every other full-tree walker in
 /// this crate.
 const MAX_DEFS_COLLECT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
+/// Possible value writes owned directly by a selected structured IR node.
+/// Generic call defs are excluded: those require current Registry availability
+/// and original binding/argument resolution. Names here are literal destinations,
+/// independent of command substitution or a reached Native storage cell.
+#[must_use]
+pub(crate) fn structural_variable_write_projection(
+    stmt: &Statement,
+) -> tcl_registry::VariableWriteProjection {
+    let mut projection = tcl_registry::VariableWriteProjection::default();
+    match stmt {
+        Statement::AssignConst {
+            name, name_braced, ..
+        }
+        | Statement::AssignExpr {
+            name, name_braced, ..
+        }
+        | Statement::AssignValue {
+            name, name_braced, ..
+        }
+        | Statement::Incr {
+            name, name_braced, ..
+        } => {
+            if crate::ssa::is_dynamic_write_target(name, *name_braced) {
+                projection.opaque_variable_frame = true;
+            } else {
+                projection.literal_names.push(name.clone());
+            }
+        }
+        Statement::Foreach { iterators, .. } => projection.literal_names.extend(
+            iterators
+                .iter()
+                .flat_map(|iterator| iterator.vars.iter().cloned()),
+        ),
+        Statement::Catch {
+            result_var,
+            options_var,
+            ..
+        } => projection
+            .literal_names
+            .extend(result_var.iter().chain(options_var).cloned()),
+        Statement::Try { handlers, .. } => projection.literal_names.extend(
+            handlers
+                .iter()
+                .flat_map(|handler| handler.var_name.iter().chain(&handler.options_var).cloned()),
+        ),
+        _ => {}
+    }
+    projection
+}
 
 /// Collect all variable names defined anywhere inside a script (recursive).
 ///
@@ -436,6 +493,7 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
 /// the synthetic `<cond>` statement so the def-use / W210 analysis sees the
 /// write.  Which arguments those are is the registry's
 /// [`ArgRole::VarWrite`] answer, never a name list here.
+#[cfg(test)]
 pub(crate) fn condition_command_out_vars(
     condition: &ExprNode,
     registry: &CommandRegistry,
@@ -462,6 +520,7 @@ pub(crate) fn condition_command_out_vars(
 /// the word's *content* spelling drops the `$`, so `set $n 1` would otherwise
 /// read as a definition of a variable called `n` and silence a genuine
 /// warning about it.
+#[cfg(test)]
 fn is_bare_var_word(word: &CommandWord) -> bool {
     !word.expanded
         && !word.substituted
@@ -472,6 +531,7 @@ fn is_bare_var_word(word: &CommandWord) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
+#[cfg(test)]
 fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
     if is_bare_var_word(word) {
         let normalised = normalise_var_name(&word.text);
@@ -517,6 +577,7 @@ fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
 /// leaves the status quo — but a name harvested from the *wrong* command is
 /// not over-collection, it is a wrong fact, so the skip is a correctness
 /// requirement rather than a precision nicety.
+#[cfg(test)]
 fn cmd_substitution_out_vars(
     words: &[CommandWord],
     registry: &CommandRegistry,
@@ -574,20 +635,7 @@ fn cmd_substitution_out_vars(
     }
 }
 
-/// Out-vars assigned by a run of **script text**.
-///
-/// Shared by [`cmd_substitution_out_vars`]'s `Plain`-body descent (a `catch`
-/// script) and the analyser's read-before-set suppression for a
-/// [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] call whose words the
-/// lowering left as an opaque barrier (`eval set l2 hello`).
-/// Both need the same answer from the same text, so they ask once here.
-///
-/// Suppress-only: over-collection is safe (it only avoids false warnings),
-/// under-collection merely leaves the status quo.
-pub(crate) fn script_text_out_vars(body: &str, registry: &CommandRegistry, out: &mut Vec<String>) {
-    script_text_out_vars_at(body, registry, out, 0);
-}
-
+#[cfg(test)]
 fn script_text_out_vars_at(
     body: &str,
     registry: &CommandRegistry,
@@ -846,6 +894,7 @@ pub(crate) fn evaluated_command_substitution_surfaces<'a>(
     let mut opaque = false;
     let mut conditional = false;
     match stmt {
+        Statement::NativeCall { .. } => opaque = true,
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
         }
@@ -976,10 +1025,10 @@ pub(crate) struct CommandWord {
     /// consumer reads one text convention whichever side it arrives from.
     pub text: String,
     /// The word's **verbatim** source spelling, its whole written span — `$x`
-    /// stays `$x`.  A delimited word's closer is one past its span (the
-    /// inner-end convention), so a braced word reads back as `{s` — enough to
-    /// answer "does the name position substitute?", not enough to re-parse.
+    /// stays `$x`; original delimiters and expansion markers remain complete.
+    /// Missing written geometry is unavailable, never a static literal.
     pub raw: String,
+    source_available: bool,
     /// Some constituent fragment is a `$` / `[` substitution, so the word's
     /// value is not its source text.
     pub substituted: bool,
@@ -998,7 +1047,9 @@ impl CommandWord {
     /// argv shape even when the wrapped value is otherwise literal.
     #[must_use]
     pub(crate) fn invocation_word(&self) -> InvocationWord<'_> {
-        if self.expanded {
+        if !self.source_available {
+            InvocationWord::Dynamic
+        } else if self.expanded {
             InvocationWord::Expanded
         } else if self.substituted {
             InvocationWord::Dynamic
@@ -1074,35 +1125,6 @@ pub(crate) fn variable_read_effects_from_commands<'a>(
     out
 }
 
-/// The variables a recovered command destroys — the targets of a
-/// [`Traits::DESTROYS_VARIABLE`] invocation (`unset x`), which
-/// [`variable_read_effects_from_commands`] records as reads of what they
-/// observe: an existence read, never a value read.
-#[must_use]
-pub(crate) fn destroyed_variables(
-    words: &[CommandWord],
-    registry: &CommandRegistry,
-) -> Vec<String> {
-    let Some(head) = words.first() else {
-        return Vec::new();
-    };
-    let args: Vec<InvocationWord<'_>> = words
-        .iter()
-        .skip(1)
-        .map(CommandWord::invocation_word)
-        .collect();
-    let words = InvocationWords::structured(head.invocation_word(), &args);
-    let destroys = registry
-        .resolve_structured_invocation(words, registry.own_surface_query())
-        .resolved()
-        .is_some_and(|call| call.semantics.traits.contains(Traits::DESTROYS_VARIABLE));
-    if destroys {
-        registry.variable_read_projection(words).literal_names
-    } else {
-        Vec::new()
-    }
-}
-
 /// Project variable writes from recursively recovered command substitutions.
 #[must_use]
 pub(crate) fn variable_write_effects_from_commands<'a>(
@@ -1149,6 +1171,51 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
     out
 }
 
+/// Conditional embedded write footprint under exact supplied availability.
+/// Missing or foreign metadata is opaque, independently of lexical word shape.
+#[must_use]
+#[cfg(test)]
+pub(crate) fn variable_write_effects_from_commands_with_metadata_context<'a>(
+    commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> VariableWriteEffects {
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return VariableWriteEffects {
+            opaque: true,
+            ..VariableWriteEffects::default()
+        };
+    };
+    let mut out = VariableWriteEffects::default();
+    for words in commands {
+        let Some(head) = words.first() else {
+            continue;
+        };
+        let args: Vec<InvocationWord<'_>> = words
+            .iter()
+            .skip(1)
+            .map(CommandWord::invocation_word)
+            .collect();
+        let projection = registry.variable_write_projection_in_resolved_context(
+            context.context(),
+            InvocationWords::structured(head.invocation_word(), &args),
+            context.context().authoring_query().realm,
+        );
+        out.opaque |= projection.opaque_variable_frame;
+        for name in projection.read_before_write_names {
+            if !out.read_names.contains(&name) {
+                out.read_names.push(name);
+            }
+        }
+        for name in projection.literal_names {
+            if !out.names.contains(&name) {
+                out.names.push(name);
+            }
+        }
+    }
+    out
+}
+
 /// Whether the recovered command `words` names a conditional writer: the
 /// registry's `CONDITIONAL_VARIABLE_WRITE` trait on the invocation (a
 /// subcommand's included, `binary scan`'s), resolved over its literal words.
@@ -1176,14 +1243,20 @@ fn conditionally_writes(words: &[CommandWord], registry: &CommandRegistry) -> bo
 /// second, differently-configured tokenisation would disagree with the IR
 /// about *which* argument sits in a variable-name position, which is a wrong
 /// fact rather than a coarse one for a caller such as
-/// [`crate::dynamic_names`].
+/// [`crate::dynamic_names`]. These callers supply an extracted command or
+/// materialized body, so local parsing selects `NestedScript` while command
+/// words and value rules retain the complete caller configuration.
 pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<Vec<CommandWord>> {
     let sm = SourceMap::new(source);
-    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-        .iter()
-        .filter(|command| !command.argv.is_empty())
-        .map(|command| command_words(&sm, config, command))
-        .collect()
+    crate::segmenter::segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .iter()
+    .filter(|command| !command.argv.is_empty())
+    .map(|command| command_words(&sm, config, command))
+    .collect()
 }
 
 /// Where one recovered command sits in [`EvaluatedCommandSubstitutions`]'
@@ -1323,6 +1396,72 @@ pub(crate) fn evaluated_command_substitutions_with_replay(
     )
 }
 
+/// Recover source substitutions with the actual availability and lexer input.
+/// Missing or foreign metadata is opaque; no entered script/frame is inferred.
+#[must_use]
+pub(crate) fn evaluated_command_substitutions_with_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: LexerConfig,
+) -> EvaluatedCommandSubstitutions {
+    evaluated_command_substitutions_with_heads_and_metadata_context(
+        stmt, registry, None, metadata, config,
+    )
+}
+
+/// The same source inventory with a genuine module target/prefix resolver.
+#[must_use]
+pub(crate) fn evaluated_command_substitutions_with_heads_and_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: LexerConfig,
+) -> EvaluatedCommandSubstitutions {
+    evaluated_command_substitutions_with_replay_and_metadata_context(
+        stmt, registry, heads, None, metadata, config,
+    )
+}
+
+/// Replay source substitutions under retained availability and lexical policy.
+#[must_use]
+pub(crate) fn evaluated_command_substitutions_with_replay_and_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    observe: Option<EmbeddedCommandObserver<'_>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: LexerConfig,
+) -> EvaluatedCommandSubstitutions {
+    let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
+        return EvaluatedCommandSubstitutions {
+            opaque: true,
+            ..EvaluatedCommandSubstitutions::default()
+        };
+    };
+    let mut surfaces = evaluated_command_substitution_surfaces(stmt, registry);
+    if let Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } = stmt {
+        // Every unbraced original argv word substitutes before dispatch,
+        // including a structural command's dynamic body operand.
+        surfaces.texts = unbraced_words(args, tokens.as_ref())
+            .filter(|arg| arg.contains('['))
+            .collect();
+    }
+    recover_substitution_surfaces(
+        &surfaces.texts,
+        surfaces.opaque,
+        SubstitutionWalkContext {
+            config,
+            registry,
+            heads,
+            observe,
+            conditional: surfaces.conditional,
+            metadata: Some(metadata),
+        },
+    )
+}
+
 /// The command a recovered substitution head reaches, and the words an alias
 /// chain prepends ahead of the ones written at the call site.
 pub(crate) struct ResolvedEmbeddedHead {
@@ -1343,6 +1482,7 @@ pub(crate) type EmbeddedCommandObserver<'a> = &'a dyn Fn(&[CommandWord], bool);
 struct SubstitutionWalkContext<'a> {
     config: LexerConfig,
     registry: &'a CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     heads: Option<EmbeddedHeadResolver<'a>>,
     observe: Option<EmbeddedCommandObserver<'a>>,
     conditional: bool,
@@ -1372,7 +1512,11 @@ fn walk_text(
         return;
     }
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, context.config).tokenise_all() else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(
+        text,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(context.config),
+    )
+    .tokenise_all() else {
         out.opaque = true;
         return;
     };
@@ -1432,10 +1576,14 @@ pub(crate) fn in_frame_expression_arg_indices(
 ) -> Vec<usize> {
     let mut descend: Vec<usize> =
         surface.arg_indices_for_role(lookup, args, tcl_registry::ArgRole::Expr);
-    if surface.commands().get(lookup).is_some_and(|spec| {
-        spec.traits
-            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-    }) {
+    if surface
+        .commands()
+        .get_for_surface(lookup, surface.commands().own_surface_query())
+        .is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        })
+    {
         descend.extend(0..args.len());
     }
     descend.sort_unstable();
@@ -1485,6 +1633,10 @@ fn walk_in_frame_words(
         return;
     };
     let resolved = context.heads.and_then(|resolve| resolve(head));
+    if context.metadata.is_some() && context.heads.is_some() && resolved.is_none() {
+        out.opaque = true;
+        return;
+    }
     let (lookup, prepended) = resolved.as_ref().map_or((head, [].as_slice()), |target| {
         (target.command.as_str(), target.prepended.as_slice())
     });
@@ -1502,12 +1654,11 @@ fn walk_in_frame_words(
 
     // The variable-effect walk is reached from consumers that hold only a
     // catalogue, so it asks the same owner with no declarations attached.
-    let surface = tcl_registry::model::DocumentCommandSurface::new(context.registry, None);
-    let indices = in_frame_expression_arg_indices(lookup, &args, &surface);
-    let concatenated = surface.commands().get(lookup).is_some_and(|spec| {
-        spec.traits
-            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-    });
+    let Some((indices, concatenated)) =
+        source_expression_indices(words, lookup, prepended, &args, context, out)
+    else {
+        return;
+    };
     let expression_texts = if concatenated {
         vec![args.join(" ")]
     } else {
@@ -1520,10 +1671,25 @@ fn walk_in_frame_words(
         || (concatenated && words.iter().skip(1).any(|word| word.literal().is_none()));
     let mut opaque = false;
     for text in &expression_texts {
-        let expr = crate::expr_parser::parse_expr(
-            text,
-            context.registry.profile().map(|profile| profile.name),
-        );
+        let expr = if let Some(metadata) = context.metadata {
+            let Some(dialect) = source_substitution_dialect(metadata) else {
+                opaque = true;
+                conditional = true;
+                continue;
+            };
+            let mut parser = dialect.expression_parse_context(
+                metadata
+                    .source_analysis_input()
+                    .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
+            );
+            parser.lexer_grammar = context.config.grammar_over(parser.lexer_grammar);
+            crate::expr_parser::parse_expr_with_syntax_context(text, &parser)
+        } else {
+            crate::expr_parser::parse_expr(
+                text,
+                context.registry.profile().map(|profile| profile.name),
+            )
+        };
         collect_expr_command_surface_refs(&expr, &mut Vec::new(), &mut opaque, &mut conditional, 0);
     }
     out.opaque |= opaque;
@@ -1628,6 +1794,83 @@ fn walk_protected_scripts(
     }
 }
 
+fn source_substitution_dialect(
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+) -> Option<tcl_registry::InvocationDialect> {
+    metadata
+        .source_analysis_input()
+        .map(|input| tcl_registry::InvocationDialect::of_profile(input.unit_profile()))
+        .or_else(|| {
+            metadata
+                .context()
+                .environment
+                .point()
+                .map(tcl_registry::InvocationDialect::of_point)
+        })
+}
+
+fn source_expression_indices(
+    words: &[CommandWord],
+    lookup: &str,
+    prepended: &[String],
+    args: &[&str],
+    context: &SubstitutionWalkContext<'_>,
+    out: &mut EvaluatedCommandSubstitutions,
+) -> Option<(Vec<usize>, bool)> {
+    let selected = if let Some(metadata) = context.metadata {
+        let mut effective: Vec<_> = prepended
+            .iter()
+            .map(|word| InvocationWord::Literal(word))
+            .collect();
+        effective.extend(words.iter().skip(1).map(CommandWord::invocation_word));
+        let mut invocation_words =
+            InvocationWords::structured(InvocationWord::Literal(lookup), &effective);
+        if let Some(dialect) = source_substitution_dialect(metadata) {
+            invocation_words = invocation_words.with_dialect(dialect);
+        }
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.registry,
+                Some(metadata.context()),
+                invocation_words,
+                metadata.context().authoring_query().realm,
+            );
+        let Some(invocation) = resolution.resolved() else {
+            out.opaque = true;
+            return None;
+        };
+        let (roles, complete) = invocation.argument_roles();
+        out.opaque |= !complete;
+        let concatenated = invocation
+            .semantics
+            .traits
+            .contains(Traits::EXPR_CONCATENATES_ARGS);
+        let mut indices: Vec<_> = roles
+            .into_iter()
+            .filter_map(|(index, role)| {
+                (role == ArgRole::Expr)
+                    .then_some(invocation.semantics.argument_offset + usize::from(index))
+            })
+            .collect();
+        if concatenated {
+            indices.extend(0..args.len());
+        }
+        indices.sort_unstable();
+        indices.dedup();
+        (indices, concatenated)
+    } else {
+        let surface = tcl_registry::model::DocumentCommandSurface::new(context.registry, None);
+        (
+            in_frame_expression_arg_indices(lookup, &args, &surface),
+            surface
+                .commands()
+                .get(lookup)
+                .is_some_and(|spec| spec.traits.contains(Traits::EXPR_CONCATENATES_ARGS)),
+        )
+    };
+    Some(selected)
+}
+
 /// The words of a statement that keeps its own raw argv, minus the
 /// brace-quoted ones: Tcl substitutes nothing inside braces, so a `[…]`
 /// there is text the statement does not run.
@@ -1659,9 +1902,10 @@ fn unbraced_words<'a>(
 /// read before it is set` against the caller's frame, on a program tclsh
 /// 9.0.4 runs cleanly (it prints `2`).
 ///
-/// A `Plain` body — `catch`, `eval`, a loop — shares this frame and stays,
-/// exactly where [`crate::ssa::structural_body_indices`] draws the line for
-/// `ssa::scan_command_words`.
+/// Braced words are not argument substitution surfaces, even when they
+/// contain a caller-frame body. Entered body and expression reads retain their
+/// separate evaluation owners; nested scripts are walked at that execution
+/// boundary rather than attributed to this command's argv.
 fn invoked_word_surfaces<'a>(
     lookup: &str,
     args: &'a [String],
@@ -1671,7 +1915,11 @@ fn invoked_word_surfaces<'a>(
     let structural = crate::ssa::structural_body_indices(lookup, args, tokens, registry);
     args.iter()
         .enumerate()
-        .filter(move |(idx, _)| !structural.contains(idx))
+        .filter(move |(idx, _)| {
+            tokens.is_none_or(CommandTokens::evaluates_words)
+                && !structural.contains(idx)
+                && !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(*idx))
+        })
         .map(|(_, arg)| arg.as_str())
 }
 
@@ -1699,9 +1947,25 @@ pub(crate) fn command_substitutions_in_surfaces_with_replay(
     let context = SubstitutionWalkContext {
         config,
         registry,
+        metadata: None,
         heads,
         observe,
         conditional,
+    };
+    for text in surfaces {
+        walk_text(text, &context, 0, Reach::Statement, &mut out);
+    }
+    out
+}
+
+fn recover_substitution_surfaces(
+    surfaces: &[&str],
+    initially_opaque: bool,
+    context: SubstitutionWalkContext<'_>,
+) -> EvaluatedCommandSubstitutions {
+    let mut out = EvaluatedCommandSubstitutions {
+        opaque: initially_opaque,
+        ..EvaluatedCommandSubstitutions::default()
     };
     for text in surfaces {
         walk_text(text, &context, 0, Reach::Statement, &mut out);
@@ -1737,6 +2001,51 @@ pub(crate) fn expression_command_substitutions_with_replay(
         registry,
         heads,
         observe,
+    )
+}
+
+/// Conditional expression command inventory under the supplied metadata and
+/// exact syntax policy. Missing/foreign input is opaque; no native replay or
+/// callback/frame entry is established by this readonly inventory.
+#[must_use]
+pub(crate) fn expression_command_substitutions_with_replay_and_metadata_context(
+    expr: &ExprNode,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    observe: Option<EmbeddedCommandObserver<'_>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: LexerConfig,
+) -> EvaluatedCommandSubstitutions {
+    let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
+        return EvaluatedCommandSubstitutions {
+            opaque: true,
+            ..Default::default()
+        };
+    };
+    if metadata
+        .source_analysis_input()
+        .is_some_and(|input| input.lexer_config().normalized() != config.normalized())
+    {
+        return EvaluatedCommandSubstitutions {
+            opaque: true,
+            ..Default::default()
+        };
+    }
+    let mut texts = Vec::new();
+    let mut opaque = false;
+    let mut conditional = false;
+    collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
+    recover_substitution_surfaces(
+        &texts,
+        opaque,
+        SubstitutionWalkContext {
+            config,
+            registry,
+            metadata: Some(metadata),
+            heads,
+            observe,
+            conditional,
+        },
     )
 }
 
@@ -1800,20 +2109,96 @@ pub(crate) fn condition_substituted_reads(
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
+fn command_written_spans(
+    sm: &SourceMap<'_>,
+    config: LexerConfig,
+    command: &SegmentedCommand,
+) -> Option<Vec<tcl_lexer::Span>> {
+    if !command.word_views_aligned() {
+        return None;
+    }
+    let source = std::str::from_utf8(sm.source_bytes()).ok()?;
+    for token in &command.all_tokens {
+        let raw = source.get(token.span.as_range())?;
+        raw.get(usize::from(token.content_offset)..)?;
+    }
+    let groups = tcl_lexer::group_commands_bytes(&command.all_tokens, sm.source_bytes(), config);
+    let groups = groups
+        .iter()
+        .flat_map(|command| &command.words)
+        .collect::<Vec<_>>();
+    if groups.len() != command.argv.len() {
+        return None;
+    }
+    groups
+        .iter()
+        .enumerate()
+        .map(|(index, group)| {
+            let fragments = command.word_fragments.get(index)?;
+            let first = fragments.first()?.token;
+            let expected = tcl_lexer::Token {
+                span: group.span,
+                ..first
+            };
+            let actual = command.all_tokens.get(group.tokens.clone())?;
+            if command.argv[index] != expected
+                || actual.len() != fragments.len()
+                || !actual.iter().zip(fragments).all(|(token, fragment)| {
+                    *token == fragment.token
+                        && fragment.text == crate::segmenter::word_piece(sm, *token)
+                })
+                || command.texts[index]
+                    != fragments
+                        .iter()
+                        .map(|fragment| fragment.text.as_str())
+                        .collect::<String>()
+                || command.single_token_word[index] != group.is_single_token()
+                || command
+                    .expand_word
+                    .as_ref()
+                    .is_some_and(|expand| expand[index])
+                    != group.expand
+            {
+                return None;
+            }
+            let span = tcl_lexer::NativeWord::written_span_from_group(
+                sm.source_bytes(),
+                config,
+                &command.all_tokens,
+                group,
+            )
+            .ok()?;
+            source.get(span.as_range())?;
+            Some(span)
+        })
+        .collect()
+}
+
 fn command_words(
     sm: &SourceMap<'_>,
     config: LexerConfig,
     command: &SegmentedCommand,
 ) -> Vec<CommandWord> {
-    let tokens = CommandTokens::from_segmented(sm, config, command);
+    let written = command_written_spans(sm, config, command);
+    let tokens = written
+        .as_ref()
+        .map(|_| CommandTokens::from_segmented(sm, config, command));
     command
         .argv
         .iter()
         .enumerate()
         .map(|(idx, token)| CommandWord {
             text: command.texts.get(idx).cloned().unwrap_or_default(),
-            raw: sm.text(token.span).to_owned(),
-            substituted: tokens.words().get(idx).is_some_and(word_substitutes),
+            raw: written
+                .as_ref()
+                .and_then(|spans| spans.get(idx))
+                .map_or_else(String::new, |span| sm.text(*span).to_owned()),
+            source_available: written.is_some(),
+            substituted: written.is_none()
+                || tokens
+                    .as_ref()
+                    .and_then(|tokens| tokens.words().get(idx))
+                    .is_some_and(word_substitutes),
             expanded: command
                 .expand_word
                 .as_ref()
@@ -1823,7 +2208,8 @@ fn command_words(
             // `{…}` and nothing welded to it — the same question
             // `CommandTokens::arg_is_braced_literal` answers for an IR
             // statement's arguments, asked here in whole-argv indexing.
-            braced_literal: token.kind == TokenType::Str
+            braced_literal: written.is_some()
+                && token.kind == TokenType::Str
                 && command.single_token_word.get(idx).copied().unwrap_or(false),
         })
         .collect()
@@ -1858,9 +2244,38 @@ mod tests {
     use tcl_lexer::Span;
 
     #[test]
+    fn residual_body_wrapper_does_not_repeat_argument_substitutions() {
+        let registry = CommandRegistry::build_default();
+        let mut statement = Statement::Call {
+            span: Span::new(0, 16),
+            command: "puts".to_owned(),
+            canonical_command: None,
+            args: vec!["[set x 1]".to_owned()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(CommandTokens::marker(
+                crate::ir::SyntheticMarker::EvaluatedArguments,
+            )),
+            foreach_groups: None,
+        };
+        assert_eq!(
+            evaluated_command_substitution_surfaces(&statement, &registry).texts,
+            ["[set x 1]"]
+        );
+        statement.tokens_mut().unwrap().synthetic =
+            Some(crate::ir::SyntheticMarker::EvaluatedWrapper);
+        assert_eq!(
+            evaluated_command_substitution_surfaces(&statement, &registry).texts,
+            [] as [&str; 0]
+        );
+    }
+
+    #[test]
     fn defs_from_empty_script() {
         let script = Script::new();
-        assert!(defs_from_ir_script(&script).is_empty());
+        assert_eq!(defs_from_ir_script(&script), [] as [std::string::String; 0]);
     }
 
     /// `expr_has_command` and
@@ -2047,10 +2462,10 @@ mod tests {
         // The reconstructed text canonicalises the substitution to its braced
         // spelling (`$x` → `${x}`, the same form an IR statement's arguments
         // carry) and de-braces a braced word; raw keeps what was written. A
-        // delimited word's closer is one past its span, so the braced word's
-        // raw spelling stops at `b`.
+        // delimited word retains its complete written wrapper independently
+        // of the variable/component span convention.
         assert_eq!(texts, vec!["set", "${x}", "a $b"]);
-        assert_eq!(raws, vec!["set", "$x", "{a $b"]);
+        assert_eq!(raws, vec!["set", "$x", "{a $b}"]);
         assert_eq!(
             words.iter().map(|w| w.substituted).collect::<Vec<_>>(),
             vec![false, true, false]
@@ -2088,11 +2503,134 @@ mod tests {
     }
 
     #[test]
+    fn source_substitution_roles_and_footprints_use_retained_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source roles/footprints do not prove dispatch or a Native cell.
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gated-expr",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("expr").unwrap().clone()
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gated-write",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("set").unwrap().clone()
+        });
+        let registry = std::sync::Arc::new(registry);
+        let source = "set result [gated-expr {[gated-write {$scalar(open} VALUE]}]";
+        let module = crate::lowering::lower_to_ir(source, &registry);
+        let statement = &module.top_level.statements[0];
+        for (environment, available) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(std::sync::Arc::clone(&registry));
+            let inventory = evaluated_command_substitutions_with_metadata_context(
+                statement,
+                &registry,
+                Some((&context).into()),
+                LexerConfig::default(),
+            );
+            let nested: Vec<_> = inventory
+                .all_commands()
+                .filter(|words| words.first().and_then(CommandWord::literal) == Some("gated-write"))
+                .collect();
+            assert_eq!(nested.len(), usize::from(available), "{environment}");
+            if available {
+                let footprint = variable_write_effects_from_commands_with_metadata_context(
+                    nested,
+                    &registry,
+                    Some((&context).into()),
+                );
+                assert_eq!(footprint.names, ["$scalar(open"]);
+                assert!(!footprint.opaque);
+            } else {
+                assert!(inventory.opaque);
+                let words = tokenise_command_words(
+                    "gated-write {$scalar(open} VALUE",
+                    LexerConfig::default(),
+                );
+                let footprint = variable_write_effects_from_commands_with_metadata_context(
+                    &words,
+                    &registry,
+                    Some((&context).into()),
+                );
+                assert!(footprint.names.is_empty());
+                assert!(footprint.opaque);
+            }
+        }
+        assert!(
+            evaluated_command_substitutions_with_metadata_context(
+                statement,
+                &registry,
+                None,
+                LexerConfig::default()
+            )
+            .opaque
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        assert!(
+            evaluated_command_substitutions_with_metadata_context(
+                statement,
+                &registry,
+                Some(foreign.into()),
+                LexerConfig::default()
+            )
+            .opaque
+        );
+    }
+
+    #[test]
+    fn source_substitution_descent_retains_config_and_target_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = std::sync::Arc::new(CommandRegistry::build_default());
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
+            .with_command_store(std::sync::Arc::clone(&registry));
+        let module = crate::lowering::lower_to_ir("set result [list {*}{a b}]", &registry);
+        let statement = &module.top_level.statements[0];
+        for (environment, expanded) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let config = LexerConfig::from_grammar(
+                tcl_registry::model::ingress::static_context_for(environment)
+                    .commands()
+                    .profile()
+                    .unwrap()
+                    .grammar,
+            );
+            let inventory = evaluated_command_substitutions_with_metadata_context(
+                statement,
+                &registry,
+                Some((&context).into()),
+                config,
+            );
+            assert_eq!(
+                inventory.all_commands().flatten().any(|word| word.expanded),
+                expanded
+            );
+        }
+        let module = crate::lowering::lower_to_ir("set result [expr {[incr hidden]}]", &registry);
+        let refuse = |_head: &str| None;
+        let inventory = evaluated_command_substitutions_with_heads_and_metadata_context(
+            &module.top_level.statements[0],
+            &registry,
+            Some(&refuse),
+            Some((&context).into()),
+            LexerConfig::default(),
+        );
+        assert!(inventory.opaque);
+        assert!(
+            !inventory
+                .all_commands()
+                .any(|words| words.first().and_then(CommandWord::literal) == Some("incr"))
+        );
+    }
+
+    #[test]
     fn variable_write_projection_marks_expanded_set_opaque() {
         let registry = CommandRegistry::build_default();
         let commands = tokenise_command_words("set {*}{x 99}", LexerConfig::default());
         let effects = variable_write_effects_from_commands(&commands, &registry);
-        assert!(effects.names.is_empty());
+        assert_eq!(effects.names, [] as [std::string::String; 0]);
         assert!(effects.opaque);
     }
 
@@ -2137,7 +2675,7 @@ mod tests {
         };
 
         assert_eq!(commands(false)[0][0].text, "set");
-        assert!(commands(true).is_empty());
+        assert_eq!(commands(true).len(), 0);
     }
 
     /// The commands of `surface` a statement's substitution recovers, under
@@ -2300,7 +2838,10 @@ mod tests {
         // Tcl 9.0.4 expands the list into extra `catch` arguments, reports
         // wrong-arity, and creates neither `x` nor `result`. Source positions
         // before expansion therefore cannot be used as registry role indices.
-        assert!(cond_out_vars("catch {*}{set x 1} result").is_empty());
+        assert_eq!(
+            cond_out_vars("catch {*}{set x 1} result"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// The registry's `ArgRole::VarWrite` query must answer for every command
@@ -2379,7 +2920,7 @@ mod tests {
     #[test]
     fn condition_out_vars_ignores_a_dynamic_target() {
         let got = cond_out_vars("set $n 1");
-        assert!(got.is_empty(), "got {got:?}");
+        assert_eq!(got.len(), 0, "got {got:?}");
     }
 
     /// A command word that is itself a substitution names
@@ -2393,8 +2934,9 @@ mod tests {
     fn condition_out_vars_ignores_a_substituted_command_head() {
         for cmd_text in ["$set length foo", "$catch {error x} msg", "[pick] $fp line"] {
             let got = cond_out_vars(cmd_text);
-            assert!(
-                got.is_empty(),
+            assert_eq!(
+                got.len(),
+                0,
                 "`{cmd_text}` has a computed head; nothing is knowable about \
 what it writes, got {got:?}"
             );
@@ -2486,6 +3028,175 @@ what it writes, got {got:?}"
             ),
             "absolute set must retain typed assignment IR: {:#?}",
             module.methods["::C::exact_regex"].body
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_recovered_source_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_recovered_word_keeps_bom_and_supplied_input_through_nested_inventory() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional lexical inventory; no original child execution or Normal handler grant.
+        let mut prepared = crate::analyser::Analyser::new();
+        let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..base.lexer_config()
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            base.analyser_profile(),
+            base.unit_profile(),
+            base.context_registry(),
+            config,
+        );
+        let context = input.context_registry();
+        let registry = context.commands();
+        let text = "\u{feff}#prefix ${a{b}";
+        let words = tokenise_command_words(text, config);
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0][0].literal(), Some("\u{feff}#prefix"));
+        assert_eq!(words[0][1].raw, "${a{b}");
+        assert!(words[0][1].substituted);
+        assert!(tokenise_command_words("#prefix ${a{b}", config).is_empty());
+        let source = "\u{feff}puts \u{feff}#prefix[list ${a{b}]";
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_resolved_analysis_input(input.clone());
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        let statement = &module.top_level.statements[0];
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let inventory = evaluated_command_substitutions_with_metadata_context(
+            statement,
+            registry,
+            Some(metadata),
+            config,
+        );
+        assert_eq!(inventory.commands.len(), 1);
+        assert_eq!(inventory.commands[0][0].literal(), Some("list"));
+        assert_eq!(inventory.commands[0][1].raw, "${a{b}");
+        assert!(!inventory.opaque);
+        assert!(
+            evaluated_command_substitutions_with_metadata_context(
+                statement, registry, None, config
+            )
+            .opaque
+        );
+        assert!(
+            evaluated_command_substitutions_with_metadata_context(
+                statement,
+                registry,
+                Some(metadata),
+                config.nested()
+            )
+            .opaque
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.4");
+        assert!(
+            evaluated_command_substitutions_with_metadata_context(
+                statement,
+                registry,
+                Some(foreign.into()),
+                config
+            )
+            .opaque
+        );
+        assert_eq!(module.source_metadata_input.as_ref(), Some(&input));
+        assert_eq!(module.lexer_config, config);
+    }
+}
+
+#[cfg(test)]
+mod original_written_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_recovered_written_words_keep_full_source_and_component_extents_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::default()
+        };
+        let source = "list {} {é $x} \"[set é]$x\" prefix-${é} ${a{b} {*}[set é]";
+        let words = tokenise_command_words(source, config);
+        assert_eq!(words.len(), 1);
+        assert_eq!(
+            words[0]
+                .iter()
+                .map(|word| word.raw.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "list",
+                "{}",
+                "{é $x}",
+                "\"[set é]$x\"",
+                "prefix-${é}",
+                "${a{b}",
+                "{*}[set é]"
+            ]
+        );
+        assert!(words[0].iter().all(|word| word.source_available));
+        let map = SourceMap::new(source);
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+                .remove(0);
+        let original = CommandTokens::from_segmented(&map, config, &command);
+        assert_eq!(map.text(original.words()[5].source().span), "${a{b");
+        assert!(words[0][5].substituted);
+        assert!(words[0][6].expanded);
+    }
+
+    #[test]
+    fn original_written_word_inventory_refuses_changed_cst_vectors_and_source_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let config = LexerConfig::default();
+        let source = "prefix; list {é $x}";
+        let map = SourceMap::new(source);
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+                .remove(1);
+        assert_eq!(command_words(&map, config, &command)[1].raw, "{é $x}");
+        let mut changed = command.clone();
+        changed.word_fragments[1][0].token.span = tcl_lexer::Span::new(0, 1);
+        assert!(
+            command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        changed = command.clone();
+        changed.texts[1] = "FOREIGN".to_owned();
+        assert!(
+            command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        let missing = SourceMap::new("x");
+        assert!(command_written_spans(&missing, config, &command).is_none());
+        assert!(
+            command_words(&missing, config, &command)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        changed = command.clone();
+        changed.all_tokens[0].content_offset = u8::MAX;
+        assert!(
+            command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        assert_eq!(
+            command_words(&map, config, &command)[0].literal(),
+            Some("list")
         );
     }
 }

@@ -1,0 +1,117 @@
+ *	user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl result value.
+ *
+ * Side effects:
+ *	A variable's value may be changed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_SetObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Tcl_Obj *varValueObj;
+
+    if (objc == 2) {
+	varValueObj = Tcl_ObjGetVar2(interp, objv[1], NULL,TCL_LEAVE_ERR_MSG);
+	if (varValueObj == NULL) {
+	    return TCL_ERROR;
+	}
+	Tcl_SetObjResult(interp, varValueObj);
+	return TCL_OK;
+    } else if (objc == 3) {
+	varValueObj = Tcl_ObjSetVar2(interp, objv[1], NULL, objv[2],
+		TCL_LEAVE_ERR_MSG);
+	if (varValueObj == NULL) {
+	    return TCL_ERROR;
+	}
+	Tcl_SetObjResult(interp, varValueObj);
+	return TCL_OK;
+    } else {
+	Tcl_WrongNumArgs(interp, 1, objv, "varName ?newValue?");
+	return TCL_ERROR;
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_SetVar2 --
+ *
+ *	Given a two-part variable name, which may refer either to a scalar
+ *	variable or an element of an array, change the value of the variable.
+ *	If the named scalar or array or element doesn't exist then create one.
+ *
+ * Results:
+ *	Returns a pointer to the malloc'ed string which is the character
+ *	representation of the variable's new value. The caller must not modify
+ *	this string. If the write operation was disallowed because an array
+ *	was expected but not found (or vice versa), then NULL is returned; if
+ *	the TCL_LEAVE_ERR_MSG flag is set, then an explanatory message will be
+ *	left in the interp's result. Note that the returned string may not be
+ *	the same as newValue; this is because variable traces may modify the
+ *	variable's value.
+ *
+ * Side effects:
+ *	The value of the given variable is set. If either the array or the
+ *	entry didn't exist then a new one is created.
+ *
+ *----------------------------------------------------------------------
+ */
+
+const char *
+Tcl_SetVar2(
+    Tcl_Interp *interp,		/* Command interpreter in which variable is to
+				 * be looked up. */
+    const char *part1,		/* If part2 is NULL, this is name of scalar
+				 * variable. Otherwise it is the name of an
+				 * array. */
+    const char *part2,		/* Name of an element within an array, or
+				 * NULL. */
+    const char *newValue,	/* New value for variable. */
+    int flags)			/* Various flags that tell how to set value:
+				 * any of TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_APPEND_VALUE, TCL_LIST_ELEMENT, or
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    Tcl_Obj *varValuePtr = Tcl_SetVar2Ex(interp, part1, part2,
+	    Tcl_NewStringObj(newValue, -1), flags);
+
+    if (varValuePtr == NULL) {
+	return NULL;
+    }
+    return TclGetString(varValuePtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_SetVar2Ex --
+ *
+ *	Given a two-part variable name, which may refer either to a scalar
+ *	variable or an element of an array, change the value of the variable
+ *	to a new Tcl object value. If the named scalar or array or element
+ *	doesn't exist then create one.
+ *
+ * Results:
+ *	Returns a pointer to the Tcl_Obj holding the new value of the
+ *	variable. If the write operation was disallowed because an array was
+ *	expected but not found (or vice versa), then NULL is returned; if the
+ *	TCL_LEAVE_ERR_MSG flag is set, then an explanatory message will be
+ *	left in the interpreter's result. Note that the returned object may
+ *	not be the same one referenced by newValuePtr; this is because
+ *	variable traces may modify the variable's value.
+ *
+ * Side effects:
+ *	The value of the given variable is set. If either the array or the
+ *	entry didn't exist then a new variable is created.
+ *
+ *	The reference count is decremented for any old value of the variable
+ *	and incremented for its new value. If the new value for the variable
+ *	is not the same one referenced by newValuePtr (perhaps as a result of

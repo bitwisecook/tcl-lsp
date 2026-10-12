@@ -1,0 +1,124 @@
+{
+  "kind": "lossless-archive-of-inactive-sealed-source-review-packet-copies",
+  "archive": "/workspace/.proofs/procedure-usage-type-scope284.source-trees.tar.gz",
+  "archive_sha256": "4d5402a4cf3ddc97b137daf39f84f79457685ff6a7839db842c600b848aecef6",
+  "archive_bytes": 353851,
+  "uncompressed_bytes": 1506942,
+  "source_manifest_sha256": "1b3a5bc8ae551c7d683f63c5c10a027cb4cee2835012ac5b148a19820bc08262",
+  "source_patch_sha256": "32565d00838f0c519bf193924258d356aafcb301acc9e816203fa92e27cdcfda",
+  "applied_state_assertion": false,
+  "exact_application_journal_available": false,
+  "member_count": 10,
+  "members": {
+    "procedure-usage-type-scope284/base": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.113814,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/base/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.113814,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/base/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.113814,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/base/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.113814,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/base/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.115227,
+      "size": 753452,
+      "sha256": "4353d895cca155ed7cd84a086d1509624339eeb3c14ae7e878eb788634d5b335"
+    },
+    "procedure-usage-type-scope284/candidate": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.1082747,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/candidate/runtime": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.1082747,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/candidate/runtime/rust": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.1082747,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/candidate/runtime/rust/src": {
+      "kind": "directory",
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.1082747,
+      "size": 0,
+      "sha256": null
+    },
+    "procedure-usage-type-scope284/candidate/runtime/rust/src/interp.rs": {
+      "kind": "file",
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1791618049.113814,
+      "size": 753490,
+      "sha256": "99186177077657b6f4346e88047e6e5b33a432ba8376fac94984e6a5de693763"
+    }
+  },
+  "leaf_tree_mapping": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "candidate_sha256",
+      "sha256": "99186177077657b6f4346e88047e6e5b33a432ba8376fac94984e6a5de693763",
+      "trees": [
+        "candidate"
+      ]
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "hash_key": "base_sha256",
+      "sha256": "4353d895cca155ed7cd84a086d1509624339eeb3c14ae7e878eb788634d5b335",
+      "trees": [
+        "base"
+      ]
+    }
+  ],
+  "prior_verified_base_archive": null,
+  "verification": "All archive paths/types/modes/uid/gid/mtime/size and file SHA verified; all original leaf manifest hashes independently verified in archive; every original byte and retained manifest/patch/journal rechecked before replacement."
+}

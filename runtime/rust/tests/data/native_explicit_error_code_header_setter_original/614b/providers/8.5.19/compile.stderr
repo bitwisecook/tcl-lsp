@@ -1,0 +1,27 @@
+In file included from /workspace/.proofs/native-explicit-error-code-header-setter614b/probe.c:3:
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:24:25: warning: conflicting types for built-in function 'calloc'; expected 'void *(long unsigned int,  long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   24 | extern char *           calloc(unsigned int numElements, unsigned int size);
+      |                         ^~~~~~
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:1:1: note: 'calloc' is declared in header '<stdlib.h>'
+  +++ |+#include <stdlib.h>
+    1 | /*
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:26:25: warning: conflicting types for built-in function 'free'; expected 'void(void *)' [-Wbuiltin-declaration-mismatch]
+   26 | extern int              free(char *blockPtr);
+      |                         ^~~~
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:26:25: note: 'free' is declared in header '<stdlib.h>'
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:28:25: warning: conflicting types for built-in function 'malloc'; expected 'void *(long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   28 | extern char *           malloc(unsigned int numBytes);
+      |                         ^~~~~~
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:28:25: note: 'malloc' is declared in header '<stdlib.h>'
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:31:25: warning: conflicting types for built-in function 'realloc'; expected 'void *(void *, long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   31 | extern char *           realloc(char *ptr, unsigned int numBytes);
+      |                         ^~~~~~~
+/workspace/tcl-lsp/tmp/tcl8.5.19/compat/stdlib.h:31:25: note: 'realloc' is declared in header '<stdlib.h>'
+In file included from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h:3960,
+                 from /workspace/.proofs/native-explicit-error-code-header-setter614b/probe.c:5:
+/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIntPlatDecls.h:104:37: error: unknown type name 'DIR'
+  104 | EXTERN Tcl_DirEntry *   TclpReaddir(DIR *dir);
+      |                                     ^~~
+/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIntPlatDecls.h:453:36: error: unknown type name 'DIR'
+  453 |     Tcl_DirEntry * (*tclpReaddir) (DIR *dir); /* 10 */
+      |                                    ^~~

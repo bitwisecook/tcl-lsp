@@ -1,0 +1,15 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/dynamic_unicode_variable_syntax.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_unicode_variable_syntax] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_dynamic_unicode_variable_syntax:1: error: [braces are required around the expression][when HTTP_REQUEST {
+    set u [TMM::cmp_unit]
+    set script "set __tcl_lsp_probe_2286_r2286_20261006c_é PRECOMPOSED\nset __tcl_lsp_probe_2286_r2286_20261006c_é DECOMPOSED\nlist \[catch \{set a \$__tcl_lsp_probe_2286_r2286_20261006c_é\} a\] \$a \[catch \{set b \$__tcl_lsp_probe_2286_r2286_20261006c_é\} b\] \$b"
+    set rc [catch {eval $script} result]
+    set ec UNAVAILABLE
+    if {[info exists errorCode]} {set ec $errorCode}
+    binary scan $result H* result_hex
+    binary scan $ec H* errorcode_hex
+    log local0. "R2286|r2286_20261006c|dynamic_unicode_variable_syntax|unit=$u|rc=$rc|result_hex=$result_hex|errorcode_hex=$errorcode_hex|[HTTP::uri]"
+    HTTP::respond 200 content "$rc $result_hex $errorcode_hex\n" X-R2286-TMM $u Connection close
+}]
+
+Unexpected Error: Loading configuration process failed.

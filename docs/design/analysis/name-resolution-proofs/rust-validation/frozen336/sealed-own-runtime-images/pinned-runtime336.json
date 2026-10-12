@@ -1,0 +1,18 @@
+{
+  "executable": "/tmp/naming-owned336/pinned-runtime336.elf",
+  "sha256": "5ed9740c431a0d6d7e6046607a76717eefb313101b32ede81d7074430e3ed98d",
+  "build_receipt": "/workspace/.proofs/integration-runtime-own-test-build336.json",
+  "build_receipt_sha256": "898bdadddb73d4700ef7a0dd15f605f91b6f69f0df1485f85fd30f13dcec4e5b",
+  "source_snapshot_sha256": "9abbe992e2ddb059ff8ca4124f64f1fe2ca2406d248fe2d77f303f34491a67a8",
+  "features": [],
+  "original_cargo_artifact": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_runtime-ad4b912e6199be00",
+  "bytes": 71918816,
+  "original_inode": 936614,
+  "device": 33,
+  "original_mode": 448,
+  "original_uid": 1000,
+  "original_gid": 1000,
+  "original_mtime_ns": 1791703425693350529,
+  "original_atime_ns": 1791703425717350342,
+  "storage": "Closed successful actual own test artifact sealed by same-filesystem atomic rename, preserving exact emitted inode/full bytes. No executable copy or guessed dependency artifact. Original Cargo output becomes absent; future Cargo must recreate it."
+}

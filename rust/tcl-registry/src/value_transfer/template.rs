@@ -333,8 +333,9 @@ fn record(
     config: LexerConfig,
     plan: &mut TemplateWordPlan,
 ) -> bool {
-    for SpannedPart { part, start, end } in
-        tcl_lexer::word_parts::decompose_spanned(text.as_bytes(), flags, config)
+    for SpannedPart {
+        part, start, end, ..
+    } in tcl_lexer::word_parts::decompose_spanned(text.as_bytes(), flags, config)
     {
         let span = offset_span(base, offset + start, offset + end);
         match part {
@@ -388,7 +389,7 @@ fn record(
                     frame: FrameLevel::Relative(0),
                 },
             }),
-            Part::ParseError(_) => return false,
+            Part::Expression(_) | Part::ParseError(_) => return false,
         }
     }
     true

@@ -1,0 +1,35 @@
+{
+  "source_only": true,
+  "windows": [
+    {
+      "id": "c-api-publication",
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "function": "Tcl_CreateObjCommand",
+      "lines": [
+        1772,
+        1786
+      ],
+      "source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "snippet_sha256": "fd1a5beb7330257cbd89c78e9f0b34501c923367a4972b07990c84ea510d0286",
+      "snippet": "     * Determine where the command should reside. If its name contains \n     * namespace qualifiers, we put it in the specified namespace; \n     * otherwise, we always put it in the global namespace.\n     */\n\n    if (strstr(cmdName, \"::\") != NULL) {\n       TclGetNamespaceForQualName(interp, cmdName, (Namespace *) NULL,\n           CREATE_NS_IF_UNKNOWN, &nsPtr, &dummy1, &dummy2, &tail);\n       if ((nsPtr == NULL) || (tail == NULL)) {\n\t    return (Tcl_Command) NULL;\n\t}\n    } else {\n\tnsPtr = iPtr->globalNsPtr;\n\ttail = cmdName;\n    }\n"
+    },
+    {
+      "id": "deleted-eval",
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "revision": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "function": "TclInterpReady",
+      "lines": [
+        3062,
+        3072
+      ],
+      "source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "snippet_sha256": "2c1753fda0256dfceac01a939c3bb09adceed83c90503093e777e5d1d4139b05",
+      "snippet": "     * If the interpreter has been deleted, return an error.\n     */\n    \n    if (iPtr->flags & DELETED) {\n\tTcl_ResetResult(interp);\n\tTcl_AppendToObj(Tcl_GetObjResult(interp),\n\t        \"attempt to call eval in deleted interpreter\", -1);\n\tTcl_SetErrorCode(interp, \"CORE\", \"IDELETE\",\n\t        \"attempt to call eval in deleted interpreter\",\n\t\t(char *) NULL);\n\treturn TCL_ERROR;\n"
+    }
+  ]
+}

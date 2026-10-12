@@ -1,0 +1,64 @@
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `ssl_reader':
+jim-aio.c:(.text+0x46c): undefined reference to `SSL_pending'
+/usr/bin/ld: jim-aio.c:(.text+0x47e): undefined reference to `SSL_read'
+/usr/bin/ld: jim-aio.c:(.text+0x495): undefined reference to `SSL_pending'
+/usr/bin/ld: jim-aio.c:(.text+0x4e5): undefined reference to `SSL_pending'
+/usr/bin/ld: jim-aio.c:(.text+0x4f2): undefined reference to `SSL_pending'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `JimAioSslCtx.part.0':
+jim-aio.c:(.text+0xedf): undefined reference to `OPENSSL_init_ssl'
+/usr/bin/ld: jim-aio.c:(.text+0xee8): undefined reference to `OPENSSL_init_ssl'
+/usr/bin/ld: jim-aio.c:(.text+0xeed): undefined reference to `TLS_method'
+/usr/bin/ld: jim-aio.c:(.text+0xef5): undefined reference to `SSL_CTX_new'
+/usr/bin/ld: jim-aio.c:(.text+0xf05): undefined reference to `SSL_CTX_set_default_verify_paths'
+/usr/bin/ld: jim-aio.c:(.text+0xf0e): undefined reference to `ERR_get_error'
+/usr/bin/ld: jim-aio.c:(.text+0xf18): undefined reference to `ERR_error_string'
+/usr/bin/ld: jim-aio.c:(.text+0xf58): undefined reference to `SSL_CTX_set_verify'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `aio_cmd_ssl':
+jim-aio.c:(.text+0x100c): undefined reference to `SSL_new'
+/usr/bin/ld: jim-aio.c:(.text+0x1028): undefined reference to `SSL_set_cipher_list'
+/usr/bin/ld: jim-aio.c:(.text+0x1035): undefined reference to `SSL_set_fd'
+/usr/bin/ld: jim-aio.c:(.text+0x105a): undefined reference to `SSL_ctrl'
+/usr/bin/ld: jim-aio.c:(.text+0x1063): undefined reference to `SSL_connect'
+/usr/bin/ld: jim-aio.c:(.text+0x10e6): undefined reference to `SSL_use_certificate_file'
+/usr/bin/ld: jim-aio.c:(.text+0x10fc): undefined reference to `SSL_use_PrivateKey_file'
+/usr/bin/ld: jim-aio.c:(.text+0x110a): undefined reference to `SSL_accept'
+/usr/bin/ld: jim-aio.c:(.text+0x1125): undefined reference to `SSL_free'
+/usr/bin/ld: jim-aio.c:(.text+0x112a): undefined reference to `ERR_get_error'
+/usr/bin/ld: jim-aio.c:(.text+0x1134): undefined reference to `ERR_error_string'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `JimAioLoadSSLCertsCommand':
+jim-aio.c:(.text+0x17c1): undefined reference to `SSL_CTX_load_verify_locations'
+/usr/bin/ld: jim-aio.c:(.text+0x17cf): undefined reference to `ERR_get_error'
+/usr/bin/ld: jim-aio.c:(.text+0x17d9): undefined reference to `ERR_error_string'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `ssl_strerror':
+jim-aio.c:(.text+0x1845): undefined reference to `ERR_get_error'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `ssl_error':
+jim-aio.c:(.text+0x34b0): undefined reference to `SSL_get_error'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `aio_cmd_verify':
+jim-aio.c:(.text+0x354a): undefined reference to `SSL_get1_peer_certificate'
+/usr/bin/ld: jim-aio.c:(.text+0x3557): undefined reference to `X509_free'
+/usr/bin/ld: jim-aio.c:(.text+0x3560): undefined reference to `SSL_get_verify_result'
+/usr/bin/ld: jim-aio.c:(.text+0x357c): undefined reference to `X509_verify_cert_error_string'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `JimAioDelProc':
+jim-aio.c:(.text+0x3afc): undefined reference to `SSL_free'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `ssl_writer':
+jim-aio.c:(.text+0x505): undefined reference to `SSL_write'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `JimAioSslContextDelProc':
+jim-aio.c:(.text+0x514): undefined reference to `SSL_CTX_free'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-aio.o): in function `ssl_strerror':
+jim-aio.c:(.text+0x1857): undefined reference to `ERR_error_string'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o): in function `Jim_Compress':
+jim-zlib.c:(.text+0x59): undefined reference to `deflateInit2_'
+/usr/bin/ld: jim-zlib.c:(.text+0x87): undefined reference to `deflateBound'
+/usr/bin/ld: jim-zlib.c:(.text+0xbc): undefined reference to `deflate'
+/usr/bin/ld: jim-zlib.c:(.text+0xd4): undefined reference to `deflateEnd'
+/usr/bin/ld: jim-zlib.c:(.text+0x12c): undefined reference to `deflateEnd'
+/usr/bin/ld: jim-zlib.c:(.text+0x1a4): undefined reference to `deflateEnd'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o): in function `Jim_Crc32':
+jim-zlib.c:(.text+0x305): undefined reference to `crc32'
+/usr/bin/ld: jim-zlib.c:(.text+0x347): undefined reference to `crc32'
+/usr/bin/ld: /workspace/.proofs/native-providers/jimtcl/libjim.a(jim-zlib.o): in function `Jim_Decompress':
+jim-zlib.c:(.text+0x3c3): undefined reference to `inflateInit2_'
+/usr/bin/ld: jim-zlib.c:(.text+0x420): undefined reference to `inflate'
+/usr/bin/ld: jim-zlib.c:(.text+0x462): undefined reference to `inflateEnd'
+/usr/bin/ld: jim-zlib.c:(.text+0x4fe): undefined reference to `inflateEnd'
+collect2: error: ld returned 1 exit status

@@ -1,0 +1,46 @@
+{
+  "question": "naming.property.original-configurable-availability-counted-argv",
+  "provider": "8.5.19",
+  "input_channel": "original-counted-object-vector (Tcl_EvalObjv or Jim_EvalObjVector); actual info patchlevel from separate ASCII startup source",
+  "scope": "Availability and the fresh ASCII configurable create/class object create argv only. No property storage, opaque names, Native source preflight, compilation or callback absence claim. Source-script CREATE rows of native_property_counted_original are a separate retained channel.",
+  "source_sha256": "d002f896107884e9aa995e1363f5acf25700c2b5be97e65c05d9508586c77940",
+  "queue_sha256": "5c73bb71f33c71927715cdcacad6739136914a6e2462fd2a4abfaa07660edf96",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "/workspace/.proofs/current-native-property-availability-argv169/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/current-native-property-availability-argv169/output/8.5.19/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "6d5def77e79f363110d22b9ad1f16987a147139ea0b8a3b71a544dedbddfbf24",
+  "stdout_sha256": "499ee571cad4daa80b30d6eb098d758892936cb52f49b2e2d0d098a12fe52a37",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "8.5.19",
+  "rows": [
+    "VERSION|0|0|382e352e3139",
+    "AVAILABILITY_OBJV|0|0|",
+    "FACTORY_OBJV|1|0|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636f6e666967757261626c6522"
+  ],
+  "seconds": 0.16132879900396802
+}

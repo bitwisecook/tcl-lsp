@@ -55,7 +55,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::ssa::{Phi, SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::taint::{TaintWarning, is_irules_dialect};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
+use crate::value_shapes::is_pure_var_ref;
 
 /// Maximum depth for backward SSA tracing (prevents infinite loops on
 /// pathological phi chains).
@@ -79,10 +79,40 @@ enum Decomposition {
 /// The decomposition `head args…` runs, resolved through the registry as
 /// every analysis resolves it — `::split` and `split` alike — or `None` for
 /// any other command.
-fn decomposition(registry: &CommandRegistry, head: &str, args: &[String]) -> Option<Decomposition> {
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    let (resolved, _) = crate::value_transfer::resolved_literal_semantics(registry, head, &words)?;
-    match resolved.semantics()?.route() {
+fn decomposition(
+    tokens: &crate::ir::CommandTokens,
+    command: &str,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    ctx: TraceCtx<'_>,
+) -> Option<Decomposition> {
+    let metadata = ctx.metadata()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let values = crate::registry_invocation::frozen_argument_words(tokens, effective);
+    let values = values
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect::<Vec<_>>();
+    let mut words = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(command),
+        &values,
+    );
+    if let Some(dialect) = binding.variable_context.invocation_dialect {
+        words = words.with_dialect(dialect);
+    }
+    let realm = binding.invocation_realm().or_else(|| {
+        ctx.cfg
+            .metadata_context
+            .is_standalone()
+            .then_some(tcl_dialect::model::InvocationRealm::RuleLoader)
+    })?;
+    let resolution =
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            ctx.registry,
+            metadata.map(crate::registry_invocation::InvocationMetadataContext::context),
+            words,
+            realm,
+        );
+    match resolution.resolved()?.semantics.value.semantics()?.route() {
         EvalRoute::Direct {
             id: NativeEvalId::ListSplit,
         } => Some(Decomposition::Split),
@@ -162,6 +192,8 @@ struct TraceCtx<'a> {
     /// The registry each call's decomposition is resolved through.
     registry: &'a CommandRegistry,
     ssa: &'a SsaFunction,
+    point: Option<(BlockId, usize)>,
+    expression_base: Option<u32>,
     families: &'a UriFamilies,
     def_sites: &'a HashMap<ValueKey, (BlockId, usize)>,
     phi_index: &'a HashMap<ValueKey, Phi>,
@@ -174,12 +206,171 @@ struct TraceCtx<'a> {
     constants: &'a dyn Fn(ValueKey) -> Option<String>,
 }
 
+impl<'a> TraceCtx<'a> {
+    fn metadata(self) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+        if self
+            .cfg
+            .metadata_context
+            .source_analysis_input()
+            .is_some_and(|input| input.lexer_config().normalized() != self.config.normalized())
+        {
+            return None;
+        }
+        self.cfg.metadata_context.metadata_context(self.registry)
+    }
+
+    fn tokens(self) -> Option<&'a crate::ir::CommandTokens> {
+        let (block, index) = self.point?;
+        self.cfg.source_tokens_at(block, index)
+    }
+
+    fn source_view(self) -> Option<crate::ssa::SsaSourceView<'a>> {
+        let (block, index) = self.point?;
+        Some(if index == usize::MAX {
+            crate::ssa::SsaSourceView::at_terminator(self.ssa, block)
+        } else {
+            crate::ssa::SsaSourceView::at_statement(self.ssa, block, index)
+        })
+    }
+
+    fn variable_origin(self, name: &str) -> Option<String> {
+        let read = self.source_view()?.read_spelling(name)?;
+        trace_to_uri_family(read.symbol, read.version?, self, 0)
+    }
+
+    fn expression_command(
+        self,
+        text: &str,
+        start: u32,
+        end: u32,
+    ) -> Option<crate::ir::CommandTokens> {
+        let base = self.expression_base?;
+        let span = Span::new(base.checked_add(start)?, base.checked_add(end)?);
+        let word = crate::ir::WordExpr::CommandSubstitution {
+            spelling: text.to_owned(),
+            source: crate::ir::SourceSite::source(span),
+        };
+        let mut commands =
+            crate::value_shapes::command_substitution_tokens(&word, self.tokens(), self.config)?;
+        (commands.len() == 1).then(|| commands.remove(0))
+    }
+
+    fn normal_value(self, statement: &Statement) -> Option<crate::ir::WordExpr> {
+        let (block, index) = self.point?;
+        let tokens = statement.tokens()?;
+        let invocation =
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                self.registry,
+                self.metadata()?,
+                tokens,
+            )?;
+        let state = self
+            .ssa
+            .point_contexts
+            .as_ref()?
+            .before_statement(block, index);
+        invocation.stored_value_word(state, self.registry).cloned()
+    }
+
+    fn uri_word(self, word: &crate::ir::WordExpr) -> Option<String> {
+        let mut commands =
+            crate::value_shapes::command_substitution_tokens(word, self.tokens(), self.config)?;
+        if commands.len() != 1 {
+            return None;
+        }
+        let tokens = commands.pop()?;
+        let (command, arguments) = diagnostic_command(&tokens, self)?;
+        is_uri_getter(self.families, &command, &arguments).then_some(command)
+    }
+}
+
+/// Closed registry alternatives supply unanimous advisory words, independently
+/// of compiler opcode permission. Document shadows and residual targets abstain.
+fn diagnostic_command(
+    tokens: &crate::ir::CommandTokens,
+    ctx: TraceCtx<'_>,
+) -> Option<(String, Vec<String>)> {
+    diagnostic_words(tokens, ctx).map(|(command, arguments, _, _)| (command, arguments))
+}
+
+fn diagnostic_words(
+    tokens: &crate::ir::CommandTokens,
+    ctx: TraceCtx<'_>,
+) -> Option<(
+    String,
+    Vec<String>,
+    Vec<crate::ir::WordExpr>,
+    Option<Decomposition>,
+)> {
+    use crate::registry_invocation::InvocationWordOrigin;
+    let metadata = ctx.metadata()?;
+    if !ctx.cfg.metadata_context.is_standalone()
+        && tokens
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(tokens)?
+            .normalized()
+            != ctx.config.normalized()
+    {
+        return None;
+    }
+    let assistance =
+        crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+            ctx.registry,
+            metadata,
+            tokens,
+        )?;
+    let shape = assistance.unanimous_command_words()?;
+    let effective = shape.effective();
+    let arguments = effective
+        .origins
+        .iter()
+        .skip(1)
+        .map(|origin| match origin {
+            InvocationWordOrigin::Written(index) => tokens.argv_texts.get(*index).cloned(),
+            InvocationWordOrigin::BindingPrefix(index) => effective
+                .binding_prefix
+                .get(*index)
+                .and_then(|word| word.as_registry_word().literal())
+                .map(str::to_owned),
+            InvocationWordOrigin::ResolvedHead | InvocationWordOrigin::ExpandedElement { .. } => {
+                None
+            }
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((
+        shape.command().trim_start_matches("::").to_owned(),
+        arguments,
+        effective.words.get(1..)?.to_vec(),
+        decomposition(tokens, shape.command(), effective, ctx),
+    ))
+}
+
+fn statement_diagnostic_command(
+    statement: &Statement,
+    ctx: TraceCtx<'_>,
+) -> Option<(
+    String,
+    Vec<String>,
+    Vec<crate::ir::WordExpr>,
+    Option<Decomposition>,
+)> {
+    if let Some(word) = ctx.normal_value(statement) {
+        let mut commands =
+            crate::value_shapes::command_substitution_tokens(&word, ctx.tokens(), ctx.config)?;
+        if commands.len() != 1 {
+            return None;
+        }
+        return diagnostic_words(&commands.pop()?, ctx);
+    }
+    diagnostic_words(statement.tokens()?, ctx)
+}
+
 // Tcl quoting helper
 
 /// Strip surrounding Tcl quoting (double-quotes or braces) from a word.
 ///
-/// `parse_command_substitution_with_config` uses naive whitespace splitting, so
-/// arguments arrive with their outer quoting intact.
+/// Retained compatibility argument spelling includes its outer grouping.
 fn strip_tcl_quotes(arg: &str) -> &str {
     let stripped = arg.trim();
     if stripped.len() >= 2 {
@@ -327,7 +518,7 @@ fn build_phi_index(ssa: &SsaFunction) -> HashMap<ValueKey, Phi> {
 /// provably flows from a single URI getter call with no intermediate
 /// transformation, or `None` otherwise.
 fn trace_to_uri_family(
-    var_name: &str,
+    symbol: Symbol,
     version: Version,
     ctx: TraceCtx<'_>,
     depth: u32,
@@ -336,8 +527,7 @@ fn trace_to_uri_family(
         return None;
     }
 
-    let sym = ctx.ssa.var_symbol(var_name)?;
-    let key: ValueKey = (sym, version);
+    let key: ValueKey = (symbol, version);
     let Some((block_id, idx)) = ctx.def_sites.get(&key).copied() else {
         // Check phi nodes via index (O(1) lookup).
         let phi = ctx.phi_index.get(&key)?;
@@ -353,7 +543,7 @@ fn trace_to_uri_family(
                 // *provably* a single URI family: bail.
                 return None;
             }
-            let candidate = trace_to_uri_family(var_name, *inc_ver, ctx, depth + 1)?;
+            let candidate = trace_to_uri_family(symbol, *inc_ver, ctx, depth + 1)?;
             match &origin {
                 None => origin = Some(candidate),
                 Some(existing) if existing != &candidate => return None,
@@ -364,87 +554,38 @@ fn trace_to_uri_family(
     };
 
     let block = ctx.cfg.blocks.get(&block_id)?;
-    let ssa_block = ctx.ssa.blocks.get(&block_id)?;
     if idx >= block.statements.len() {
         return None;
     }
     let stmt = &block.statements[idx];
-    let ssa_stmt = &ssa_block.statements[idx];
 
-    match stmt {
-        Statement::Call {
-            command,
-            args,
-            defs,
-            ..
-        } if !defs.is_empty() => {
-            if is_uri_getter(ctx.families, command, args) {
-                Some(command.clone())
-            } else {
-                None
-            }
+    let ctx = TraceCtx {
+        point: Some((block_id, idx)),
+        ..ctx
+    };
+    if let Some(word) = ctx.normal_value(stmt) {
+        if let Some(origin) = ctx.uri_word(&word) {
+            return Some(origin);
         }
-        Statement::AssignValue { value, .. } => {
-            let value = value.trim();
-            if let Some((cmd_name, cmd_args)) =
-                parse_command_substitution_with_config(value, ctx.config)
-            {
-                if is_uri_getter(ctx.families, &cmd_name, &cmd_args) {
-                    return Some(cmd_name);
-                }
-                return None;
-            }
-            if is_pure_var_ref(value) {
-                let src_name = normalise_var_name(value);
-                if !src_name.is_empty() {
-                    let src_ver = ctx
-                        .ssa
-                        .var_symbol(src_name)
-                        .and_then(|s| ssa_stmt.uses.get(&s))
-                        .copied()
-                        .unwrap_or(0);
-                    if src_ver > 0 {
-                        return trace_to_uri_family(src_name, src_ver, ctx, depth + 1);
-                    }
-                }
-            }
-            None
+        if word.sole_variable_substitution().is_some() {
+            let read =
+                crate::ssa::SsaSourceView::at_statement(ctx.ssa, block_id, idx).read_word(&word)?;
+            return trace_to_uri_family(read.symbol, read.version?, ctx, depth + 1);
         }
-        _ => None,
+        return None;
     }
+
+    let (command, arguments) = diagnostic_command(stmt.tokens()?, ctx)?;
+    is_uri_getter(ctx.families, &command, &arguments).then_some(command)
 }
 
 /// Return the `*::uri` command name if `input_arg` traces back to one.
-fn arg_traces_to_uri_family(
-    input_arg: &str,
-    ssa_stmt: &SsaStatement,
-    ctx: TraceCtx<'_>,
-) -> Option<String> {
-    if is_pure_var_ref(input_arg) {
-        let var_name = normalise_var_name(input_arg);
-        if var_name.is_empty() {
-            return None;
-        }
-        let ver = ctx
-            .ssa
-            .var_symbol(var_name)
-            .and_then(|s| ssa_stmt.uses.get(&s))
-            .copied()
-            .unwrap_or(0);
-        if ver == 0 {
-            return None;
-        }
-        return trace_to_uri_family(var_name, ver, ctx, 0);
+fn arg_traces_to_uri_family(word: &crate::ir::WordExpr, ctx: TraceCtx<'_>) -> Option<String> {
+    if word.sole_variable_substitution().is_some() {
+        let read = ctx.source_view()?.read_word(word)?;
+        return trace_to_uri_family(read.symbol, read.version?, ctx, 0);
     }
-
-    if input_arg.starts_with('[')
-        && input_arg.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution_with_config(input_arg, ctx.config)
-        && is_uri_getter(ctx.families, &cmd, &args)
-    {
-        return Some(cmd);
-    }
-    None
+    ctx.uri_word(word)
 }
 
 // Message builders
@@ -638,29 +779,20 @@ fn expr_literal_text(
 /// Return the `*::uri` command name if `node` traces back to one.
 fn expr_traces_to_uri(
     node: &ExprNode,
-    ssa_versions: &HashMap<Symbol, Version>,
+    _ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<String> {
     match node {
-        ExprNode::Command { text, .. } => {
-            let (cmd, args) = parse_command_substitution_with_config(text, ctx.config)?;
-            if is_uri_getter(ctx.families, &cmd, &args) {
-                Some(cmd)
-            } else {
-                None
-            }
+        ExprNode::Command { text, start, end } => {
+            let tokens = ctx.expression_command(text, *start, *end)?;
+            let (command, arguments) = diagnostic_command(&tokens, ctx)?;
+            is_uri_getter(ctx.families, &command, &arguments).then_some(command)
         }
-        ExprNode::Var { name, .. } => {
-            let ver = ctx
-                .ssa
-                .var_symbol(name)
-                .and_then(|s| ssa_versions.get(&s))
-                .copied()
-                .unwrap_or(0);
-            if ver == 0 {
-                return None;
-            }
-            trace_to_uri_family(name, ver, ctx, 0)
+        ExprNode::Var { .. } => {
+            let read = ctx
+                .source_view()?
+                .read_expression_variable(node, ctx.expression_base)?;
+            trace_to_uri_family(read.symbol, read.version?, ctx, 0)
         }
         _ => None,
     }
@@ -705,33 +837,24 @@ fn check_expr_binary(
 /// branches.
 fn input_arg_uri(
     input_arg: &str,
-    ssa_versions: &HashMap<Symbol, Version>,
+    _ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<String> {
     let var_name = normalise_var_name(input_arg);
     if !is_pure_var_ref(input_arg) || var_name.is_empty() {
         return None;
     }
-    let ver = ctx
-        .ssa
-        .var_symbol(var_name)
-        .and_then(|s| ssa_versions.get(&s))
-        .copied()
-        .unwrap_or(0);
-    if ver == 0 {
-        return None;
-    }
-    trace_to_uri_family(var_name, ver, ctx, 0)
+    ctx.variable_origin(var_name)
 }
 
 fn check_expr_command(
-    text: &str,
+    tokens: &crate::ir::CommandTokens,
     ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<ExprHit> {
-    let (cmd_name, cmd_args) = parse_command_substitution_with_config(text, ctx.config)?;
+    let (_, cmd_args, _, operation) = diagnostic_words(tokens, ctx)?;
 
-    match decomposition(ctx.registry, &cmd_name, &cmd_args)? {
+    match operation? {
         Decomposition::Match => {
             let mut remaining: &[String] = &cmd_args[1..];
             if remaining.first().is_some_and(|w| w == "-nocase") {
@@ -805,10 +928,12 @@ fn walk_expr(
                 walk_expr(a, ssa_versions, ctx, out, depth + 1);
             }
         }
-        ExprNode::Command { text, .. } => {
+        ExprNode::Command { text, start, end } => {
             // [string match …] / [string first …] / [split …] inside
             // expression conditions (e.g. `if { [string match …] }`).
-            if let Some(hit) = check_expr_command(text, ssa_versions, ctx) {
+            if let Some(tokens) = ctx.expression_command(text, *start, *end)
+                && let Some(hit) = check_expr_command(&tokens, ssa_versions, ctx)
+            {
                 out.push(hit);
             }
         }
@@ -820,7 +945,19 @@ fn walk_expr(
             // unknown words and the whole expression falls back to
             // [`ExprNode::Raw`]. Re-parse here under the iRules dialect
             // so IRULE3103 can still inspect the structured form.
-            let reparsed = parse_expr(text, Some("f5-irules"));
+            let reparsed = if let Some(input) = ctx.cfg.metadata_context.source_analysis_input() {
+                if ctx.metadata().is_none() {
+                    return;
+                }
+                let mut parser =
+                    tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
+                parser.lexer_grammar = ctx.config.grammar_over(parser.lexer_grammar);
+                tcl_syntax::expr::parser::parse_expr_with_syntax_context(text, &parser)
+            } else if ctx.cfg.metadata_context.is_standalone() {
+                parse_expr(text, Some("f5-irules"))
+            } else {
+                return;
+            };
             if !matches!(reparsed, ExprNode::Raw { .. }) {
                 walk_expr(&reparsed, ssa_versions, ctx, out, depth + 1);
             }
@@ -841,32 +978,13 @@ fn extract_split_info<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ctx: TraceCtx<'_>,
-) -> Option<(String, Option<String>)> {
-    let ssa = ctx.ssa;
-    match stmt {
-        Statement::Call { command, args, .. }
-            if decomposition(ctx.registry, command, args) == Some(Decomposition::Split) =>
-        {
-            if args.len() < 2 {
-                return None;
-            }
-            let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ssa);
-            Some((args[0].trim().to_owned(), sep))
-        }
-        Statement::AssignValue { value, .. } => {
-            let value = value.trim();
-            let (cmd, args) = parse_command_substitution_with_config(value, ctx.config)?;
-            if decomposition(ctx.registry, &cmd, &args) != Some(Decomposition::Split) {
-                return None;
-            }
-            if args.len() < 2 {
-                return None;
-            }
-            let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ssa);
-            Some((strip_tcl_quotes(&args[0]).to_owned(), sep))
-        }
-        _ => None,
+) -> Option<(crate::ir::WordExpr, Option<String>)> {
+    let (_, args, words, operation) = statement_diagnostic_command(stmt, ctx)?;
+    if operation != Some(Decomposition::Split) || args.len() < 2 {
+        return None;
     }
+    let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ctx.ssa);
+    Some((words.first()?.clone(), sep))
 }
 
 /// Detect `string match <pattern> $uri` or `string first <needle> $uri`.
@@ -876,52 +994,27 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ctx: TraceCtx<'_>,
-) -> Option<(&'static str, Option<String>, String)> {
-    let from_args =
-        |cmd: &str, args: &[String]| -> Option<(&'static str, Option<String>, String)> {
-            let uses = &ssa_stmt.uses;
-            match decomposition(ctx.registry, cmd, args)? {
-                Decomposition::Match => {
-                    // string match ?-nocase? pattern string
-                    let mut remaining: &[String] = &args[1..];
-                    if remaining.first().is_some_and(|w| w == "-nocase") {
-                        remaining = &remaining[1..];
-                    }
-                    if remaining.len() < 2 {
-                        return None;
-                    }
-                    let pattern = resolve_literal(&remaining[0], sccp_values, uses, ctx.ssa);
-                    Some((
-                        "string match",
-                        pattern,
-                        strip_tcl_quotes(&remaining[1]).to_owned(),
-                    ))
-                }
-                Decomposition::First => {
-                    // string first needleString haystackString ?startIndex?
-                    if args.len() < 3 {
-                        return None;
-                    }
-                    let needle = resolve_literal(&args[1], sccp_values, uses, ctx.ssa);
-                    Some((
-                        "string first",
-                        needle,
-                        strip_tcl_quotes(&args[2]).to_owned(),
-                    ))
-                }
-                Decomposition::Split => None,
-            }
-        };
-
-    match stmt {
-        Statement::Call { command, args, .. } => from_args(command, args),
-        Statement::AssignValue { value, .. } => {
-            let value = value.trim();
-            let (cmd, args) = parse_command_substitution_with_config(value, ctx.config)?;
-            from_args(&cmd, &args)
+) -> Option<(&'static str, Option<String>, crate::ir::WordExpr)> {
+    let (_, arguments, words, operation) = statement_diagnostic_command(stmt, ctx)?;
+    let (label, pattern_at, input_at) = match operation? {
+        Decomposition::Match => {
+            let pattern = if arguments.get(1).is_some_and(|word| word == "-nocase") {
+                2
+            } else {
+                1
+            };
+            ("string match", pattern, pattern + 1)
         }
-        _ => None,
-    }
+        Decomposition::First => ("string first", 1, 2),
+        Decomposition::Split => return None,
+    };
+    let pattern = resolve_literal(
+        arguments.get(pattern_at)?,
+        sccp_values,
+        &ssa_stmt.uses,
+        ctx.ssa,
+    );
+    Some((label, pattern, words.get(input_at)?.clone()))
 }
 
 // Main entry point
@@ -941,7 +1034,7 @@ fn check_statement<S: std::hash::BuildHasher>(
     // 1. split detection.
     if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values, ctx)
         && sep.chars().any(|c| QUERY_CHARS.contains(&c))
-        && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
+        && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ctx)
     {
         warnings.push(TaintWarning {
             span: stmt_span,
@@ -958,7 +1051,7 @@ fn check_statement<S: std::hash::BuildHasher>(
     // 2. string match / string first.
     if let Some((sub_cmd, Some(pattern), input_arg)) =
         extract_string_match_info(stmt, ssa_stmt, sccp_values, ctx)
-        && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
+        && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ctx)
     {
         if sub_cmd == "string match" {
             if let Some(component) = classify_glob_pattern(&pattern) {
@@ -986,7 +1079,14 @@ fn check_statement<S: std::hash::BuildHasher>(
     }
 
     // 3. Expression-level checks in AssignExpr.
-    if let Statement::AssignExpr { expr, .. } = stmt {
+    if let Statement::AssignExpr {
+        expr, expr_base, ..
+    } = stmt
+    {
+        let ctx = TraceCtx {
+            expression_base: *expr_base,
+            ..ctx
+        };
         let mut hits: Vec<ExprHit> = Vec::new();
         walk_expr(expr, &ssa_stmt.uses, ctx, &mut hits, 0);
         for (uri_cmd, op_name, component) in hits {
@@ -1013,12 +1113,17 @@ fn check_branch_terminator(
     let Some(Terminator::Branch {
         condition,
         span: Some(span),
+        condition_base,
         ..
     }) = &block.terminator
     else {
         return;
     };
 
+    let ctx = TraceCtx {
+        expression_base: *condition_base,
+        ..ctx
+    };
     let mut hits: Vec<ExprHit> = Vec::new();
     walk_expr(condition, &ssa_block.exit_versions, ctx, &mut hits, 0);
     for (uri_cmd, op_name, component) in hits {
@@ -1071,10 +1176,15 @@ where
         cfg,
         registry,
         ssa,
+        point: None,
+        expression_base: None,
         families: &families,
         def_sites: &def_sites,
         phi_index: &phi_index,
-        config: tcl_lexer::LexerConfig::for_profile(dialect),
+        config: cfg.metadata_context.source_analysis_input().map_or_else(
+            || tcl_lexer::LexerConfig::for_profile(dialect),
+            crate::analyser::ResolvedAnalysisInput::lexer_config,
+        ),
         constants: &constant,
     };
 
@@ -1095,12 +1205,23 @@ where
                 &block.statements[idx],
                 ssa_stmt,
                 sccp_values,
-                ctx,
+                TraceCtx {
+                    point: Some((*block_id, idx)),
+                    ..ctx
+                },
                 &mut warnings,
             );
         }
 
-        check_branch_terminator(block, ssa_block, ctx, &mut warnings);
+        check_branch_terminator(
+            block,
+            ssa_block,
+            TraceCtx {
+                point: Some((*block_id, usize::MAX)),
+                ..ctx
+            },
+            &mut warnings,
+        );
     }
 
     // Deduplicate warnings that share the same span, sink, and message.
@@ -1152,6 +1273,8 @@ mod tests {
             cfg: &fu.cfg,
             registry: &r,
             ssa: &fu.ssa,
+            point: None,
+            expression_base: None,
             families: &families,
             def_sites: &def_sites,
             phi_index: &phi_index,
@@ -1180,7 +1303,12 @@ mod tests {
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Vec<TaintWarning> {
         let r = registry();
-        let cu = CompilationUnit::build_for(source, &r, false);
+        let cu = CompilationUnit::build_for_profile(
+            source,
+            &r,
+            false,
+            tcl_dialect::DialectProfile::irules(),
+        );
         let mut out: Vec<TaintWarning> = Vec::new();
         for fu in cu.analysable_functions() {
             out.extend(find_uri_split_suggestions(
@@ -1210,7 +1338,26 @@ mod tests {
     fn uri_families_empty_under_tcl_dialect() {
         // Plain Tcl registry — no iRules commands loaded.
         let r = CommandRegistry::build_default();
-        assert!(uri_families(&r).is_empty());
+        assert_eq!(uri_families(&r).len(), 0);
+    }
+
+    #[test]
+    fn uri_provenance_declines_shadowed_getters_and_unavailable_alias_installers() {
+        for source in [
+            "proc split {args} {return IGNORED}\nset uri [HTTP::uri]\nset parts [split $uri {?}]",
+            "proc HTTP::uri {args} {return /arbitrary}\nset uri [HTTP::uri]\nset parts [split $uri {?}]",
+        ] {
+            assert!(
+                warnings_for(source).is_empty(),
+                "shadowed operation: {source}"
+            );
+        }
+        let source =
+            "interp alias {} parts {} split\nset uri [HTTP::uri]\nset result [parts $uri {?}]";
+        assert!(
+            warnings_for(source).is_empty(),
+            "the F5 surface does not provide interp; no alias was proved: {source}"
+        );
     }
 
     // split detection
@@ -1269,8 +1416,9 @@ set m [::string match "/api/*" $uri]"#,
     set parts [split $uri "?"]
 }"#,
         );
-        assert!(
-            ws.is_empty(),
+        assert_eq!(
+            ws.len(),
+            0,
             "no IRULE3103 for a live-in-merged value, got {ws:?}"
         );
     }
@@ -1308,7 +1456,7 @@ set parts [split $uri "?&"]"#,
             r#"set x "foo?bar"
 set parts [split $x "?"]"#,
         );
-        assert!(ws.is_empty(), "expected clean, got {ws:?}");
+        assert_eq!(ws.len(), 0, "expected clean, got {ws:?}");
     }
 
     #[test]
@@ -1317,7 +1465,7 @@ set parts [split $x "?"]"#,
             r#"set p [HTTP::path]
 set parts [split $p "?"]"#,
         );
-        assert!(ws.is_empty(), "expected clean, got {ws:?}");
+        assert_eq!(ws.len(), 0, "expected clean, got {ws:?}");
     }
 
     #[test]
@@ -1326,7 +1474,7 @@ set parts [split $p "?"]"#,
             r#"set uri [HTTP::uri]
 set parts [split $uri "/"]"#,
         );
-        assert!(ws.is_empty(), "expected clean, got {ws:?}");
+        assert_eq!(ws.len(), 0, "expected clean, got {ws:?}");
     }
 
     #[test]
@@ -1346,7 +1494,7 @@ set parts [split $copy "?"]"#,
             r#"HTTP::uri "/new"
 set parts [split [HTTP::uri /path] "?"]"#,
         );
-        assert!(ws.is_empty(), "expected clean, got {ws:?}");
+        assert_eq!(ws.len(), 0, "expected clean, got {ws:?}");
     }
 
     #[test]
@@ -1356,7 +1504,7 @@ set parts [split [HTTP::uri /path] "?"]"#,
 set parts [split $x "?"]"#,
             Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
-        assert!(ws.is_empty());
+        assert_eq!(ws, [] as [crate::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -1366,7 +1514,7 @@ set parts [split $x "?"]"#,
 set parts [split $uri "?"]"#,
             None,
         );
-        assert!(ws.is_empty());
+        assert_eq!(ws, [] as [crate::taint::TaintWarning; 0]);
     }
 
     // expression-operator detection
@@ -1384,7 +1532,7 @@ set parts [split $uri "?"]"#,
     #[test]
     fn starts_with_a_substituting_operand_is_not_read_as_a_literal() {
         let ws = warnings_for(r#"if { [HTTP::uri] starts_with "/api$v" } { log local0. x }"#);
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
         let ws = warnings_for(r"if { [HTTP::uri] starts_with {/api} } { log local0. x }");
         assert_eq!(ws.len(), 1, "a braced operand is still literal: {ws:?}");
     }
@@ -1440,13 +1588,13 @@ if { $uri starts_with "/api" } { log local0. x }"#,
             r#"set p [HTTP::path]
 if { $p starts_with "/api" } { log local0. x }"#,
         );
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
     }
 
     #[test]
     fn ambiguous_operand_clean() {
         let ws = warnings_for(r#"if { [HTTP::uri] contains "something" } { log local0. x }"#);
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
     }
 
     // string match / string first
@@ -1478,8 +1626,9 @@ set m [string match "/api/*" $uri]"#,
             r"set uri [HTTP::uri]
 set m [string match {/api/*}{x} $uri]",
         );
-        assert!(
-            ws.is_empty(),
+        assert_eq!(
+            ws.len(),
+            0,
             "the `}}{{` word break leaves `$uri` out of the input position, got {ws:?}"
         );
         // Control: the same call with a single pattern word does fire, so the
@@ -1525,7 +1674,7 @@ set pos [string first "?" $uri]"#,
             r#"set p [HTTP::path]
 set m [string match "/api/*" $p]"#,
         );
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
     }
 
     #[test]
@@ -1534,7 +1683,7 @@ set m [string match "/api/*" $p]"#,
             r#"set uri [HTTP::uri]
 set m [string match "*something*" $uri]"#,
         );
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
     }
 
     #[test]

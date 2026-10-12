@@ -1,0 +1,46 @@
+    Jim_Obj *usage = Jim_DuplicateObj(interp, cmdNameObj);
+
+    if (cmd->flags & JIM_CMD_ISPROC) {
+        int i;
+        for (i = 0; i < cmd->u.proc.argListLen; i++) {
+            Jim_AppendString(interp, usage, " ", 1);
+
+            if (i == cmd->u.proc.argsPos) {
+                if (cmd->u.proc.arglist[i].defaultObjPtr) {
+                    /* Renamed args */
+                    Jim_AppendString(interp, usage, "?", 1);
+                    Jim_AppendObj(interp, usage, cmd->u.proc.arglist[i].defaultObjPtr);
+                    Jim_AppendString(interp, usage, " ...?", -1);
+                }
+                else {
+                    /* We have plain args */
+                    Jim_AppendString(interp, usage, "?arg ...?", -1);
+                }
+            }
+            else {
+                if (cmd->u.proc.arglist[i].defaultObjPtr) {
+                    Jim_AppendString(interp, usage, "?", 1);
+                    Jim_AppendObj(interp, usage, cmd->u.proc.arglist[i].nameObjPtr);
+                    Jim_AppendString(interp, usage, "?", 1);
+                }
+                else {
+                    const char *arg = Jim_String(cmd->u.proc.arglist[i].nameObjPtr);
+                    if (*arg == '&') {
+                        arg++;
+                    }
+                    Jim_AppendString(interp, usage, arg, -1);
+                }
+            }
+        }
+    }
+    else if (cmd->u.native.usage) {
+        if (*cmd->u.native.usage) {
+            Jim_AppendStrings(interp, usage, " ", cmd->u.native.usage, NULL);
+        }
+    }
+    else {
+        Jim_AppendString(interp, usage, " ...", -1);
+    }
+
+    return usage;
+}

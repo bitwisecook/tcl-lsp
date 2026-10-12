@@ -1,0 +1,34 @@
+{
+  "provider": "jim-current-upstream",
+  "probe_sha256": "3feabde2f39b6f1ef94377a58b22ffc71af0c0430196c2c905f72c60bac48497",
+  "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+  "makefile_sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+  "source_owner_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "library_sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-DJIM_PROBE=1",
+    "-I/workspace/.proofs/native-providers/jimtcl",
+    "/workspace/.proofs/native-private-legacy-trace/probe-v3.c",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/captured-native-private-legacy-trace-v3/jim/probe"
+  ],
+  "compile_exit": 0,
+  "executable_sha256": "ce8739719e7104799b5d524c57c22e89ff99ea6a2367cb7c136fded79939ee58",
+  "process_exit": 0,
+  "stdout_sha256": "4e4ec676efd67ce7785b6145dc2f280c14f158ab84ba1247b24e2f0e71386153",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "PRIVATE_AVAILABLE|0|30",
+    "LEGACY_AVAILABLE|1|696e76616c696420636f6d6d616e64206e616d652022747261636522"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

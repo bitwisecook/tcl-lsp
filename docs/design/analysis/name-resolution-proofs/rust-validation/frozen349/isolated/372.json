@@ -1,0 +1,19 @@
+{
+  "ordinal": 372,
+  "selector": "interp::tests::expand_split_error_names_the_right_failure",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::expand_split_error_names_the_right_failure",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 3.872897817986086,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.80s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/372.log",
+  "log_sha256": "b9679b3ee9d694ab94285bd155a8eaa129397c4e3c2141a8a5657fefbd401b89"
+}

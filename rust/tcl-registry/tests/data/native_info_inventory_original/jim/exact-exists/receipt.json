@@ -1,0 +1,17 @@
+{
+  "id": "exact-exists",
+  "command": [
+    "/workspace/.proofs/captured-native-info-inventory193/jim/probe",
+    "19"
+  ],
+  "timeout_seconds": 5,
+  "process_status": "completed",
+  "process_exit": 0,
+  "stdout_sha256": "46b52519cd404afcab27db43316483c8facd06ecb3b72d35c63ee57e5adbd1b4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|15|302e38342d392d6735626163376339",
+    "INFO|1|45|77726f6e67202320617267733a2073686f756c642062652022696e666f20657869737473207661724e616d6522"
+  ],
+  "reported_version": "0.84-9-g5bac7c9"
+}

@@ -1,0 +1,57 @@
+{
+  "question": "naming.tcloo.original-forward-registration-prefix",
+  "provider": "8.5.19",
+  "input_channel": "C SDK evaluates thirteen ASCII source strings in fresh initialized interpreters; direct counted native result string getter",
+  "scope": "Fresh selected stock class instance forward registration, captured prefix values, replacement by script/forward, missing and empty command target deferred until invocation. No native source-preflight, opaque name storage, custom deletion callback, observer closure, OO object creation Normal or arbitrary target dispatch claim. Unavailable providers execute only startup and availability. Result pointer bit always 0; no pointer claim.",
+  "source_sha256": "71991ac7c7f845f3d8ca4bb177cb6e66861f7cc739fc47fa3c9b21b5eb84cfc5",
+  "queue_sha256": "723b693411e2310159ae83c2ebe5735a46042283c6f792300cb492783c439b74",
+  "runner_sha256": "c203dace948bb8b2bd2388a1d41130164bd6fe1b84f6fa49ee39a13aac5a17d6",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "/workspace/.proofs/current-native-source-escape-getter173/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/current-native-source-escape-getter173/output/8.5.19/probe"
+  ],
+  "compile_exit": 0,
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit": 0,
+  "executable_sha256": "e66bb57f7e1cdf600954d7ce0df5ba55117d097e4795561278acfda07be58d4d",
+  "stdout_sha256": "18c0ed7027073232c38dab8add38b714a76ea290f2e27828f121f3d9bb280d39",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reported_version": "8.5.19",
+  "rows": [
+    "VERSION|0|0|382e352e3139",
+    "bare-x25b|0|0|5b",
+    "quoted-x25b|0|0|5b",
+    "braced-x25b|0|0|5c78323562",
+    "bare-x25-ub|0|0|2562",
+    "quoted-x25-ub|0|0|2562",
+    "braced-x25-ub|0|0|5c7832355c7530303632",
+    "bare-x4142|0|0|42",
+    "quoted-x4142|0|0|42",
+    "bare-x25z|0|0|257a",
+    "bare-x25-upper|0|0|5b",
+    "bare-x0|0|0|c080",
+    "bare-cu|0|0|6375",
+    "braced-cu|0|0|635c7530303735"
+  ],
+  "seconds": 0.1402414499898441
+}

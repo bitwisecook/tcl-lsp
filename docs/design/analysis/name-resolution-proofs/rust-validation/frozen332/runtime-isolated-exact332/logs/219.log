@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_error_code_projection_tests::array_read_trace_host_cause_cannot_become_a_skipped_guest_element ... 
+thread 'interp::native_error_code_projection_tests::array_read_trace_host_cause_cannot_become_a_skipped_guest_element' (1217842) panicked at src/interp/native_error_code_projection_tests.rs:239:51:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_error_code_projection_tests::array_read_trace_host_cause_cannot_become_a_skipped_guest_element
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 3.26s
+

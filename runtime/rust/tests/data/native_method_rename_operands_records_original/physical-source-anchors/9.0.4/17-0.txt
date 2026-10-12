@@ -1,0 +1,113 @@
+ * Prototypes for the array hash key methods.
+ */
+
+static Tcl_HashEntry *	AllocObjEntry(Tcl_HashTable *tablePtr, void *keyPtr);
+
+/*
+ * Prototypes for the CommandName object type.
+ */
+
+static void		DupCmdNameInternalRep(Tcl_Obj *objPtr,
+			    Tcl_Obj *copyPtr);
+static void		FreeCmdNameInternalRep(Tcl_Obj *objPtr);
+static int		SetCmdNameFromAny(Tcl_Interp *interp, Tcl_Obj *objPtr);
+
+/*
+ * The structures below defines the Tcl object types defined in this file by
+ * means of functions that can be invoked by generic object code. See also
+ * tclStringObj.c, tclListObj.c, tclByteCode.c for other type manager
+ * implementations.
+ */
+
+const Tcl_ObjType tclBooleanType= {
+    "boolean",			/* name */
+    NULL,			/* freeIntRepProc */
+    NULL,			/* dupIntRepProc */
+    NULL,			/* updateStringProc */
+    TclSetBooleanFromAny,	/* setFromAnyProc */
+    TCL_OBJTYPE_V1(TclLengthOne)
+};
+const Tcl_ObjType tclDoubleType= {
+    "double",			/* name */
+    NULL,			/* freeIntRepProc */
+    NULL,			/* dupIntRepProc */
+    UpdateStringOfDouble,	/* updateStringProc */
+    SetDoubleFromAny,		/* setFromAnyProc */
+    TCL_OBJTYPE_V1(TclLengthOne)
+};
+const Tcl_ObjType tclIntType = {
+    "int",			/* name */
+    NULL,			/* freeIntRepProc */
+    NULL,			/* dupIntRepProc */
+    UpdateStringOfInt,		/* updateStringProc */
+    SetIntFromAny,		/* setFromAnyProc */
+    TCL_OBJTYPE_V1(TclLengthOne)
+};
+const Tcl_ObjType tclBignumType = {
+    "bignum",			/* name */
+    FreeBignum,			/* freeIntRepProc */
+    DupBignum,			/* dupIntRepProc */
+    UpdateStringOfBignum,	/* updateStringProc */
+    NULL,			/* setFromAnyProc */
+    TCL_OBJTYPE_V1(TclLengthOne)
+};
+
+/*
+ * The structure below defines the Tcl obj hash key type.
+ */
+
+const Tcl_HashKeyType tclObjHashKeyType = {
+    TCL_HASH_KEY_TYPE_VERSION,	/* version */
+    TCL_HASH_KEY_DIRECT_COMPARE,/* allows compare keys by pointers */
+    TclHashObjKey,		/* hashKeyProc */
+    TclCompareObjKeys,		/* compareKeysProc */
+    AllocObjEntry,		/* allocEntryProc */
+    TclFreeObjEntry		/* freeEntryProc */
+};
+
+/*
+ * The structure below defines the command name Tcl object type by means of
+ * functions that can be invoked by generic object code. Objects of this type
+ * cache the Command pointer that results from looking up command names in the
+ * command hashtable. Such objects appear as the zeroth ("command name")
+ * argument in a Tcl command.
+ *
+ * NOTE: the ResolvedCmdName that gets cached is stored in the
+ * twoPtrValue.ptr1 field, and the twoPtrValue.ptr2 field is unused. You might
+ * think you could use the simpler otherValuePtr field to store the single
+ * ResolvedCmdName pointer, but DO NOT DO THIS. It seems that some extensions
+ * use the second internal pointer field of the twoPtrValue field for their
+ * own purposes.
+ *
+ * TRICKY POINT! Some extensions update this structure! (Notably, these
+ * include TclBlend and TCom). This is highly ill-advised on their part, but
+ * does allow them to delete a command when references to it are gone, which
+ * is fragile but useful given their somewhat-OO style. Because of this, this
+ * structure MUST NOT be const so that the C compiler puts the data in
+ * writable memory. [Bug 2558422] [Bug 07d13d99b0a9]
+ * TODO: Provide a better API for those extensions so that they can coexist...
+ */
+
+Tcl_ObjType tclCmdNameType = {
+    "cmdName",			/* name */
+    FreeCmdNameInternalRep,	/* freeIntRepProc */
+    DupCmdNameInternalRep,	/* dupIntRepProc */
+    NULL,			/* updateStringProc */
+    SetCmdNameFromAny,		/* setFromAnyProc */
+    TCL_OBJTYPE_V0
+};
+
+/*
+ * Structure containing a cached pointer to a command that is the result of
+ * resolving the command's name in some namespace. It is the internal
+ * representation for a cmdName object. It contains the pointer along with
+ * some information that is used to check the pointer's validity.
+ */
+
+typedef struct ResolvedCmdName {
+    Command *cmdPtr;		/* A cached Command pointer. */
+    Namespace *refNsPtr;	/* Points to the namespace containing the
+				 * reference (not the namespace that contains
+				 * the referenced command). NULL if the name
+				 * is fully qualified.*/
+    size_t refNsId;		/* refNsPtr's unique namespace id. Used to

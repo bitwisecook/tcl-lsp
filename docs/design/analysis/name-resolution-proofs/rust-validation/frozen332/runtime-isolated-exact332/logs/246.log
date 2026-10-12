@@ -1,0 +1,6 @@
+
+running 1 test
+test return_options::native_string_access_tests::original_return_option_string_access_keeps_counted_resident_key_and_header ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 5.09s
+

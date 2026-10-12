@@ -1,0 +1,17 @@
+{
+  "purpose": "Comment-only per-body source/API explicit original setter proof markers; no assertion or production changes. Host retirement and pending controls retain embedding record.",
+  "files": [
+    {
+      "path": "runtime/rust/src/interp/original_error_code_setter_tests.rs",
+      "base_sha256": "06e96fe97670db64d409f5dd945fff4fd01b1078c7a776f1a5050a06af25e229",
+      "candidate_sha256": "2f4ab1224ced6fb489e5b95a0e030f1f76514279ef96e09d3efb06e188e98f53"
+    }
+  ],
+  "patch_sha256": "7ab728ce69669f14ad8421228665cb200075d9a1189a5da35efe53edc7ded49f",
+  "selectors": [
+    "interp::original_error_code_setter_tests::original_capi_error_code_setter_retains_lazy_header_without_a_string_getter",
+    "interp::original_error_code_setter_tests::original_c84_explicit_callback_code_survives_actual_command_logging"
+  ],
+  "question_id": "naming.error.original-explicit-error-code-header-setter",
+  "external_execution": "All seven provider cells NT; original software assertions also not run for this source."
+}

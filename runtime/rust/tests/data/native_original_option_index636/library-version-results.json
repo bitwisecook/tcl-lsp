@@ -1,0 +1,35 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "85135ea3c8e274339efd7edd96740b0e47e5e68735a5fde30d2735c34fad4b00",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "a325f03f584ddaafe4198234e9a428ef8dfa828f3a6d4ed3a68a06d53f7166df",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "61e01239b894338940589b3d90b10999415b4c7f5cc126ae2c1a7f4d9d79f691",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "84d030d345a38be558f2a369a560e33a15b85b2ec92ae67b534d37bbaa4bc73f",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "65dabd4ede279732484487750fcafdeffedadb57ba61713913bb06f4d96c944d",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "Jim",
+      "receipt_sha256": "718684d7ec677c446ab78d7045d732043a8192e973438d4c610da0bfb0e20b03",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original -index option processes."
+}

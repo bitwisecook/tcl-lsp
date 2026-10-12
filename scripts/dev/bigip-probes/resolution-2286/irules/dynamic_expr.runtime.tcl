@@ -1,0 +1,1 @@
+list [expr {3.5}] [expr {7 << 1}] [expr {abs(-3)}] [catch {expr {future_function(1)}} message] $message

@@ -1,0 +1,236 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+error: binding's name is too similar to existing binding
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:2922:13
+     |
+2922 |         let span = word.span();
+     |             ^^^^
+     |
+note: existing binding defined here
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:2899:18
+     |
+2899 |         let Some(scan) = original
+     |                  ^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#similar_names
+     = note: `-D clippy::similar-names` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::similar_names)]`
+
+error: empty lines after doc comment
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:3600:5
+     |
+3600 | /     /// (`{-stride}`, `"-stride"`) doesn't leave a stray `}` / `"` behind —
+3601 | |
+3602 | |
+     | |_^
+...
+3620 |       pub(in crate::analyser) fn emit_w003_dialect_invalid_expr_operator(
+     |       ------------------------------------------------------------------ the comment documents this function
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#empty_line_after_doc_comments
+     = note: `-D clippy::empty-line-after-doc-comments` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::empty_line_after_doc_comments)]`
+     = help: if the empty lines are unintentional, remove them
+help: if the documentation should include the empty lines include them in the comment
+     |
+3601 +     ///
+3602 +     ///
+     |
+
+    Checking tcl-cshim v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cshim)
+error: this function has too many lines (112/100)
+    --> rust/tcl-compiler/src/analyser/commands.rs:3564:5
+     |
+3564 | /     fn record_original_variable_receivers(
+3565 | |         &mut self,
+3566 | |         invocation_offset: u32,
+3567 | |         argument_tokens: &[Token],
+3568 | |         scope_path: &[usize],
+3569 | |     ) {
+     | |_____^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: the following explicit lifetimes could be elided: 'r, 'w
+  --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:14:39
+   |
+14 | pub(super) fn source_format_arguments<'r, 'w>(
+   |                                       ^^  ^^
+15 |     schema: &tcl_registry::ResolvedInvocation<'r, 'w>,
+   |                                               ^^  ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+   = note: `-D clippy::elidable-lifetime-names` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::elidable_lifetime_names)]`
+help: elide the lifetimes
+   |
+14 ~ pub(super) fn source_format_arguments(
+15 ~     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+   |
+
+error: the following explicit lifetimes could be elided: 'w
+  --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:20:38
+   |
+20 | pub(super) fn source_descriptors<'r, 'w>(
+   |                                      ^^
+21 |     schema: &tcl_registry::ResolvedInvocation<'r, 'w>,
+   |                                                   ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+help: elide the lifetimes
+   |
+20 ~ pub(super) fn source_descriptors<'r>(
+21 ~     schema: &tcl_registry::ResolvedInvocation<'r, '_>,
+   |
+
+error: the following explicit lifetimes could be elided: 'w
+  --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:26:45
+   |
+26 | pub(super) fn source_diagnostic_options<'r, 'w>(
+   |                                             ^^
+27 |     schema: &tcl_registry::ResolvedInvocation<'r, 'w>,
+   |                                                   ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+help: elide the lifetimes
+   |
+26 ~ pub(super) fn source_diagnostic_options<'r>(
+27 ~     schema: &tcl_registry::ResolvedInvocation<'r, '_>,
+   |
+
+error: the following explicit lifetimes could be elided: 'r, 'w
+  --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:32:44
+   |
+32 | pub(super) fn source_subcommand_diagnostic<'r, 'w>(
+   |                                            ^^  ^^
+33 |     schema: &tcl_registry::ResolvedInvocation<'r, 'w>,
+   |                                               ^^  ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+help: elide the lifetimes
+   |
+32 ~ pub(super) fn source_subcommand_diagnostic(
+33 ~     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+   |
+
+error: the following explicit lifetimes could be elided: 'r, 'w
+  --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:38:41
+   |
+38 | pub(super) fn source_literal_validation<'r, 'w>(
+   |                                         ^^  ^^
+39 |     schema: &tcl_registry::ResolvedInvocation<'r, 'w>,
+   |                                               ^^  ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names
+help: elide the lifetimes
+   |
+38 ~ pub(super) fn source_literal_validation(
+39 ~     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+   |
+
+error: this boolean expression can be simplified
+    --> rust/tcl-compiler/src/analyser/diagnostics/validity.rs:3156:12
+     |
+3156 |           if !original
+     |  ____________^
+3157 | |             .context()
+3158 | |             .context()
+3159 | |             .authoring_query()
+3160 | |             .core
+3161 | |             .nearest()
+3162 | |             .is_some_and(|(family, _)| family == tcl_dialect::model::Family::F5Irules)
+     | |______________________________________________________________________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#nonminimal_bool
+     = note: `-D clippy::nonminimal-bool` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::nonminimal_bool)]`
+help: try
+     |
+3156 ~         if original
+3157 +             .context()
+3158 +             .context()
+3159 +             .authoring_query()
+3160 +             .core
+3161 +             .nearest().is_none_or(|(family, _)| family != tcl_dialect::model::Family::F5Irules)
+     |
+
+error: this function has too many lines (111/100)
+   --> rust/tcl-compiler/src/command_binding/deferred_method.rs:917:1
+    |
+917 | / fn capture_definition_method_references(
+918 | |     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+919 | |     definition: &ExecutedScriptSource,
+920 | |     map: &tcl_lexer::SourceMap<'_>,
+...   |
+924 | |     context: SourceExecutionContext<'_>,
+925 | | ) -> Option<Vec<super::definition_method_references::SourceDefinitionMethodReferencePhase>> {
+    | |___________________________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: this function has too many lines (110/100)
+    --> rust/tcl-compiler/src/command_binding/deferred_method.rs:1699:1
+     |
+1699 | / pub(super) fn closed_definition_member(
+1700 | |     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+1701 | |     definition: &ExecutedScriptSource,
+1702 | |     map: &tcl_lexer::SourceMap<'_>,
+...    |
+1705 | |     context: SourceExecutionContext<'_>,
+1706 | | ) -> bool {
+     | |_________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines
+
+error: could not compile `tcl-compiler` (lib) due to 11 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: redundant closure
+    --> rust/tcl-compiler/src/command_binding/source_command_world.rs:2153:35
+     |
+2153 |                 inputs.iter().map(|input| input.bytes()).collect::<Vec<_>>(),
+     |                                   ^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `crate::signature_scan::name_value::SignatureSourceNameInput::bytes`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+     = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:1546:47
+     |
+1546 |                   .with_source_schema(&context, |schema| schema
+     |  _______________________________________________^
+1547 | |                     .authored_source_subcommand_diagnostic())
+     | |____________________________________________________________^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_subcommand_diagnostic`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2069:43
+     |
+2069 |             .with_source_schema(&context, |schema| schema.authored_source_argument_roles())
+     |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_argument_roles`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2108:47
+     |
+2108 |               call.with_source_schema(&context, |schema| schema
+     |  _______________________________________________^
+2109 | |                 .authored_source_rule_procedure_operand()),
+     | |_________________________________________________________^ help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_rule_procedure_operand`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: redundant closure
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2331:27
+     |
+2331 |                 .and_then(|dialect| dialect.source_file_grammar())
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `tcl_registry::InvocationDialect::source_file_grammar`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#redundant_closure_for_method_calls
+
+error: could not compile `tcl-compiler` (lib test) due to 16 previous errors

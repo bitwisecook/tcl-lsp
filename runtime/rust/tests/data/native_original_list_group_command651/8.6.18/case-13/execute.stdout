@@ -1,0 +1,35 @@
+provider	C-Tcl
+case	13	stride-real-index0-typed-double
+operation	lsort
+mode	real
+index	0
+input-roles	key-holds=sole-containing-list	additional-key-observer-holds=0	argv-caller-hold=1	returned-original-explicit-hold=0	flat-length=4
+input-key0	typed-double	2.5
+input-key1	counted-string	41
+input-key2	typed-double	1.5
+input-key3	counted-string	42
+input-callback-return	absent
+before-key0	double	0	1	0
+before-key1	none	1	1	1
+before-key2	double	0	1	-1
+before-key3	none	1	1	1
+before-container	list	0	1	0
+before-prefix	absent
+before-callback-return	absent
+before-pattern	absent
+code	0
+callback-count	0
+reached-key0	double	0	2	0
+reached-key1	none	1	2	1
+reached-key2	double	0	2	-1
+reached-key3	none	1	2	1
+reached-container	list	0	1	0
+reached-prefix	absent
+reached-callback-return	absent
+reached-pattern	absent
+reached-result	list	0	1	0
+result-alias	container=0	callback-return=0
+result-bytes	312e35204220322e352041
+materialised-result	list	1	1	11
+after-result-getter-container	list	0	1	0
+after-result-getter-callback-return	absent

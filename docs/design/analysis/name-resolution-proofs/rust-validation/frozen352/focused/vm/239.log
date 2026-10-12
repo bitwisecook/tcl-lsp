@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::family_b_tests::varstore_array_keys_honours_the_requested_frame ... 
+thread 'interp::family_b_tests::varstore_array_keys_honours_the_requested_frame' (1360544) panicked at rust/tcl-vm/src/interp.rs:29375:9:
+assertion `left == right` failed
+  left: Some(["global-b", "global-a"])
+ right: Some(["global-a", "global-b"])
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::varstore_array_keys_honours_the_requested_frame
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.64s
+

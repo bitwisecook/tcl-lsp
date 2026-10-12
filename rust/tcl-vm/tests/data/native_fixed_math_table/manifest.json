@@ -1,0 +1,148 @@
+{
+  "timeout_seconds": 60,
+  "script_source_sha256": "e1741495d9ada3ff6df17f1da5f4f0cde6926e5d20d708c0ae3b0ca27d620232",
+  "c_source_sha256": "f16415ed74aa2650280c7dd62070069102e575b48f62d443f8c7b1c7eec2df51",
+  "runs": [
+    {
+      "engine": "8.4.20",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "stdout_sha256": "6aa07cbd4fb5205b5df01ad1800417a7f669aeeb4ee053b1618a4d142583eddf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "8.5.19",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "stdout_sha256": "809a556d1aa40033ed95c567a22153f4dbe0ed3a03b69c7f59a417cbc2640e3f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "8.6.18",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "stdout_sha256": "809a556d1aa40033ed95c567a22153f4dbe0ed3a03b69c7f59a417cbc2640e3f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "9.0.4",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "stdout_sha256": "809a556d1aa40033ed95c567a22153f4dbe0ed3a03b69c7f59a417cbc2640e3f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "9.1.0",
+      "argv": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "stdout_sha256": "809a556d1aa40033ed95c567a22153f4dbe0ed3a03b69c7f59a417cbc2640e3f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "jim",
+      "argv": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.tcl"
+      ],
+      "exit": 0,
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "stdout_sha256": "a462c40dcd7b6faa6cd14abef543ffd6d03e967f732f861e69922b07f63bdcfe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "c-8.4.20",
+      "build_argv": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/c-8.4.20"
+      ],
+      "build_exit": 0,
+      "argv": [
+        "/workspace/.proofs/2286-consumer-fixed-math-native/c-8.4.20"
+      ],
+      "exit": 0,
+      "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "binary_sha256": "8c7e1e3a9a6af2f1f41688b4831da0302c1559fa537638d74b51e895cbdfb565",
+      "stdout_sha256": "e29cef1430103cc382b7c07b2e83e9459ffedbc1aff2be18e16127d2b0e6f9d1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "c-8.5.19",
+      "build_argv": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/c-8.5.19"
+      ],
+      "build_exit": 0,
+      "argv": [
+        "/workspace/.proofs/2286-consumer-fixed-math-native/c-8.5.19"
+      ],
+      "exit": 0,
+      "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "binary_sha256": "afdddcabb19565374ff6efab6e3e503e212a4561c2be25ffc9ed615e3c89c0be",
+      "stdout_sha256": "0d261fd08020c64f34c795a3df8a30e9e9d211c7bbcf671b43891f551c4a2b23",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "c-8.6.18",
+      "build_argv": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-consumer-fixed-math-native/c-8.6.18"
+      ],
+      "build_exit": 0,
+      "argv": [
+        "/workspace/.proofs/2286-consumer-fixed-math-native/c-8.6.18"
+      ],
+      "exit": 0,
+      "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "binary_sha256": "9e9f7ceb16abb1a4e24f5cae0090a439d6eefe6566b648494afc588db03f9e43",
+      "stdout_sha256": "72251939fde923b2f7df7d5d1369f6543b2c74da4ef8f6ac4f31df1825bf350c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

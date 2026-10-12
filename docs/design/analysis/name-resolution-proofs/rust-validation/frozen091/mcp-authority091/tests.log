@@ -1,0 +1,96 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `lookup_var_error_code` is never used
+    --> rust/tcl-vm/src/command.rs:3070:4
+     |
+3070 | fn lookup_var_error_code(name: &str) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `bad_link_name` is never used
+    --> rust/tcl-vm/src/command.rs:3078:4
+     |
+3078 | fn bad_link_name(name: &str) -> Completion<Value> {
+     |    ^^^^^^^^^^^^^
+
+warning: function `upvar_link_error` is never used
+    --> rust/tcl-vm/src/command.rs:3088:15
+     |
+3088 | pub(crate) fn upvar_link_error(
+     |               ^^^^^^^^^^^^^^^^
+
+warning: `tcl-vm` (lib) generated 3 warnings
+warning: field `source` is never read
+  --> rust/tcl-lsp-core/src/original_invocation.rs:26:16
+   |
+19 | pub(crate) struct OriginalRegistryWords {
+   |                   --------------------- field in this struct
+...
+26 |     pub(crate) source: OriginalRegistrySource,
+   |                ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib) generated 2 warnings
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-version)
+   Compiling f5-cli v0.1.0 (/workspace/.checkpoints/naming091/rust/f5-cli)
+   Compiling tcl-cli v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-cli)
+warning: unused import: `formatting_with`
+  --> rust/tcl-cli/src/commands/transform.rs:30:62
+   |
+30 | use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
+   |                                                              ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-cli` (lib) generated 1 warning (run `cargo fix --lib -p tcl-cli` to apply 1 suggestion)
+   Compiling tcl-mcp v0.1.0 (/workspace/.checkpoints/naming091/rust/tcl-mcp)
+    Finished `test` profile [unoptimized] target(s) in 6.06s
+     Running unittests src/main.rs (/workspace/.targets/naming/debug/deps/tcl_mcp-f85cd23baacbb0f9)
+
+running 6 tests
+test datagroup::tests::original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility ... ok
+test tools::docstring_tests::original_doc_tools_preserve_opaque_names_and_repeated_declarations ... ok
+test tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps ... 
+thread 'tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps' (377252) panicked at rust/tcl-mcp/src/tools.rs:2418:9:
+assertion failed: detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test tools::original_refactor_request_tests::original_code_action_responses_retain_disabled_rewrite_obligations ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_use_the_selected_analysis_for_shadowed_heads ... ok
+
+failures:
+
+failures:
+    tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 82 filtered out; finished in 8.90s
+
+error: test failed, to rerun pass `-p tcl-mcp --bin tcl-mcp`

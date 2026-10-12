@@ -1,0 +1,57 @@
+[
+  {
+    "version": "8.4.20",
+    "path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c",
+    "source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "lines": [
+      425,
+      435
+    ],
+    "snippet": "    static CONST char *subCmds[] = {\n\t     \"args\", \"body\", \"cmdcount\", \"commands\",\n\t     \"complete\", \"default\", \"exists\",\n#ifdef TCL_TIP280\n\t     \"frame\",\n#endif\n\t     \"functions\",\n\t     \"globals\", \"hostname\", \"level\", \"library\", \"loaded\",\n\t     \"locals\", \"nameofexecutable\", \"patchlevel\", \"procs\",\n\t     \"script\", \"sharedlibextension\", \"tclversion\", \"vars\",\n\t     (char *) NULL};\n",
+    "snippet_sha256": "b4bfdb3fb6e7dbf4f781d0f95064579d75d4b75453b24a6d48f65df175da96a6"
+  },
+  {
+    "version": "8.5.19",
+    "path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c",
+    "source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+    "lines": [
+      155,
+      179
+    ],
+    "snippet": "static const EnsembleImplMap defaultInfoMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    NULL},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    NULL},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    NULL},\n    {\"commands\",\t   InfoCommandsCmd,\t    NULL},\n    {\"complete\",\t   InfoCompleteCmd,\t    NULL},\n    {\"default\",\t\t   InfoDefaultCmd,\t    NULL},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd},\n    {\"frame\",\t\t   InfoFrameCmd,\t    NULL},\n    {\"functions\",\t   InfoFunctionsCmd,\t    NULL},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    NULL},\n    {\"hostname\",\t   InfoHostnameCmd,\t    NULL},\n    {\"level\",\t\t   InfoLevelCmd,\t    NULL},\n    {\"library\",\t\t   InfoLibraryCmd,\t    NULL},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    NULL},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    NULL},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, NULL},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    NULL},\n    {\"procs\",\t\t   InfoProcsCmd,\t    NULL},\n    {\"script\",\t\t   InfoScriptCmd,\t    NULL},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    NULL},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    NULL},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    NULL},\n    {NULL, NULL, NULL}\n};\n",
+    "snippet_sha256": "995bafaf40d8072c0cc4184721765f5da7bed258bca61e58142d87f0ac2a32f3"
+  },
+  {
+    "version": "8.6.18",
+    "path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c",
+    "source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+    "lines": [
+      155,
+      181
+    ],
+    "snippet": "static const EnsembleImplMap defaultInfoMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"commands\",\t   InfoCommandsCmd,\t    TclCompileInfoCommandsCmd, NULL, NULL, 0},\n    {\"complete\",\t   InfoCompleteCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"coroutine\",\t   TclInfoCoroutineCmd,     TclCompileInfoCoroutineCmd, NULL, NULL, 0},\n    {\"default\",\t\t   InfoDefaultCmd,\t    TclCompileBasic3ArgCmd, NULL, NULL, 0},\n    {\"errorstack\",\t   InfoErrorStackCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd, NULL, NULL, 0},\n    {\"frame\",\t\t   InfoFrameCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"functions\",\t   InfoFunctionsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"hostname\",\t   InfoHostnameCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"level\",\t\t   InfoLevelCmd,\t    TclCompileInfoLevelCmd, NULL, NULL, 0},\n    {\"library\",\t\t   InfoLibraryCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"procs\",\t\t   InfoProcsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"script\",\t\t   InfoScriptCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n",
+    "snippet_sha256": "703fc9501224cc267f80172c041d74b0b5497403423e4ae8767c34c949c4d48a"
+  },
+  {
+    "version": "9.0.4",
+    "path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c",
+    "source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "lines": [
+      151,
+      180
+    ],
+    "snippet": "static const EnsembleImplMap defaultInfoMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"cmdtype\",\t\t   InfoCmdTypeCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 1},\n    {\"commands\",\t   InfoCommandsCmd,\t    TclCompileInfoCommandsCmd, NULL, NULL, 0},\n    {\"complete\",\t   InfoCompleteCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"constant\",\t   TclInfoConstantCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"consts\",\t\t   TclInfoConstsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"coroutine\",\t   TclInfoCoroutineCmd,     TclCompileInfoCoroutineCmd, NULL, NULL, 0},\n    {\"default\",\t\t   InfoDefaultCmd,\t    TclCompileBasic3ArgCmd, NULL, NULL, 0},\n    {\"errorstack\",\t   InfoErrorStackCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd, NULL, NULL, 0},\n    {\"frame\",\t\t   InfoFrameCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"functions\",\t   InfoFunctionsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"hostname\",\t   InfoHostnameCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"level\",\t\t   InfoLevelCmd,\t    TclCompileInfoLevelCmd, NULL, NULL, 0},\n    {\"library\",\t\t   InfoLibraryCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, TclCompileBasic0ArgCmd, NULL, NULL, 1},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"procs\",\t\t   InfoProcsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"script\",\t\t   InfoScriptCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n",
+    "snippet_sha256": "f009f3959451b71592a39bd08dc04346eace9fb33f17d9d199f09d39dfc6a664"
+  },
+  {
+    "version": "9.1.0",
+    "path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c",
+    "source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "lines": [
+      152,
+      181
+    ],
+    "snippet": "const EnsembleImplMap tclInfoImplMap[] = {\n    {\"args\",\t\t   InfoArgsCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"body\",\t\t   InfoBodyCmd,\t\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"cmdcount\",\t   InfoCmdCountCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"cmdtype\",\t\t   InfoCmdTypeCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 1},\n    {\"commands\",\t   InfoCommandsCmd,\t    TclCompileInfoCommandsCmd, NULL, NULL, 0},\n    {\"complete\",\t   InfoCompleteCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"constant\",\t   TclInfoConstantCmd,\t    TclCompileBasic1ArgCmd, NULL, NULL, 0},\n    {\"consts\",\t\t   TclInfoConstsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"coroutine\",\t   TclInfoCoroutineCmd,     TclCompileInfoCoroutineCmd, NULL, NULL, 0},\n    {\"default\",\t\t   InfoDefaultCmd,\t    TclCompileBasic3ArgCmd, NULL, NULL, 0},\n    {\"errorstack\",\t   InfoErrorStackCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"exists\",\t\t   TclInfoExistsCmd,\t    TclCompileInfoExistsCmd, NULL, NULL, 0},\n    {\"frame\",\t\t   InfoFrameCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"functions\",\t   InfoFunctionsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"globals\",\t\t   TclInfoGlobalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"hostname\",\t   InfoHostnameCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"level\",\t\t   InfoLevelCmd,\t    TclCompileInfoLevelCmd, NULL, NULL, 0},\n    {\"library\",\t\t   InfoLibraryCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"loaded\",\t\t   InfoLoadedCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"locals\",\t\t   TclInfoLocalsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"nameofexecutable\",   InfoNameOfExecutableCmd, TclCompileBasic0ArgCmd, NULL, NULL, 1},\n    {\"patchlevel\",\t   InfoPatchLevelCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"procs\",\t\t   InfoProcsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"script\",\t\t   InfoScriptCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {\"sharedlibextension\", InfoSharedlibCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"tclversion\",\t   InfoTclVersionCmd,\t    TclCompileBasic0ArgCmd, NULL, NULL, 0},\n    {\"vars\",\t\t   TclInfoVarsCmd,\t    TclCompileBasic0Or1ArgCmd, NULL, NULL, 0},\n    {NULL, NULL, NULL, NULL, NULL, 0}\n};\n",
+    "snippet_sha256": "28b0dddebe9a2046b4220c08e3c970fbb246f8f88402c4417988a90421cf63fd"
+  }
+]

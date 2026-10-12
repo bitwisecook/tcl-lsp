@@ -1,0 +1,4 @@
+version 8.6.18
+package 0 2.5.11
+package_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl}
+auto_path {/workspace/tcl-lsp/tmp/tcl8.6.18/library /workspace/tcl-lsp/tmp/tcl8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/lib /workspace/.proofs/native-providers/8.6.18/install/lib}

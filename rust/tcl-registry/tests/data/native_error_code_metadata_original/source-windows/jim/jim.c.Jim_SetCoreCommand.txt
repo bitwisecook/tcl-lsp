@@ -1,0 +1,117 @@
+static int Jim_SubCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    return JimSubDivHelper(interp, argc, argv, JIM_EXPROP_SUB);
+}
+
+/* [/] */
+static int Jim_DivCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    return JimSubDivHelper(interp, argc, argv, JIM_EXPROP_DIV);
+}
+
+/* [set] */
+static int Jim_SetCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    if (argc == 2) {
+        Jim_Obj *objPtr;
+
+        objPtr = Jim_GetVariable(interp, argv[1], JIM_ERRMSG);
+        if (!objPtr)
+            return JIM_ERR;
+        Jim_SetResult(interp, objPtr);
+        return JIM_OK;
+    }
+    /* argc == 3 case. */
+    if (Jim_SetVariable(interp, argv[1], argv[2]) != JIM_OK)
+        return JIM_ERR;
+    Jim_SetResult(interp, argv[2]);
+    return JIM_OK;
+}
+
+/* [unset]
+ *
+ * unset ?-nocomplain? ?--? ?varName ...?
+ */
+static int Jim_UnsetCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    int i = 1;
+    int complain = 1;
+
+    while (i < argc) {
+        if (Jim_CompareStringImmediate(interp, argv[i], "--")) {
+            i++;
+            break;
+        }
+        if (Jim_CompareStringImmediate(interp, argv[i], "-nocomplain")) {
+            complain = 0;
+            i++;
+            continue;
+        }
+        break;
+    }
+
+    while (i < argc) {
+        if (Jim_UnsetVariable(interp, argv[i], complain ? JIM_ERRMSG : JIM_NONE) != JIM_OK
+            && complain) {
+            return JIM_ERR;
+        }
+        i++;
+    }
+
+    Jim_SetEmptyResult(interp);
+    return JIM_OK;
+}
+
+/**
+ * All commands that support break, continue from a loop (while, loop, foreach, for)
+ * use this to check for break_level.
+ *
+ * If break_level is > 0, decrements the break_level and returns 1.
+ * Otherwise returns 0
+ */
+static int JimCheckLoopRetcode(Jim_Interp *interp, int retval)
+{
+    if (retval == JIM_BREAK || retval == JIM_CONTINUE) {
+        if (--interp->break_level > 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* [while] */
+static int Jim_WhileCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    /* The general purpose implementation of while starts here */
+    while (1) {
+        int boolean = 0, retval;
+
+        if ((retval = Jim_GetBoolFromExpr(interp, argv[1], &boolean)) != JIM_OK)
+            return retval;
+        if (!boolean)
+            break;
+
+        if ((retval = Jim_EvalObj(interp, argv[2])) != JIM_OK) {
+            if (JimCheckLoopRetcode(interp, retval)) {
+                return retval;
+            }
+            switch (retval) {
+                case JIM_BREAK:
+                    goto out;
+                case JIM_CONTINUE:
+                    continue;
+                default:
+                    return retval;
+            }
+        }
+    }
+  out:
+    Jim_SetEmptyResult(interp);
+    return JIM_OK;
+}
+
+/* [for] */
+static int Jim_ForCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    int retval;
+    int boolean = 1;

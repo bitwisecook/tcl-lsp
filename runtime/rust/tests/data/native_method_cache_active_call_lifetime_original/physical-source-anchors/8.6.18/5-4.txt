@@ -1,0 +1,98 @@
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineDeleteMethodObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    int isInstanceDeleteMethod = (clientData != NULL);
+    Object *oPtr;
+    int i;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name ?name ...?");
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (!isInstanceDeleteMethod && !oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    for (i = 1; i < objc; i++) {
+	/*
+	 * Delete the method structure from the appropriate hash table.
+	 */
+
+	if (RenameDeleteMethod(interp, oPtr, !isInstanceDeleteMethod,
+		objv[i], NULL) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+    }
+
+    if (isInstanceDeleteMethod) {
+	oPtr->epoch++;
+    } else {
+	BumpGlobalEpoch(interp, oPtr->classPtr);
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineDestructorObjCmd --
+ *	Implementation of the "destructor" subcommand of the "oo::define"
+ *	command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineDestructorObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr;
+    Class *clsPtr;
+    Tcl_Method method;
+    int bodyLength;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "body");
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    clsPtr = oPtr->classPtr;
+
+    Tcl_GetStringFromObj(objv[1], &bodyLength);
+    if (bodyLength > 0) {
+	/*
+	 * Create the method structure.
+	 */
+
+	method = (Tcl_Method) TclOONewProcMethod(interp, clsPtr,
+		PUBLIC_METHOD, NULL, NULL, objv[1], NULL);
+	if (method == NULL) {
+	    return TCL_ERROR;
+	}
+    } else {
+	/*
+	 * Delete the destructor method record and set the field in the class
+	 * record to NULL.
+	 */

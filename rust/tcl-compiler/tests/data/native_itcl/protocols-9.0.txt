@@ -1,0 +1,9 @@
+named 0 {named pong named}
+generated 0 c0
+class_proc 0 {ping instance static}
+retired 0 {named {}}
+constructor_error 0 {1 BOOM {}}
+metaclass_replaced 0 {hijacked {}}
+private_replaced 0 1
+parser_observed 0 {1 PRIVATE_TRACE {}}
+qualified 0 {child ::N::child}

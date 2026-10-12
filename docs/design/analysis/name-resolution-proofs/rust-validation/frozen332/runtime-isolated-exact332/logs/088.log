@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::native_method_rename_tests::original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages ... 
+thread 'cmd_oo::native_method_rename_tests::original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages' (1215854) panicked at src/cmd_oo/native_method_rename_tests.rs:336:17:
+assertion `left == right` failed
+  left: []
+ right: [66, 69, 70, 79, 82, 69]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_method_rename_tests::original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.46s
+

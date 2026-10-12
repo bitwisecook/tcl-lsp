@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::input::tests::logical_source_domain_keeps_authored_simulation_and_actual_native_entry_separate ... 
+thread 'analyser::input::tests::logical_source_domain_keeps_authored_simulation_and_actual_native_entry_separate' (554914) panicked at rust/tcl-compiler/src/analyser/input.rs:187:69:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::input::tests::logical_source_domain_keeps_authored_simulation_and_actual_native_entry_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8151 filtered out; finished in 0.40s
+

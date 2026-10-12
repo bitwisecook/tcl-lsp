@@ -1,0 +1,26 @@
+{
+  "runner": "/workspace/.proofs/native-brace-expression129/capture.py",
+  "probe": "/workspace/.proofs/native-brace-expression129/probe.c",
+  "runner_sha256": "6a11570bcb34073b61ccfe38015cba312b7995a99b567023d55c244a19292e13",
+  "probe_sha256": "a55348a9ce001e5669b9ee7a22041dfdeb47b1f29082543ddfdd59ca1c6e8ce5",
+  "input_manifest_sha256": "124ebfcf57fd39baf1a43abae30c629a0c344dbdc8e3375fcfd29bbb3a3d9579",
+  "case_count": 23,
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "channels": {
+    "c": "counted Tcl_EvalEx and independent configured Tcl_ReadChars utf-8/auto then EvalEx",
+    "jim": "counted original Jim_NewStringObj + Jim_EvalObj; C ReadChars explicitly not-tested"
+  },
+  "limits": [
+    "argv collector is independent authored last-command source, not original Expr handler observation",
+    "direct C85+ Tcl_GetReturnOptions versus C84 API unavailable; Jim direct published return fields and additional real catch-object options context",
+    "every case/channel/variant/context uses fresh interpreter",
+    "result/argument primary type and resident status sampled before getter; later C Unicode getter separately recorded"
+  ]
+}

@@ -1,0 +1,76 @@
+
+running 15 tests
+test codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays ... 
+thread 'codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays' (843757) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:3022:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers ... 
+thread 'codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers' (843766) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:2949:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+FAILED
+test codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar ... 
+thread 'codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar' (843781) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:2864:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+FAILED
+test common_aot_plan::tests::original_declared_argument_slots_do_not_borrow_the_parent_native_frame ... ok
+test common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts ... 
+thread 'common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts' (843792) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2652:40:
+no entry found for key
+FAILED
+test common_aot_plan::tests::original_empty_procedure_direct_call_keeps_formals_without_body_specialisation ... ok
+test common_aot_plan::tests::original_source_queries_require_unanimous_statement_carriers ... 
+thread 'common_aot_plan::tests::original_source_queries_require_unanimous_statement_carriers' (843795) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2562:14:
+original source store retains a structural statement
+FAILED
+test common_aot_plan::tests::retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input ... ok
+test common_aot_plan::tests::structural_call_candidates_keep_original_nested_words_and_literal_boundaries ... 
+thread 'common_aot_plan::tests::structural_call_candidates_keep_original_nested_words_and_literal_boundaries' (843808) panicked at rust/tcl-compiler/src/common_aot_plan.rs:2605:40:
+no entry found for key
+FAILED
+test compilation_unit::tests::supplied_source_producer_refuses_changed_profile_and_lexer_metadata ... ok
+test optimiser::end_offset::tests::end_offset_applicability_requires_actual_module_availability ... 
+thread 'optimiser::end_offset::tests::end_offset_applicability_requires_actual_module_availability' (843810) panicked at rust/tcl-compiler/src/optimiser/end_offset.rs:822:9:
+assertion failed: context.optimisations.iter().any(|candidate|
+        candidate.code == DiagCode::O128 && !candidate.hint_only)
+FAILED
+test optimiser::method_barrier::tests::dispatch_metadata_requires_actual_module_availability ... 
+thread 'optimiser::method_barrier::tests::dispatch_metadata_requires_actual_module_availability' (843811) panicked at rust/tcl-compiler/src/optimiser/method_barrier.rs:618:9:
+assertion failed: !super::proc_dispatch_facts(&module, registry,
+                &components)["::helper"].anywhere
+FAILED
+test optimiser::propagation::tests::retained_expression_argument_folding_requires_actual_availability ... 
+thread 'optimiser::propagation::tests::retained_expression_argument_folding_requires_actual_availability' (843812) panicked at rust/tcl-compiler/src/optimiser/propagation.rs:5638:9:
+assertion `left == right` failed
+  left: None
+ right: Some("3")
+FAILED
+test optimiser::tests::pass_metadata_requires_the_module_producer_profile_and_lexer ... ok
+test var_observability::tests::module_global_advice_withholds_stale_profile_and_lexer_input ... 
+thread 'var_observability::tests::module_global_advice_withholds_stale_profile_and_lexer_input' (843831) panicked at rust/tcl-compiler/src/var_observability.rs:922:9:
+assertion failed: scan_module_global_names(&unit.ir_module,
+        current.commands()).contains("shared")
+FAILED
+
+failures:
+
+failures:
+    codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays
+    codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers
+    codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar
+    common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts
+    common_aot_plan::tests::original_source_queries_require_unanimous_statement_carriers
+    common_aot_plan::tests::structural_call_candidates_keep_original_nested_words_and_literal_boundaries
+    optimiser::end_offset::tests::end_offset_applicability_requires_actual_module_availability
+    optimiser::method_barrier::tests::dispatch_metadata_requires_actual_module_availability
+    optimiser::propagation::tests::retained_expression_argument_folding_requires_actual_availability
+    var_observability::tests::module_global_advice_withholds_stale_profile_and_lexer_input
+
+test result: FAILED. 5 passed; 10 failed; 0 ignored; 0 measured; 8528 filtered out; finished in 8.74s
+

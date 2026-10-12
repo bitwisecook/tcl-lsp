@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_numeric_ops::original_string_stage_tests::original_expression_source_keeps_live_root_child_refusal_before_cache_replacement ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.79s
+

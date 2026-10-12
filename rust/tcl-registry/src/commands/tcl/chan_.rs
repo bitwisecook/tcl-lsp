@@ -489,6 +489,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan configure channelId ?-option value ...?",
         arg_roles: &[(0, ArgRole::Channel)],
         options: CONFIGURE_OPTIONS,
+        channel_configuration: Some(ChannelConfigurationSpec::EncodingTranslation),
+        option_prefix_words: 1,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
@@ -505,6 +507,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan copy inputChan outputChan ?-size size? ?-command callback?",
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
         options: COPY_OPTIONS,
+        option_prefix_words: 2,
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
@@ -716,6 +719,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "puts",
         arity: Arity::at_least(1),
+        arg_role_layout_resolver: Some(super::puts_::puts_layout_roles),
+        arg_role_resolver_roles: &[ArgRole::Channel],
         detail: "Write to a channel (default stdout).",
         synopsis: "chan puts ?-nonewline? ?channelId? string",
         mutator: true,
@@ -907,6 +912,11 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("chan"),
         traits: Traits::BYTE_COMPILED,
         // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no `chan`

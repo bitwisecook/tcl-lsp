@@ -1,0 +1,9 @@
+/* Simplify creating commands that specify minargs, maxargs and usage but
+ * don't need delProc or privData
+ */
+#define Jim_RegisterSimpleCmd(interp, name, usage, minargs, maxargs, cmdproc) \
+        Jim_RegisterCommand(interp, Jim_NewStringObj(interp, name, -1), cmdproc, NULL, usage, NULL, minargs, maxargs, 0, NULL)
+/* And also slightly more complex where delProc, privData and flags may be needed */
+#define Jim_RegisterCmd(interp, name, usage, minargs, maxargs, cmdproc, delproc, privdata, flags) \
+        Jim_RegisterCommand(interp, Jim_NewStringObj(interp, name, -1), cmdproc, delproc, usage, NULL, minargs, maxargs, flags, privdata)
+

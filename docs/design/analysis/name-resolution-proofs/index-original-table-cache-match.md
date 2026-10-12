@@ -1,0 +1,238 @@
+# naming.index.original-table-cache-match
+
+Kind: `native-observation`
+
+## Problem statement
+
+An abbreviated word can acquire an Index cache tied to one actual table. Reusing that cache for a later exact query can differ from rechecking the bytes or comparing a different equal-content table.
+
+## Question
+
+Does original abbreviated a reuse its cached index for exact same-table lookup and for a distinct equal-content table?
+
+## Conclusion
+
+All five C captures select index0 for abbreviation then same-table exact query. A different table with equal alpha/beta entries returns guest Error and leaves the sentinel index−9; the original Index primary and bytes61 remain. This proves actual table cache correspondence for these calls, not an interchangeable bytes-based table capability.
+
+## Scope
+
+Exact public Tcl_GetIndexFromObj on original String a, distinct static tables first/other, TCL_EXACT and conditional C9 flag64. Tcl_InvalidateStringRep/GetString regenerates from retained mutable static table entries; Tcl_DuplicateObj preserves cache association. Five original output files have complete source/archive/output hashes and successful process status, but no compiler status, header/executable digest or launched runtime version query is recorded. Probe input is C object API, not document source or a guest command selector.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
+
+Exact selected rows:
+
+```json
+[
+  {
+    "case": "prefix",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "cached-exact",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "different-table-exact",
+    "code": 1,
+    "index": -9,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  }
+]
+```
+The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
+
+### tcl8.5
+
+Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
+
+Exact selected rows:
+
+```json
+[
+  {
+    "case": "prefix",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "cached-exact",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "different-table-exact",
+    "code": 1,
+    "index": -9,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  }
+]
+```
+The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
+
+### tcl8.6
+
+Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
+
+Exact selected rows:
+
+```json
+[
+  {
+    "case": "prefix",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "cached-exact",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "different-table-exact",
+    "code": 1,
+    "index": -9,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  }
+]
+```
+The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
+
+### tcl9.0
+
+Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
+
+Exact selected rows:
+
+```json
+[
+  {
+    "case": "prefix",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "cached-exact",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "different-table-exact",
+    "code": 1,
+    "index": -9,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  }
+]
+```
+The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
+
+### tcl9.1
+
+Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
+
+Exact selected rows:
+
+```json
+[
+  {
+    "case": "prefix",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "cached-exact",
+    "code": 0,
+    "index": 0,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  },
+  {
+    "case": "different-table-exact",
+    "code": 1,
+    "index": -9,
+    "type": "index",
+    "resident": 1,
+    "hex": "61"
+  }
+]
+```
+The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+
+No observation of this exact question is retained for this provider.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+
+No observation of this exact question is retained for this provider.
+
+## Exact evidence
+
+- `probe` (input): [rust/tcl-cshim/tests/data/native_index_cache/probe.c](../../../../rust/tcl-cshim/tests/data/native_index_cache/probe.c). SHA-256 `0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd`. Exact static table identities, original API flags and before-string header observer.
+- `receipt` (provider): [rust/tcl-cshim/tests/data/native_index_cache/manifest.json](../../../../rust/tcl-cshim/tests/data/native_index_cache/manifest.json). SHA-256 `7ba270e4579b1ec50bc3f75efd23a1c95982adef3580aae39bd140898108566e`. Original compile arguments, source/archive/output hashes and process status.
+- `rows-tcl8.4` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl). SHA-256 `8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d`. Exact original full output; selected case labels ['prefix', 'cached-exact', 'different-table-exact'].
+- `rows-tcl8.5` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl). SHA-256 `8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d`. Exact original full output; selected case labels ['prefix', 'cached-exact', 'different-table-exact'].
+- `rows-tcl8.6` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl). SHA-256 `8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d`. Exact original full output; selected case labels ['prefix', 'cached-exact', 'different-table-exact'].
+- `rows-tcl9.0` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl). SHA-256 `2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614`. Exact original full output; selected case labels ['prefix', 'cached-exact', 'different-table-exact'].
+- `rows-tcl9.1` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl). SHA-256 `2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614`. Exact original full output; selected case labels ['prefix', 'cached-exact', 'different-table-exact'].
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `NativeIndexLookupProtocol::cached_index_with_flags`: Checks independently retained table/stride/cache/flag correspondence.
+- [rust/tcl-cshim/src/index_table.rs](../../../../rust/tcl-cshim/src/index_table.rs), `StaticIndexTable`: Retains the independently supplied table entry reader and native storage lifetime contract.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+No fresh native execution or Rust test result is asserted. A new comparison must compile the exact retained probe against independently identified release headers and archive, preserve its original API/flags and declared observer references, then capture separate process status, stdout and stderr. Original absolute compiler paths are attribution metadata, not a portable replay command. The probe is input source, not an excerpt of the Tcl/Jim implementation.

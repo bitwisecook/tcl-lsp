@@ -1,0 +1,140 @@
+static int Jim_LsortCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const argv[])
+{
+    static const char * const options[] = {
+        "-ascii", "-nocase", "-increasing", "-decreasing", "-command", "-integer", "-real", "-index", "-unique",
+        "-stride", "-dictionary", NULL
+    };
+    enum {
+        OPT_ASCII, OPT_NOCASE, OPT_INCREASING, OPT_DECREASING, OPT_COMMAND, OPT_INTEGER, OPT_REAL, OPT_INDEX, OPT_UNIQUE,
+        OPT_STRIDE, OPT_DICT
+    };
+    Jim_Obj *resObj;
+    int i;
+    int retCode;
+    int shared;
+    long stride = 1;
+    Jim_Obj **elements;
+    int listlen;
+
+    struct lsort_info info;
+
+    info.type = JIM_LSORT_ASCII;
+    info.order = 1;
+    info.indexc = 0;
+    info.unique = 0;
+    info.command = NULL;
+    info.interp = interp;
+
+    for (i = 1; i < (argc - 1); i++) {
+        int option;
+
+        if (Jim_GetEnum(interp, argv[i], options, &option, NULL, JIM_ENUM_ABBREV | JIM_ERRMSG)
+            != JIM_OK)
+            return JIM_ERR;
+        switch (option) {
+            case OPT_ASCII:
+                info.type = JIM_LSORT_ASCII;
+                break;
+            case OPT_DICT:
+                info.type = JIM_LSORT_DICT;
+                break;
+            case OPT_NOCASE:
+                info.type = JIM_LSORT_NOCASE;
+                break;
+            case OPT_INTEGER:
+                info.type = JIM_LSORT_INTEGER;
+                break;
+            case OPT_REAL:
+                info.type = JIM_LSORT_REAL;
+                break;
+            case OPT_INCREASING:
+                info.order = 1;
+                break;
+            case OPT_DECREASING:
+                info.order = -1;
+                break;
+            case OPT_UNIQUE:
+                info.unique = 1;
+                break;
+            case OPT_COMMAND:
+                if (i >= (argc - 2)) {
+                    Jim_SetResultString(interp, "\"-command\" option must be followed by comparison command", -1);
+                    return JIM_ERR;
+                }
+                info.type = JIM_LSORT_COMMAND;
+                info.command = argv[i + 1];
+                i++;
+                break;
+            case OPT_STRIDE:
+                if (i >= argc - 2) {
+                    return JIM_USAGE;
+                }
+                if (Jim_GetLong(interp, argv[++i], &stride) != JIM_OK) {
+                    return JIM_ERR;
+                }
+                if (stride < 2) {
+                    Jim_SetResultString(interp, "stride length must be at least 2", -1);
+                    return JIM_ERR;
+                }
+                break;
+            case OPT_INDEX:
+                if (i >= (argc - 2)) {
+badindex:
+                    Jim_SetResultString(interp, "\"-index\" option must be followed by list index", -1);
+                    return JIM_ERR;
+                }
+                JimListGetElements(interp, argv[i + 1], &info.indexc, &info.indexv);
+                if (info.indexc == 0) {
+                    goto badindex;
+                }
+                i++;
+                break;
+        }
+    }
+    resObj = argv[argc - 1];
+    JimListGetElements(interp, resObj, &listlen, &elements);
+    if (listlen <= 1) {
+        /* Nothing to do */
+        Jim_SetResult(interp, resObj);
+        return JIM_OK;
+    }
+
+    if (stride > 1) {
+        Jim_Obj *tmpListObj;
+        int i;
+
+        if (listlen % stride) {
+            Jim_SetResultString(interp, "list size must be a multiple of the stride length", -1);
+            return JIM_ERR;
+        }
+        /* Need to create a new list of lists for sorting */
+        tmpListObj = Jim_NewListObj(interp, NULL, 0);
+        Jim_IncrRefCount(tmpListObj);
+        for (i = 0; i < listlen; i += stride) {
+            Jim_ListAppendElement(interp, tmpListObj, Jim_NewListObj(interp, elements + i, stride));
+        }
+        retCode = ListSortElements(interp, tmpListObj, &info);
+        if (retCode == JIM_OK) {
+            resObj = Jim_NewListObj(interp, NULL, 0);
+            /* Now we need to unpack the result back into a flat list */
+            for (i = 0; i < listlen; i += stride) {
+                Jim_ListAppendList(interp, resObj, Jim_ListGetIndex(interp, tmpListObj, i / stride));
+            }
+            Jim_SetResult(interp, resObj);
+        }
+        Jim_DecrRefCount(interp, tmpListObj);
+    }
+    else {
+        if ((shared = Jim_IsShared(resObj))) {
+            resObj = Jim_DuplicateObj(interp, resObj);
+        }
+        retCode = ListSortElements(interp, resObj, &info);
+        if (retCode == JIM_OK) {
+            Jim_SetResult(interp, resObj);
+        }
+        else if (shared) {
+            Jim_FreeNewObj(interp, resObj);
+        }
+    }
+    return retCode;
+}

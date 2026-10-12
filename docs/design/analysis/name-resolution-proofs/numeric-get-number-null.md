@@ -1,0 +1,174 @@
+# naming.numeric.get-number-null
+
+Kind: `native-observation`
+
+## Problem statement
+
+An original Number, Bignum or increment consumer can change primary, invalidate bytes or publish failure at a different stage. Borrowing one stage's result/cache rules for another would fabricate conversion and interpreter state.
+
+## Question
+
+What original header/storage and number-kind remain after GetNumber with NULL interpreter on sixteen input shapes?
+
+## Conclusion
+
+C8.5–9.1 distinguish fresh/cached integer, Double, Boolean-like and Bignum shapes under the original Number parser. Successful conversions can change primary while preserving resident bytes, and the NULL interpreter stage leaves SEED result. Raw-zero and modified-zero inputs differ;08 changes by release. Number-kind/header snapshots occur before the byte observer and do not publish a general expression operand proof.
+
+## Scope
+
+The exact probe constructs sixteen independent original String/Double/Wide/Boolean-primed/Bignum objects and selects one of three APIs. ResultSEED/errorCodeSENTINEL are seeded; before/after header fields are captured before the trailing byte observer. Four C8.5–9.1 full48-row JSONL hashes/build/status are retained. C8.4 and Jim branches print a compiled-out CNumberBignumUnavailable sentinel only; they execute none of these APIs and are not-tested, not guest rejections. BIG-IP is not tested; runtime patchlevels/configure/compiler versions are unqueried.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+
+No native observation of this exact question is attached for this provider.
+
+### tcl8.5
+
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=b4b26a1cdfd5d5e655b48dc4e1b2d4f529c8370fca6959bcc426673b3ec05f2e; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+
+Exact relevant original rows:
+
+```text
+{"shape":0,"stage":0,"before_type":"none","before_resident":1,"before_length":1,"code":0,"number_type":1,"after_type":"int","after_resident":1,"after_length":1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"31"}
+{"shape":1,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":4,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":2,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":3,"stage":0,"before_type":"none","before_resident":1,"before_length":2,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":2,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652030","object_after_window":"3038"}
+{"shape":4,"stage":0,"before_type":"none","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":5,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652030","object_after_window":"74727565"}
+{"shape":6,"stage":0,"before_type":"none","before_resident":1,"before_length":0,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652030","object_after_window":""}
+{"shape":7,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":1,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"203220"}
+{"shape":8,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":1,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"310078"}
+{"shape":9,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652030","object_after_window":"31c08078"}
+{"shape":10,"stage":0,"before_type":"double","before_resident":0,"before_length":-1,"code":0,"number_type":4,"after_type":"double","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":11,"stage":0,"before_type":"double","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":12,"stage":0,"before_type":"int","before_resident":0,"before_length":-1,"code":0,"number_type":1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"37"}
+{"shape":13,"stage":0,"before_type":"booleanString","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"booleanString","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652030","object_after_window":"74727565"}
+{"shape":14,"stage":0,"before_type":"bignum","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":15,"stage":0,"before_type":"bignum","before_resident":1,"before_length":0,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":""}
+```
+
+Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
+
+### tcl8.6
+
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=930b231ed072a1916e8455f78e98a1e04726bc24ee48abc35c6475f70268ee9c; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+
+Exact relevant original rows:
+
+```text
+{"shape":0,"stage":0,"before_type":"none","before_resident":1,"before_length":1,"code":0,"number_type":1,"after_type":"int","after_resident":1,"after_length":1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"31"}
+{"shape":1,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":4,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":2,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":3,"stage":0,"before_type":"none","before_resident":1,"before_length":2,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":2,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"3038"}
+{"shape":4,"stage":0,"before_type":"none","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":5,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"74727565"}
+{"shape":6,"stage":0,"before_type":"none","before_resident":1,"before_length":0,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":""}
+{"shape":7,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":1,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"203220"}
+{"shape":8,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":1,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"310078"}
+{"shape":9,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"31c08078"}
+{"shape":10,"stage":0,"before_type":"double","before_resident":0,"before_length":-1,"code":0,"number_type":4,"after_type":"double","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":11,"stage":0,"before_type":"double","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":12,"stage":0,"before_type":"int","before_resident":0,"before_length":-1,"code":0,"number_type":1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"37"}
+{"shape":13,"stage":0,"before_type":"booleanString","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"booleanString","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"74727565"}
+{"shape":14,"stage":0,"before_type":"bignum","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":15,"stage":0,"before_type":"bignum","before_resident":1,"before_length":0,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":""}
+```
+
+Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
+
+### tcl9.0
+
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=c259ab335104219b487f98405f2502f49e76967e0ce62d41fa69b46100c66e65; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+
+Exact relevant original rows:
+
+```text
+{"shape":0,"stage":0,"before_type":"none","before_resident":1,"before_length":1,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"31"}
+{"shape":1,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":4,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":2,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":3,"stage":0,"before_type":"none","before_resident":1,"before_length":2,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":2,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"3038"}
+{"shape":4,"stage":0,"before_type":"none","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":5,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"74727565"}
+{"shape":6,"stage":0,"before_type":"none","before_resident":1,"before_length":0,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":""}
+{"shape":7,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"203220"}
+{"shape":8,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"310078"}
+{"shape":9,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"31c08078"}
+{"shape":10,"stage":0,"before_type":"double","before_resident":0,"before_length":-1,"code":0,"number_type":4,"after_type":"double","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":11,"stage":0,"before_type":"double","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":12,"stage":0,"before_type":"int","before_resident":0,"before_length":-1,"code":0,"number_type":2,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"37"}
+{"shape":13,"stage":0,"before_type":"boolean","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"boolean","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"74727565"}
+{"shape":14,"stage":0,"before_type":"bignum","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":15,"stage":0,"before_type":"bignum","before_resident":1,"before_length":0,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":""}
+```
+
+Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
+
+### tcl9.1
+
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=8be0e1b72aaed33b4871ad2e17ccda82ad394780fd0aeef02695376e3df6a360; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+
+Exact relevant original rows:
+
+```text
+{"shape":0,"stage":0,"before_type":"none","before_resident":1,"before_length":1,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"31"}
+{"shape":1,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":4,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":2,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":3,"stage":0,"before_type":"none","before_resident":1,"before_length":2,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":2,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"3038"}
+{"shape":4,"stage":0,"before_type":"none","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":5,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"74727565"}
+{"shape":6,"stage":0,"before_type":"none","before_resident":1,"before_length":0,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":""}
+{"shape":7,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"203220"}
+{"shape":8,"stage":0,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":2,"after_type":"int","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"310078"}
+{"shape":9,"stage":0,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"31c08078"}
+{"shape":10,"stage":0,"before_type":"double","before_resident":0,"before_length":-1,"code":0,"number_type":4,"after_type":"double","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"312e35"}
+{"shape":11,"stage":0,"before_type":"double","before_resident":1,"before_length":3,"code":0,"number_type":5,"after_type":"double","after_resident":1,"after_length":3,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"4e614e"}
+{"shape":12,"stage":0,"before_type":"int","before_resident":0,"before_length":-1,"code":0,"number_type":2,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"37"}
+{"shape":13,"stage":0,"before_type":"boolean","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"boolean","after_resident":1,"after_length":4,"result":"53454544","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f64652053454e54494e454c202d6572726f72696e666f2053454544202d6572726f726c696e652031","object_after_window":"74727565"}
+{"shape":14,"stage":0,"before_type":"bignum","before_resident":1,"before_length":24,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":24,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303030"}
+{"shape":15,"stage":0,"before_type":"bignum","before_resident":1,"before_length":0,"code":0,"number_type":3,"after_type":"bignum","after_resident":1,"after_length":0,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":""}
+```
+
+Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
+
+### jim
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+
+No native observation of this exact question is attached for this provider.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+
+No native observation of this exact question is attached for this provider.
+
+## Exact evidence
+
+- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c). SHA-256 `3d53e8fc665cfdd5ed0477896cb6638d9bd23ed9412157cd9bdbf7923b6838e7`. Exact retained input constructors, selected APIs, callback and before/after observers.
+- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json). SHA-256 `b8c0ec8b20cd84a914dc6183a68cc6e6d19747b46b3c6204ab416a7548968f20`. Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
+- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl). SHA-256 `96d980edda071e074e8e3a856462289cba99ce08a45038743aac9eea94979a05`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl). SHA-256 `7630b437a6bfd8515541e6f4341dc072dfa370f3cf7012ea2d531140d71a951d`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl). SHA-256 `7f4cba841f265f98560384518977f52a119af833fdd60d7fce301dd0ab059043`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl). SHA-256 `7f4cba841f265f98560384518977f52a119af833fdd60d7fce301dd0ab059043`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `compiled-out-tcl8.4` (limitation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl). SHA-256 `b29bfa32c30dc91868cd1b83b85acc153131aff498a85ef9410db3c495f9dbf6`. Explicit compile-out sentinel; no guest API attempt was made.
+- `compiled-out-jim` (limitation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl). SHA-256 `b29bfa32c30dc91868cd1b83b85acc153131aff498a85ef9410db3c495f9dbf6`. Explicit compile-out sentinel; no guest API attempt was made.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+- [runtime/rust/src/typed_value.rs](../../../../runtime/rust/src/typed_value.rs), `native_number_probe`: Separates original Number/Bignum numeric preparation from interpreter error publication and backend availability.
+- [runtime/rust/src/native_number_tests.rs](../../../../runtime/rust/src/native_number_tests.rs), `native_number_tests::tests::original_number_bignum_and_increment_match_all_192_native_windows` (linked): Compares the independently selected original stage under each retained C8.5–9.1 header/result window; backend withdrawal is additional Rust obligation.
+- [rust/tcl-vm/src/native_number_tests.rs](../../../../rust/tcl-vm/src/native_number_tests.rs), `native_number_tests::original_number_bignum_and_increment_match_all_192_native_windows` (linked): Compares the independently selected original stage under each retained C8.5–9.1 header/result window; backend withdrawal is additional Rust obligation.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.

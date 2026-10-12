@@ -1,0 +1,41 @@
+warning: function `is_leading_option` is never used
+   --> rust/tcl-registry/src/commands/tcl/namespace_.rs:701:4
+    |
+701 | fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib) generated 1 warning
+warning: method `simple_utf8` is never used
+   --> rust/tcl-compiler/src/command_binding/namespace_context.rs:182:19
+    |
+159 | impl SourceCommandKey {
+    | --------------------- method in this implementation
+...
+182 |     pub(super) fn simple_utf8(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+warning: function `selected_registry_words_in_realm` is never used
+   --> rust/tcl-lsp-core/src/original_invocation.rs:155:15
+    |
+155 | pub(crate) fn selected_registry_words_in_realm(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.23s
+     Running unittests src/lib.rs (/workspace/.targets/naming/debug/deps/tcl_lsp_core-f816994f92f0f9f0)
+
+running 4 tests
+test code_actions::original_expression_action_tests::original_expression_actions_separate_position_from_rewrite_equivalence ... ok
+test completion::original_expression_completion_tests::original_expression_completion_does_not_borrow_a_shadowed_role ... ok
+test expr_context::original_expression_position_tests::original_expression_positions_keep_handler_roles_and_source_currency ... ok
+test expr_context::original_expression_position_tests::original_expression_positions_retain_nested_hosted_source_candidates ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 2520 filtered out; finished in 4.97s
+

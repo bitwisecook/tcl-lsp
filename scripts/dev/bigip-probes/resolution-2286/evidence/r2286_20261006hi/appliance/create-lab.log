@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/r2286i/lab.conf
+There were warnings:
+Virtual address (/Common/192.168.9.24) shares address with non-floating self IP (/Common/self_1nic), so traffic-group is being kept at (/Common/traffic-group-local-only).

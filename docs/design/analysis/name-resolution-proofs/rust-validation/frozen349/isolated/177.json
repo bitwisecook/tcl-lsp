@@ -1,0 +1,19 @@
+{
+  "ordinal": 177,
+  "selector": "cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 1.1801420559932012,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.13s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/177.log",
+  "log_sha256": "95f52de8ac9461b1638ddf470b5d5a4343664e3d7317660b38406a47c5a40e8a"
+}

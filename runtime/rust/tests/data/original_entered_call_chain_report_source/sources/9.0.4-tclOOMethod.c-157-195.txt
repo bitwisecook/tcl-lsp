@@ -1,0 +1,39 @@
+    if (nameObj == NULL) {
+	mPtr = (Method *) Tcl_Alloc(sizeof(Method));
+	mPtr->namePtr = NULL;
+	mPtr->refCount = 1;
+	goto populate;
+    }
+    if (!oPtr->methodsPtr) {
+	oPtr->methodsPtr = (Tcl_HashTable *) Tcl_Alloc(sizeof(Tcl_HashTable));
+	Tcl_InitObjHashTable(oPtr->methodsPtr);
+	oPtr->flags &= ~USE_CLASS_CACHE;
+    }
+    hPtr = Tcl_CreateHashEntry(oPtr->methodsPtr, nameObj, &isNew);
+    if (isNew) {
+	mPtr = (Method *) Tcl_Alloc(sizeof(Method));
+	mPtr->namePtr = nameObj;
+	mPtr->refCount = 1;
+	Tcl_IncrRefCount(nameObj);
+	Tcl_SetHashValue(hPtr, mPtr);
+    } else {
+	mPtr = (Method *) Tcl_GetHashValue(hPtr);
+	if (mPtr->typePtr != NULL && mPtr->typePtr->deleteProc != NULL) {
+	    mPtr->typePtr->deleteProc(mPtr->clientData);
+	}
+    }
+
+  populate:
+    mPtr->typePtr = typePtr;
+    mPtr->clientData = clientData;
+    mPtr->flags = 0;
+    mPtr->declaringObjectPtr = oPtr;
+    mPtr->declaringClassPtr = NULL;
+    if (flags) {
+	mPtr->flags |= flags &
+		(PUBLIC_METHOD | PRIVATE_METHOD | TRUE_PRIVATE_METHOD);
+	if (flags & TRUE_PRIVATE_METHOD) {
+	    oPtr->flags |= HAS_PRIVATE_METHODS;
+	}
+    }
+    oPtr->epoch++;

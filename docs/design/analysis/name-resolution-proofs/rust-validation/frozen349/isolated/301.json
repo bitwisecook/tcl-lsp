@@ -1,0 +1,19 @@
+{
+  "ordinal": 301,
+  "selector": "interp::native_literal_pool::tests::native_arrays_share_registered_headers_and_release_global_before_local",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_literal_pool::tests::native_arrays_share_registered_headers_and_release_global_before_local",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 24.369689339015167,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 24.34s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/301.log",
+  "log_sha256": "22e99b396366d924f6f578b98dcd930a48536d072f16fa57b6a7a5dfdf5174d1"
+}

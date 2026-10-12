@@ -1,0 +1,67 @@
+{
+  "provider": "9.0.4",
+  "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "compiler_version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compile_command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+    "/workspace/.proofs/current-native-static-original143/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/captured-native-static-original144/9.0.4/probe"
+  ],
+  "compile_exit": 0,
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c": "ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110"
+  },
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "probe_sha256": "88b0b366ceed66311cc46a667c4a5851d9a34569c2969a82f4e20329b5d46405",
+  "queue_sha256": "a6fd58fc898fc9ca98b1001f6407b1022da1a4045ff41cf35ba07ec39b16dcf6",
+  "runner_sha256": "30c1baccd4cf1d2c24fea4d8e1dac1eb48a6d7b51ca577547facf93f312aed82",
+  "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "3699676451691d6e702bfd087c1d19a6ca13f5d20f6eaf9eed1419a4768ab30c",
+  "command": [
+    "/workspace/.proofs/captured-native-static-original144/9.0.4/probe"
+  ],
+  "process_exit": 0,
+  "seconds": 0.014300923998234794,
+  "stdout_sha256": "7bbf32fb0f9bf0dbe97fe5677d96158683f0a8db8a116ad05d8e363d86d101c2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": [
+    "VERSION|0|0|392e302e34",
+    "INPUT|ASCII|78",
+    "ASCII_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|FF|78ff",
+    "FF_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|D800|78eda080",
+    "D800_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|D801|78eda081",
+    "D801_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "INPUT|ZERO|78007461696c",
+    "ZERO_LITERAL_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "SOURCE_SET|0|0|4649525354",
+    "COPY_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "SOURCE_SET|0|0|4649525354",
+    "REFERENCE_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "MISSING_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "MISSING_COMMAND|0|0|",
+    "DUPLICATE_DEFINE|1|0|77726f6e67202320617267733a2073686f756c64206265202270726f63206e616d65206172677320626f647922",
+    "DUPLICATE_COMMAND|0|0|"
+  ],
+  "reported_version": "9.0.4"
+}

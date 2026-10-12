@@ -1,0 +1,13 @@
+{
+  "question_ids": [
+    "naming.interpreter.child-command-root-and-qualified-publication",
+    "naming.interpreter.child-command-rename-replacement-deletion",
+    "naming.interpreter.deleted-child-evaluation-and-recreation",
+    "naming.interpreter.child-command-probe-availability"
+  ],
+  "variants": [
+    "v1",
+    "v2"
+  ],
+  "limits": "Successful probe processes are independent of each guest completion. Jim source controls reject unsupported interp syntax; no C public child API exists in the Jim probe. Source result/options and result primary/resident windows are retained independently; no whole teardown or physical normal grant."
+}

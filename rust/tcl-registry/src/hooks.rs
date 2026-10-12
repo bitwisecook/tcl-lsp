@@ -200,6 +200,8 @@ pub enum CodegenHookId {
     Global,
     /// `upvar ?level? otherVar localVar ?otherVar localVar ...?`.
     Upvar,
+    /// Selected C Tcl 9.1 `uplevel` frame-evaluation operation.
+    Uplevel,
 }
 
 /// Typed identifier for an *inline* (value-position) bytecode codegen
@@ -231,6 +233,16 @@ pub enum InlineCodegenHookId {
     /// `info exists varName` — `existScalar` / `existStk`
     /// (subcommand-keyed: stamped on `info`'s `exists` subcommand).
     InfoExists,
+    /// Native absolute trivial `info commands` compiler operation.
+    InfoCommandsResolve,
+    /// Native stack-level introspection.
+    InfoLevel,
+    /// Return the namespace of the currently executing native activation.
+    NamespaceCurrent,
+    /// Resolve a command's imported origin after evaluating its name operand.
+    NamespaceOrigin,
+    /// Native literal namespace-scoped prefix builder.
+    NamespaceCode,
     /// `string <subcommand> …` — per-subcommand string ops with an
     /// FQN `::tcl::string::*` invoke fallback.
     String,
@@ -264,6 +276,10 @@ pub enum InlineCodegenHookId {
     Break,
     /// `continue` inside a catch body — the `continue` opcode.
     Continue,
+    /// Suspend the current coroutine with zero or one produced value.
+    Yield,
+    /// Suspend and relay an invocation in the coroutine's current namespace.
+    YieldTo,
     /// `try body on error {var} handler` inside a catch body —
     /// inline two-range catch/handler sequence.
     Try,

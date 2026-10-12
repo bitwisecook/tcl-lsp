@@ -23,11 +23,10 @@
 //! (`combine_sources`), analyse it, and
 //! emit a JSON-serialisable graph/symbol shape (or a plain-text summary).
 //!
-//! Ordering note: symbols are produced by iterating `Scope.procs` then
-//! `Scope.variables` in insertion order, so they come out in
-//! source-definition order.
-//! The Rust analyser stores them in `HashMap`s, so we sort by the defining
-//! token's source offset to recover that deterministic ordering.
+//! Native and hosted symbols use the shared independently current original
+//! source outline. Labels are presentation; opaque and repeated declarations
+//! retain separate source rows. Explicit lexical advice keeps its own scope
+//! walker with defining-span order.
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -35,7 +34,7 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
     registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, ProcDef, Scope, ScopeKind, VarDef};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind, VarDef};
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::graphs;
 
@@ -71,36 +70,96 @@ fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
     line_index.position_at(offset).line + 1
 }
 
-/// Detect event entries through the shared iRules handler owner, deduplicated
-/// in first-seen order.
-///
-/// Runs unconditionally (every dialect),
-/// each entry at depth 0 with its 1-based line.
-fn detect_event_entries(
-    source: &str,
-    line_index: &LineIndex,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<SymbolEntry> {
-    let registry = registry_for_dialect(dialect.name);
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, &registry);
-    let mut entries = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
-        source,
-        &registry,
-        &identities,
+/// Project only current source cards; labels never select a declaration.
+fn original_symbol_entries(source: &str, analysis: &AnalysisResult) -> Vec<SymbolEntry> {
+    use tcl_lsp_core::document_symbols::{DocumentSymbol, SymbolKind};
+    let index = LineIndex::new(source);
+    let procedures =
+        tcl_lsp_core::procedure_symbol::declarations(source, analysis).unwrap_or_default();
+    fn collect(
+        source: &str,
+        index: &LineIndex,
+        procedures: &[&ProcDef],
+        cards: &[DocumentSymbol],
+        depth: usize,
+        in_procedure: bool,
+        out: &mut Vec<SymbolEntry>,
     ) {
-        if seen.insert(handler.event.clone()) {
-            entries.push(SymbolEntry {
-                kind: "event",
-                name: handler.event,
-                line: Some(line_of(line_index, handler.span.start())),
-                depth: 0,
-                params: None,
-            });
+        for card in cards {
+            let kind = match card.kind {
+                SymbolKind::Function => Some("function"),
+                SymbolKind::Namespace => Some("namespace"),
+                SymbolKind::Variable if !in_procedure => Some("variable"),
+                SymbolKind::Event => Some("event"),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                let params = (card.kind == SymbolKind::Function).then(|| {
+                    let start = index.offset_at_utf16(
+                        card.selection_range.start_line,
+                        tcl_lexer::Utf16Col::new(card.selection_range.start_character),
+                        source,
+                    );
+                    let end = index.offset_at_utf16(
+                        card.selection_range.end_line,
+                        tcl_lexer::Utf16Col::new(card.selection_range.end_character),
+                        source,
+                    );
+                    let mut matching = procedures.iter().filter(|proc| {
+                        proc.name_span.start() == start && proc.name_span.end() == end
+                    });
+                    let first = matching.next();
+                    if matching.next().is_some() {
+                        return Vec::new();
+                    }
+                    first.map_or_else(Vec::new, |proc| {
+                        proc.params.iter().map(|param| param.name.clone()).collect()
+                    })
+                });
+                out.push(SymbolEntry {
+                    kind,
+                    name: card.name.clone(),
+                    line: Some(card.selection_range.start_line + 1),
+                    depth,
+                    params,
+                });
+            }
+            let local = in_procedure
+                || matches!(
+                    card.kind,
+                    SymbolKind::Function
+                        | SymbolKind::Method
+                        | SymbolKind::Constructor
+                        | SymbolKind::Event
+                );
+            collect(
+                source,
+                index,
+                procedures,
+                &card.children,
+                depth + 1,
+                local,
+                out,
+            );
         }
     }
+    let cards = tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, analysis);
+    let mut entries = Vec::new();
+    collect(source, &index, &procedures, &cards, 0, false, &mut entries);
     entries
+}
+
+#[cfg(test)]
+fn detect_event_entries(
+    source: &str,
+    _line_index: &LineIndex,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<SymbolEntry> {
+    let analysis = Analyser::new().analyse(source, dialect.name);
+    original_symbol_entries(source, &analysis)
+        .into_iter()
+        .filter(|entry| entry.kind == "event")
+        .collect()
 }
 
 /// Recursively collect proc/variable/namespace symbol entries from a scope.
@@ -174,8 +233,13 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
         .analyse(&source, dialect.name);
     let line_index = LineIndex::new(&source);
 
-    let mut entries = detect_event_entries(&source, &line_index, dialect);
-    collect_scope_entries(&result.global_scope, 0, &line_index, &mut entries);
+    let entries = if result.allows_lexical_declaration_advice() {
+        let mut entries = Vec::new();
+        collect_scope_entries(&result.global_scope, 0, &line_index, &mut entries);
+        entries
+    } else {
+        original_symbol_entries(&source, &result)
+    };
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -226,13 +290,18 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
 // symbolgraph
 
 /// Render the text form of a serialised scope.
-fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize) {
+fn append_symbolgraph_scope(
+    lines: &mut Vec<String>,
+    scope: &Value,
+    depth: usize,
+    show_procedures: bool,
+) {
     let indent = "  ".repeat(depth);
     let kind = scope.get("kind").and_then(Value::as_str).unwrap_or("?");
     let name = scope.get("name").and_then(Value::as_str).unwrap_or("?");
     lines.push(format!("{indent}{kind} {name}"));
 
-    if let Some(procs) = scope.get("procs").and_then(Value::as_array) {
+    if show_procedures && let Some(procs) = scope.get("procs").and_then(Value::as_array) {
         for proc in procs {
             let params = proc
                 .get("params")
@@ -274,9 +343,24 @@ fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize
 
     if let Some(children) = scope.get("children").and_then(Value::as_array) {
         for child in children {
-            append_symbolgraph_scope(lines, child, depth + 1);
+            append_symbolgraph_scope(lines, child, depth + 1, show_procedures);
         }
     }
+}
+
+/// Retain the CLI's selected profile and pack store before graph projection.
+fn graph_analysis(source: &str, profile: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
+    let registry = registry_for_dialect(profile.name);
+    let context = tcl_registry::model::ingress::context_for_profile(profile);
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context.with_command_store(registry)),
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    );
+    Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name)
 }
 
 /// `tcl symbolgraph` — scope hierarchy with proc/variable references.
@@ -284,7 +368,14 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let data = graphs::symbol_graph(&source, dialect);
+    let analysis = graph_analysis(&source, dialect);
+    let source_input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("the graph's retained source input is unavailable"))?;
+    let context = source_input.context_registry();
+    let data =
+        graphs::symbol_graph_with_source_input(&source, context.commands(), Some(source_input))?;
 
     let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
     let count = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
@@ -303,12 +394,28 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     let mut lines = vec![format!(
         "symbol graph: procs={total_procs} variables={total_variables} namespaces={total_namespaces}"
     )];
+    let original = data
+        .get("declarations")
+        .filter(|declarations| declarations.is_object());
+    if let Some(nodes) = original.and_then(|declarations| declarations["nodes"].as_array()) {
+        lines.push("procedures:".to_owned());
+        for node in nodes {
+            let name = node["name"].as_str().unwrap_or("?");
+            let id = node["id"].as_str().unwrap_or("?");
+            let references = original
+                .and_then(|declarations| declarations["references"].as_array())
+                .and_then(|rows| rows.iter().find(|row| row["id"] == id))
+                .and_then(|row| row["sites"].as_array())
+                .map_or(0, Vec::len);
+            lines.push(format!("  {name} [{id}] [{references} refs]"));
+        }
+    }
     if let Some(scope_list) = data.get("scopes").and_then(Value::as_array)
         && !scope_list.is_empty()
     {
         lines.push("scopes:".to_string());
         for scope in scope_list {
-            append_symbolgraph_scope(&mut lines, scope, 1);
+            append_symbolgraph_scope(&mut lines, scope, 1, original.is_none());
         }
     }
     write_text_output(&target, &lines.join("\n"))?;
@@ -321,8 +428,14 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
-    let data = graphs::call_graph(&source, &registry, dialect);
+    let analysis = graph_analysis(&source, dialect);
+    let source_input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("the graph's retained source input is unavailable"))?;
+    let context = source_input.context_registry();
+    let data =
+        graphs::call_graph_with_source_input(&source, context.commands(), Some(source_input))?;
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -374,12 +487,18 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
                 .get("line")
                 .and_then(Value::as_i64)
                 .map_or_else(String::new, |l| format!(" (line {})", l + 1));
+            let identity_suffix = node
+                .get("id")
+                .and_then(Value::as_str)
+                .map_or_else(String::new, |id| format!(" [{id}]"));
             let pure_suffix = if node.get("pure").and_then(Value::as_bool) == Some(true) {
                 " [pure]"
             } else {
                 ""
             };
-            lines.push(format!("  {name}({params}){line_suffix}{pure_suffix}"));
+            lines.push(format!(
+                "  {name}({params}){line_suffix}{identity_suffix}{pure_suffix}"
+            ));
         }
     }
     if !edges.is_empty() {
@@ -387,7 +506,15 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
         for edge in edges {
             let caller = edge.get("caller").and_then(Value::as_str).unwrap_or("?");
             let callee = edge.get("callee").and_then(Value::as_str).unwrap_or("?");
-            lines.push(format!("  {caller} -> {callee}"));
+            let caller_id = edge
+                .get("caller_id")
+                .and_then(Value::as_str)
+                .map_or_else(String::new, |id| format!(" [{id}]"));
+            let callee_id = edge
+                .get("callee_id")
+                .and_then(Value::as_str)
+                .map_or_else(String::new, |id| format!(" [{id}]"));
+            lines.push(format!("  {caller}{caller_id} -> {callee}{callee_id}"));
         }
     }
     if !roots.is_empty() {
@@ -410,8 +537,14 @@ pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
-    let data = graphs::dataflow_graph(&source, &registry, dialect);
+    let analysis = graph_analysis(&source, dialect);
+    let source_input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("the graph's retained source input is unavailable"))?;
+    let context = source_input.context_registry();
+    let data =
+        graphs::dataflow_graph_with_source_input(&source, context.commands(), Some(source_input))?;
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -457,6 +590,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn graph_analysis_retains_selected_profile_grammar_and_source_projection() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile {
+            grammar: tcl_dialect::LexerGrammar {
+                escapes: tcl_dialect::EscapeSyntax::Tcl84,
+                ..tcl_dialect::DialectProfile::plain_tcl().grammar
+            },
+            ..tcl_dialect::DialectProfile::plain_tcl().clone()
+        }));
+        let source = "proc p {} {}";
+        let analysis = graph_analysis(source, profile);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert!(std::ptr::eq(input.unit_profile(), profile));
+        assert_eq!(
+            input.lexer_config().escapes,
+            tcl_dialect::EscapeSyntax::Tcl84
+        );
+        let context = input.context_registry();
+        let graph = graphs::symbol_graph_with_source_input(source, context.commands(), Some(input))
+            .unwrap();
+        assert_eq!(graph["summary"]["total_procs"].as_u64(), Some(1));
+    }
+
+    #[test]
     fn event_symbols_use_top_level_rooted_normalised_owner() {
         let source = "::when http_request {\n  if {1} { :::when client_data {} }\n}";
         let entries = detect_event_entries(
@@ -469,7 +627,7 @@ mod tests {
                 .iter()
                 .map(|entry| (entry.name.as_str(), entry.line))
                 .collect::<Vec<_>>(),
-            [("HTTP_REQUEST", Some(1))]
+            [("http_request", Some(1))]
         );
     }
 
@@ -488,5 +646,31 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["HTTP_REQUEST"]
         );
+    }
+    #[test]
+    fn original_cli_symbols_preserve_repeated_opaque_headers_and_current_source() {
+        // Implementation contract: naming.consumer.original-cli-source-symbols
+        // docs/design/analysis/name-resolution-proofs/original-cli-source-symbols.md
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}; proc p\uD800 {arg} {}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let rows = original_symbol_entries(source, &analysis);
+        assert_eq!(rows.iter().filter(|row| row.kind == "function").count(), 3);
+        assert_ne!(rows[0].name, rows[1].name);
+        assert_eq!(
+            rows[2].params.as_deref(),
+            Some(["arg".to_owned()].as_slice())
+        );
+        assert!(original_symbol_entries(&format!("# changed\n{source}"), &analysis).is_empty());
+        let hosted = "proc helper {} {}\nproc p\\uD800 {} {}\nwhen HTTP_REQUEST {}";
+        let mut analysis = Analyser::new().analyse(hosted, "f5-irules");
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        analysis.all_defined_symbols.clear();
+        analysis.global_scope.defined_symbols.clear();
+        let rows = original_symbol_entries(hosted, &analysis);
+        assert_eq!(rows.iter().filter(|row| row.kind == "function").count(), 2);
+        assert_eq!(rows.iter().filter(|row| row.kind == "event").count(), 1);
     }
 }

@@ -1,0 +1,44 @@
+[
+  {
+    "provider": "8.4.20",
+    "exit": 0,
+    "stdout": "PACKAGE 0 2.2.11\nWRAPPERS 1 0\nC_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}\n",
+    "stderr": "",
+    "separate_package_query": "version 8.4.20\npackage 0 2.2.11\npackage_ifneeded {source /workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl}\nauto_path {/workspace/tcl-lsp/tmp/tcl8.4.20/library /workspace/tcl-lsp/tmp/tcl8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/lib /workspace/.proofs/native-providers/gcc14-compatibility/8.4.20/install/lib}\n"
+  },
+  {
+    "provider": "8.5.19",
+    "exit": 0,
+    "stdout": "PACKAGE 0 2.3.8\nWRAPPERS 1 0\nC_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}\n",
+    "stderr": "",
+    "separate_package_query": "version 8.5.19\npackage 0 2.3.8\npackage_ifneeded {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}\nauto_path {/workspace/tcl-lsp/tmp/tcl8.5.19/library /workspace/tcl-lsp/tmp/tcl8.5.19 /workspace/tcl-lsp/tmp/tcl8.5.19/lib /workspace/.proofs/native-providers/gcc14-compatibility/8.5.19/install/lib}\n"
+  },
+  {
+    "provider": "8.6.18",
+    "exit": 0,
+    "stdout": "PACKAGE 0 2.5.11\nWRAPPERS 1 0\nC_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}\n",
+    "stderr": "",
+    "separate_package_query": "version 8.6.18\npackage 0 2.5.11\npackage_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl}\nauto_path {/workspace/tcl-lsp/tmp/tcl8.6.18/library /workspace/tcl-lsp/tmp/tcl8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/lib /workspace/.proofs/native-providers/8.6.18/install/lib}\n"
+  },
+  {
+    "provider": "9.0.4",
+    "exit": 0,
+    "stdout": "PACKAGE 0 2.5.11\nWRAPPERS 1 0\nC_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}\n",
+    "stderr": "",
+    "separate_package_query": "version 9.0.4\npackage 0 2.5.11\npackage_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}\nauto_path {/workspace/tcl-lsp/tmp/tcl9.0.4/library /workspace/tcl-lsp/tmp/tcl9.0.4 /workspace/tcl-lsp/tmp/tcl9.0.4/lib /workspace/.proofs/native-providers/9.0.4/install/lib}\n"
+  },
+  {
+    "provider": "9.1.0",
+    "exit": 0,
+    "stdout": "PACKAGE 0 2.6.0\nWRAPPERS 1 0\nC_CALLER qualified 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER imported 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER direct_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_CALLER captured_alias 0 {{setup body OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1} cleanup OPTIMIZER PDATA PAR0 PAR1 {PAR0 PAR1}} PDATA 0 0}\nC_NAMESPACE_CALLER 0 {{setup body READY cleanup READY} READY}\n",
+    "stderr": "",
+    "separate_package_query": "version 9.1.0\npackage 0 2.6.0\npackage_ifneeded {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl}\nauto_path {/workspace/tcl-lsp/tmp/tcl9.1.0/library /workspace/tcl-lsp/tmp/tcl9.1.0 /workspace/tcl-lsp/tmp/tcl9.1.0/lib /workspace/.proofs/native-providers/9.1.0/install/lib}\n"
+  },
+  {
+    "provider": "jim",
+    "exit": 0,
+    "stdout": "PACKAGE 0 1.0\nWRAPPERS 0 1\nGLOBAL_CALLER 0 {{setup body READY cleanup READY} READY}\nGLOBAL_SETUP_ERROR 0 {setup body cleanup}\nC_ALIAS_LIFECYCLE_UNAVAILABLE no-qualified-wrapper\n",
+    "stderr": "",
+    "separate_package_query": "version 0.84-9-g5bac7c9\npackage 0 1.0\n"
+  }
+]

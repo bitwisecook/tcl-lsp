@@ -1,0 +1,299 @@
+{
+  "question": "Original counted TclOO method introspection option selection, scope ordering, and target-before-option failures",
+  "cases": [
+    {
+      "id": "BASE",
+      "options_hex": [],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "ALL",
+      "options_hex": [
+        "2d616c6c"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "ALL_PREFIX",
+      "options_hex": [
+        "2d61"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "LOCALPRIVATE",
+      "options_hex": [
+        "2d6c6f63616c70726976617465"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "PRIVATE",
+      "options_hex": [
+        "2d70726976617465"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "PRIVATE_PREFIX",
+      "options_hex": [
+        "2d70"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "PRIVATE_RAW_ZERO",
+      "options_hex": [
+        "2d7072697661746500ff"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "PRIVATE_ENCODED_ZERO",
+      "options_hex": [
+        "2d70726976617465c080"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "AMBIGUOUS",
+      "options_hex": [
+        "2d"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "BAD_RAW_ZERO",
+      "options_hex": [
+        "2d626164ff005441494c"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_PUBLIC",
+      "options_hex": [
+        "2d73636f7065",
+        "7075626c6963"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_UNEXPORTED",
+      "options_hex": [
+        "2d73636f7065",
+        "756e6578706f72746564"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_PRIVATE",
+      "options_hex": [
+        "2d73636f7065",
+        "70726976617465"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_AMBIGUOUS",
+      "options_hex": [
+        "2d73",
+        "70"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_RAW_ZERO",
+      "options_hex": [
+        "2d73636f70650058",
+        "7075626c696300ff"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_ENCODED_ZERO",
+      "options_hex": [
+        "2d73636f7065",
+        "7075626c6963c080"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_MISSING",
+      "options_hex": [
+        "2d73636f7065"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_BAD",
+      "options_hex": [
+        "2d73636f7065",
+        "2d616c6c"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_LAST",
+      "options_hex": [
+        "2d73636f7065",
+        "7075626c6963",
+        "2d73636f7065",
+        "756e6578706f72746564"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "SCOPE_THEN_ALL",
+      "options_hex": [
+        "2d73636f7065",
+        "756e6578706f72746564",
+        "2d616c6c"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "ALL_THEN_SCOPE",
+      "options_hex": [
+        "2d616c6c",
+        "2d73636f7065",
+        "756e6578706f72746564"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "LOCAL_THEN_PRIVATE",
+      "options_hex": [
+        "2d6c6f63616c70726976617465",
+        "2d70726976617465"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "PRIVATE_THEN_LOCAL",
+      "options_hex": [
+        "2d70726976617465",
+        "2d6c6f63616c70726976617465"
+      ],
+      "target": null,
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "MISSING_BAD",
+      "options_hex": [
+        "2d626164ff005441494c"
+      ],
+      "target": "::missing",
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    },
+    {
+      "id": "MISSING_SCOPE",
+      "options_hex": [
+        "2d73636f7065"
+      ],
+      "target": "::missing",
+      "channels": [
+        "direct original string object vector",
+        "counted source script"
+      ]
+    }
+  ],
+  "limits": [
+    "C8.4/C8.5/Jim OO setup failure means method operation not attempted",
+    "Positive names are ASCII script-method membership, no original method header/cache observations",
+    "Return options are unavailable through this C8.4/Jim probe API"
+  ]
+}

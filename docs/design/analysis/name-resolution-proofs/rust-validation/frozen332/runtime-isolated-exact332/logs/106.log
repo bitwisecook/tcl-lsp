@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_package::original_argument_tests::original_package_selector_refusal_precedes_later_arguments_and_database_effects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 5.17s
+

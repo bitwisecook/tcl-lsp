@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::original_property_reporting_tests::private_property_comparison_rejects_changed_original_declaration_inventory ... 
+thread 'cmd_oo::original_property_reporting_tests::private_property_comparison_rejects_changed_original_declaration_inventory' (1254497) panicked at src/cmd_oo/original_property_reporting_tests.rs:394:9:
+assertion `left == right` failed
+  left: []
+ right: [9]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::original_property_reporting_tests::private_property_comparison_rejects_changed_original_declaration_inventory
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.09s
+

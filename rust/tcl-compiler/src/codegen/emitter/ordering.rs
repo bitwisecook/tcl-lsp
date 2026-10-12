@@ -151,7 +151,7 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
                     }
                 }
             }
-            Terminator::Return { .. } => {}
+            Terminator::Return { .. } | Terminator::Complete { .. } => {}
         }
     }
     order.push(name.to_owned());
@@ -197,7 +197,7 @@ pub(crate) fn collect_loop_body(
                 collect_loop_body(cfg, &true_target, header, result, exit_block);
                 collect_loop_body(cfg, &false_target, header, result, exit_block);
             }
-            Terminator::Return { .. } => {}
+            Terminator::Return { .. } | Terminator::Complete { .. } => {}
         }
     }
 }
@@ -461,6 +461,8 @@ mod tests {
         let mut cfg = CfgFunction::new("::top", "entry_0");
         let entry = cfg.entry;
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -502,6 +504,8 @@ mod tests {
             span: None,
         });
         cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -543,6 +547,8 @@ mod tests {
             span: None,
         });
         cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,

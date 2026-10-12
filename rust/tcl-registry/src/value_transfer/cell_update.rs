@@ -22,7 +22,7 @@
 //!
 //! All three operations have a registry-owned direct route, and each is
 //! the value computation the runtime adapters call — `ValueOps::int_add`,
-//! `var::append_bytes`, `var::lappend_value` — over [`ConstOps`], with the
+//! `var::logical_append_value`, `var::lappend_value` — over [`ConstOps`], with the
 //! lattice write as the compile-time store. The release rules are the
 //! adapter's: the increment's base and step are read under the target's
 //! numeral grammar (`010` is 9 up to 8.6 and 11 from 9.0), an overflow
@@ -240,7 +240,7 @@ impl CellUpdateSemantics {
                 ops.int_add(current.as_ref(), &step)
                     .map_err(|error| ops.decline_value(&error))
             }
-            CellUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(&mut ops, current, &values)),
+            CellUpdate::Append => ops.logical_append(current, &values),
             CellUpdate::ListAppend => tcl_cmd_core::var::lappend_value(&mut ops, current, &values)
                 .map_err(|error| ops.decline(&error)),
         };

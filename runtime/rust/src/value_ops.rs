@@ -35,6 +35,28 @@
 //! and run scripts through the real runtime, while the compiler's registry
 //! data separately drives static byte-array diagnostics.
 
+#[cfg(test)]
+#[path = "value_ops/native_coercion_tests.rs"]
+mod native_coercion_tests;
+#[path = "value_ops/native_concat.rs"]
+mod native_concat;
+#[cfg(test)]
+#[path = "value_ops/native_concat_tests.rs"]
+mod native_concat_tests;
+#[path = "value_ops/native_indexed_append.rs"]
+mod native_indexed_append;
+#[cfg(test)]
+#[path = "value_ops/native_integer_refusal_tests.rs"]
+mod native_integer_refusal_tests;
+#[path = "value_ops/native_jim_index.rs"]
+mod native_jim_index;
+pub(crate) use native_jim_index::list_length_using;
+#[path = "value_ops/native_list_index.rs"]
+pub(crate) mod native_list_index;
+#[cfg(test)]
+#[path = "value_ops/original_name_birth_tests.rs"]
+mod original_name_birth_tests;
+
 use std::rc::Rc;
 
 #[cfg(have_tommath)]
@@ -42,35 +64,21 @@ use tcl_syntax::number::Radix;
 use tcl_syntax::number::{self, Number};
 #[cfg(have_tommath)]
 use tcl_syntax::value::IntegerMagnitude;
-use tcl_syntax::value::{string_char_len, ValueError, ValueOps};
+use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::interp::{obj_bytes, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
-/// Decode raw object bytes as the Unicode string view `tcl-cmd-core`'s shared
-/// command logic operates on.
-///
-/// `binary format` and the binary decoders now create a typed byte-array object
-/// whose lazy string representation is valid UTF-8, so ordinary calls take the
-/// first branch. The fallback is retained for arbitrary non-UTF-8 strings an
-/// embedding passes through the C ABI: byte `b` becomes U+00XX, exactly like a
-/// byte-array's string shimmer, rather than being replaced by U+FFFD.
-fn bytes_to_str(bytes: &[u8]) -> Rc<str> {
-    match core::str::from_utf8(bytes) {
-        Ok(s) => Rc::from(s),
-        Err(_) => Rc::from(
-            bytes
-                .iter()
-                .copied()
-                .map(char::from)
-                .collect::<String>()
-                .as_str(),
-        ),
-    }
+#[cfg(have_tommath)]
+fn index_expression_error(source: &str, error: &crate::expr_error::ExprError) -> ValueError {
+    error.native_access_refusal.map_or_else(
+        || ValueError::NotInteger(source.to_owned()),
+        ValueError::from,
+    )
 }
 
-/// The inverse of [`bytes_to_str`]: encode a `tcl-cmd-core` string result back
+/// Encode a checked `tcl-cmd-core` string result back
 /// to a Tcl string representation for [`ValueOps::new_str`]/[`ValueOps::new_string`].
 ///
 /// Binary conversion is deliberately not performed here. The result remains a
@@ -81,8 +89,1462 @@ fn str_to_bytes(s: &str) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
-impl ValueOps for Interp {
+/// Opaque original-object transport for the shared append and regsub contracts.
+/// Object acquisition and pointer access remain internal to Runtime adapters.
+pub struct RuntimeAppendValue {
+    pointer: *mut TclObj,
+    retained: bool,
+}
+
+impl RuntimeAppendValue {
+    pub(crate) fn borrowed(pointer: *mut TclObj) -> Self {
+        Self {
+            pointer,
+            retained: false,
+        }
+    }
+    pub(crate) fn fresh_string(bytes: &[u8]) -> Self {
+        Self::retain(crate::interp::new_string(bytes))
+    }
+    /// Borrow pointer geometry without retaining or converting the original.
+    pub(crate) fn pointer(&self) -> &*mut TclObj {
+        &self.pointer
+    }
+    pub(crate) fn as_ptr(&self) -> *mut TclObj {
+        self.pointer
+    }
+    /// Move this working reference into the normal unowned result transport.
+    /// The next actual receiver retains it; no owning reference is leaked or
+    /// dropped while a fresh native refcount-zero result is in transit.
+    fn into_native_unowned(mut self) -> *mut TclObj {
+        if !self.retained {
+            return self.pointer;
+        }
+        self.retained = false;
+        // SAFETY: this handle transfers its one independently owned +1.
+        unsafe { obj::Owned::from_raw(self.pointer) }.into_native_unowned()
+    }
+
+    pub(crate) fn retain(pointer: *mut TclObj) -> Self {
+        // SAFETY: each retained working object owns one actual native reference.
+        unsafe { obj::incr_ref_count(pointer) };
+        Self {
+            pointer,
+            retained: true,
+        }
+    }
+}
+impl Clone for RuntimeAppendValue {
+    fn clone(&self) -> Self {
+        Self::retain(self.pointer)
+    }
+}
+impl Drop for RuntimeAppendValue {
+    fn drop(&mut self) {
+        if self.retained {
+            // SAFETY: balances the working object's original owning reference.
+            unsafe { obj::decr_ref_count(self.pointer) };
+        }
+    }
+}
+
+/// A ValueOps coercion retains its original interpreter and allocation without
+/// adding a native reference. Its currency grants no getter or numeric purpose.
+struct ValueCoercion {
+    original: obj::NativeObjectLifetime,
+    scope: crate::interp::native_operation_currency::NativeOperationScope,
+    interpreter: Interp,
+}
+
+impl ValueCoercion {
+    fn execution_error(
+        interpreter: &Interp,
+        first: tcl_runtime_api::NativeExecutionError,
+    ) -> ValueError {
+        let value_error = match &first {
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => {
+                cause.clone().into()
+            }
+            // ValueOps has a value-domain error type. The actual interpreter
+            // retains the full first execution cause for its command/ABI owner.
+            _ => ValueError::ScalarNumericInputUnavailable,
+        };
+        interpreter.clone().refuse_native_execution(first);
+        value_error
+    }
+
+    fn value_error(interpreter: &Interp, error: ValueError) -> ValueError {
+        if let Some(cause) = error.native_access_refusal() {
+            interpreter.clone().refuse_native_access(cause);
+        }
+        error
+    }
+
+    fn enter(interpreter: &Interp, original: *mut TclObj) -> Result<Self, ValueError> {
+        let interpreter = interpreter.clone();
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&interpreter)
+                .map_err(|first| Self::execution_error(&interpreter, first))?;
+        obj::check_native_liveness(original)
+            .map_err(|error| Self::value_error(&interpreter, error))?;
+        Ok(Self {
+            original: obj::NativeObjectLifetime::retain(original),
+            scope,
+            interpreter,
+        })
+    }
+
+    fn check(&self) -> Result<(), ValueError> {
+        self.scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| Self::execution_error(&self.interpreter, first))?;
+        obj::check_native_liveness(self.original.as_ptr())
+            .map_err(|error| Self::value_error(&self.interpreter, error))
+    }
+
+    fn after<T>(&self, result: Result<T, ValueError>) -> Result<T, ValueError> {
+        self.check()?;
+        result.map_err(|error| Self::value_error(&self.interpreter, error))
+    }
+
+    fn scalar(
+        &self,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, ValueError> {
+        self.check()?;
+        let result = crate::capi::read_scalar_for_interpreter(
+            &self.interpreter,
+            self.original.as_ptr(),
+            kind,
+        );
+        self.check()?;
+        result.map_err(|error| match error {
+            crate::capi::ScalarReadError::Guest(error) => error,
+            crate::capi::ScalarReadError::Access(
+                crate::capi::NativeScalarObjectAccessError::Value(error),
+            ) => Self::value_error(&self.interpreter, error),
+            crate::capi::ScalarReadError::Access(
+                crate::capi::NativeScalarObjectAccessError::Execution(first),
+            ) => Self::execution_error(&self.interpreter, first),
+        })
+    }
+
+    fn integer_number(&self) -> Result<Option<Number>, ValueError> {
+        self.check()?;
+        let associated = self
+            .interpreter
+            .associate_native_jim_arguments(&[self.original.as_ptr()]);
+        self.after(associated)?;
+        let result = crate::typed_value::scalar_number_with_currency(
+            self.original.as_ptr(),
+            self.interpreter.native_invocation_dialect(),
+            true,
+            Some(self.scope.currency()),
+        );
+        self.check()?;
+        result.map_err(|first| Self::execution_error(&self.interpreter, first))
+    }
+
+    fn original_string(&self) -> Result<Vec<u8>, ValueError> {
+        self.check()?;
+        self.after(
+            self.interpreter
+                .native_object_string_bytes(self.original.as_ptr()),
+        )
+        .map(|bytes| bytes.to_vec())
+    }
+}
+
+/// Original entered increment currency and actual numeric Host, without
+/// borrowing the interpreter across a getter, COW callback or cache retirement.
+struct IncrementContext {
+    currency: crate::interp::native_operation_currency::NativeOperationCurrency,
+    host: Rc<dyn tcl_platform::Host>,
+    abi: std::cell::Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+    original: Option<Rc<RuntimeDictionaryChecks>>,
+}
+impl IncrementContext {
+    fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        Ok(Self {
+            currency: crate::interp::native_operation_currency::NativeOperationCurrency::issue(
+                interp,
+            )
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?,
+            host: interp.host(),
+            abi: std::cell::Cell::new(None),
+            original: None,
+        })
+    }
+    fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        self.currency
+            .ensure_current_or_refuse()
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        self.original
+            .as_ref()
+            .map_or(Ok(()), |original| original.check())
+    }
+    fn retain(&self, error: tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError {
+        match &self.original {
+            Some(original) => (original.retain)(error),
+            None => error,
+        }
+    }
+    fn refuse(&self, error: ValueError) -> tcl_cmd_core::CmdError {
+        match &self.original {
+            Some(original) => self.retain((original.refuse)(error)),
+            None => error.into(),
+        }
+    }
+    fn stage(&self, value: *mut TclObj) -> Result<(), ValueError> {
+        self.check()
+            .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+        crate::typed_value::scalar_object_stage_current(value, Some(&self.currency))
+    }
+    fn after<T>(&self, result: Result<T, ValueError>) -> Result<T, tcl_cmd_core::CmdError> {
+        let result = result.map_err(|error| self.refuse(error));
+        self.check()?;
+        result
+    }
+    fn prepare(
+        &self,
+        original: Option<&RuntimeAppendValue>,
+    ) -> Result<RuntimeAppendValue, tcl_cmd_core::CmdError> {
+        self.check()?;
+        if let Some(value) = original {
+            obj::check_native_liveness(value.as_ptr())?;
+        }
+        let prepared = RuntimeAppendValue::retain(match original {
+            Some(value) if obj::is_shared(value.as_ptr()) => {
+                if self.original.is_some() {
+                    obj::duplicate_with_stage_check(
+                        value.as_ptr(),
+                        &mut || {
+                            self.check()?;
+                            obj::check_native_liveness(value.as_ptr())
+                                .map_err(|error| self.refuse(error))
+                        },
+                        &mut |error| {
+                            self.retain(error.clone());
+                        },
+                    )?
+                } else {
+                    obj::duplicate(value.as_ptr())
+                }
+            }
+            Some(value) => value.as_ptr(),
+            None => obj::new_wide_int_obj(0),
+        });
+        self.check()?;
+        Ok(prepared)
+    }
+    fn scalar(
+        &self,
+        value: *mut TclObj,
+        dialect: tcl_registry::InvocationDialect,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_cmd_core::CmdError> {
+        self.check()?;
+        let environment = self.host.numeric_environment().map(|actual| {
+            crate::interp::native_operation_currency::CheckedNumericEnvironment::new(
+                actual,
+                Some(&self.currency),
+                &self.abi,
+            )
+        });
+        if environment.is_none() {
+            let protocol = dialect
+                .native_scalar_getter_protocol()
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            if protocol.is_jim084() || protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4)
+            {
+                // Cache eligibility is a pure selected recipe query. A real
+                // cached purpose needs no fresh Host conversion; a missing
+                // fresh legacy environment cannot become a neutral parser.
+                let cache = self.after(obj::native_scalar_cache(value))?;
+                let cached = cache
+                    .as_ref()
+                    .and_then(|cache| protocol.cached_conversion(kind, cache, None).ok().flatten());
+                if cached.is_none() {
+                    return Err(ValueError::ScalarNumericInputUnavailable.into());
+                }
+            }
+        }
+        let stage = || self.stage(value);
+        let outcome = crate::typed_value::native_scalar_probe_with_stage_check(
+            value,
+            dialect,
+            kind,
+            environment
+                .as_ref()
+                .map(|environment| environment as &dyn tcl_platform::NumericEnvironment),
+            Some(&self.currency),
+            self.original
+                .as_ref()
+                .map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
+        );
+        match self.after(outcome)? {
+            Ok(value) => Ok(value),
+            Err(failure) => {
+                let presentation =
+                    crate::typed_value::native_scalar_failure_presentation_with_stage_check(
+                        value,
+                        dialect,
+                        kind,
+                        failure,
+                        Some(&self.currency),
+                        self.original
+                            .as_ref()
+                            .map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
+                    );
+                let presentation = self.after(presentation)?;
+                Err(ValueError::NativeScalarGetter(Box::new(presentation)).into())
+            }
+        }
+    }
+    fn store(
+        &self,
+        value: *mut TclObj,
+        cache: tcl_syntax::scalar_getter::NativeScalarCache,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check()?;
+        let protocol = dialect
+            .native_scalar_getter_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let mut check = || {
+            crate::typed_value::scalar_object_stage_current(value, Some(&self.currency))?;
+            if self.original.is_some() {
+                self.stage(value)?;
+            }
+            Ok(())
+        };
+        let stored =
+            obj::adopt_native_scalar_cache_with_stage_check(value, cache, protocol, &mut check);
+        self.after(stored)?;
+        obj::invalidate_string(value);
+        self.check()
+    }
+}
+
+/// Actual C8.4/Jim original-object increment, with native probe/COW order.
+pub(crate) struct RuntimeLegacyIncrementObjects {
+    dialect: tcl_registry::InvocationDialect,
+    recipe: tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe,
+    jim_context: Option<Rc<crate::native_source::NativeJimObjectContext>>,
+    context: IncrementContext,
+}
+impl RuntimeLegacyIncrementObjects {
+    pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        let context = IncrementContext::selected(interp)?;
+        let dialect = interp.native_invocation_dialect();
+        let recipe = dialect
+            .native_legacy_increment_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native legacy increment",
+            ))?
+            .recipe();
+        let jim_context = if dialect.native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            Some(interp.native_jim_object_context()?)
+        } else {
+            None
+        };
+        context.check()?;
+        Ok(Self {
+            dialect,
+            recipe,
+            context,
+            jim_context,
+        })
+    }
+}
+impl tcl_cmd_core::native_increment::LegacyIncrementObjects for RuntimeLegacyIncrementObjects {
+    type Value = RuntimeAppendValue;
+    type Prepared = RuntimeAppendValue;
+    fn recipe(&self) -> tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe {
+        self.recipe
+    }
+    fn cache(
+        &self,
+        value: &Self::Value,
+    ) -> Result<Option<tcl_syntax::scalar_getter::NativeScalarCache>, tcl_cmd_core::CmdError> {
+        self.context.check()?;
+        self.context.after(obj::native_scalar_cache(value.as_ptr()))
+    }
+    fn wide(&self, value: &Self::Value) -> Result<i64, tcl_cmd_core::CmdError> {
+        self.context.check()?;
+        if let Some(context) = &self.jim_context {
+            self.context
+                .after(crate::native_source::bind_context(value.as_ptr(), context))?;
+        }
+        match self.context.scalar(
+            value.as_ptr(),
+            self.dialect,
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+        )? {
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),
+            _ => Err(ValueError::ScalarNumericInputUnavailable.into()),
+        }
+    }
+    fn prepare(
+        &self,
+        original: Option<&Self::Value>,
+    ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        self.context.prepare(original)
+    }
+    fn current<'a>(&self, prepared: &'a Self::Prepared) -> &'a Self::Value {
+        prepared
+    }
+    fn store(
+        &self,
+        prepared: &mut Self::Prepared,
+        cache: tcl_syntax::scalar_getter::NativeScalarCache,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.context.check()?;
+        let valid = match self.recipe {
+            tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe::Tcl84 => matches!(
+                cache,
+                tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(_)
+                    | tcl_syntax::scalar_getter::NativeScalarCache::Number(Number::Int(_))
+            ),
+            tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe::Jim084 => matches!(
+                cache,
+                tcl_syntax::scalar_getter::NativeScalarCache::Number(Number::Int(_))
+            ),
+        };
+        if !valid {
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
+        }
+        self.context.store(prepared.as_ptr(), cache, self.dialect)
+    }
+    fn finish(&self, prepared: Self::Prepared) -> Self::Value {
+        prepared
+    }
+}
+
+pub(crate) struct RuntimeLegacyIncrementAmountOps<'a>(pub(crate) &'a mut Interp);
+impl tcl_cmd_core::native_increment::LegacyIncrementAmountOps
+    for RuntimeLegacyIncrementAmountOps<'_>
+{
     type Value = *mut TclObj;
+    fn c84_long(&mut self, original: &Self::Value) -> Result<i64, tcl_cmd_core::CmdError> {
+        let context = IncrementContext::selected(self.0)?;
+        match context.scalar(
+            *original,
+            self.0.native_invocation_dialect(),
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Long,
+        )? {
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),
+            _ => Err(ValueError::ScalarNumericInputUnavailable.into()),
+        }
+    }
+    fn jim_wide_expression(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<i64, tcl_cmd_core::CmdError> {
+        let context = IncrementContext::selected(self.0)?;
+        let result = crate::builtins::native_jim_wide_expression(self.0, *original);
+        context.check()?;
+        result
+    }
+}
+
+/// Selected modern C integer update operations on original physical objects.
+pub(crate) struct RuntimeIncrementObjects {
+    dialect: tcl_registry::InvocationDialect,
+    context: IncrementContext,
+}
+impl RuntimeIncrementObjects {
+    pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        let context = IncrementContext::selected(interp)?;
+        let dialect = interp.native_invocation_dialect();
+        dialect
+            .native_scalar_getter_protocol()
+            .filter(|protocol| protocol.supports_number_getter())
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        Ok(Self { dialect, context })
+    }
+}
+impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrementObjects {
+    type Value = RuntimeAppendValue;
+    type Prepared = RuntimeAppendValue;
+    fn prepare(
+        &self,
+        original: Option<&Self::Value>,
+    ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        self.context.prepare(original)
+    }
+    fn retain_increment_failure(&self, first: &tcl_cmd_core::CmdError) {
+        self.context.retain(first.clone());
+    }
+    fn current<'a>(&self, prepared: &'a Self::Prepared) -> &'a Self::Value {
+        prepared
+    }
+    fn probe(
+        &self,
+        value: &Self::Value,
+        kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+    ) -> Result<
+        Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
+        tcl_cmd_core::CmdError,
+    > {
+        self.context.check()?;
+        let stage = || self.context.stage(value.as_ptr());
+        self.context
+            .after(crate::typed_value::native_number_probe_with_stage_check(
+                value.as_ptr(),
+                self.dialect,
+                kind,
+                Some(&self.context.currency),
+                self.context
+                    .original
+                    .as_ref()
+                    .map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
+            ))
+    }
+    fn integer_failure(
+        &self,
+        value: &Self::Value,
+        kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+    ) -> Result<tcl_cmd_core::CmdError, tcl_cmd_core::CmdError> {
+        let getter = if kind == tcl_syntax::scalar_getter::NativeNumberGetterKind::Bignum {
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide
+        } else {
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Int
+        };
+        match self.context.scalar(value.as_ptr(), self.dialect, getter) {
+            Err(error) => Ok(error),
+            Ok(_) => Err(ValueError::CommandProtocolUnavailable(
+                "native increment integer failure stage",
+            )
+            .into()),
+        }
+    }
+    fn add(&self, current: Number, amount: Number) -> Result<Number, tcl_cmd_core::CmdError> {
+        self.context.check()?;
+        let result = tcl_cmd_core::native_increment::add_integer_numbers(
+            current,
+            amount,
+            |current, amount| {
+                #[cfg(have_tommath)]
+                {
+                    let current = obj::Owned::fresh(integer_object(current));
+                    let amount = obj::Owned::fresh(integer_object(amount));
+                    let result = crate::bignum::add(current.as_ptr(), amount.as_ptr())
+                        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+                    let result = obj::Owned::fresh(result);
+                    match obj::native_scalar_cache(result.as_ptr())? {
+                        Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) => {
+                            Ok(number)
+                        }
+                        _ => Err(ValueError::ScalarNumericInputUnavailable.into()),
+                    }
+                }
+                #[cfg(not(have_tommath))]
+                Err(ValueError::ScalarNumericInputUnavailable.into())
+            },
+        );
+        self.context.check()?;
+        result
+    }
+    fn store(
+        &self,
+        prepared: &mut Self::Prepared,
+        sum: Number,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.context.store(
+            prepared.as_ptr(),
+            tcl_syntax::scalar_getter::NativeScalarCache::Number(sum),
+            self.dialect,
+        )
+    }
+    fn finish(&self, prepared: Self::Prepared) -> Self::Value {
+        prepared
+    }
+}
+
+/// Physical dictionary operations over borrowed original native objects.
+pub(crate) struct RuntimeDictionaryObjects {
+    pub(crate) protocol: tcl_syntax::native_string::NativeStringProtocol,
+    names: tcl_syntax::naming::NamePolicyProtocol,
+    preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+    original: Option<std::rc::Rc<RuntimeDictionaryChecks>>,
+}
+struct RuntimeDictionaryChecks {
+    current: Box<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+    string: Box<
+        dyn Fn(
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+    >,
+    parents: std::cell::RefCell<Vec<crate::dict::PreparedDictionaryObserver>>,
+    refuse: Box<dyn Fn(ValueError) -> tcl_cmd_core::CmdError>,
+    retain: Box<dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError>,
+}
+impl RuntimeDictionaryChecks {
+    fn new(
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
+        string: impl Fn(
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
+        refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+        retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
+    ) -> std::rc::Rc<Self> {
+        std::rc::Rc::new(Self {
+            current: Box::new(current),
+            string: Box::new(string),
+            refuse: Box::new(refuse),
+            retain: Box::new(retain),
+            parents: std::cell::RefCell::new(Vec::new()),
+        })
+    }
+
+    fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        (self.current)()?;
+        for parent in self.parents.borrow().iter() {
+            parent.check().map_err(|error| (self.refuse)(error))?;
+        }
+        Ok(())
+    }
+    fn bytes(&self, original: *mut TclObj) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.bytes_using(original, &|| Ok(()))
+    }
+    fn bytes_using(
+        &self,
+        original: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        (self.string)(original, &|| {
+            self.check()?;
+            extra()
+        })
+    }
+}
+impl RuntimeAppendObjects {
+    /// The actual append caller supplies its original receiver/frame checks;
+    /// this uses the existing shared String/current/error owner without issuing
+    /// a dictionary, variable, operation or Native reference role.
+    pub(crate) fn with_original_checks(
+        self,
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
+        string: impl Fn(
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
+        refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+        retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
+    ) -> OriginalRuntimeAppendObjects {
+        OriginalRuntimeAppendObjects::new(
+            self,
+            RuntimeDictionaryChecks::new(current, string, refuse, retain),
+        )
+    }
+}
+impl RuntimeDictionaryObjects {
+    pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        let protocol = interp.native_invocation_dialect().native_string_materialization(
+            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+        ).ok_or(ValueError::CommandProtocolUnavailable("native dictionary object protocol"))?.protocol();
+        let names = interp
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native dictionary diagnostic protocol",
+            ))?;
+        Ok(Self {
+            protocol,
+            names,
+            preparation:
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion,
+            original: None,
+        })
+    }
+    /// The caller's actual entered operation/receiver and original String
+    /// projection. This adds no owning Native role or conversion purpose.
+    pub(crate) fn with_original_checks(
+        mut self,
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
+        string: impl Fn(
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
+        refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+        retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
+    ) -> Self {
+        self.original = Some(RuntimeDictionaryChecks::new(
+            current, string, refuse, retain,
+        ));
+        self
+    }
+    pub(crate) fn original_check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        self.original
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Dictionary/Return owner",
+            ))?
+            .check()
+    }
+    pub(crate) fn original_refuse(&self, error: ValueError) -> tcl_cmd_core::CmdError {
+        match self.original.as_ref() {
+            Some(owner) => (owner.refuse)(error),
+            None => error.into(),
+        }
+    }
+    pub(crate) fn original_bytes(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.original
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Dictionary/Return owner",
+            ))?
+            .bytes(value)
+    }
+    /// The same original String worker, with an independently captured
+    /// return-options/private-field backing check inside reached callbacks.
+    pub(crate) fn original_bytes_using(
+        &self,
+        value: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.original
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Dictionary/Return owner",
+            ))?
+            .bytes_using(value, extra)
+    }
+    pub(crate) fn original_retain(&self, error: tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError {
+        match self.original.as_ref() {
+            Some(owner) => (owner.retain)(error),
+            None => error,
+        }
+    }
+    pub(crate) fn original_list(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<Vec<*mut TclObj>, tcl_cmd_core::CmdError> {
+        crate::list::list_elements_native_using(
+            value,
+            self.protocol,
+            &|| self.original_check(),
+            &|error| self.original_refuse(error),
+        )
+    }
+    pub(crate) fn original_pairs(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<Vec<(*mut TclObj, *mut TclObj)>, tcl_cmd_core::CmdError> {
+        crate::dict::native_dict_pairs_using(
+            value,
+            self.protocol,
+            &|| self.original_check(),
+            &|error| self.original_refuse(error),
+        )
+    }
+    /// Reuse this genuine original dictionary/frame/check owner for the same
+    /// physical append/Cat backend. No scope or Native role is manufactured.
+    pub(crate) fn original_append_objects(
+        &self,
+        base: RuntimeAppendObjects,
+    ) -> Result<OriginalRuntimeAppendObjects, tcl_cmd_core::CmdError> {
+        self.original_check()?;
+        Ok(OriginalRuntimeAppendObjects::new(
+            base,
+            self.original
+                .as_ref()
+                .expect("checked original dictionary owner")
+                .clone(),
+        ))
+    }
+    pub(crate) fn original_increment_objects(
+        &self,
+        actual: &Interp,
+    ) -> Result<RuntimeIncrementObjects, tcl_cmd_core::CmdError> {
+        self.original_check()?;
+        let mut increment = RuntimeIncrementObjects::selected(actual)?;
+        increment.context.original = Some(
+            self.original
+                .as_ref()
+                .expect("checked original dictionary owner")
+                .clone(),
+        );
+        increment.context.check()?;
+        Ok(increment)
+    }
+    pub(crate) fn with_preparation(
+        mut self,
+        preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+    ) -> Self {
+        self.preparation = preparation;
+        self
+    }
+}
+impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDictionaryObjects {
+    type Value = RuntimeAppendValue;
+    type Prepared = crate::dict::PreparedNativeDictionary;
+    fn prepare(
+        &self,
+        original: Option<&Self::Value>,
+    ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        use tcl_cmd_core::native_dictionary::NativeDictionaryPreparation as Preparation;
+        let original = original.map(RuntimeAppendValue::as_ptr);
+        if let Some(checked) = &self.original {
+            return Self::Prepared::prepare_selected_using(
+                original,
+                self.protocol,
+                self.preparation,
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+            );
+        }
+        match self.preparation {
+            Preparation::CopyBeforeConversion => Self::Prepared::prepare(original, self.protocol),
+            Preparation::ConvertBeforeCopy => {
+                Self::Prepared::prepare_after_conversion(original, self.protocol)
+            }
+            Preparation::IncrementCommand => {
+                Self::Prepared::prepare_for_increment(original, self.protocol)
+            }
+        }
+        .map_err(Into::into)
+    }
+    fn prepare_child(
+        &self,
+        original: Option<&Self::Value>,
+    ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            return Self::Prepared::prepare_selected_using(
+                original.map(RuntimeAppendValue::as_ptr),
+                self.protocol,
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+            );
+        }
+        crate::dict::PreparedNativeDictionary::prepare_after_conversion(
+            original.map(RuntimeAppendValue::as_ptr),
+            self.protocol,
+        )
+        .map_err(Into::into)
+    }
+    fn with_member<R>(
+        &self,
+        dictionary: &Self::Prepared,
+        key: &Self::Value,
+        operation: impl FnOnce(Option<&Self::Value>) -> Result<R, tcl_cmd_core::CmdError>,
+    ) -> Result<R, tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            let observer = dictionary
+                .observe_prepared()
+                .map_err(|error| (checked.refuse)(error))?;
+            checked.parents.borrow_mut().push(observer);
+            let reached = dictionary.with_member_using(
+                key.as_ptr(),
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+                &|value, current| checked.bytes_using(value, current),
+                |member| {
+                    let member = member.map(RuntimeAppendValue::borrowed);
+                    operation(member.as_ref())
+                },
+            );
+            // Extract the nonowning guard before releasing it. No callback
+            // occurs under the parent-observation RefCell borrow.
+            let observer = checked.parents.borrow_mut().pop();
+            drop(observer);
+            checked.check()?;
+            return reached;
+        }
+        dictionary.with_member(key.as_ptr(), |member| {
+            let member = member.map(RuntimeAppendValue::borrowed);
+            operation(member.as_ref())
+        })?
+    }
+    fn set_member(
+        &self,
+        dictionary: &mut Self::Prepared,
+        key: &Self::Value,
+        value: Self::Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            let reached = dictionary.set_member_using(
+                key.as_ptr(),
+                value.as_ptr(),
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+                &|original, current| checked.bytes_using(original, current),
+            );
+            drop(value);
+            checked.check()?;
+            return reached;
+        }
+        dictionary
+            .set_member(key.as_ptr(), value.as_ptr())
+            .map_err(Into::into)
+    }
+    fn remove_member(
+        &self,
+        dictionary: &mut Self::Prepared,
+        key: &Self::Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            return dictionary
+                .remove_member_using(
+                    key.as_ptr(),
+                    &|| checked.check(),
+                    &|error| (checked.refuse)(error),
+                    &|original, current| checked.bytes_using(original, current),
+                )
+                .map(|_| ());
+        }
+        dictionary
+            .remove_member(key.as_ptr())
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+    fn missing_key(&self, key: &Self::Value) -> tcl_cmd_core::CmdError {
+        let bytes = if let Some(checked) = &self.original {
+            checked
+                .check()
+                .and_then(|()| checked.bytes(key.as_ptr()))
+                .map(|bytes| bytes.to_vec())
+        } else {
+            crate::dict::native_object_bytes(key.as_ptr(), self.protocol).map_err(Into::into)
+        };
+        let original = match bytes {
+            Ok(bytes) => bytes,
+            Err(first) => return first,
+        };
+        match tcl_syntax::naming::report_native_dictionary_missing_key(
+            self.names.recipe(),
+            tcl_syntax::naming::NativeDictionaryMissingKeyOperation::UnsetIntermediate,
+            &original,
+        ) {
+            Ok(report) => match report.error_code {
+                Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
+                None => tcl_cmd_core::CmdError::new_bytes(report.message),
+            },
+            Err(_) => {
+                ValueError::CommandProtocolUnavailable("native dictionary missing-key diagnostic")
+                    .into()
+            }
+        }
+    }
+    fn finish(&self, dictionary: Self::Prepared) -> Self::Value {
+        let owned = dictionary.into_value();
+        RuntimeAppendValue::retain(owned.as_ptr())
+    }
+}
+
+#[path = "value_ops/original_append.rs"]
+mod original_append;
+pub(crate) use original_append::OriginalRuntimeAppendObjects;
+
+/// Physical append adapter with independently retained issuer and binary updater capability.
+pub(crate) struct RuntimeAppendObjects {
+    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) binary_recipe:
+        Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe>,
+}
+
+impl tcl_cmd_core::native_append::NativeAppendObjects for RuntimeAppendObjects {
+    type Value = RuntimeAppendValue;
+    fn snapshot(
+        &self,
+        value: &Self::Value,
+    ) -> Result<tcl_syntax::native_object::NativeObjectSnapshot, ValueError> {
+        obj::native_object_snapshot(value.as_ptr())
+    }
+    fn prepare_receiver(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Self::Value {
+        RuntimeAppendValue::retain(if obj::is_shared(value.as_ptr()) {
+            let duplicate = obj::duplicate(value.as_ptr());
+            crate::list::duplicate_native_backing(value.as_ptr(), duplicate, protocol);
+            duplicate
+        } else {
+            value.as_ptr()
+        })
+    }
+    fn duplicate_into(&self, receiver: &Self::Value, source: &Self::Value) {
+        obj::duplicate_into(receiver.as_ptr(), source.as_ptr());
+    }
+    fn string(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        if !obj::native_string_available(value.as_ptr()) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native append string updater",
+            ));
+        }
+        if !obj::has_string_rep(value.as_ptr())
+            && obj::obj_type_ptr(value.as_ptr()) == &crate::bytearray::TCL_BYTE_ARRAY_TYPE
+        {
+            let recipe = self
+                .binary_recipe
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native append binary string recipe",
+                ))?;
+            if recipe.protocol() != protocol {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "native append binary recipe origin",
+                ));
+            }
+        }
+        Ok(Rc::from(obj::bytes_of(value.as_ptr())))
+    }
+    fn unicode(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u32]>, ValueError> {
+        obj::native_unicode_units(value.as_ptr(), protocol)
+    }
+    fn decode_unicode_source(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        bytes: &[u8],
+    ) -> Result<Rc<[u32]>, ValueError> {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original append C Unicode source units",
+            ))?;
+        Ok(Rc::from(
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).decode_storage_units(
+                bytes,
+                tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+            ),
+        ))
+    }
+    fn set_string(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        resident: Option<(
+            Rc<[u8]>,
+            tcl_syntax::native_string::NativeStringStorageIdentity,
+        )>,
+        count: Option<usize>,
+        unicode: Option<Rc<[u32]>>,
+    ) -> Result<(), ValueError> {
+        if resident.is_none() && self.dialect.native_string_protocol() == Some(protocol) {
+            if let Some(unicode) = &unicode {
+                let fresh = obj::Owned::fresh(obj::new_native_unicode_obj(
+                    Rc::clone(unicode),
+                    self.dialect,
+                )?);
+                obj::duplicate_into(value.as_ptr(), fresh.as_ptr());
+                return Ok(());
+            }
+        }
+        obj::set_native_append_string(value.as_ptr(), protocol, resident, count, unicode)
+    }
+    fn set_binary(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        bytes: Rc<[u8]>,
+    ) -> Result<(), ValueError> {
+        let recipe = self
+            .binary_recipe
+            .filter(|recipe| recipe.protocol() == protocol)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native append binary updater recipe",
+            ))?;
+        crate::bytearray::set_native_append_bytes(value.as_ptr(), &bytes, recipe);
+        Ok(())
+    }
+    fn new_string(&self, bytes: Rc<[u8]>) -> Self::Value {
+        RuntimeAppendValue::retain(crate::interp::new_string(&bytes))
+    }
+}
+
+impl tcl_cmd_core::native_cat::NativeCatObjects for RuntimeAppendObjects {
+    fn empty_binary(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "C compiled concat binary getter",
+            ))?;
+        let recipe = self
+            .binary_recipe
+            .filter(|recipe| recipe.protocol() == protocol)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native compiled concat binary issuer",
+            ))?;
+        crate::bytearray::native_binary_bytes(
+            value.as_ptr(),
+            tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+                version.string_character_model(),
+            ),
+            true,
+            recipe,
+        )
+        .map(Rc::from)
+        .map_err(|_| {
+            ValueError::CommandProtocolUnavailable("native compiled concat empty binary conversion")
+        })
+    }
+    fn is_shared(&self, value: &Self::Value) -> bool {
+        obj::is_shared(value.as_ptr())
+    }
+    fn set_plain_string(&self, value: &Self::Value, bytes: Rc<[u8]>) -> Result<(), ValueError> {
+        unsafe {
+            obj::set_string_rep(value.as_ptr(), &bytes);
+        }
+        obj::discard_native_internal_representation(value.as_ptr())
+    }
+}
+
+impl Interp {
+    /// Materialise the same original through the selected physical updater.
+    /// The returned byte owner supplies no variable/cache receiver authority.
+    pub(crate) fn native_object_string_bytes(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        self.native_object_string_bytes_with_stage(value, None)
+    }
+
+    pub(crate) fn native_object_string_bytes_using<E>(
+        &self,
+        value: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<Rc<[u8]>, E> {
+        crate::list::with_native_conversion_check(check, refuse, |stage, _retain| {
+            self.native_object_string_bytes_with_stage(value, Some(stage))
+        })
+    }
+
+    fn native_object_string_bytes_with_stage(
+        &self,
+        value: *mut TclObj,
+        check: Option<&dyn Fn() -> Result<(), ValueError>>,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        if let Some(check) = check {
+            check()?;
+        }
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
+        obj::check_native_liveness(value)?;
+        obj::native_frame_level_cache_in(value, self.native_invocation_dialect())?;
+        if obj::native_instruction_name::cache(value).is_some_and(|name| {
+            self.native_invocation_dialect().native_string_protocol()
+                != Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                    name.version(),
+                ))
+        }) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "foreign instruction-name primary",
+            ));
+        }
+        if obj::native_jim_enum::cache(value).is_some()
+            && self
+                .native_invocation_dialect()
+                .native_jim_enum_protocol()
+                .is_none()
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "foreign Jim option origin",
+            ));
+        }
+        if obj::native_property_name::is_cached(value)
+            && self
+                .native_invocation_dialect()
+                .native_property_lookup_protocol()
+                .is_none()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "foreign property-name primary",
+            ));
+        }
+        if obj::has_string_rep(value) {
+            let bytes = obj::bytes_of(value);
+            if let Some(check) = check {
+                check()?;
+            }
+            return Ok(Rc::from(bytes));
+        }
+        let recipe = self.native_invocation_dialect().native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        )).ok_or(ValueError::CommandProtocolUnavailable("native string materialization"))?;
+        let host = self.host();
+        let formatter = host.native_integer_formatter();
+        if let Some(check) = check {
+            check()?;
+        }
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
+        let result = crate::dict::native_object_bytes_with_stage_handlers(
+            value,
+            recipe.protocol(),
+            formatter,
+            check,
+        );
+        if let Some(check) = check {
+            check()?;
+        }
+        // Check the retained result even when the reached updater also failed.
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
+        result.map(Rc::from)
+    }
+}
+
+impl ValueOps for Interp {
+    fn string_character_model(&self) -> Option<tcl_dialect::StringCharacterModel> {
+        self.native_invocation_dialect().characters
+    }
+    type Value = *mut TclObj;
+
+    fn name_policy_protocol(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        Interp::name_policy_protocol(self)
+    }
+
+    fn original_option_index(
+        &mut self,
+        original: &Self::Value,
+        words: &'static [&'static str],
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<Option<tcl_syntax::value::OriginalOptionLookup>, ValueError> {
+        use tcl_syntax::value::OriginalOptionLookup;
+        obj::check_native_liveness(*original)?;
+        let dialect = self.native_invocation_dialect();
+        if dialect.native_jim_enum_protocol().is_some() {
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
+            let flags = tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact);
+            return Ok(Some(
+                match self.native_jim_enum_from_original(
+                    *original,
+                    &table,
+                    flags,
+                    Some(noun.as_bytes()),
+                )? {
+                    Ok(index) => OriginalOptionLookup::Index(index),
+                    Err(message) => OriginalOptionLookup::Failure {
+                        message: message.unwrap_or_default(),
+                        error_code: b"NONE".to_vec(),
+                        string_result: None,
+                    },
+                },
+            ));
+        }
+        let protocol = dialect.native_index_lookup_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original static option lookup"),
+        )?;
+        let table =
+            tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
+        Ok(Some(
+            match self.native_index_from_original(*original, &table, exact, noun)? {
+                Ok(index) => OriginalOptionLookup::Index(index),
+                Err(message) => {
+                    let bytes = self.native_string_bytes(original)?;
+                    OriginalOptionLookup::Failure {
+                        message,
+                        error_code: protocol.error_code(noun.as_bytes(), &bytes),
+                        string_result: Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                            protocol.version(),
+                        )),
+                    }
+                }
+            },
+        ))
+    }
+
+    fn same_object(&self, left: &Self::Value, right: &Self::Value) -> Option<bool> {
+        (obj::allocation_is_live(*left) && obj::allocation_is_live(*right))
+            .then_some(*left == *right)
+    }
+
+    fn concat_policy(&self) -> Option<tcl_dialect::ConcatPolicy> {
+        self.native_invocation_dialect().concat_policy()
+    }
+    fn has_list_representation(&self, value: &Self::Value) -> bool {
+        core::ptr::eq(obj::obj_type_ptr(*value), &crate::list::TCL_LIST_TYPE)
+    }
+
+    fn native_concat_list_shape(
+        &self,
+        value: &Self::Value,
+    ) -> Result<tcl_syntax::value::NativeConcatListShape, ValueError> {
+        native_concat::shape(self, *value)
+    }
+    fn native_concat_empty_list(&mut self) -> Result<Self::Value, ValueError> {
+        native_concat::empty(self)
+    }
+    fn native_concat_copy_list(&mut self, value: &Self::Value) -> Result<Self::Value, ValueError> {
+        native_concat::copy(self, *value)
+    }
+    fn native_concat_append_list(
+        &mut self,
+        target: &Self::Value,
+        source: &Self::Value,
+    ) -> Result<(), ValueError> {
+        native_concat::append(self, *target, *source)
+    }
+    fn native_concat_first_bytes(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Option<tcl_syntax::value::NativeConcatFirstElement<Self::Value>>, ValueError> {
+        native_concat::first(self, *value)
+    }
+    fn release_native_concat_first(
+        &mut self,
+        first: tcl_syntax::value::NativeConcatFirstElement<Self::Value>,
+    ) {
+        if let Some(original) = first.temporary {
+            drop(obj::Owned::fresh(original));
+        }
+    }
+    fn native_concat_string_bytes(&mut self, value: &Self::Value) -> Result<Rc<[u8]>, ValueError> {
+        self.native_object_string_bytes(*value)
+    }
+    fn native_concat_string_result(&mut self, bytes: &[u8]) -> Result<Self::Value, ValueError> {
+        native_concat::string(self, bytes)
+    }
+    fn discard_native_concat_result(&mut self, value: Self::Value) {
+        drop(obj::Owned::fresh(value));
+    }
+
+    fn native_jim_string_cat(
+        &mut self,
+        args: &[*mut TclObj],
+    ) -> Result<Option<*mut TclObj>, ValueError> {
+        use tcl_registry::native_string_materialization::LogicalStringProvider;
+        let dialect = self.native_invocation_dialect();
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "selected string cat object purpose",
+            ))?;
+        let provider = (policy.authority()
+            == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation)
+            .then_some(LogicalStringProvider::Tcl84CoreSimulation);
+        let protocol = dialect
+            .native_string_materialization(provider)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "selected string cat object materialization",
+            ))?
+            .protocol();
+        if !protocol.is_jim084() {
+            return Ok(None);
+        }
+        if let [only] = args {
+            obj::check_native_liveness(*only)?;
+        }
+        let originals: Vec<_> = args
+            .iter()
+            .copied()
+            .map(RuntimeAppendValue::borrowed)
+            .collect();
+        let objects = RuntimeAppendObjects {
+            dialect,
+            binary_recipe: None,
+        };
+        tcl_cmd_core::native_cat::concatenate_jim(&objects, protocol, &originals, |original| {
+            crate::dict::native_object_bytes_with_integer_formatter(
+                original.as_ptr(),
+                protocol,
+                self.host().native_integer_formatter(),
+            )
+            .map(Rc::from)
+        })
+        .map(|result| Some(result.into_native_unowned()))
+    }
+
+    fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
+        self.native_invocation_dialect().index_syntax()
+    }
+
+    fn index_error_string_protocol(
+        &self,
+    ) -> Result<Option<tcl_syntax::native_string::NativeStringProtocol>, ValueError> {
+        let materialization = self
+            .native_invocation_dialect()
+            .native_string_materialization(None)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native index error String producer",
+            ))?;
+        Ok((!materialization.protocol().is_jim084()).then_some(materialization.protocol()))
+    }
+
+    #[cfg(not(have_tommath))]
+    fn eval_index_expression(&mut self, _source: &str) -> Result<i64, ValueError> {
+        Err(ValueError::ExpressionEngineUnavailable)
+    }
+
+    #[cfg(have_tommath)]
+    fn eval_index_expression(&mut self, source: &str) -> Result<i64, ValueError> {
+        let context = self
+            .native_invocation_dialect()
+            .expression_parse_context(Some(self.dialect_profile()));
+        let node =
+            if tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(&context)
+            {
+                crate::builtins::prepare_runtime_fixed_expression(self, source)
+                    .map_err(|error| index_expression_error(source, &error))?
+            } else {
+                let node = tcl_syntax::expr::parser::parse_expr_for_profile(
+                    source,
+                    Some(self.dialect_profile()),
+                );
+                tcl_registry::expr_surface::RuntimeExprSurface::for_profile(self.dialect_profile())
+                    .validate(&node)
+                    .map_err(|_| ValueError::NotInteger(source.to_owned()))?;
+                node.map_text(String::into_bytes)
+            };
+        let value = crate::expr::eval_index_expression(&node, self.dialect_profile())
+            .map_err(|error| index_expression_error(source, &error))?;
+        match self.as_int(&value.as_ptr()) {
+            Ok(value) => Ok(value),
+            Err(error)
+                if error.native_access_refusal().is_none()
+                    && self
+                        .native_invocation_dialect()
+                        .index_syntax()
+                        .is_some_and(|syntax| {
+                            syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64
+                        }) =>
+            {
+                let bytes = obj_bytes(value.as_ptr());
+                let text = std::str::from_utf8(&bytes)
+                    .map_err(|_| ValueError::NotIntegerBytes(bytes.clone()))?;
+                match number::parse_whole_with(
+                    text,
+                    number::ParseFlags::for_syntax(self.dialect_profile().grammar.numbers),
+                ) {
+                    Some(Number::Big { negative, .. }) => {
+                        Ok(if negative { i64::MIN } else { i64::MAX })
+                    }
+                    _ => Err(error),
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
 
     fn new_str(&mut self, s: &str) -> *mut TclObj {
         obj::new_string_bytes(&str_to_bytes(s))
@@ -100,12 +1562,76 @@ impl ValueOps for Interp {
         obj::new_double_obj(f)
     }
 
+    fn new_jim_string(&mut self, bytes: &[u8], character_count: usize) -> *mut TclObj {
+        let value = self.new_bytes(bytes);
+        obj::retain_jim_string_count(value, character_count);
+        value
+    }
+
+    fn jim_string_trim_result(
+        &mut self,
+        value: &Self::Value,
+        plan: tcl_syntax::raw_string::JimStringTrimPlan,
+    ) -> Self::Value {
+        let bytes = obj_bytes(*value);
+        let start = plan.byte_start();
+        let end = plan.byte_end();
+        if start > 0 {
+            // The left-trim producer creates an unshared original working
+            // header. Right trim converts and mutates that header in place.
+            let working = self.new_bytes(&bytes[start..]);
+            if plan.right_conversion() {
+                obj::retain_jim_string_representation(working);
+                if end == start {
+                    crate::interp::drop_fresh(working);
+                    return self.new_bytes(b"");
+                }
+                if end < bytes.len() {
+                    obj::trim_jim_string_bytes(working, &bytes[start..end]);
+                }
+            }
+            return working;
+        }
+        if plan.right_conversion() {
+            obj::retain_jim_string_representation(*value);
+            if end == 0 {
+                return self.new_bytes(b"");
+            }
+        }
+        if end == bytes.len() {
+            return *value;
+        }
+        if end == 0 || obj::is_shared(*value) {
+            return self.new_bytes(&bytes[..end]);
+        }
+        obj::trim_jim_string_bytes(*value, &bytes[..end]);
+        *value
+    }
+
+    fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
+        use tcl_registry::native_array_compilation::{
+            native_array_existence_result, NativeArrayExistenceResult,
+        };
+        if self.observed_name_policy_selected() {
+            return Ok(self.new_bool(present));
+        }
+        match native_array_existence_result(self.native_invocation_dialect()) {
+            Some(NativeArrayExistenceResult::ExecutionBooleanConstant) => {
+                self.native_execution_boolean_constant(present)
+            }
+            Some(NativeArrayExistenceResult::FreshInteger) => Ok(self.new_bool(present)),
+            None => Err(ValueError::CommandProtocolUnavailable(
+                "array existence result producer",
+            )),
+        }
+    }
+
     fn new_bool(&mut self, b: bool) -> *mut TclObj {
         obj::new_boolean_obj(i32::from(b))
     }
 
     fn new_list(&mut self, items: Vec<*mut TclObj>) -> *mut TclObj {
-        list::new_list_obj(&items)
+        self.new_list_object(&items)
     }
 
     fn pin_value(&mut self, value: &*mut TclObj) {
@@ -116,20 +1642,96 @@ impl ValueOps for Interp {
         unsafe { obj::decr_ref_count(*value) };
     }
 
-    fn as_str(&mut self, v: &*mut TclObj) -> Rc<str> {
-        bytes_to_str(&obj_bytes(*v))
+    fn try_as_str(
+        &mut self,
+        v: &*mut TclObj,
+    ) -> Result<Rc<str>, tcl_syntax::raw_string::UnicodeAccessError> {
+        tcl_syntax::raw_string::RawString::from_bytes(obj_bytes(*v)).unicode()
     }
 
-    fn char_len(&mut self, v: &*mut TclObj) -> usize {
-        string_char_len(&bytes_to_str(&obj_bytes(*v)), self.runtime_version())
+    fn native_char_len(&mut self, value: &Self::Value) -> Result<usize, ValueError> {
+        obj::check_native_liveness(*value)?;
+        use tcl_registry::native_string_materialization::LogicalStringProvider;
+        let dialect = self.native_invocation_dialect();
+        let provider = Some(LogicalStringProvider::Tcl84CoreSimulation);
+        let protocol = dialect
+            .native_string_materialization(provider)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native string length",
+            ))?
+            .protocol();
+        let representation = dialect
+            .string_length_representation_with_provider(provider)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native string length representation",
+            ))?;
+        obj::native_character_count(*value, protocol, representation)
+    }
+
+    fn native_object_snapshot(
+        &self,
+        value: &Self::Value,
+    ) -> Result<tcl_syntax::native_object::NativeObjectSnapshot, ValueError> {
+        obj::native_object_snapshot(*value)
+    }
+
+    fn native_unicode_units(&mut self, value: &Self::Value) -> Result<Rc<[u32]>, ValueError> {
+        obj::check_native_liveness(*value)?;
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native Unicode unit recipe",
+            ))?
+            .string_protocol();
+        obj::native_unicode_units(*value, protocol)
+    }
+
+    fn native_unicode_string_result(
+        &mut self,
+        units: Rc<[u32]>,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Self::Value, ValueError> {
+        let dialect = self.native_invocation_dialect();
+        if dialect.tcl_version != Some(version) || dialect.native_error_log_protocol().is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native Unicode result issuer",
+            ));
+        }
+        obj::new_native_unicode_obj(units, dialect)
+    }
+
+    fn native_external_utf8_result(
+        &mut self,
+        bytes: &[u8],
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Self::Value, ValueError> {
+        let dialect = self.native_invocation_dialect();
+        let recipe = dialect
+            .byte_array_string_recipe(None)
+            .filter(|recipe| {
+                recipe.protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version)
+            })
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native external UTF-8 binary result issuer",
+            ))?;
+        Ok(crate::bytearray::new_byte_array(bytes, recipe))
+    }
+
+    fn discard_native_internal_representation(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<(), ValueError> {
+        obj::discard_native_internal_representation(*value)
     }
 
     fn as_int(&mut self, v: &*mut TclObj) -> Result<i64, ValueError> {
-        let bytes = obj_bytes(*v);
-        let s = String::from_utf8_lossy(&bytes);
-        match number::parse_whole(s.trim()) {
-            Some(Number::Int(n)) => Ok(n),
-            _ => Err(ValueError::NotInteger(s.into_owned())),
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide)? {
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),
+            _ => Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            )),
         }
     }
 
@@ -140,114 +1742,207 @@ impl ValueOps for Interp {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
-        let (negative, digits) =
-            crate::bignum::integer_magnitude(*v, radix, syntax).ok_or_else(|| {
-                ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(*v)).into_owned())
-            })?;
-        Ok(IntegerMagnitude { negative, digits })
+        let operation = ValueCoercion::enter(self, *v)?;
+        let number = match operation.integer_number()? {
+            Some(number @ (Number::Int(_) | Number::Big { .. })) => number,
+            _ => return Err(ValueError::NotIntegerBytes(operation.original_string()?)),
+        };
+        // Render the accepted Number through the existing integer digit kernel.
+        // The original's bytes and the caller's format syntax cannot reselect
+        // input grammar or install a numeric primary onto a rejected original.
+        let integer = integer_object(number);
+        if integer.is_null() {
+            return Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            ));
+        }
+        let integer = obj::Owned::fresh(integer);
+        let magnitude = crate::bignum::integer_magnitude(integer.as_ptr(), radix, syntax);
+        drop(integer);
+        operation.check()?;
+        magnitude
+            .map(|(negative, digits)| IntegerMagnitude { negative, digits })
+            .ok_or_else(|| {
+                ValueCoercion::value_error(self, ValueError::ScalarNumericInputUnavailable)
+            })
     }
 
     fn string_compare_length(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
-        let bytes = obj_bytes(*v);
-        let s = String::from_utf8_lossy(&bytes);
-        match number::parse_whole(s.trim()) {
-            Some(Number::Int(n)) => Ok(usize::try_from(n).ok()),
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.integer_number()? {
+            Some(Number::Int(integer)) => Ok(usize::try_from(integer).ok()),
             Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow),
-            _ => Err(ValueError::NotInteger(s.into_owned())),
+            _ => Err(ValueError::NotIntegerBytes(operation.original_string()?)),
         }
     }
 
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
-        let bytes = obj_bytes(*v);
-        let s = String::from_utf8_lossy(&bytes);
-        match number::parse_whole(s.trim()) {
-            Some(Number::Int(n)) => Ok(n as f64),
-            Some(Number::Double(f)) => Ok(f),
-            _ => Err(ValueError::NotDouble(s.into_owned())),
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Double)? {
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(value) => Ok(value),
+            _ => Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            )),
         }
     }
 
-    /// Boolean context (`Tcl_GetBooleanFromObj`) through the runtime's one
-    /// typed-read owner, so the shared command logic accepts exactly the words
-    /// `if`/`expr` do — prefixes included (`tru`, `ye`, `of`), the ambiguous
-    /// `o` refused — and reads a typed rep when the object carries one.
     fn as_bool(&mut self, v: &*mut TclObj) -> Result<bool, ValueError> {
-        crate::typed_value::boolean(*v).map_err(|_| {
-            ValueError::NotBoolean(String::from_utf8_lossy(&obj_bytes(*v)).into_owned())
-        })
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean)? {
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {
+                Ok(value.is_true())
+            }
+            _ => Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            )),
+        }
     }
 
-    /// Bignum-aware integer addition (the `incr` step) — overrides the default's
-    /// fixed-`i64` path. Both operands must read as integers (a wide or a bignum;
-    /// a float or non-number is the canonical "expected integer" error). The sum
-    /// goes over the numeric tower, so it **widens to a bignum on overflow**
-    /// instead of erroring — Tcl integers never wrap — and demotes back to a wide
-    /// when it fits. A `None` left operand is an unset variable, treated as 0.
-    ///
-    /// Only when the libtommath FFI is linked (`have_tommath`). A build without it
-    /// (the wasm32 target) keeps the trait's fixed-`i64` default — overflow then
-    /// errors, exactly like the bytecode VM, since there is no bignum tower.
-    #[cfg(have_tommath)]
+    /// Integer addition follows the selected native tower, independently of
+    /// whether this build has an arbitrary-precision backend.
     fn int_add(
         &mut self,
         a: Option<&*mut TclObj>,
         b: &*mut TclObj,
     ) -> Result<*mut TclObj, ValueError> {
-        fn not_int(obj: *mut TclObj) -> ValueError {
-            ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(obj)).into_owned())
+        if let Some(left) = a {
+            obj::check_native_liveness(*left)?;
         }
-        // Coercion order matches C's `TclIncrObj`: the current value first, then
-        // the increment (both must read as an integer — a wide or a bignum).
-        if let Some(av) = a {
-            if !crate::bignum::is_integer(*av) {
-                return Err(not_int(*av));
-            }
+        obj::check_native_liveness(*b)?;
+        use tcl_dialect::NativeArithmetic;
+        let dialect = self.native_invocation_dialect();
+        let policy = dialect.arithmetic().ok_or(ValueError::IntegerOverflow)?;
+        // Preserve native coercion order: current value, then increment.
+        let left = a
+            .map(|value| integer_operand(*value, dialect))
+            .transpose()?;
+        let right = integer_operand(*b, dialect)?;
+        if policy != NativeArithmetic::TclBignum {
+            let left = left
+                .as_ref()
+                .map(|value| tcl_syntax::expr::wide::parsed_literal(policy, value))
+                .transpose()
+                .map_err(|_| ValueError::IntegerOverflow)?
+                .unwrap_or(0);
+            let right = tcl_syntax::expr::wide::parsed_literal(policy, &right)
+                .map_err(|_| ValueError::IntegerOverflow)?;
+            let sum =
+                tcl_syntax::expr::wide::binary(policy, tcl_syntax::expr::BinOp::Add, left, right)
+                    .map_err(|_| ValueError::IntegerOverflow)?;
+            return Ok(obj::new_wide_int_obj(sum));
         }
-        if !crate::bignum::is_integer(*b) {
-            return Err(not_int(*b));
+        #[cfg(have_tommath)]
+        {
+            let left = integer_object(left.unwrap_or(Number::Int(0)));
+            let right = integer_object(right);
+            let result = crate::bignum::add(left, right).map_err(|_| ValueError::IntegerOverflow);
+            crate::interp::drop_fresh(left);
+            crate::interp::drop_fresh(right);
+            result
         }
-        // Both integers → tower add (never fails for two integer operands except
-        // on allocation failure, mapped to the overflow error). The left operand
-        // is a transient zero when the variable was unset.
-        match a {
-            Some(av) => crate::bignum::add(*av, *b).map_err(|_| ValueError::IntegerOverflow),
-            None => {
-                let zero = obj::new_wide_int_obj(0);
-                let sum = crate::bignum::add(zero, *b).map_err(|_| ValueError::IntegerOverflow);
-                crate::interp::drop_fresh(zero);
-                sum
-            }
+        #[cfg(not(have_tommath))]
+        {
+            let (Some(Number::Int(left)), Number::Int(right)) =
+                (left.or(Some(Number::Int(0))), right)
+            else {
+                return Err(ValueError::IntegerOverflow);
+            };
+            left.checked_add(right)
+                .map(obj::new_wide_int_obj)
+                .ok_or(ValueError::IntegerOverflow)
         }
     }
 
+    fn list_len(&mut self, value: &Self::Value) -> Result<usize, ValueError> {
+        native_jim_index::list_length_using(
+            self,
+            value,
+            &mut |_, _| Ok(()),
+            |interpreter, original| interpreter.list_elements(original),
+        )
+    }
+
+    fn list_index(
+        &mut self,
+        value: &Self::Value,
+        index: usize,
+    ) -> Result<Option<Self::Value>, ValueError> {
+        obj::check_native_liveness(*value)?;
+        if crate::native_arithseries::is_series(*value) {
+            let protocol = self
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "abstract native Index",
+                ))?;
+            return crate::native_arithseries::index_in(*value, index, protocol);
+        }
+        Ok(self.list_elements(value)?.into_iter().nth(index))
+    }
+
     fn list_elements(&mut self, v: &*mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
-        list::list_elements(*v).map_err(|e| {
-            // The **full** `TclFindElement` sentence, not `ListError::message`'s
-            // fragment-less prefix: the `…FollowedByJunk` cases must surface the
-            // offending text (`followed by "c" instead of space`). Every shared
-            // command core that decodes a runtime list — `dict`'s read path
-            // among them — reports through here, so using the fragment-less
-            // message here would make all of them disagree with C.
-            let msg = crate::parse::list_error_message(&crate::interp::obj_bytes(*v), e);
-            ValueError::BadList(String::from_utf8_lossy(&msg).into_owned())
-        })
+        obj::check_native_liveness(*v)?;
+        let protocol = self.native_invocation_dialect().native_string_materialization(
+            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+        ).ok_or(ValueError::CommandProtocolUnavailable("native object list conversion"))?.protocol();
+        if protocol.is_jim084() {
+            crate::native_source::bind_context(*v, &self.native_jim_object_context()?)?;
+        }
+        list::list_elements_native_checked(*v, protocol)
     }
 
     fn dict_pairs(
         &mut self,
         v: &*mut TclObj,
     ) -> Result<Vec<(*mut TclObj, *mut TclObj)>, ValueError> {
-        crate::dict::dict_pairs(*v).map_err(|e| ValueError::BadList(e.message()))
+        obj::check_native_liveness(*v)?;
+        let protocol = self.native_invocation_dialect().native_string_materialization(
+            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+        ).ok_or(ValueError::CommandProtocolUnavailable("native object dictionary conversion"))?.protocol();
+        if protocol.is_jim084() {
+            crate::native_source::bind_context(*v, &self.native_jim_object_context()?)?;
+        }
+        crate::dict::native_dict_pairs(*v, protocol)
     }
 
     fn dict_hash_bucket_count(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
-        crate::dict::dict_hash_bucket_count(*v)
-            .map(Some)
-            .map_err(|e| ValueError::BadList(e.message()))
+        drop(self.dict_pairs(v)?);
+        Ok(Some(
+            crate::dict::dict_hash_bucket_count(*v).expect("native Dictionary cache"),
+        ))
+    }
+
+    fn new_dict_checked(
+        &mut self,
+        pairs: Vec<(*mut TclObj, *mut TclObj)>,
+    ) -> Result<*mut TclObj, ValueError> {
+        self.new_dict_with_hash_bucket_count_checked(pairs, 4)
+    }
+
+    fn new_dict_with_hash_bucket_count_checked(
+        &mut self,
+        pairs: Vec<(*mut TclObj, *mut TclObj)>,
+        bucket_count: usize,
+    ) -> Result<*mut TclObj, ValueError> {
+        let recipe = self.native_invocation_dialect().native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).ok_or(ValueError::CommandProtocolUnavailable("native dictionary construction"))?;
+        let buckets = Some(bucket_count);
+        crate::dict::new_dict_obj_native(&pairs, buckets, recipe.protocol())
     }
 
     fn new_dict(&mut self, pairs: Vec<(*mut TclObj, *mut TclObj)>) -> *mut TclObj {
-        crate::dict::new_dict_obj(&pairs)
+        let value = crate::dict::new_dict_obj(&pairs);
+        if let Some(recipe) = self
+            .native_invocation_dialect()
+            .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        )) {
+            crate::dict::seal_string_protocol(value, recipe.protocol())
+                .expect("fresh native Dictionary recipe");
+        }
+        value
     }
 
     fn new_dict_with_hash_bucket_count(
@@ -255,7 +1950,16 @@ impl ValueOps for Interp {
         pairs: Vec<(*mut TclObj, *mut TclObj)>,
         bucket_count: usize,
     ) -> *mut TclObj {
-        crate::dict::new_dict_obj_with_hash_bucket_count(&pairs, Some(bucket_count))
+        let value = crate::dict::new_dict_obj_with_hash_bucket_count(&pairs, Some(bucket_count));
+        if let Some(recipe) = self
+            .native_invocation_dialect()
+            .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        )) {
+            crate::dict::seal_string_protocol(value, recipe.protocol())
+                .expect("fresh native Dictionary recipe");
+        }
+        value
     }
 
     /// Byte-exact, and simpler than `as_str`'s Unicode round trip — this is why
@@ -265,9 +1969,19 @@ impl ValueOps for Interp {
         Rc::from(obj_bytes(*v).as_slice())
     }
 
+    fn native_string_bytes(&mut self, value: &Self::Value) -> Result<Rc<[u8]>, ValueError> {
+        self.native_object_string_bytes(*value)
+    }
+
     /// Byte-exact construction (the `obj::new_string_bytes` path).
     fn new_bytes(&mut self, bytes: &[u8]) -> *mut TclObj {
         obj::new_string_bytes(bytes)
+    }
+
+    fn native_command_full_name_result(&mut self, bytes: &[u8]) -> Result<*mut TclObj, ValueError> {
+        Ok(self
+            .native_namespace_origin_result(bytes)?
+            .into_native_unowned())
     }
 
     fn try_append_bytes_in_place(&mut self, v: &mut *mut TclObj, bytes: &[u8]) -> bool {
@@ -281,24 +1995,213 @@ impl ValueOps for Interp {
         }
     }
 
-    fn try_list_append_in_place(&mut self, list: &mut *mut TclObj, item: &*mut TclObj) -> bool {
-        // Mutate the list's backing vector in place when it is uniquely owned —
-        // the COW fast path the runtime's hand-rolled `lappend` used. A shared or
-        // non-list value falls back to a rebuild (the caller copies). `list_append`
-        // validates the list first, so a malformed value leaves it untouched.
+    fn try_list_append_in_place(
+        &mut self,
+        list: &mut *mut TclObj,
+        item: &*mut TclObj,
+    ) -> Result<bool, ValueError> {
+        // naming.list.original-value-append-storage-currency
+        // docs/design/analysis/name-resolution-proofs/list-original-value-append-storage-currency.md
+        obj::check_native_liveness(*list)?;
+        obj::check_native_liveness(*item)?;
         if obj::is_shared(*list) {
-            return false;
+            return Ok(false);
         }
-        crate::list::list_append(*list, *item).is_ok()
+        let protocol = self.native_invocation_dialect().native_string_materialization(
+            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+        ).ok_or(ValueError::CommandProtocolUnavailable("native object list append"))?.protocol();
+        if protocol.is_jim084() {
+            crate::native_source::bind_context(*list, &self.native_jim_object_context()?)?;
+        }
+        list::append_prepared_native_elements(*list, &[*item], protocol)?;
+        Ok(true)
+    }
+}
+
+/// Parse an integer at the native value boundary with the selected grammar.
+fn integer_operand(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Number, ValueError> {
+    match crate::typed_value::scalar_number(value, dialect, true)? {
+        Some(integer @ (Number::Int(_) | Number::Big { .. })) => Ok(integer),
+        _ => Err(ValueError::NotIntegerBytes(obj_bytes(value))),
+    }
+}
+
+#[cfg(have_tommath)]
+fn integer_object(value: Number) -> *mut TclObj {
+    match value {
+        Number::Int(value) => obj::new_wide_int_obj(value),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => crate::bignum::from_big_digits(negative, radix, &digits),
+        _ => unreachable!("integer_operand admits only integer representations"),
+    }
+}
+
+/// Preserve typed Host refusals and selected arithmetic diagnostics at command adapters.
+pub(crate) fn integer_error(interp: &mut Interp, error: ValueError) -> crate::interp::Code {
+    if interp.host_refusal_pending() {
+        return crate::interp::Code::Error;
+    }
+    if error.native_access_refusal().is_some() {
+        return interp.report_cmd_error(error.into());
+    }
+    let dialect = interp.native_invocation_dialect();
+    if error == ValueError::IntegerOverflow
+        && dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide)
+    {
+        interp.error_with_code(
+            error.message().as_bytes(),
+            b"ARITH IOVERFLOW {integer value too large to represent}",
+        )
+    } else {
+        let message = dialect.integer_error_presentation().map_or_else(
+            || error.message().into_bytes(),
+            |policy| policy.message(&error),
+        );
+        interp.set_error(&message)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{bytes_to_str, str_to_bytes};
+    use super::str_to_bytes;
     use crate::counters;
     use crate::interp::{Code, Interp};
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn original_value_append_preserves_storage_for_the_next_native_mutation() {
+        // naming.list.original-value-append-storage-currency
+        // docs/design/analysis/name-resolution-proofs/list-original-value-append-storage-currency.md
+        use crate::obj;
+        use tcl_syntax::native_string::NativeStringProtocol;
+        use tcl_syntax::value::ValueOps;
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"HEAD"));
+            let first = obj::Owned::fresh(obj::new_string_bytes(b"FIRST"));
+            let second = obj::Owned::fresh(obj::new_string_bytes(b"SECOND"));
+            let receiver = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[head.as_ptr()],
+                NativeStringProtocol::C(version),
+            ));
+            let mut original = receiver.as_ptr();
+            assert!(interp
+                .try_list_append_in_place(&mut original, &first.as_ptr())
+                .unwrap());
+            assert_eq!(original, receiver.as_ptr());
+            crate::list::append_prepared_native_elements(
+                original,
+                &[second.as_ptr()],
+                NativeStringProtocol::C(version),
+            )
+            .unwrap();
+            assert_eq!(
+                interp.list_elements(&original).unwrap(),
+                vec![head.as_ptr(), first.as_ptr(), second.as_ptr()]
+            );
+            assert!(!interp.host_refusal_pending());
+        }
+    }
+
+    #[test]
+    fn original_value_append_does_not_rebuild_after_unavailable_storage() {
+        // naming.list.original-value-append-storage-currency
+        // docs/design/analysis/name-resolution-proofs/list-original-value-append-storage-currency.md
+        use crate::obj;
+        use tcl_syntax::native_string::NativeStringProtocol;
+        use tcl_syntax::value::{ValueError, ValueOps};
+        let mut interp = Interp::new();
+        interp.set_runtime_version(TclVersion::V9_0);
+        let member = obj::Owned::fresh(obj::new_string_bytes(b"MEMBER"));
+        let receiver = obj::Owned::fresh(crate::list::new_list_obj_native(
+            &[],
+            NativeStringProtocol::C(TclVersion::V9_0),
+        ));
+        // The untyped mutator deliberately removes the native allocation
+        // receipt. Equal list elements do not restore that storage authority.
+        crate::list::list_append(receiver.as_ptr(), member.as_ptr()).unwrap();
+        let mut original = receiver.as_ptr();
+        assert_eq!(
+            interp.try_list_append_in_place(&mut original, &member.as_ptr()),
+            Err(ValueError::CommandProtocolUnavailable(
+                "native List allocation extent"
+            ))
+        );
+        assert_eq!(original, receiver.as_ptr());
+        assert_eq!(
+            interp.list_elements(&original).unwrap(),
+            vec![member.as_ptr()]
+        );
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn native_safe_index_preparation_keeps_eager_functions_and_lazy_substitutions() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            for source in [
+                "0 && absent(1)",
+                "1 ? 0 : absent(1)",
+                "0 && sqrt()",
+                "1 ? 0 : sqrt(1,2)",
+                "sqrt(0)",
+                "$absent",
+                "[error REACHED]",
+                "\"$absent\"",
+            ] {
+                let error =
+                    tcl_cmd_core::index::resolve_for_ops(&mut interp, source, 2).expect_err(source);
+                assert!(
+                    error.native_access_refusal().is_none(),
+                    "{engine}: {source}"
+                );
+                if engine == "jim" {
+                    assert_eq!(
+                        error.into_byte_details().message,
+                        format!("bad index \"{source}\": must be intexpr or end?[+-]intexpr?")
+                            .as_bytes(),
+                    );
+                }
+            }
+            for source in [
+                "0 && sqrt(1)",
+                "1 ? 0 : $absent",
+                "0 && [error REACHED]",
+                "1 ? 0 : \"$absent\"",
+                "int(0)",
+            ] {
+                let result = tcl_cmd_core::index::resolve_for_ops(&mut interp, source, 2);
+                if engine == "jim" {
+                    assert_eq!(result.unwrap(), 0, "{source}");
+                } else {
+                    let error = result.expect_err(source);
+                    assert!(
+                        error.native_access_refusal().is_none(),
+                        "{engine}: {source}"
+                    );
+                }
+            }
+            let result = tcl_cmd_core::index::resolve_for_ops(&mut interp, "0+1", 2);
+            if engine == "tcl8.4" {
+                assert!(result.is_err());
+            } else {
+                assert_eq!(result.unwrap(), 1, "{engine}");
+            }
+            assert!(!interp.host_refusal_pending(), "{engine}");
+        }
+    }
 
     fn run(src: &[u8]) -> (Code, Vec<u8>) {
         run_at(TclVersion::V9_0, src)
@@ -329,23 +2232,271 @@ mod tests {
         b
     }
 
+    #[test]
+    fn physical_list_length_matches_all_204_native_storage_rows() {
+        // Native proof: naming.list.stock-length-same-original-storage
+        // docs/design/analysis/name-resolution-proofs/list.stock-length-same-original-storage.md
+
+        use crate::obj;
+        use tcl_registry::native_stock_list::NativeStockListInputClass as Class;
+        use tcl_syntax::value::ValueOps;
+        const FIXTURES: [&str; 6] = [
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/8.4.20.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/8.5.19.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/8.6.18.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/9.0.4.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/9.1.0.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/jim.txt"
+            ),
+        ];
+        fn field<'a>(row: &'a str, key: &str) -> &'a str {
+            row.split_whitespace()
+                .find_map(|item| {
+                    item.split_once('=')
+                        .filter(|(name, _)| *name == key)
+                        .map(|(_, value)| value)
+                })
+                .expect("measured native field")
+        }
+        fn class(name: &str) -> Class {
+            match name {
+                "string" => Class::String,
+                "list" => Class::List,
+                "dict" => Class::Dictionary,
+                "bytearray" => Class::ByteArray,
+                "boolean" | "booleanString" => Class::Boolean,
+                "int" | "wideInt" | "double" => Class::Numeric,
+                _ => panic!("unknown measured class {name}"),
+            }
+        }
+        let mut rows = 0;
+        for (index, fixture) in FIXTURES.iter().enumerate() {
+            let mut interp = Interp::new();
+            if let Some(version) = TclVersion::ALL.get(index) {
+                interp.set_runtime_version(*version);
+            } else {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            }
+            let dialect = interp.native_invocation_dialect();
+            for row in fixture.lines() {
+                let mode = field(row, "mode").parse::<u8>().unwrap();
+                let before = field(row, "before");
+                let string: &[u8] = match mode {
+                    0 | 7 | 9 | 11 | 13 => b"",
+                    2 => b"{",
+                    1 | 3 | 5 => b"0",
+                    12 => b"2 3",
+                    16 => b"true",
+                    _ => b"2",
+                };
+                let value = match class(before) {
+                    Class::String => {
+                        obj::new_string_bytes(if index == 0 && matches!(mode, 11..=13) {
+                            b""
+                        } else {
+                            string
+                        })
+                    }
+                    Class::List => {
+                        let elements = if mode == 8 {
+                            vec![obj::new_string_bytes(b"2")]
+                        } else {
+                            Vec::new()
+                        };
+                        crate::list::new_list_obj(&elements)
+                    }
+                    Class::Dictionary => {
+                        let pairs = if mode == 12 {
+                            vec![(obj::new_string_bytes(b"2"), obj::new_string_bytes(b"3"))]
+                        } else {
+                            Vec::new()
+                        };
+                        crate::dict::new_dict_obj(&pairs)
+                    }
+                    Class::ByteArray => crate::bytearray::new_byte_array(
+                        if mode == 9 { b"" } else { b"2" },
+                        dialect.byte_array_string_recipe(None).unwrap(),
+                    ),
+                    Class::Boolean => {
+                        let value = obj::new_string_bytes(string);
+                        crate::typed_value::native_boolean(value, dialect).unwrap();
+                        value
+                    }
+                    Class::Numeric => {
+                        if before == "double" {
+                            obj::new_double_obj(if mode == 5 { 0.0 } else { 2.0 })
+                        } else {
+                            obj::new_wide_int_obj(if mode == 3 {
+                                0
+                            } else if mode == 16 {
+                                1
+                            } else {
+                                2
+                            })
+                        }
+                    }
+                    Class::Unknown
+                    | Class::PropertyName
+                    | Class::MethodName
+                    | Class::InstructionName
+                    | Class::CommandName
+                    | Class::JimLookup
+                    | Class::JimSource
+                    | Class::ArraySearch
+                    | Class::NamespaceName
+                    | Class::ParsedVariableName
+                    | Class::LocalVariableName
+                    | Class::Index => unreachable!("original constructor inventory"),
+                };
+                let value = obj::Owned::fresh(value);
+                if field(row, "beforestring") == "1" && !obj::has_string_rep(value.as_ptr()) {
+                    unsafe { obj::set_string_rep(value.as_ptr(), string) };
+                }
+                assert_eq!(
+                    obj::stock_list_input_class(value.as_ptr()),
+                    class(before),
+                    "{row}"
+                );
+                assert_eq!(
+                    obj::has_string_rep(value.as_ptr()),
+                    field(row, "beforestring") == "1",
+                    "{row}"
+                );
+                let result = interp.list_len(&value.as_ptr());
+                assert_eq!(
+                    result.is_ok(),
+                    field(row, "code") == "0",
+                    "engine {index}: {row}: {result:?}"
+                );
+                if let Ok(length) = result {
+                    let result_bytes: Vec<_> = field(row, "result")
+                        .as_bytes()
+                        .chunks_exact(2)
+                        .map(|pair| {
+                            u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
+                        })
+                        .collect();
+                    assert_eq!(length.to_string().as_bytes(), result_bytes, "{row}");
+                }
+                assert_eq!(
+                    obj::stock_list_input_class(value.as_ptr()),
+                    class(field(row, "after")),
+                    "engine {index}: {row}"
+                );
+                assert_eq!(
+                    obj::has_string_rep(value.as_ptr()),
+                    field(row, "afterstring") == "1",
+                    "engine {index}: {row}"
+                );
+                rows += 1;
+            }
+        }
+        assert_eq!(rows, 204);
+    }
+
+    #[test]
+    fn native_length_preserves_nan_payload_and_dictionary_member_identity() {
+        use crate::obj;
+        use tcl_syntax::value::ValueOps;
+        let mut interp = Interp::new();
+        interp.set_runtime_version(TclVersion::V9_0);
+        let bits = 0x7ff8_0000_0000_0023;
+        let nan = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
+        assert_eq!(interp.list_len(&nan.as_ptr()).unwrap(), 1);
+        assert!(!obj::has_string_rep(nan.as_ptr()));
+        assert_eq!(obj::double_of(nan.as_ptr()).to_bits(), bits);
+        let key = obj::Owned::fresh(obj::new_string_bytes(b"k\0\xc0\x80\xff"));
+        let member = obj::Owned::fresh(obj::new_wide_int_obj(23));
+        let dictionary = obj::Owned::fresh(crate::dict::new_dict_obj(&[(
+            key.as_ptr(),
+            member.as_ptr(),
+        )]));
+        assert_eq!(interp.list_len(&dictionary.as_ptr()).unwrap(), 2);
+        assert!(!obj::has_string_rep(dictionary.as_ptr()));
+        assert!(crate::list::is_pure_list(dictionary.as_ptr()));
+        let elements = interp.list_elements(&dictionary.as_ptr()).unwrap();
+        assert_eq!(elements, vec![key.as_ptr(), member.as_ptr()]);
+        assert!(!obj::has_string_rep(member.as_ptr()));
+    }
+
+    #[test]
+    fn resident_dictionary_spelling_preserves_duplicate_keys_for_list_conversion() {
+        use crate::obj;
+        use tcl_syntax::value::ValueOps;
+        for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            let value = obj::Owned::fresh(obj::new_string_bytes(b"a 1 a 2"));
+            assert_eq!(interp.dict_pairs(&value.as_ptr()).unwrap().len(), 1);
+            assert_eq!(
+                obj::obj_type_ptr(value.as_ptr()),
+                &crate::dict::TCL_DICT_TYPE as *const _
+            );
+            assert_eq!(
+                interp.list_len(&value.as_ptr()).unwrap(),
+                4,
+                "{environment}"
+            );
+            assert_eq!(obj::bytes_of(value.as_ptr()), b"a 1 a 2");
+            let elements = interp.list_elements(&value.as_ptr()).unwrap();
+            assert_eq!(
+                elements
+                    .iter()
+                    .map(|&item| obj::bytes_of(item))
+                    .collect::<Vec<_>>(),
+                [b"a".to_vec(), b"1".to_vec(), b"a".to_vec(), b"2".to_vec()]
+            );
+        }
+    }
+
+    #[cfg(have_tommath)]
+    #[test]
+    fn tcl9_length_preserves_complete_bignum_storage_without_materializing() {
+        use crate::obj;
+        use tcl_syntax::value::ValueOps;
+        let value = obj::Owned::fresh(crate::bignum::from_big_digits(
+            false,
+            tcl_syntax::number::Radix::Dec,
+            "18446744073709551617000000000000000000000000000000000000003",
+        ));
+        let before = obj::native_scalar_cache(value.as_ptr()).unwrap();
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            assert_eq!(interp.list_len(&value.as_ptr()).unwrap(), 1);
+            assert!(!obj::has_string_rep(value.as_ptr()));
+            assert_eq!(obj::native_scalar_cache(value.as_ptr()).unwrap(), before);
+        }
+    }
+
     // bytes_to_str / str_to_bytes unit coverage
 
-    /// TP: an arbitrary invalid UTF-8 plain string gets Tcl's U+00XX byte view,
-    /// not Rust's replacement character. Runtime-created binary values use the
-    /// typed byte-array path, exercised below.
+    /// Raw input cannot enter a Unicode-only operation, and retains exact bytes.
     #[test]
-    fn bytes_to_str_falls_back_on_invalid_utf8() {
-        let s = bytes_to_str(&[0x41, 0xFF, 0x42]);
-        assert_eq!(s.chars().count(), 3);
-        assert_eq!(s.chars().nth(1), Some('\u{00ff}'));
+    fn unicode_door_refuses_invalid_utf8_without_replacing_bytes() {
+        let value = tcl_syntax::raw_string::RawString::from_bytes(&b"A\xffB"[..]);
+        assert_eq!(value.unicode().unwrap_err().valid_up_to, 1);
+        assert_eq!(&*value.bytes(), b"A\xffB");
     }
 
     /// TN: genuine valid UTF-8 (including non-ASCII Latin-1-supplement text)
     /// remains its real characters, preserving Unicode string operations.
     #[test]
     fn bytes_to_str_preserves_valid_utf8() {
-        let s = bytes_to_str("café".as_bytes());
+        let s = tcl_syntax::raw_string::RawString::from_unicode("café")
+            .unicode()
+            .unwrap();
         assert_eq!(&*s, "café");
         assert_eq!(s.chars().count(), 4);
         assert_eq!(s.chars().nth(3), Some('\u{00e9}'));
@@ -356,6 +2507,65 @@ mod tests {
     #[test]
     fn str_to_bytes_keeps_unicode_string_representation() {
         assert_eq!(str_to_bytes("A\u{00ff}B"), "A\u{00ff}B".as_bytes());
+    }
+
+    #[test]
+    fn jim_raw_string_operations_preserve_native_extents_and_cached_count() {
+        counters::reset();
+        {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            let source = crate::obj::new_string_bytes(b"\xffA\xed\xa0\x80\xc3\xa9");
+            interp
+                .var_set(b"s", source)
+                .expect("plain source slot accepts the value");
+            for (script, expected) in [
+                (b"string length $s".as_slice(), b"4".as_slice()),
+                (b"string index $s 0", b"\xff"),
+                (b"string index $s 2", b"\xed\xa0\x80"),
+                (b"string range $s 1 end", b"A\xed\xa0\x80\xc3\xa9"),
+                (b"string reverse $s", b"\xc3\xa9\xed\xa0\x80A\xff"),
+                (
+                    b"string repeat $s 2",
+                    b"\xffA\xed\xa0\x80\xc3\xa9\xffA\xed\xa0\x80\xc3\xa9",
+                ),
+                (b"string index $s -1", b""),
+                (b"string range $s 2 1", b""),
+            ] {
+                assert_eq!(interp.eval_str(script), Code::Ok, "script={script:?}");
+                assert_eq!(interp.result_bytes(), expected, "script={script:?}");
+                assert!(!interp.host_refusal_pending());
+            }
+            let source = crate::obj::new_string_bytes(b"\xc3A\xc3\xa9");
+            interp
+                .var_set(b"s", source)
+                .expect("plain source slot accepts the value");
+            assert_eq!(interp.eval_str(b"set r [string range $s 0 1]"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"\xc3A\xc3\xa9");
+            assert_eq!(interp.eval_str(b"string length $r"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"2");
+            // A reconstructed string has its own native byte-count recipe.
+            assert_eq!(interp.eval_str(b"string length \"$r\""), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"3");
+            assert_eq!(interp.eval_str(b"set r [string range $s 1 end]"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"\xc3\xa9\0");
+            assert_eq!(interp.eval_str(b"string length $r"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"2");
+            // Dictionary/list coercion withdraws a previous native string count.
+            assert_eq!(interp.eval_str(b"llength $r"), Code::Ok);
+            assert_eq!(
+                crate::obj::jim_string_count(interp.var_get(b"r").unwrap()),
+                None
+            );
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "objs={} bufs={}",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
     }
 
     /// FP guard: genuine Latin-1-supplement text (codepoints `<= 0xFF` but

@@ -1,0 +1,25 @@
+Tcl_GetEncoding(interp, name)
+    Tcl_Interp *interp;		/* Interp for error reporting, if not NULL. */
+    CONST char *name;		/* The name of the desired encoding. */
+{
+    Tcl_HashEntry *hPtr;
+    Encoding *encodingPtr;
+
+    Tcl_MutexLock(&encodingMutex);
+    if (name == NULL) {
+	encodingPtr = (Encoding *) systemEncoding;
+	encodingPtr->refCount++;
+	Tcl_MutexUnlock(&encodingMutex);
+	return systemEncoding;
+    }
+
+    hPtr = Tcl_FindHashEntry(&encodingTable, name);
+    if (hPtr != NULL) {
+	encodingPtr = (Encoding *) Tcl_GetHashValue(hPtr);
+	encodingPtr->refCount++;
+	Tcl_MutexUnlock(&encodingMutex);
+	return (Tcl_Encoding) encodingPtr;
+    }
+    Tcl_MutexUnlock(&encodingMutex);
+    return LoadEncodingFile(interp, name);
+}

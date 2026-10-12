@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::primitive_getter_preserves_seeded_code_until_script_propagation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 2.58s
+

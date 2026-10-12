@@ -1,0 +1,303 @@
+
+running 168 tests
+test builtins::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls ... ok
+test builtins::native_subst_operand_tests::original_subst_options_match_counted_native_families ... ok
+test builtins::tests::jim_safe_integer_expression_matches_54_original_native_objects ... ok
+test builtins::tests::measured_bare_matches_runtime_requires_independent_authored_policy ... 
+thread 'builtins::tests::measured_bare_matches_runtime_requires_independent_authored_policy' (527101) panicked at src/builtins.rs:1483:17:
+assertion `left == right` failed: "abcd" matches "a*"	0	1
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test builtins::tests::raw_cr_escapes_match_tcl9 ... ok
+test builtins::tests::subst_variable_colon_runs_match_tcl ... ok
+test cmd_alias::tests::trailing_separator_definitions_match_resolution ... ok
+test cmd_alias::tests::visibility_failures_match_direct_and_child_oracles ... 
+thread 'cmd_alias::tests::visibility_failures_match_direct_and_child_oracles' (527121) panicked at src/interp.rs:11215:14:
+selected native child core bootstrap
+FAILED
+test cmd_array::tests::array_default_matches_all_native_state_and_callback_controls ... ok
+test cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries ... 
+thread 'cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries' (527123) panicked at src/cmd_array.rs:775:17:
+assertion `left == right` failed: 9.0.4	literal_narrow	6361746368207b61727261792064656661756c742067657420612045585452417d20723b7365742072	77726f6e67202320617267733a2073686f756c6420626520223a3a74636c3a3a61727261793a3a64656661756c74206765742061727261794e616d6522
+  left: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 97, 114, 114, 97, 121, 32, 100, 101, 102, 97, 117, 108, 116, 32, 103, 101, 116, 32, 97, 114, 114, 97, 121, 78, 97, 109, 101, 34]
+ right: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 58, 58, 116, 99, 108, 58, 58, 97, 114, 114, 97, 121, 58, 58, 100, 101, 102, 97, 117, 108, 116, 32, 103, 101, 116, 32, 97, 114, 114, 97, 121, 78, 97, 109, 101, 34]
+FAILED
+test cmd_array::tests::original_search_handle_cache_matches_all_native_columns ... ok
+test cmd_array::tests::variable_container_storage_matches_all_native_columns ... 
+thread 'cmd_array::tests::variable_container_storage_matches_all_native_columns' (527160) panicked at src/cmd_array.rs:820:21:
+assertion `left == right` failed: tcl8.4 case 7: set a {k OLD};set c [catch {array set a {other NEW}} r];list $c $r [catch {set a(k)} v] $v
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 97, 40, 111, 116, 104, 101, 114, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125, 32, 49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 97, 40, 107, 41, 34, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 118, 97, 114, 105, 97, 98, 108, 101, 125]
+ right: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 97, 40, 111, 116, 104, 101, 114, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125, 32, 49, 32, 123, 99, 97, 110, 39, 116, 32, 114, 101, 97, 100, 32, 34, 97, 40, 107, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125]
+FAILED
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_120_original_native_completions ... ok
+test cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows ... ok
+test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+test cmd_dict::native_scope_trace_tests::dictionary_scope_reads_match_64_native_callback_windows ... ok
+test cmd_dict::tests::dict_lappend_validation_matches_c_tcl_for_every_non_dict_shape ... ok
+test cmd_dict::tests::dictionary_receiver_and_defaults_match_original_native_scripts ... ok
+test cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter ... 
+thread 'cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter' (527207) panicked at src/cmd_error.rs:1165:17:
+assertion `left == right` failed: procedure
+  left: [66, 79, 79, 77, 32, 123, 123, 125, 32, 115, 116, 100, 105, 110, 32, 50, 32, 123, 101, 114, 114, 111, 114, 32, 66, 79, 79, 77, 125, 32, 123, 125, 32, 115, 116, 100, 105, 110, 32, 50, 32, 123, 101, 114, 114, 111, 114, 32, 66, 79, 79, 77, 125, 125]
+ right: [66, 79, 79, 77, 32, 123, 102, 97, 105, 108, 32, 115, 116, 100, 105, 110, 32, 49, 32, 123, 101, 114, 114, 111, 114, 32, 66, 79, 79, 77, 125, 32, 123, 125, 32, 115, 116, 100, 105, 110, 32, 50, 32, 102, 97, 105, 108, 125]
+FAILED
+test cmd_event::native_original_tests::original_event_scripts_global_waits_and_timer_turns_match_native_controls ... ok
+test cmd_fs::tests::file_worker_runtime_headers_match_all_190_original_native_snapshots ... ok
+test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... ok
+test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+test cmd_list::tests::native_index_grammar_matches_real_c_and_jim_observations ... ok
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... 
+thread 'cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls' (527233) panicked at src/cmd_mathop.rs:216:13:
+assertion `left == right` failed: tcl8.5/4
+  left: [49, 32, 72, 73, 84]
+ right: [49, 32, 123, 125]
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... ok
+test cmd_namespace::native_upvar_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results ... ok
+test cmd_namespace::native_upvar_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows ... ok
+test cmd_namespace::tests::dispatch_matches_every_conformance_vector ... ok
+test cmd_namespace::tests::ensemble_option_tables_match_c ... ok
+test cmd_namespace::tests::ensemble_prefix_match_and_ambiguity ... ok
+test cmd_namespace::tests::explicit_ensemble_members_and_unknown_relative_context_match_native_c ... ok
+test cmd_namespace::tests::original_namespace_origin_matches_five_native_import_chains ... ok
+test cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls ... ok
+test cmd_oo::native_info_option_tests::variable_info_matches_original_native_option_and_target_failures ... ok
+test cmd_oo::native_method_info_tests::method_info_matches_original_counted_option_and_scope_controls ... ok
+test cmd_oo::native_private_tests::method_option_layout_and_private_scope_match_original_native_controls ... ok
+test cmd_oo::native_private_tests::private_query_and_opaque_original_bodies_match_native_c9_controls ... 
+thread 'cmd_oo::native_private_tests::private_query_and_opaque_original_bodies_match_native_c9_controls' (527246) panicked at src/cmd_oo/native_private_tests.rs:22:9:
+assertion `left == right` failed
+  left: Ok
+ right: Error
+FAILED
+test cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access ... 
+thread 'cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access' (527247) panicked at src/cmd_oo/native_property_counted_tests.rs:46:5:
+assertion `left == right` failed: FF_WRITE
+  left: 1
+ right: 0
+FAILED
+test cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls ... ok
+test cmd_oo::tests::info_oo_ensemble_resolution_and_release_gates_match_tcl ... ok
+test cmd_oo::tests::tip558_property_and_info_options_match_tcl_prefix_diagnostics ... 
+thread 'cmd_oo::tests::tip558_property_and_info_options_match_tcl_prefix_diagnostics' (527250) panicked at src/cmd_oo.rs:6584:9:
+assertion `left == right` failed: eval "oo::configurable create C {superclass parent; property x}" -> "invalid command name \"superclass\""
+  left: Error
+ right: Ok
+FAILED
+test cmd_package::tests::package_completion_matches_all_six_native_84_controls ... ok
+test cmd_package::tests::package_files_headers_match_all_native_10_windows_and_scope_lifetimes ... ok
+test cmd_package::tests::provided_version_headers_match_all_native_30_windows ... ok
+test cmd_proc::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames ... ok
+test cmd_proc::native_name_tests::original_procedure_colon_names_match_all_18_native_home_and_error_controls ... ok
+test cmd_proc::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture ... ok
+test cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement ... 
+thread 'cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement' (527257) panicked at src/cmd_proc.rs:937:17:
+assertion `left == right` failed: proc p {} {{x STATIC}} {unset x; set x NEW; set x}; p
+  left: Ok
+ right: Error
+FAILED
+test cmd_regex::original_object_tests::jim_original_regexp_cache_ranges_and_unsafe_lifecycles_match_native_controls ... ok
+test cmd_regex::original_object_tests::jim_regsub_duplicate_and_match_consumers_preserve_original_dispatch ... ok
+test cmd_regex::original_object_tests::jim_regsub_original_objects_match_all_nine_completed_native_controls ... ok
+test cmd_regex::original_object_tests::original_regex_unmatched_target_and_quiet_write_match_native_controls ... ok
+test cmd_regex::original_object_tests::original_regexp_each_match_and_first_failure_match_native_controls ... ok
+test cmd_regex::original_object_tests::original_regsub_prefix_and_unicode_arguments_match_native_c9_controls ... ok
+test cmd_regex::tests::regexp_match_and_captures ... ok
+test cmd_regex::tests::regexp_nomatch_leaves_vars_untouched ... ok
+test cmd_string::tests::selected_jim_string_ownership_and_byte_protocols_match_native ... ok
+test cmd_string::tests::string_match_map_is ... ok
+test cmd_switch::native_jim::tests::switch_matches_all_192_original_native_option_and_callback_results ... ok
+test cmd_switch::tests::switch_integer_errors_match_tcl91 ... ok
+test cmd_switch::tests::switch_integer_matches_by_value_on_tcl91 ... 
+thread 'cmd_switch::tests::switch_integer_matches_by_value_on_tcl91' (527400) panicked at src/cmd_switch.rs:354:9:
+assertion `left == right` failed: eval "switch -integer 010 {8 {subst a} 10 {subst b}}"
+  left: Error
+ right: Ok
+FAILED
+test cmd_switch::tests::switch_regexp_and_matchvars ... ok
+test cmd_trace::native_command_tests::legacy_operation_objects_match_native_counted_and_cstring_controls ... ok
+test cmd_trace::native_command_tests::original_command_traces_match_ten_native_byte_windows ... ok
+test cmd_trace::native_command_tests::variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls ... ok
+test cmd_trace::tests::legacy_variable_trace_forms_match_c ... ok
+test cmd_trace::tests::trace_errors_match_c ... ok
+test cmd_var::tests::captured_increment_receivers_match_actual_native_releases ... 
+thread 'cmd_var::tests::captured_increment_receivers_match_actual_native_releases' (527407) panicked at src/cmd_var.rs:527:21:
+assertion `left == right` failed: V8_4: variable_rmw_scalar_recreation
+  left: [48, 32, 123, 48, 32, 49, 48, 49, 32, 49, 48, 48, 125]
+ right: [48, 32, 123, 48, 32, 49, 48, 49, 32, 49, 48, 49, 125]
+FAILED
+test cmd_zlib::tests::checksums_match_zlib_vectors ... ok
+test expr::float_error_tests::c84_normalization_matches_six_original_float_error_windows ... ok
+test expr::tests::c84_reached_expression_matches_seven_original_cache_controls ... ok
+test frame::native_inventory_tests::array_entry_ledgers_match_all_320_native_table_controls ... ok
+test interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage ... ok
+test interp::native_body_artifact::control_expression_tests::c84_logical_storage_and_short_circuit_match_eight_native_controls ... ok
+test interp::native_body_artifact::control_expression_tests::catch_publication_and_store_order_match_six_native_engines ... ok
+test interp::native_body_artifact::control_expression_tests::compiled_catch_store_order_matches_four_native_alias_controls ... ok
+test interp::native_body_artifact::control_expression_tests::compiled_expression_storage_matches_40_original_native_windows ... ok
+test interp::native_body_artifact::control_expression_tests::compound_expression_programs_match_40_native_controls ... ok
+test interp::native_body_artifact::control_expression_tests::folded_logical_literal_ownership_matches_eight_native_collisions ... ok
+test interp::native_body_artifact::control_expression_tests::registered_control_artifacts_match_75_native_controls ... ok
+test interp::native_body_artifact::namespace_tests::original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes ... ok
+test interp::native_body_artifact::namespace_tests::original_namespace_artifacts_match_native_instruction_and_local_matrix ... ok
+test interp::native_body_artifact::native_coroutine::tests::original_coroutine_artifacts_match_native_namespace_and_completion_controls ... ok
+test interp::native_body_artifact::native_each::tests::original_each_artifacts_match_all_95_native_execution_and_layout_windows ... ok
+test interp::native_body_artifact::native_error::tests::original_error_artifacts_match_native_guest_result_and_local_order ... ok
+test interp::native_body_artifact::native_list_index::original_objects::original_index_getters_match_45_native_header_and_result_windows ... ok
+test interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs ... 
+thread 'interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs' (527463) panicked at src/interp/native_body_artifact/native_list_operations.rs:282:9:
+assertion `left == right` failed: tcl8.4/lassign $name first [error STOP]: result header
+  left: ["none", "1", "1"]
+ right: ["none", "1", "3"]
+FAILED
+test interp::native_body_artifact::native_namespace_string::tests::original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows ... ok
+test interp::native_body_artifact::native_namespace_string::tests::original_namespace_tail_matches_one_hundred_counted_native_windows ... ok
+test interp::native_body_artifact::native_string::tests::compiled_match_results_retain_actual_pattern_or_execution_constant_owners ... ok
+test interp::native_body_artifact::native_string::tests::compiled_string_match_headers_match_33_original_native_windows ... ok
+test interp::native_body_artifact::native_string::tests::original_match_artifact_preserves_renamed_registration_and_withdraws_replaced_target ... ok
+test interp::native_body_artifact::native_string::tests::original_string_match_artifacts_preserve_operand_order_and_selected_matcher ... ok
+test interp::native_body_artifact::native_string_trim::tests::original_string_trim_matches_all_216_native_header_windows ... ok
+test interp::native_body_artifact::native_substitution::tests::original_compiled_substitution_matches_native_template_windows ... ok
+test interp::native_body_artifact::native_switch::tests::registered_switch_artifacts_match_56_native_branch_controls ... ok
+test interp::native_body_artifact::native_switch::tests::registered_switch_artifacts_match_56_native_controls ... ok
+test interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally ... ok
+test interp::native_body_artifact::tests::original_body_word_parts_match_native_concatenation_windows ... ok
+test interp::native_body_artifact::tests::registered_append_artifacts_match_43_native_callback_controls ... ok
+test interp::native_body_artifact::tests::registered_return_artifacts_match_44_native_controls ... ok
+test interp::native_children::tests::child_source_controls_match_native_creation_and_retirement_windows ... ok
+test interp::native_command_rename::tests::alias_rename_diagnostic_matches_all_five_original_native_bindings ... ok
+test interp::native_compilation::tests::native_runtime_matches_all_six_compiler_traversal_oracles ... ok
+test interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls ... ok
+test interp::native_error_log_tests::reached_logs_match_15_native_frame_and_dictionary_windows ... ok
+test interp::native_error_log_tests::special_and_nested_frames_match_12_native_command_logs ... ok
+test interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls ... 
+thread 'interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls' (527653) panicked at src/interp/native_error_variables.rs:763:32:
+assertion `left == right` failed: conflict	0	7b636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20327d204e4f4e45	::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorCode|w|4e4f4e45;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20320a202020207768696c6520657865637574696e670a227061636b6167652070726f766964652070726f6265203222;::errorCode|r|4e4f4e45
+  left: "::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorCode|w|4e4f4e45;::errorInfo|r|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20320a202020207768696c6520657865637574696e670a227061636b6167652070726f766964652070726f6265203222;::errorCode|r|4e4f4e45"
+ right: "::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e2032;::errorCode|w|4e4f4e45;::errorInfo|w|636f6e666c696374696e672076657273696f6e732070726f766964656420666f72207061636b616765202270726f6265223a20312c207468656e20320a202020207768696c6520657865637574696e670a227061636b6167652070726f766964652070726f6265203222;::errorCode|r|4e4f4e45"
+FAILED
+test interp::native_error_variables::tests::c84_nonempty_error_info_publication_matches_original_callback_controls ... 
+thread 'interp::native_error_variables::tests::c84_nonempty_error_info_publication_matches_original_callback_controls' (527654) panicked at src/interp/native_error_variables.rs:805:32:
+assertion `left == right` failed: info-no-code	0	4641494c20494e464f204e4f4e45	::errorInfo|w|;::errorCode|w|4e4f4e45;::errorInfo|w|494e464f;::errorInfo|r|494e464f;::errorCode|r|4e4f4e45
+  left: "::errorInfo|w|;::errorCode|w|4e4f4e45;::errorInfo|r|;::errorInfo|w|494e464f;::errorInfo|r|494e464f;::errorCode|r|4e4f4e45"
+ right: "::errorInfo|w|;::errorCode|w|4e4f4e45;::errorInfo|w|494e464f;::errorInfo|r|494e464f;::errorCode|r|4e4f4e45"
+FAILED
+test interp::native_error_variables::tests::hidden_error_reads_and_unsets_match_original_native_objects ... ok
+test interp::native_error_variables::tests::original_private_error_primaries_and_script_reset_match_native_producers ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_interpreter_two_table_errors_match_all_native_15_windows ... ok
+test interp::native_index_lookup::native_jim_enum_tests::original_jim_enum_matches_all_native_14_windows ... ok
+test interp::native_index_lookup::tests::original_index_cache_matches_all_native_25_windows ... ok
+test interp::native_index_lookup::tests::original_index_flags_and_offsets_match_all_native_31_windows ... ok
+test interp::native_jim_increment::tests::original_dictionary_sugar_increment_matches_native_publication_windows ... ok
+test interp::native_jim_increment::tests::original_dictionary_unset_matches_nine_native_jim_controls ... ok
+test interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results ... ok
+test interp::native_jim_lookup::tests::jim_original_variable_frame_miss_and_unrelated_unset_match_native_controls ... ok
+test interp::native_jim_lookup::tests::original_jim_lookup_primaries_match_native_key_and_cache_ownership ... ok
+test interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls ... 
+thread 'interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls' (527666) panicked at src/interp/native_jim_namespace.rs:288:9:
+assertion `left == right` failed: []
+  left: Error
+ right: Ok
+FAILED
+test interp::native_namespace_names::tests::current_namespace_results_match_current_jim_original_producers ... ok
+test interp::native_namespace_names::tests::opaque_children_match_20_native_query_and_primary_windows ... ok
+test interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows ... ok
+test interp::native_object_vector::tests::original_public_vectors_and_source_commands_match_all_60_native_windows ... ok
+test interp::native_object_vector::tests::public_original_return_matches_all_six_native_completion_boundaries ... ok
+test interp::native_procedure_relocation_tests::relocation_of_original_counted_names_matches_native_binding_identity ... ok
+test interp::native_variable_names::native_unset::tests::original_unset_execution_matches_85_native_completion_windows ... ok
+test interp::native_variable_names::native_unset::tests::original_unset_options_match_66_native_results ... ok
+test interp::native_variable_names::native_unset::tests::original_unset_traces_and_operand_order_match_36_native_results ... ok
+test interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners ... ok
+test interp::native_variable_names::tests::element_entry_lifecycle_matches_all_70_actual_c_windows ... ok
+test interp::native_variable_names::tests::element_table_and_var_roles_match_all_25_actual_callback_windows ... ok
+test interp::native_variable_names::tests::generic_namespace_declarations_match_all_25_native_execution_results ... ok
+test interp::native_variable_names::tests::namespace_alias_settlement_matches_all_15_native_callback_and_error_results ... ok
+test interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths ... ok
+test interp::native_variable_names::tests::original_parsed_headers_match_all_150_actual_c_windows ... ok
+test interp::native_variable_names::tests::qualified_variable_scope_matches_all_six_native_sequences ... ok
+test interp::native_variable_names::tests::scalar_alias_entries_and_array_parts_match_all_95_native_windows ... ok
+test interp::native_variable_names::tests::search_free_slots_match_all_20_actual_c_windows ... ok
+test interp::tests::jim_raw_expression_comparisons_errors_and_numeric_nul_match_native ... ok
+test interp::tests::literal_element_references_match_the_selected_native_interpreter ... 
+thread 'interp::tests::literal_element_references_match_the_selected_native_interpreter' (527784) panicked at src/interp.rs:15878:21:
+assertion `left == right` failed: "/workspace/.proofs/oracle-bin/tclsh8.6": set arr(k) ELEMENT; list prefix${arr(k)}suffix [subst {${arr(k)}}]
+  left: [49, 32, 123, 125]
+ right: [48, 32, 123, 112, 114, 101, 102, 105, 120, 69, 76, 69, 77, 69, 78, 84, 115, 117, 102, 102, 105, 120, 32, 69, 76, 69, 77, 69, 78, 84, 125]
+FAILED
+test interp::tests::native_core_root_cells_match_six_original_constructor_inventories ... ok
+test interp::tests::numeric_nul_expression_observations_match_every_selected_native_engine ... 
+thread 'interp::tests::numeric_nul_expression_observations_match_every_selected_native_engine' (527831) panicked at src/interp.rs:16059:9:
+Some(V8_4) case 0: set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode
+code Ok, observed [49, 32, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 32, 78, 79, 78, 69], expected [49, 32, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 53, 55, 51, 54, 53, 50, 48, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 55, 51, 55, 52, 55, 50, 54, 57, 54, 101, 54, 55, 50, 48, 54, 49, 55, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 50, 48, 54, 102, 54, 54, 50, 48, 50, 50, 50, 98, 50, 50, 32, 78, 79, 78, 69]
+Some(V8_4) case 1: set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode
+code Ok, observed [49, 32, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 32, 78, 79, 78, 69], expected [49, 32, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 53, 55, 51, 54, 53, 50, 48, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 55, 51, 55, 52, 55, 50, 54, 57, 54, 101, 54, 55, 50, 48, 54, 49, 55, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 50, 48, 54, 102, 54, 54, 50, 48, 50, 50, 50, 54, 50, 50, 32, 78, 79, 78, 69]
+Some(V8_4) case 3: set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode
+code Ok, observed [49, 32, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 32, 78, 79, 78, 69], expected [49, 32, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 53, 55, 51, 54, 53, 50, 48, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 55, 51, 55, 52, 55, 50, 54, 57, 54, 101, 54, 55, 50, 48, 54, 49, 55, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 50, 48, 54, 102, 54, 54, 50, 48, 50, 50, 50, 98, 50, 50, 32, 78, 79, 78, 69]
+Some(V8_4) case 4: set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode
+code Ok, observed [49, 32, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 32, 78, 79, 78, 69], expected [49, 32, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 53, 55, 51, 54, 53, 50, 48, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 55, 51, 55, 52, 55, 50, 54, 57, 54, 101, 54, 55, 50, 48, 54, 49, 55, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 50, 48, 54, 102, 54, 54, 50, 48, 50, 50, 50, 54, 50, 50, 32, 78, 79, 78, 69]
+Some(V8_4) case 9: set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode
+code Ok, observed [49, 32, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 32, 78, 79, 78, 69], expected [49, 32, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 53, 55, 51, 54, 53, 50, 48, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 55, 51, 55, 52, 55, 50, 54, 57, 54, 101, 54, 55, 50, 48, 54, 49, 55, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 50, 48, 54, 102, 54, 54, 50, 48, 50, 50, 50, 98, 50, 50, 32, 78, 79, 78, 69]
+Some(V8_4) case 10: set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode
+code Ok, observed [49, 32, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 32, 78, 79, 78, 69], expected [49, 32, 54, 51, 54, 49, 54, 101, 50, 55, 55, 52, 50, 48, 55, 53, 55, 51, 54, 53, 50, 48, 54, 101, 54, 102, 54, 101, 50, 100, 54, 101, 55, 53, 54, 100, 54, 53, 55, 50, 54, 57, 54, 51, 50, 48, 55, 51, 55, 52, 55, 50, 54, 57, 54, 101, 54, 55, 50, 48, 54, 49, 55, 51, 50, 48, 54, 102, 55, 48, 54, 53, 55, 50, 54, 49, 54, 101, 54, 52, 50, 48, 54, 102, 54, 54, 50, 48, 50, 50, 50, 54, 50, 50, 32, 78, 79, 78, 69]
+FAILED
+test interp::tests::original_variable_word_vectors_match_the_selected_native_interpreter ... 
+thread 'interp::tests::original_variable_word_vectors_match_the_selected_native_interpreter' (527994) panicked at src/interp.rs:16120:9:
+"/workspace/.proofs/native-providers/jimtcl/jimsh" variable_word_empty_scalar_braced_element: observed [49, 32, 123, 109, 105, 115, 115, 105, 110, 103, 32, 118, 97, 108, 117, 101, 32, 116, 111, 32, 103, 111, 32, 119, 105, 116, 104, 32, 107, 101, 121, 125], expected [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 40, 107, 41, 34, 58, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 105, 115, 110, 39, 116, 32, 97, 114, 114, 97, 121, 125], host refusal false
+FAILED
+test interp::tests::safe_interp_hidden_set_matches_the_measured_tclsh_sets ... ok
+test interp::tests::trace_registration_invalidates_matching_guard_domains ... ok
+test list::tests::compound_updater_matches_all_six_native_original_object_fixtures ... ok
+test list::tests::list_backing_canonical_flags_match_original_native_operations ... ok
+test list::tests::selected_double_updaters_match_all_native_nonfinite_payloads ... ok
+test namespace::tests::compiler_and_resolver_epochs_match_original_native_mutation_rows ... ok
+test native_arithseries::tests::original_arithmetic_series_matches_all_196_native_storage_windows ... ok
+test native_arithseries::tests::original_lazy_foreach_matches_all_36_native_windows_including_huge_break ... ok
+test native_script::execution_tests::original_script_execution_matches_51_native_callback_windows ... ok
+test native_script::tests::original_script_storage_matches_156_native_windows ... ok
+test native_source::tests::source_owned_list_conversion_matches_222_native_windows ... ok
+test native_substitution::tests::original_substitution_storage_matches_205_native_windows ... ok
+test parse::tests::command_source_slice_matches_c ... ok
+test typed_value::native_number_tests::measured::original_number_bignum_and_increment_match_all_192_native_windows ... ok
+test typed_value::tests::command_cache_getters_match_all_native_original_object_rows ... ok
+test typed_value::tests::command_cache_priming_matches_every_native_original_object_row ... ok
+test typed_value::tests::physical_fresh_getters_match_measured_c_values_and_original_caches ... ok
+test typed_value::tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures ... 
+thread 'typed_value::tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures' (528128) panicked at src/typed_value.rs:1010:17:
+assertion `left == right` failed: engine 5: case=5 boolcode=1 bool=0 booltype=string widecode=0 wide=2: Err(ScalarNumericInputUnavailable)
+  left: false
+ right: true
+FAILED
+test typed_value::tests::primitive_int_matches_native_width_cache_and_failure_on_original_objects ... ok
+test value_ops::native_concat_tests::original_concat_matches_all_twenty_native_windows_per_engine ... ok
+test value_ops::tests::physical_list_length_matches_all_204_native_storage_rows ... ok
+
+failures:
+
+failures:
+    builtins::tests::measured_bare_matches_runtime_requires_independent_authored_policy
+    cmd_alias::tests::visibility_failures_match_direct_and_child_oracles
+    cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries
+    cmd_array::tests::variable_container_storage_matches_all_native_columns
+    cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter
+    cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls
+    cmd_oo::native_private_tests::private_query_and_opaque_original_bodies_match_native_c9_controls
+    cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access
+    cmd_oo::tests::tip558_property_and_info_options_match_tcl_prefix_diagnostics
+    cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement
+    cmd_switch::tests::switch_integer_matches_by_value_on_tcl91
+    cmd_var::tests::captured_increment_receivers_match_actual_native_releases
+    interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs
+    interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls
+    interp::native_error_variables::tests::c84_nonempty_error_info_publication_matches_original_callback_controls
+    interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls
+    interp::tests::literal_element_references_match_the_selected_native_interpreter
+    interp::tests::numeric_nul_expression_observations_match_every_selected_native_engine
+    interp::tests::original_variable_word_vectors_match_the_selected_native_interpreter
+    typed_value::tests::primitive_boolean_storage_and_followup_wide_match_all_native_fixtures
+
+test result: FAILED. 148 passed; 20 failed; 0 ignored; 0 measured; 1040 filtered out; finished in 62.53s
+

@@ -1,0 +1,168 @@
+{
+  "provider": "8.5.19",
+  "channel": "execute",
+  "status": "closed",
+  "command": [
+    "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-variable-introspection-order505b",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "request_sha256": "489071bc1661058953d58b17f456e8c26fc50ca0d0dd7a6d2c397a7b3b355fb1",
+  "source_sha256": "3d8db6cb4de0f895365184d88a8bcb49a87ecd63de8d1cd32ac81bf1acbb1099",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.014226302009774372,
+  "stdout_sha256": "409203417ae68d6bba821d6471af8e8251e229060b056f22f6e07f7ea5d97bdf",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_before": {
+    "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf",
+    "sha256": "d3cf6d9648916fa0880db85ca2fc7feab688da1cea10459bdeadb0d29838339f",
+    "size": 1258696,
+    "device": 27,
+    "inode": 1041578,
+    "mtime_ns": 1791684684073385789,
+    "ctime_ns": 1791684684073408273
+  },
+  "executable_after": {
+    "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf",
+    "sha256": "d3cf6d9648916fa0880db85ca2fc7feab688da1cea10459bdeadb0d29838339f",
+    "size": 1258696,
+    "device": 27,
+    "inode": 1041578,
+    "mtime_ns": 1791684684073385789,
+    "ctime_ns": 1791684684073408273
+  },
+  "executable_unchanged": true,
+  "compile_receipt_sha256": "fffdcb4dea73fcbaeadfff6c5f44affa26bf00cf016c465beadea217e7c5adb1",
+  "dependency_receipt_sha256": "307f9ce21179be6bee736df6a1eb0fb5f0710d898b8aed8c76fb8e9745b2dc7a",
+  "own_successful_compile_producer": {
+    "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/probe.elf",
+    "sha256": "d3cf6d9648916fa0880db85ca2fc7feab688da1cea10459bdeadb0d29838339f",
+    "size": 1258696,
+    "device": 27,
+    "inode": 1041578,
+    "mtime_ns": 1791684684073385789,
+    "ctime_ns": 1791684684073408273
+  },
+  "dependencies_before": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "dependencies_after": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "closed_cases": 18,
+  "closed_marker": true,
+  "actual_version_rows": [
+    "EVAL_RETURN|0|version|0|events=0",
+    "ROW|0|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|1|version|0|events=0",
+    "ROW|1|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|2|version|0|events=0",
+    "ROW|2|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|3|version|0|events=0",
+    "ROW|3|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|4|version|0|events=0",
+    "ROW|4|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|5|version|0|events=0",
+    "ROW|5|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|6|version|0|events=0",
+    "ROW|6|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|7|version|0|events=0",
+    "ROW|7|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|8|version|0|events=0",
+    "ROW|8|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|9|version|0|events=0",
+    "ROW|9|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|10|version|0|events=0",
+    "ROW|10|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|11|version|0|events=0",
+    "ROW|11|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|12|version|0|events=0",
+    "ROW|12|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|13|version|0|events=0",
+    "ROW|13|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|14|version|0|events=0",
+    "ROW|14|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|15|version|0|events=0",
+    "ROW|15|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|16|version|0|events=0",
+    "ROW|16|version|0|382e352e3139|events=0",
+    "EVAL_RETURN|17|version|0|events=0",
+    "ROW|17|version|0|382e352e3139|events=0"
+  ]
+}

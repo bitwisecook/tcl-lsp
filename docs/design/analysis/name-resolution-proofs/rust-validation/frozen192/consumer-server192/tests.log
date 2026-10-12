@@ -1,0 +1,44 @@
+
+running 25 tests
+test original_workspace_diagnostics_tests::explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour ... ok
+test original_workspace_diagnostics_tests::original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity ... ok
+test original_workspace_diagnostics_tests::original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports ... ok
+test tests::original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal ... ok
+test tests::original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfaces_separate ... ok
+test tests::original_hierarchy_and_lens_wire_data_require_retained_current_declarations ... ok
+test tests::original_implementation_queries_keep_workspace_method_and_class_owners ... ok
+test tests::original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners ... ok
+test tests::original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity ... ok
+test tests::original_method_queries_preserve_lexical_variable_provider_priority ... ok
+test tests::original_namespace_queries_keep_opaque_slots_across_documents ... ok
+test tests::original_namespace_rename_uses_typed_workspace_collisions_and_source_plans ... ok
+test tests::original_package_consumers_keep_constraints_and_dependency_preference ... FAILED
+test tests::original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source ... ok
+test tests::original_variable_queries_keep_opaque_slots_across_documents ... ok
+test tests::original_variable_rename_shares_source_plans_and_typed_workspace_collisions ... ok
+test tests::original_workspace_command_rename_uses_atomic_current_owners ... ok
+test tests::original_workspace_math_source_candidate_keeps_dispatch_unresolved ... ok
+test tests::original_workspace_mathfunc_rejects_foreign_namespace_report_tails ... ok
+test tests::original_workspace_member_rename_uses_shared_roster_and_atomic_owner_guards ... ok
+test tests::original_workspace_procedure_rename_requires_expression_edit_coverage ... ok
+test tests::original_workspace_reference_misses_never_reparse_reporting_names ... ok
+test tests::original_workspace_references_and_lenses_share_owned_byte_declarations ... ok
+test tests::original_workspace_w123_preserves_native_absence_with_project_matching ... ok
+test tests::unminify_error_command_echoes_original_and_flags_change ... ok
+
+failures:
+
+---- tests::original_package_consumers_keep_constraints_and_dependency_preference stdout ----
+
+thread 'tests::original_package_consumers_keep_constraints_and_dependency_preference' (698736) panicked at rust/tcl-lsp-server/src/lib.rs:35064:9:
+assertion `left == right` failed
+  left: {}
+ right: {[98, 101, 116, 97, 95, 99, 111, 109, 109, 97, 110, 100], [100, 101, 112, 95, 111, 108, 100]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::original_package_consumers_keep_constraints_and_dependency_preference
+
+test result: FAILED. 24 passed; 1 failed; 0 ignored; 0 measured; 627 filtered out; finished in 241.52s
+

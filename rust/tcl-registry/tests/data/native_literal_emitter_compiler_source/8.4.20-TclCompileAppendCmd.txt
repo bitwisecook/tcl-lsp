@@ -1,0 +1,102 @@
+TclCompileAppendCmd(interp, parsePtr, envPtr)
+    Tcl_Interp *interp;		/* Used for error reporting. */
+    Tcl_Parse *parsePtr;	/* Points to a parse structure for the
+				 * command created by Tcl_ParseCommand. */
+    CompileEnv *envPtr;		/* Holds resulting instructions. */
+{
+    Tcl_Token *varTokenPtr, *valueTokenPtr;
+    int simpleVarName, isScalar, localIndex, numWords;
+    int code = TCL_OK;
+
+    DefineLineInformation;
+
+    numWords = parsePtr->numWords;
+    if (numWords == 1) {
+	Tcl_ResetResult(interp);
+	Tcl_AppendToObj(Tcl_GetObjResult(interp),
+		"wrong # args: should be \"append varName ?value value ...?\"",
+		-1);
+	return TCL_ERROR;
+    } else if (numWords == 2) {
+	/*
+	 * append varName === set varName
+	 */
+        return TclCompileSetCmd(interp, parsePtr, envPtr);
+    } else if (numWords > 3) {
+	/*
+	 * APPEND instructions currently only handle one value
+	 */
+        return TCL_OUT_LINE_COMPILE;
+    }
+
+    /*
+     * Decide if we can use a frame slot for the var/array name or if we
+     * need to emit code to compute and push the name at runtime. We use a
+     * frame slot (entry in the array of local vars) if we are compiling a
+     * procedure body and if the name is simple text that does not include
+     * namespace qualifiers. 
+     */
+
+    varTokenPtr = parsePtr->tokenPtr
+	    + (parsePtr->tokenPtr->numComponents + 1);
+
+    code = TclPushVarNameWord(interp, varTokenPtr, envPtr, TCL_CREATE_VAR,
+	    &localIndex, &simpleVarName, &isScalar, 1);
+    if (code != TCL_OK) {
+	goto done;
+    }
+
+    /*
+     * We are doing an assignment, otherwise TclCompileSetCmd was called,
+     * so push the new value.  This will need to be extended to push a
+     * value for each argument.
+     */
+
+    if (numWords > 2) {
+	valueTokenPtr = varTokenPtr + (varTokenPtr->numComponents + 1);
+	if (valueTokenPtr->type == TCL_TOKEN_SIMPLE_WORD) {
+	    TclEmitPush(TclRegisterNewLiteral(envPtr, 
+		    valueTokenPtr[1].start, valueTokenPtr[1].size), envPtr);
+	} else {
+	    SetLineInformation (2);
+	    code = TclCompileTokens(interp, valueTokenPtr+1,
+	            valueTokenPtr->numComponents, envPtr);
+	    if (code != TCL_OK) {
+		goto done;
+	    }
+	}
+    }
+
+    /*
+     * Emit instructions to set/get the variable.
+     */
+
+    if (simpleVarName) {
+	if (isScalar) {
+	    if (localIndex >= 0) {
+		if (localIndex <= 255) {
+		    TclEmitInstInt1(INST_APPEND_SCALAR1, localIndex, envPtr);
+		} else {
+		    TclEmitInstInt4(INST_APPEND_SCALAR4, localIndex, envPtr);
+		}
+	    } else {
+		TclEmitOpcode(INST_APPEND_STK, envPtr);
+	    }
+	} else {
+	    if (localIndex >= 0) {
+		if (localIndex <= 255) {
+		    TclEmitInstInt1(INST_APPEND_ARRAY1, localIndex, envPtr);
+		} else {
+		    TclEmitInstInt4(INST_APPEND_ARRAY4, localIndex, envPtr);
+		}
+	    } else {
+		TclEmitOpcode(INST_APPEND_ARRAY_STK, envPtr);
+	    }
+	}
+    } else {
+	TclEmitOpcode(INST_APPEND_STK, envPtr);
+    }
+
+    done:
+    return code;
+}

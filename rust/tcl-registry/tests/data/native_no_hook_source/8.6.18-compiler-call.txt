@@ -1,0 +1,31 @@
+    tokenPtr = parsePtr->tokenPtr;
+    cmdKnown = TclWordKnownAtCompileTime(tokenPtr, cmdObj);
+
+    /* Is this a command we should (try to) compile with a compileProc ? */
+    if (cmdKnown && !(iPtr->flags & DONT_COMPILE_CMDS_INLINE)) {
+	cmdPtr = (Command *) Tcl_GetCommandFromObj(interp, cmdObj);
+	if (cmdPtr) {
+	    /*
+	     * Found a command.  Test the ways we can be told not to attempt
+	     * to compile it.
+	     */
+	    if ((cmdPtr->compileProc == NULL)
+		    || (cmdPtr->nsPtr->flags & NS_SUPPRESS_COMPILATION)
+		    || (cmdPtr->flags & CMD_HAS_EXEC_TRACES)) {
+		cmdPtr = NULL;
+	    }
+	}
+	if (cmdPtr && !(cmdPtr->flags & CMD_COMPILES_EXPANDED)) {
+	    expand = ExpandRequested(parsePtr->tokenPtr, parsePtr->numWords);
+	    if (expand) {
+		/* We need to expand, but compileProc cannot. */
+		cmdPtr = NULL;
+	    }
+	}
+    }
+
+    /* If cmdPtr != NULL, try to call cmdPtr->compileProc */
+    if (cmdPtr) {
+	code = CompileCmdCompileProc(interp, parsePtr, cmdPtr, envPtr);
+    }
+

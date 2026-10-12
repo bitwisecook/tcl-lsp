@@ -1,0 +1,57 @@
+{
+  "compiler_hook": "actual Command.compileProc with original CompileEnv counted source registration",
+  "source_sha256": "d00fb2dd8dabf47d231ce7fee87da3a972f5f59d462773bde58b8a60b7f01303",
+  "header_sha256": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+  "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+  "runs": [
+    {
+      "array_width": 1,
+      "source_index": 0,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=1\tself0=1\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    },
+    {
+      "array_width": 2,
+      "source_index": 0,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=2\tself0=1\tself1=0\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    },
+    {
+      "array_width": 2,
+      "source_index": 1,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=2\tself0=0\tself1=1\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    },
+    {
+      "array_width": 3,
+      "source_index": 0,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=3\tself0=1\tself1=0\tself2=0\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    },
+    {
+      "array_width": 3,
+      "source_index": 1,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=3\tself0=0\tself1=1\tself2=0\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    },
+    {
+      "array_width": 3,
+      "source_index": 2,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=3\tself0=0\tself1=0\tself2=1\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    },
+    {
+      "array_width": 8,
+      "source_index": 4,
+      "exit": 0,
+      "stdout": "before\trefs=3\ttype=none\nafter\trefs=4\tcount=8\tself0=0\tself1=0\tself2=0\tself3=0\tself4=1\tself5=0\tself6=0\tself7=0\nafter-delete\trefs=1\ttype=bytecode\nreleased-external-originals\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::original_publication_tests::public_replacement_refusal_stops_creation_workers_and_retires_partial_objects ... 
+thread 'cmd_oo::original_publication_tests::public_replacement_refusal_stops_creation_workers_and_retires_partial_objects' (1254552) panicked at src/cmd_oo/original_publication_tests.rs:304:17:
+assertion `left == right` failed
+  left: 0x7f80fc5fb010
+ right: 0x7f80fc8ea960
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::original_publication_tests::public_replacement_refusal_stops_creation_workers_and_retires_partial_objects
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.16s
+

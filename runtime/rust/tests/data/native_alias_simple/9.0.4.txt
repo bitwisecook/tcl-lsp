@@ -1,0 +1,7 @@
+before0|list|1
+after0|0|list|1
+before1|list|1
+after1|0|list|2
+before2|NULL|1
+after2|0|NULL|2
+completion|0|X

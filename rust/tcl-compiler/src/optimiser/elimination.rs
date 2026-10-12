@@ -54,6 +54,9 @@
 //! Emission order is the deterministic CFG `cfg_order` (reverse
 //! post-order from the entry, unreachable blocks appended).
 
+mod source_purity;
+mod source_reads;
+
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::TokenType;
@@ -64,149 +67,50 @@ use tcl_registry::value_transfer::{BindingKind, Existence};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
-use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
-use crate::side_effects::classify_side_effects;
 
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
-/// True when `text` (a Tcl word body) contains a command substitution
-/// that has an observable side effect — writes a variable, prints to
-/// stdout, mutates global state, runs a dynamic barrier, etc. Used to
-/// gate elimination of unused / dead assignments: `set v [puts X]`
-/// discards the result but still prints, so the assignment is NOT safe
-/// to delete.
-///
-/// `interproc_pure` is the set of qualified user-proc names proven pure
-/// by interprocedural analysis; a cmd-sub of such a proc is treated as
-/// side-effect-free even though [`classify_side_effects`] is
-/// conservative for user commands. `pure_methods` + `enclosing_class`
-/// recognise a pure `my <method>` self-dispatch. Conservative:
-/// anything we can't classify (unknown proc, dynamic dispatch,
-/// unparseable / no registry) is treated as having a side effect.
-/// Read-only purity context for the dead-code side-effect gates: the command
-/// registry plus the interprocedurally-proven pure procs / methods and the
-/// enclosing class for `my`-dispatch resolution. Bundled so the recursive
-/// side-effect checks stay within the argument limit.
+/// Actual source input for the substitution effect gate. Interprocedural
+/// names assist only a Logical target joined to its original declaration.
 #[derive(Clone, Copy)]
 pub(crate) struct PurityCtx<'a> {
     pub(crate) registry: Option<&'a CommandRegistry>,
     pub(crate) interproc_pure: &'a HashSet<String>,
-    pub(crate) pure_methods: &'a HashSet<String>,
-    pub(crate) enclosing_class: Option<&'a str>,
     /// The document's lexer configuration.  The purity walk re-lexes an
-    /// already-extracted word to find its `[…]` substitutions and segments
-    /// each one into a head plus arguments, so it must read the bytes under
+    /// already-extracted word only to recognise command substitution syntax;
+    /// original child receipts supply dispatch and arguments. It reads under
     /// the grammar the document was lexed with — an iRules `}{`, a Jim
     /// `$(…)` or an 8.4 `{*}` puts the head in a different place.
     pub(crate) config: tcl_lexer::LexerConfig,
+    pub(crate) metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    pub(crate) module: Option<&'a crate::ir::Module>,
 }
 
 #[derive(Clone, Copy)]
 struct EffectCtx<'a> {
     purity: PurityCtx<'a>,
-    execution_namespace: Option<&'a crate::ir::ExecutionNamespace>,
+    source_tokens: Option<&'a crate::ir::CommandTokens>,
 }
 
-fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>, depth: u32) -> bool {
-    // Native-stack safety net: this recurses into nested `[cmd
-    // …]` substitutions inside a single word's raw text, a genuinely
-    // unbounded axis. Past the cap, assume an observable side effect — the
-    // conservative direction, so an assignment whose RHS nests deeper than we
-    // can scan is never wrongly deleted.
-    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-        return true;
-    }
-    let purity = effect.purity;
-    let PurityCtx {
-        interproc_pure,
-        pure_methods,
-        enclosing_class,
-        ..
-    } = purity;
+fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>) -> bool {
     if !text.contains('[') {
         return false;
     }
-    // No registry to classify embedded commands → conservative.
-    let Some(registry) = purity.registry else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, effect.purity.config)
+        .as_quoted_body()
+        .tokenise_all()
+    else {
         return true;
     };
-    let sm = tcl_lexer::SourceMap::new(text);
-    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, purity.config).tokenise_all() else {
-        return true; // unparseable → conservative
-    };
-    for tok in &tokens {
-        if tok.kind != tcl_lexer::TokenType::Cmd {
-            continue;
-        }
-        // `token_text` yields the command substitution's inner text
-        // (brackets stripped); segment it to get name + args.
-        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
-            sm.token_text(*tok),
-            0,
-            purity.config,
-        );
-        if cmds.len() != 1 || cmds[0].texts.is_empty() {
-            // Multi-command substitution or empty → conservative.
-            return true;
-        }
-        let cmd_name = cmds[0].texts[0].as_str();
-        let cmd_args: &[String] = &cmds[0].texts[1..];
-        if effect
-            .execution_namespace
-            .is_some_and(|namespace| namespace.for_head(cmd_name).is_none())
-        {
-            // TclOO selects the receiver namespace at invocation time. A
-            // relative command there can be shadowed by an object-local
-            // command, including `my` / `next`; a registry spelling is not an
-            // exact binding proof.
-            return true;
-        }
-        let se = classify_side_effects(registry, cmd_name, cmd_args, None, None);
-        if !se.pure {
-            // A user proc / method that the registry can't classify may
-            // have been interprocedurally proven pure — consult those.
-            let proc_pure = interproc_pure.contains(cmd_name)
-                || interproc_pure.contains(format!("::{cmd_name}").as_str())
-                || interproc_pure.contains(cmd_name.trim_start_matches(':'));
-            // The contextual self-dispatch keyword is registry data, not a
-            // name literal. Runtime-selected spellings already returned
-            // conservatively above.
-            let self_dispatch_pure = registry.method_dispatch_keyword(cmd_name)
-                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-                && !cmd_args.is_empty()
-                && enclosing_class.is_some_and(|cls| method_pure(cls, &cmd_args[0], pure_methods));
-            if !proc_pure && !self_dispatch_pure {
-                return true;
-            }
-        }
-        // Recurse into nested substitutions inside the args.
-        for arg in cmd_args {
-            if word_has_observable_side_effect(arg, effect, depth + 1) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Return `true` iff `class_qname::method_name` (or a common qualifier
-/// spelling) is in `pure_methods`.
-fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<String>) -> bool {
-    if method_name.is_empty() {
+    if !tokens.iter().any(|token| token.kind == TokenType::Cmd) {
         return false;
     }
-    let cls = class_qname.trim_start_matches(':');
-    [
-        format!("{class_qname}::{method_name}"),
-        format!("::{cls}::{method_name}"),
-        format!("{cls}::{method_name}"),
-    ]
-    .iter()
-    .any(|k| pure_methods.contains(k))
+    !source_purity::substitutions_are_pure(effect)
 }
 
 /// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
@@ -217,15 +121,17 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
     // native frame per level. Past the cap, assume an observable side effect
     // — the conservative direction, so an expression assignment nested deeper
     // than we can walk is never wrongly deleted. (Calls into
-    // `word_has_observable_side_effect` re-enter that walker at bracket-text
-    // depth 0: a leaf's raw text is a separate, independent recursion axis.)
+    // `word_has_observable_side_effect` only recognises a leaf's selected
+    // lexical substitution syntax; it does not recursively parse commands.)
     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
         return true;
     }
     match node {
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
-            word_has_observable_side_effect(text, effect, 0)
-        }
+        // Command nodes retain the inner script, without bracket delimiters.
+        // The AST itself proves evaluation syntax; dispatch still requires
+        // the original nested receipts rather than re-lexing that script.
+        ExprNode::Command { .. } => !source_purity::substitutions_are_pure(effect),
+        ExprNode::Raw { text } => word_has_observable_side_effect(text, effect),
         ExprNode::Binary { left, right, .. } => {
             expr_has_observable_side_effect(left, effect, depth + 1)
                 || expr_has_observable_side_effect(right, effect, depth + 1)
@@ -249,7 +155,7 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
         // `set y [expr {"[incr x]"}]` and lost the `incr` (#2227, found in
         // review).
         ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text)
-            .is_some_and(|body| word_has_observable_side_effect(body, effect, 0)),
+            .is_some_and(|body| word_has_observable_side_effect(body, effect)),
         _ => false,
     }
 }
@@ -257,18 +163,28 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
 /// `true` when `stmt` is an assignment whose RHS can be discarded
 /// without losing observable behaviour. A literal (`AssignConst`) is
 /// always safe; value / expr forms require every embedded command
-/// substitution to be provably side-effect-free; `incr v` is safe when
-/// its optional amount word has no side effect (whether it can raise is
-/// [`RaiseProof`]'s question). Any other statement form is
-/// conservatively unsafe — a `Call` among them, so an unbind (`unset x`,
-/// `array unset x`) is never removed, whatever reads the definition it
-/// makes.
-pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
+/// substitution to be provably side-effect-free; `incr v` is safe
+/// unless its optional amount word has a side effect. Any other
+/// statement form is conservatively unsafe.
+pub(crate) fn assignment_safe_to_delete_at(
+    function: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    purity: PurityCtx<'_>,
+) -> bool {
+    let Some(statement) = function
+        .cfg
+        .blocks
+        .get(&block)
+        .and_then(|block| block.statements.get(index))
+    else {
+        return false;
+    };
     assignment_safe_to_delete_with_effect(
-        stmt,
+        statement,
         EffectCtx {
             purity,
-            execution_namespace: None,
+            source_tokens: function.cfg.source_tokens_at(block, index),
         },
     )
 }
@@ -276,14 +192,14 @@ pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>)
 fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
-        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect, 0),
+        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect),
         Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, effect, 0),
         // `incr v` reads + writes v — the assignment itself is the
         // observable effect, so deleting it is OK when v is dead and the
         // optional amount word is side-effect-free.
         Statement::Incr { amount, .. } => match amount {
             None => true,
-            Some(a) => !word_has_observable_side_effect(a, effect, 0),
+            Some(a) => !word_has_observable_side_effect(a, effect),
         },
         // Unknown statement form — conservative.
         _ => false,
@@ -327,6 +243,10 @@ struct RaiseProof<'a> {
     scope_aliases: HashSet<String>,
     /// Names a module-wide trace guards; a read trace may raise.
     module_traced: Option<&'a std::collections::BTreeSet<String>>,
+    /// Alias/effect availability belongs to this exact supplied source input.
+    metadata_available: bool,
+    /// Ordinary source SSA names can assist only the retained Logical model.
+    logical_source_assistance: bool,
     /// Whether every release the profile names creates the cell an `incr`
     /// of an absent place reads (8.5 onwards); 8.4 raises `can't read`.
     incr_creates_absent: bool,
@@ -346,11 +266,9 @@ struct CallCompletion<'a> {
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     /// Whether the module traces a command, whose callback may raise.
     traces_commands: bool,
-    /// The document's grammar, which a value's words were lexed under.
-    config: tcl_lexer::LexerConfig,
-    /// Whether the function runs in a namespace chosen at run time — a
-    /// method body — where a relative head names no proven procedure.
-    runtime_namespace: bool,
+    /// Same original Module/registry required by conditional call receipts.
+    module: Option<&'a crate::ir::Module>,
+    registry: &'a CommandRegistry,
     /// Which procedures are surely defined where the function's calls run.
     defined: Defined<'a>,
 }
@@ -409,17 +327,6 @@ impl<'a> Defined<'a> {
 }
 
 impl CallCompletion<'_> {
-    /// The procedure of the module `head` names from `function`, as Tcl
-    /// resolves a command: the function's namespace, then the global one.
-    fn procedure(&self, function: &str, head: &str) -> Option<String> {
-        if self.runtime_namespace && !head.starts_with("::") {
-            return None;
-        }
-        crate::interprocedural::resolve_internal_call_with(head, function, |qname| {
-            self.procedures.contains_key(qname)
-        })
-    }
-
     /// Whether a call to `qname` with `words` words after its head, made by
     /// the statement at `site`, cannot raise: the summary proves the
     /// procedure pure and completing, its parameters accept the count, its
@@ -429,9 +336,16 @@ impl CallCompletion<'_> {
             summary.pure
                 && summary.completes
                 && self.defined.admits(summary, site)
-                && u16::try_from(words).is_ok_and(|count| {
-                    crate::interprocedural::arity_from_names(&summary.params).accepts(count)
-                })
+                && self
+                    .module
+                    .and_then(|module| {
+                        crate::registry_invocation::original_procedure_formal_count_shape(
+                            module,
+                            module.procedures.get(qname)?,
+                            self.registry,
+                        )
+                    })
+                    .is_some_and(|shape| shape.accepts(words))
         }) && !self
             .redefined
             .is_some_and(|redefined| redefined.contains(qname))
@@ -450,9 +364,23 @@ impl<'a> RaiseProof<'a> {
         let registry = ctx.registry.unwrap_or_else(|| {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
         });
+        let metadata = ctx.ir_module.map_or_else(
+            || fu.invocation_metadata_context(registry),
+            |module| fu.invocation_metadata_context_for_module(registry, module),
+        );
+        let logical_source_assistance = metadata.is_some()
+            && ctx.ir_module.is_some_and(|module| {
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                    .and_then(|metadata| {
+                        module.original_invocation_source_purpose(registry, metadata)
+                    })
+                    == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            });
         Self {
             fu,
-            scope_aliases: scan_scope_aliases(&fu.cfg, registry),
+            metadata_available: metadata.is_some(),
+            logical_source_assistance,
+            scope_aliases: scan_scope_aliases_with_metadata_context(&fu.cfg, registry, metadata),
             module_traced: ctx.ir_module.map(|m| &m.traced_variables),
             incr_creates_absent: ctx
                 .registry
@@ -464,8 +392,8 @@ impl<'a> RaiseProof<'a> {
                 traces_commands: ctx
                     .ir_module
                     .is_some_and(|m| !m.traced_commands.is_empty() || m.has_dynamic_trace),
-                config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-                runtime_namespace: execution_namespace.is_some(),
+                module: ctx.ir_module,
+                registry,
                 defined: Defined::of(ctx, fu, execution_namespace.is_some()),
             },
         }
@@ -475,7 +403,7 @@ impl<'a> RaiseProof<'a> {
     /// guard `name` where this function cannot see it. Element names check
     /// their base too.
     fn observed(&self, name: &str) -> bool {
-        let base = crate::naming::normalise_var_name(name);
+        let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
         self.scope_aliases.contains(name)
             || self.scope_aliases.contains(base)
             || self.fu.cfg.alias_observed_vars.contains(name)
@@ -492,13 +420,16 @@ impl<'a> RaiseProof<'a> {
         block: crate::cfg::BlockId,
         idx: usize,
         stmt: &Statement,
-        def: &(String, u32),
+        def: &(crate::var_resolve::VariableCellKey, u32),
     ) -> bool {
+        if !self.metadata_available {
+            return false;
+        }
         if self.fu.sccp.raised.contains(&(block, idx)) {
             return false;
         }
         let folded = || {
-            self.fu.ssa.var_symbol(&def.0).is_some_and(|sym| {
+            self.fu.ssa.cell_symbol(&def.0).is_some_and(|sym| {
                 !self.fu.sccp.preserved.contains_key(&(sym, def.1))
                     && matches!(
                         self.fu.sccp.values.get(&(sym, def.1)),
@@ -514,10 +445,15 @@ impl<'a> RaiseProof<'a> {
             // An element read (`$a(k)`, `$a($i)`) raises when its base is a
             // scalar or lacks the element, and a command substitution on its
             // own words, neither of which the reads' existence can show.
-            Statement::AssignValue { value, .. } => {
+            Statement::AssignValue { .. } => {
                 folded()
-                    || (!has_element_substitution(value)
-                        && (!has_command_substitution(value) || self.calls_complete(stmt))
+                    || stmt.tokens().is_some_and(|tokens| {
+                        tokens.source_binding.as_ref().is_some_and(|binding| {
+                            binding.original_arguments_complete_normally(tokens)
+                        })
+                    })
+                    || (self.logical_source_assistance
+                        && self.calls_complete(stmt)
                         && self.reads_are_set(block, idx))
             }
             Statement::Incr {
@@ -538,15 +474,11 @@ impl<'a> RaiseProof<'a> {
         }
     }
 
-    /// Whether every command the value word of `stmt` (an `AssignValue`)
-    /// substitutes is a call that cannot raise: to a procedure of the
-    /// module, resolved from the function's namespace as Tcl resolves it,
-    /// whose summary proves it pure and completing whatever its arguments
-    /// hold, called with a word count its parameters accept, under a name no
-    /// redefinition, `rename` or alias moves, in a module that traces no
-    /// command; each of its words literal, a variable read or a substitution
-    /// of the same kind. Whether the reads are set is
-    /// [`Self::reads_are_set`]'s question.
+    /// The original value word's lexical reads and authentic child calls.
+    /// Procedure targets join the same Logical Module's original allocation,
+    /// header and effective argument vector. Supplied summaries, definition reach,
+    /// purity and observer guards remain independent; variable existence is
+    /// checked by `reads_are_set` before any deletion proof consumes this result.
     fn calls_complete(&self, stmt: &Statement) -> bool {
         let Statement::AssignValue {
             tokens: Some(tokens),
@@ -562,10 +494,16 @@ impl<'a> RaiseProof<'a> {
         if calls.traces_commands {
             return false;
         }
-        let procedure = |head: &str| calls.procedure(&self.fu.name, head);
-        let mut walk = crate::interprocedural::CompletionWalk::new(calls.config, &procedure, None);
+        let Some(module) = calls.module else {
+            return false;
+        };
+        let Some(mut walk) =
+            crate::interprocedural::CompletionWalk::for_module(module, calls.registry, false)
+        else {
+            return false;
+        };
         let site = stmt.span().start();
-        walk.word(value)
+        walk.word_in(tokens, value)
             && walk
                 .calls
                 .iter()
@@ -612,7 +550,7 @@ impl<'a> RaiseProof<'a> {
         }) {
             return false;
         }
-        let Some(sym) = self.fu.ssa.var_symbol(place) else {
+        let Some(sym) = self.fu.ssa.var_symbol_at(block, idx, place) else {
             return false;
         };
         let holds_integer = || {
@@ -686,66 +624,17 @@ impl<'a> RaiseProof<'a> {
 /// Whether a word runs a command substitution: an unescaped `[`. A bracket
 /// inside a braced part of the word is text, which a false positive only
 /// treats as a command and so keeps a store.
-fn has_command_substitution(word: &str) -> bool {
-    let bytes = word.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => i += 2,
-            b'[' => return true,
-            _ => i += 1,
-        }
-    }
-    false
-}
-
-/// Whether a word substitutes an array element: an unescaped `$name(`, or
-/// `$(` for the empty-named array. A braced `${a(k)}` names a scalar and is
-/// not one; a false positive only keeps a store.
-fn has_element_substitution(word: &str) -> bool {
-    let bytes = word.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => i += 2,
-            b'$' if bytes.get(i + 1) != Some(&b'{') => {
-                let mut j = i + 1;
-                while j < bytes.len()
-                    && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-                {
-                    j += 1;
-                }
-                if bytes.get(j) == Some(&b'(') {
-                    return true;
-                }
-                i = j.max(i + 1);
-            }
-            _ => i += 1,
-        }
-    }
-    false
-}
-
 /// Collect the qualified names of procs / methods that interprocedural
 /// analysis has proven pure — threaded into the O109 / O126 RHS-purity
 /// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
 /// fold.
-fn pure_call_targets(ctx: &PassContext<'_>) -> (HashSet<String>, HashSet<String>) {
-    let interproc_pure: HashSet<String> = ctx
-        .interproc
+fn pure_call_targets(ctx: &PassContext<'_>) -> HashSet<String> {
+    ctx.interproc
         .procedures
         .iter()
-        .filter(|(_, s)| s.pure)
-        .map(|(q, _)| q.clone())
-        .collect();
-    let pure_methods: HashSet<String> = ctx
-        .interproc
-        .methods
-        .iter()
-        .filter(|(_, s)| s.base.pure)
-        .map(|(q, _)| q.clone())
-        .collect();
-    (interproc_pure, pure_methods)
+        .filter(|(_, summary)| summary.pure)
+        .map(|(name, _)| name.clone())
+        .collect()
 }
 
 /// Run the elimination pass — emits O107, O108, O109, O126
@@ -755,11 +644,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // O109/O126 closure: the user-proc / TclOO-method purity sets
     // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
     // calls below don't alias `ctx.interproc`).
-    let (interproc_pure, pure_methods) = pure_call_targets(ctx);
-    // The call-by-name proc-index (caller-locals passed by
-    // name to an upvar callee must not be deleted as dead/unused — O109 /
-    // O126).  Built once; borrows `ctx.interproc` before the `&mut ctx`
-    // emit calls below.
+    let interproc_pure = pure_call_targets(ctx);
     let proc_index = crate::interprocedural::build_proc_index_from_summaries(&ctx.interproc);
 
     if deep_analysis_available(&cu.top_level) {
@@ -767,9 +652,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
-            enclosing_class: None,
-            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            config: cu.top_level.source_lexer_config(),
+            metadata: ctx.registry.and_then(|registry| {
+                cu.top_level
+                    .invocation_metadata_context_for_module(registry, &cu.ir_module)
+            }),
+            module: Some(&cu.ir_module),
         };
         let baseline = emit_dead_stores_and_unused(
             ctx,
@@ -779,20 +667,22 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             None,
             &proc_index,
         );
-        emit_adce(ctx, &cu.top_level, &baseline, purity, None);
+        emit_adce(ctx, &cu.top_level, &baseline, purity, true, None);
     }
 
     // `manager::build_pass_context` populates this shared safety fact once,
     // before every pass runs. Retain the event-only projection here so plain
     // procedures with an equal local spelling are not needlessly suppressed.
-    let when_cross_event = ctx.cross_event_vars.clone();
     let saved_proc_cross = std::mem::take(&mut ctx.cross_event_vars);
     for (qname, fu) in &cu.procedures {
         if !deep_analysis_available(fu) {
             continue;
         }
         ctx.cross_event_vars = if qname.starts_with("::when::") {
-            when_cross_event.clone()
+            cu.connection_scope
+                .as_ref()
+                .map(|scope| scope.handler_source_names(qname, false))
+                .unwrap_or_default()
         } else {
             std::collections::HashSet::new()
         };
@@ -800,19 +690,20 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
-            enclosing_class: None,
-            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            config: fu.source_lexer_config(),
+            metadata: ctx.registry.and_then(|registry| {
+                fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
+            }),
+            module: Some(&cu.ir_module),
         };
         let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, None, &proc_index);
-        emit_adce(ctx, fu, &baseline, purity, None);
+        emit_adce(ctx, fu, &baseline, purity, false, None);
     }
     ctx.cross_event_vars = saved_proc_cross;
 
-    // Optimise TclOO method bodies as functions too, passing both the owning
-    // class qname and the command execution namespace. The O126 `my <method>`
-    // purity gate may resolve a same-class method only after namespace
-    // selection proves the command head. Instance variables
+    // Method functions retain the same original nested dispatch requirements.
+    // The owning class selects parameter metadata, not receiver-method purity.
+    // Instance variables
     // escape the method frame (they are object state), so they are fed
     // through the same escaping channel iRules cross-event state uses —
     // the dead-store / unused-assignment passes must not delete a
@@ -823,7 +714,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             continue;
         }
         let ir_method = cu.ir_module.methods.get(mqname);
-        let enclosing_class = ir_method.map(|m| m.class_name.as_str());
         let execution_namespace = ir_method.map(|m| &m.execution_namespace);
         ctx.cross_event_vars = ir_method
             .map(|m| m.instance_vars.clone())
@@ -832,13 +722,15 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
-            enclosing_class,
-            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            config: fu.source_lexer_config(),
+            metadata: ctx.registry.and_then(|registry| {
+                fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
+            }),
+            module: Some(&cu.ir_module),
         };
         let baseline =
             emit_dead_stores_and_unused(ctx, fu, false, purity, execution_namespace, &proc_index);
-        emit_adce(ctx, fu, &baseline, purity, execution_namespace);
+        emit_adce(ctx, fu, &baseline, purity, false, execution_namespace);
     }
     ctx.cross_event_vars = saved_cross;
 }
@@ -879,10 +771,13 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         let Some(block) = fu.cfg.blocks.get(&block_id) else {
             continue;
         };
-        for stmt in &block.statements {
+        for (index, _statement) in block.statements.iter().enumerate() {
+            let Some(command_span) = fu.cfg.statement_source_edit_span(block_id, index) else {
+                continue;
+            };
             // CFG statement spans are relative to the unit's `base_offset`;
             // absolutise before slicing `ctx.source` / emitting.
-            let span = fu.abs_span(stmt.span());
+            let span = fu.abs_span(command_span);
             // Skip zero-length spans — those are synthesised IR
             // (e.g. implicit barriers) with no user-visible
             // source text to delete.
@@ -894,7 +789,7 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             // the span of the whole `try`, and a handler that never runs —
             // one an earlier handler pre-empts, or a `-` handler — leaves the
             // `try` that does.
-            if encloses_live_code(stmt.span(), &live) {
+            if encloses_live_code(_statement.span(), &live) {
                 continue;
             }
             ctx.report(Optimisation::new(
@@ -976,7 +871,7 @@ struct DseEntry {
     span: tcl_lexer::Span,
     code: DiagCode,
     msg: &'static str,
-    key: (String, u32),
+    key: (crate::var_resolve::VariableCellKey, u32),
     block: String,
     statement_index: i32,
 }
@@ -992,14 +887,11 @@ fn emit_dead_stores_and_unused(
     purity: PurityCtx<'_>,
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
     proc_index: &crate::interprocedural::ProcIndex,
-) -> HashSet<(String, u32)> {
+) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
     // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any* store,
     // so no assignment in this function is provably dead.  Deleting one would
     // change what the program prints, so the
     // optimiser abstains toward not folding — no O109/O126, and no ADCE seed.
-    if fu.dynamic_names.reads {
-        return HashSet::new();
-    }
     // Whole-module variable-trace facts — the same
     // canonicalised (`::`-stripped) fact SCCP and O102 consult. A write
     // trace fires its callback on every store, so no store to a traced
@@ -1007,7 +899,7 @@ fn emit_dead_stores_and_unused(
     // different proc or spells the target `::var` while the store is
     // unqualified; a dynamic trace target makes *every* name potentially
     // traced, so the whole function abstains.
-    if ctx.ir_module.is_some_and(|m| m.has_dynamic_variable_trace) {
+    if dead_store_observation_unbounded(ctx, fu) {
         return HashSet::new();
     }
     let module_traced = ctx.ir_module.map(|m| &m.traced_variables);
@@ -1018,58 +910,57 @@ fn emit_dead_stores_and_unused(
     let scan_registry = purity
         .registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
-    let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
+    let fallback_contexts;
+    let point_contexts = if let Some(contexts) = &fu.ssa.point_contexts {
+        contexts
+    } else {
+        fallback_contexts = crate::variable_bindings::build_point_resolve_contexts(
+            &fu.cfg,
+            &fu.name,
+            scan_registry,
+        );
+        &fallback_contexts
+    };
     let raise_proof = RaiseProof::new(ctx, fu, execution_namespace);
-    // Caller-locals this function passes by name to an
-    // upvar callee — not dead/unused even when the name-level SSA sees
-    // no read (the callee reads/writes it through the alias).
     let call_by_name = crate::interprocedural::collect_call_by_name_reads(&fu.cfg, proc_index);
     // The `def_use` builder does not scan Return-value reads or
     // embedded string-interpolation reads; do a supplementary
     // textual pass over the CFG to collect every var name that
     // appears in any source slice. Any def of a name referenced
     // textually is kept live — conservative but correct.
-    let mut textually_referenced =
-        collect_textual_var_references(ctx.source, &fu.cfg, fu.base_offset, ctx.braced_var());
-    // A read-modify-write command's target buried in a substitution
-    // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive.
-    if let Some(registry) = ctx.registry {
-        textually_referenced.extend(collect_rmw_hidden_reads(fu, registry));
-    }
+    let textually_referenced = dead_store_textual_reads(ctx, fu);
 
     // The place model: array-element writes the name-level
     // SSA mis-folds (`set a(k) 1` "overwritten" by `set a(j) 2`) but that a read
     // observes.  Shared with the analyser's W220.  Empty unless a registry is
     // bound (set by the `optimise*` entry points) and the function writes array
     // elements — so the bare test/`run_pass` path keeps its prior behaviour.
-    let place_suppressed = ctx
-        .registry
-        .map(|reg| crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg))
-        .unwrap_or_default();
+    let place_suppressed = observed_element_stores(ctx, fu, point_contexts);
 
     // Collect one DseEntry per dead chain then sort + emit.
     let mut entries: Vec<DseEntry> = Vec::new();
 
     for chain in fu.def_use.chains.values() {
-        if has_running_use(fu, chain) || chain.definition.kind != DefKind::Statement {
+        let Some((def_block, idx, stmt)) = live_dead_chain_statement(fu, chain, &unreachable)
+        else {
+            continue;
+        };
+        let bound_writes = crate::place_bridge::def_places(
+            stmt,
+            point_contexts.before_statement(def_block, idx),
+            scan_registry,
+        );
+        if dead_store_writes_observed(
+            fu,
+            def_block,
+            idx,
+            &bound_writes,
+            point_contexts,
+            scan_registry,
+        ) {
             continue;
         }
-        let Some(def_block) = fu.cfg.block_id(&chain.definition.block) else {
-            continue;
-        };
-        if unreachable.contains(&def_block) {
-            // O107 already reports these.
-            continue;
-        }
-        let Some(block) = fu.cfg.blocks.get(&def_block) else {
-            continue;
-        };
-        let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
-            continue;
-        };
-        let Some(stmt) = block.statements.get(idx) else {
-            continue;
-        };
+
         // O109/O126 closure: gate deletion on RHS purity. The def is
         // dead at the SSA level, but its RHS may have observable side
         // effects (`set unused [puts X]` prints, `set unused [my
@@ -1078,7 +969,7 @@ fn emit_dead_stores_and_unused(
         // when evaluating the value cannot raise (#2249).
         let effect = EffectCtx {
             purity,
-            execution_namespace,
+            source_tokens: fu.cfg.source_tokens_at(def_block, idx),
         };
         if !assignment_safe_to_delete_with_effect(stmt, effect)
             || !raise_proof.value_cannot_raise(def_block, idx, stmt, &chain.key)
@@ -1093,46 +984,34 @@ fn emit_dead_stores_and_unused(
         )) {
             continue;
         }
-        // Skip a store another scope or a call the module cannot see may
-        // observe: writes through global / upvar are visible elsewhere.
-        let (var, _) = &chain.key;
-        let var_base = crate::naming::normalise_var_name(var);
-        if store_is_seen_elsewhere(fu, chain, &scope_aliases) {
+        // Skip if the variable is a scope alias — writes through
+        // global / upvar are visible in other scopes. Policy sets hold
+        // *base* names, so an element symbol (`a(k)`) checks its base too.
+
+        let (cell_name, _) = &chain.key;
+        let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+            continue;
+        };
+        let var = fu.ssa.var_name(symbol);
+        // A synthetic may-def (base refresh / element fan) is not a write
+        // the user made — never an O109/O126 candidate.
+        if fu.ssa.is_synthetic_def(
+            &chain.definition.block,
+            chain.definition.statement_index,
+            cell_name,
+        ) {
             continue;
         }
-        // Traced anywhere in the module, under the canonical `::`-stripped
-        // spelling — the store is observed by the trace
-        // callback, so it is neither dead nor unused.
-        if module_traced.is_some_and(|t| t.contains(var_base.trim_start_matches("::"))) {
-            continue;
-        }
-        // Skip `::`-qualified globals: a direct write to a
-        // fully-qualified global (`set ::counter 42`) inside a proc is
-        // visible to every other scope, so it is never a dead/unused
-        // store. The SCCP side and the manager's
-        // `couple_propagated_const_dead_stores` already guard `::`; this
-        // pass omitted it and so deleted cross-proc global writes.
-        if var.starts_with("::") {
-            continue;
-        }
-        // Skip cross-event vars (iRules scope; also TclOO instance state —
-        // both sets hold base names).
-        if ctx.cross_event_vars.contains(var) || ctx.cross_event_vars.contains(var_base) {
-            continue;
-        }
-        // Skip a caller-local passed by name to an upvar
-        // callee — the callee consumes it through the alias (O109 / O126).
-        if call_by_name.contains(var) || call_by_name.contains(var_base) {
-            continue;
-        }
-        // Skip a caller-local a callee touches through an upvar alias whose
-        // caller-side name is spelled in the CALLEE (`upvar 1 callervar m;
-        // return $m`) or written through `uplevel` — the alias hands the
-        // callee both directions, so no store to it is provably dead
-        // — deleting `set callervar 5` before a `get` that upvar-reads it
-        // changes the program's behaviour.
-        if fu.cfg.alias_observed_vars.contains(var) || fu.cfg.alias_observed_vars.contains(var_base)
+        let var_base = tcl_syntax::naming::split_element_ref(var).map_or(var, |(root, _)| root);
+        if store_is_seen_elsewhere(fu, chain, &raise_proof.scope_aliases)
+            || call_by_name.contains(var)
+            || call_by_name.contains(var_base)
+            || fu.cfg.alias_observed_vars.contains(var)
+            || fu.cfg.alias_observed_vars.contains(var_base)
         {
+            continue;
+        }
+        if dead_store_name_observed(ctx, var, module_traced, is_top_level, &bound_writes) {
             continue;
         }
         let Some((code, msg)) = dead_chain_code(fu, chain, is_top_level, &textually_referenced)
@@ -1141,7 +1020,10 @@ fn emit_dead_stores_and_unused(
         };
         entries.push(DseEntry {
             // CFG statement span is relative to the unit's `base_offset`.
-            span: fu.abs_span(stmt.span()),
+            span: fu.abs_span(
+                stmt.source_edit_span()
+                    .expect("editable dead-store statement"),
+            ),
             code,
             msg,
             key: chain.key.clone(),
@@ -1151,6 +1033,103 @@ fn emit_dead_stores_and_unused(
     }
 
     emit_dse_entries(ctx, fu, entries)
+}
+
+fn observed_element_stores(
+    ctx: &PassContext<'_>,
+    fu: &FunctionUnit,
+    contexts: &crate::variable_bindings::PointResolveContexts,
+) -> HashSet<(String, i32)> {
+    ctx.registry
+        .map(|registry| {
+            crate::place_bridge::element_writes_observed_with_contexts(&fu.cfg, contexts, registry)
+        })
+        .unwrap_or_default()
+}
+
+/// Unbounded name reads or variable observers can consume every contents store.
+fn dead_store_observation_unbounded(ctx: &PassContext<'_>, fu: &FunctionUnit) -> bool {
+    fu.cfg.has_opaque_native_accesses()
+        || (fu.ssa.point_contexts.is_none()
+            && (fu.dynamic_names.reads
+                || ctx.ir_module.is_some_and(|m| m.has_dynamic_variable_trace)))
+}
+
+/// Supplementary reads retained when the SSA model cannot represent the
+/// corresponding interpolation or nested read-modify-write invocation.
+fn dead_store_textual_reads(ctx: &PassContext<'_>, fu: &FunctionUnit) -> HashSet<String> {
+    let Some(registry) = ctx.registry else {
+        return fu.ssa.var_names().iter().cloned().collect();
+    };
+    let metadata = ctx.ir_module.map_or_else(
+        || fu.invocation_metadata_context(registry),
+        |module| fu.invocation_metadata_context_for_module(registry, module),
+    );
+    let mut reads = source_reads::original_hidden_reads(fu, registry, metadata).possible_names(fu);
+    reads.extend(collect_textual_var_references(ctx.source, fu, registry));
+    reads
+}
+
+/// Select an actual assignment from an executable block; synthetic and
+/// unreachable definitions have no reportable source statement.
+fn live_dead_chain_statement<'a>(
+    fu: &'a FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+    unreachable: &HashSet<crate::cfg::BlockId>,
+) -> Option<(crate::cfg::BlockId, usize, &'a Statement)> {
+    if has_running_use(fu, chain) || chain.definition.kind != DefKind::Statement {
+        return None;
+    }
+    let block_id = fu.cfg.block_id(&chain.definition.block)?;
+    if unreachable.contains(&block_id) {
+        return None;
+    }
+    let block = fu.cfg.blocks.get(&block_id)?;
+    let index = usize::try_from(chain.definition.statement_index).ok()?;
+    let statement = block.statements.get(index)?;
+    fu.cfg.statement_source_edit_span(block_id, index)?;
+    Some((block_id, index, statement))
+}
+
+/// Place callbacks and unknown accesses retain a store even when SSA has no use.
+fn dead_store_writes_observed(
+    fu: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    writes: &[crate::place::Place],
+    contexts: &crate::variable_bindings::PointResolveContexts,
+    registry: &CommandRegistry,
+) -> bool {
+    writes.iter().any(|written| {
+        written.dynamic
+            || written.observed
+            || written.kind == crate::place::PlaceKind::Unknown
+            || crate::place_bridge::write_observed_by_unknown_access(
+                &fu.cfg, block, index, written, contexts, registry,
+            )
+    })
+}
+
+/// Text-based external-observation policies are separate from canonical SSA identity.
+fn dead_store_name_observed(
+    ctx: &PassContext<'_>,
+    var: &str,
+    module_traced: Option<&std::collections::BTreeSet<String>>,
+    is_top_level: bool,
+    writes: &[crate::place::Place],
+) -> bool {
+    // The SSA name is decoded literal naming data, not a `$` reference.
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let base = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
+    writes.iter().any(|written| {
+        written.kind == crate::place::PlaceKind::UpvarAlias
+            || written.kind == crate::place::PlaceKind::InstanceVar
+            || (!is_top_level && written.ns != crate::place::LOCAL_NS)
+    }) || module_traced.is_some_and(|names| names.contains(base.trim_start_matches("::")))
+        || var.starts_with("::")
+        || ctx.cross_event_vars.contains(var)
+        || ctx.cross_event_vars.contains(base)
 }
 
 /// Whether the store `chain` defines is one the name-level SSA cannot call
@@ -1164,15 +1143,19 @@ pub(super) fn store_is_seen_elsewhere(
     chain: &crate::def_use::DefUseChain,
     scope_aliases: &HashSet<String>,
 ) -> bool {
-    let (var, version) = &chain.key;
-    let var_base = crate::naming::normalise_var_name(var);
+    let (cell, version) = &chain.key;
+    let Some(symbol) = fu.ssa.cell_symbol(cell) else {
+        return true;
+    };
+    let var = fu.ssa.var_name(symbol);
+    let var_base = tcl_syntax::naming::split_element_ref(var).map_or(var, |(root, _)| root);
     fu.ssa.is_synthetic_def(
         &chain.definition.block,
         chain.definition.statement_index,
-        var,
+        cell,
     ) || scope_aliases.contains(var)
         || scope_aliases.contains(var_base)
-        || fu.ssa.name_is_observed_by_unseen_call(var, *version)
+        || fu.ssa.is_observed_by_unseen_call(symbol, *version)
 }
 
 /// Whether `chain` has a use that can run. A use is a read of the value, save
@@ -1198,7 +1181,7 @@ fn has_running_use(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) -> bo
 /// in a `try` body and in `[catch {…}]` alike, so `set c old` before it is
 /// what a later read of `c` sees.
 fn preserved_and_read(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) -> bool {
-    let Some(symbol) = fu.ssa.var_symbol(&chain.key.0) else {
+    let Some(symbol) = fu.ssa.cell_symbol(&chain.key.0) else {
         return false;
     };
     fu.sccp.preserved.iter().any(|(&(var, version), &prior)| {
@@ -1218,7 +1201,7 @@ fn preserved_and_read(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) ->
 fn over_a_closed_entry(fu: &FunctionUnit, site: &crate::def_use::UseSite) -> bool {
     let (Some(pred), Some(symbol)) = (
         fu.cfg.block_id(&site.block),
-        fu.ssa.var_symbol(&site.variable),
+        fu.ssa.cell_symbol(&site.variable),
     ) else {
         return false;
     };
@@ -1255,9 +1238,8 @@ fn dead_chain_code(
 ) -> Option<(DiagCode, &'static str)> {
     let var = &chain.key.0;
     // A scalar-fact invalidation does not overwrite the executable cell.
-    // Reads of its fresh version that can run still observe the earlier
-    // store.
-    if let Some(symbol) = fu.ssa.var_symbol(var)
+    // Reads of its fresh version still observe the earlier store.
+    if let Some(symbol) = fu.ssa.cell_symbol(var)
         && fu.def_use.chains.iter().any(|(key, consumer)| {
             key.0 == *var
                 && key.1 != chain.key.1
@@ -1287,7 +1269,11 @@ fn dead_chain_code(
     // string interpolations, so a conservative over-approximation of names
     // referenced anywhere in the source text suppresses spurious O126 for
     // legitimately-consumed variables.
-    if textually_referenced.contains(var) {
+    if fu
+        .ssa
+        .cell_symbol(var)
+        .is_some_and(|symbol| textually_referenced.contains(fu.ssa.var_name(symbol)))
+    {
         return None;
     }
     Some((DiagCode::O126, "Remove unused variable assignment"))
@@ -1301,9 +1287,9 @@ fn emit_dse_entries(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     mut entries: Vec<DseEntry>,
-) -> HashSet<(String, u32)> {
+) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
     entries.sort_by_key(|e| e.span.start());
-    let mut removed: HashSet<(String, u32)> = HashSet::new();
+    let mut removed: HashSet<(crate::var_resolve::VariableCellKey, u32)> = HashSet::new();
     for e in entries {
         // Record O109 dead stores (not O126 unused vars) so tools can show
         // them from where Rust determines them. `run` collects these into
@@ -1313,7 +1299,10 @@ fn emit_dse_entries(
                 function: fu.name.clone(),
                 block: e.block.clone(),
                 statement_index: e.statement_index,
-                variable: e.key.0.clone(),
+                variable: fu.ssa.cell_symbol(&e.key.0).map_or_else(
+                    || e.key.0.compatibility_name(),
+                    |symbol| fu.ssa.var_name(symbol).to_owned(),
+                ),
                 version: e.key.1,
             });
         }
@@ -1332,11 +1321,19 @@ fn emit_dse_entries(
 fn emit_adce(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
-    baseline: &HashSet<(String, u32)>,
+    baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
     purity: PurityCtx<'_>,
+    top_level: bool,
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
 ) {
-    let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
+    if dead_store_observation_unbounded(ctx, fu) {
+        return;
+    }
+    let (consumer_stmt_keys, mut keep_forever) = build_adce_consumers(fu);
+    let registry = purity
+        .registry
+        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
+    keep_forever.extend(observed_store_definitions(ctx, fu, top_level, registry));
     let stmt_to_defs = build_stmt_to_defs(fu);
     let raise_proof = RaiseProof::new(ctx, fu, execution_namespace);
     let removed = run_adce_fixpoint(
@@ -1347,25 +1344,75 @@ fn emit_adce(
         &stmt_to_defs,
         EffectCtx {
             purity,
-            execution_namespace,
+            source_tokens: None,
         },
         &raise_proof,
     );
     emit_adce_reports(ctx, fu, baseline, &removed);
 }
 
-type ConsumerMap = HashMap<(String, u32), Vec<(String, usize)>>;
+/// A target observed outside the removable chain remains a store even after
+/// its local consumers disappear. Reuse the ordinary dead-store place policy.
+fn observed_store_definitions(
+    ctx: &PassContext<'_>,
+    fu: &FunctionUnit,
+    top_level: bool,
+    registry: &CommandRegistry,
+) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
+    let fallback_contexts;
+    let contexts = if let Some(contexts) = &fu.ssa.point_contexts {
+        contexts
+    } else {
+        fallback_contexts =
+            crate::variable_bindings::build_point_resolve_contexts(&fu.cfg, &fu.name, registry);
+        &fallback_contexts
+    };
+    fu.def_use
+        .chains
+        .values()
+        .filter_map(|chain| {
+            if chain.definition.kind != DefKind::Statement {
+                return None;
+            }
+            let block = fu.cfg.block_id(&chain.definition.block)?;
+            let index = usize::try_from(chain.definition.statement_index).ok()?;
+            let statement = fu.cfg.blocks.get(&block)?.statements.get(index)?;
+            let writes = crate::place_bridge::def_places(
+                statement,
+                contexts.before_statement(block, index),
+                registry,
+            );
+            let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
+            (dead_store_writes_observed(fu, block, index, &writes, contexts, registry)
+                || dead_store_name_observed(
+                    ctx,
+                    fu.ssa.var_name(symbol),
+                    ctx.ir_module.map(|module| &module.traced_variables),
+                    top_level,
+                    &writes,
+                ))
+            .then(|| chain.key.clone())
+        })
+        .collect()
+}
 
-fn build_adce_consumers(fu: &FunctionUnit) -> (ConsumerMap, HashSet<(String, u32)>) {
+type ConsumerMap = HashMap<(crate::var_resolve::VariableCellKey, u32), Vec<(String, usize)>>;
+
+fn build_adce_consumers(
+    fu: &FunctionUnit,
+) -> (
+    ConsumerMap,
+    HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+) {
     use crate::def_use::UseKind;
     let mut consumer_stmt_keys: ConsumerMap = HashMap::new();
-    let mut keep_forever: HashSet<(String, u32)> = HashSet::new();
+    let mut keep_forever: HashSet<(crate::var_resolve::VariableCellKey, u32)> = HashSet::new();
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
         let mut key = chain.key.clone();
-        if let Some(symbol) = fu.ssa.var_symbol(&key.0) {
+        if let Some(symbol) = fu.ssa.cell_symbol(&key.0) {
             key.1 = fu.ssa.binding_version(symbol, key.1);
         }
         for use_site in &chain.uses {
@@ -1391,7 +1438,7 @@ fn build_adce_consumers(fu: &FunctionUnit) -> (ConsumerMap, HashSet<(String, u32
     (consumer_stmt_keys, keep_forever)
 }
 
-type StmtDefsMap = HashMap<(String, usize), Vec<(String, u32)>>;
+type StmtDefsMap = HashMap<(String, usize), Vec<(crate::var_resolve::VariableCellKey, u32)>>;
 
 fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
     let mut out: StmtDefsMap = HashMap::new();
@@ -1410,13 +1457,13 @@ fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
 
 fn run_adce_fixpoint(
     fu: &FunctionUnit,
-    baseline: &HashSet<(String, u32)>,
+    baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
     consumer_stmt_keys: &ConsumerMap,
-    keep_forever: &HashSet<(String, u32)>,
+    keep_forever: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
     stmt_to_defs: &StmtDefsMap,
     effect: EffectCtx<'_>,
     raise_proof: &RaiseProof<'_>,
-) -> HashSet<(String, u32)> {
+) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let mut removed = baseline.clone();
     loop {
@@ -1450,8 +1497,13 @@ fn run_adce_fixpoint(
             // statement live. This reuses the same `PurityCtx` /
             // `assignment_safe_to_delete` gate O109/DSE applies rather than
             // treating every assignment as pure.
-            if !assignment_safe_to_delete_with_effect(stmt, effect)
-                || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
+            if !assignment_safe_to_delete_with_effect(
+                stmt,
+                EffectCtx {
+                    source_tokens: fu.cfg.source_tokens_at(def_block, idx),
+                    ..effect
+                },
+            ) || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
             {
                 continue;
             }
@@ -1461,11 +1513,14 @@ fn run_adce_fixpoint(
                 continue;
             }
             let all_removed = consumers.iter().all(|pair: &(String, usize)| {
-                stmt_to_defs
-                    .get(pair)
-                    .is_some_and(|defs: &Vec<(String, u32)>| {
-                        defs.iter().all(|d: &(String, u32)| removed.contains(d))
-                    })
+                stmt_to_defs.get(pair).is_some_and(
+                    |defs: &Vec<(crate::var_resolve::VariableCellKey, u32)>| {
+                        defs.iter()
+                            .all(|d: &(crate::var_resolve::VariableCellKey, u32)| {
+                                removed.contains(d)
+                            })
+                    },
+                )
             });
             if all_removed {
                 removed.insert(key.clone());
@@ -1482,8 +1537,8 @@ fn run_adce_fixpoint(
 fn emit_adce_reports(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
-    baseline: &HashSet<(String, u32)>,
-    removed: &HashSet<(String, u32)>,
+    baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+    removed: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
 ) {
     let mut new_reports: Vec<tcl_lexer::Span> = Vec::new();
     for key in removed.difference(baseline) {
@@ -1494,11 +1549,15 @@ fn emit_adce_reports(
             let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
                 continue;
             };
-            let Some(stmt) = block.statements.get(idx) else {
+            if block.statements.get(idx).is_none() {
                 continue;
-            };
+            }
             // CFG statement span is relative to the unit's `base_offset`.
-            new_reports.push(fu.abs_span(stmt.span()));
+            if let Some(id) = fu.cfg.block_id(&chain.definition.block)
+                && let Some(span) = fu.cfg.statement_source_edit_span(id, idx)
+            {
+                new_reports.push(fu.abs_span(span));
+            }
         }
     }
     new_reports.sort_by_key(|s| s.start());
@@ -1512,651 +1571,152 @@ fn emit_adce_reports(
     }
 }
 
-/// Scan a slice for `$var` and `${var}` references, inserting names
-/// into *out*.  Extracted from `collect_textual_var_references`, which
-/// narrows the scan to the function's own CFG extent.
-///
-/// `braced_var` is the document's `${…}` close rule; the closer is located by
-/// the shared owner [`tcl_lexer::braced_var_name_end`], never re-derived here.
-/// This harvest is what keeps a textually-referenced variable's def alive, so
-/// a name it fails to see is a *wrong transform*, not a missed opportunity:
-/// under the default (9.x) rule the lexer spans `${a{b}c}` as one reference to
-/// `a{b}c`, while a first-`}` walk harvests `a{b` — a name nothing else in
-/// the pipeline uses — leaving `set {a{b}c} 1` reported as a dead store
-/// (O109) and an unused variable (W211) despite the live read.
-fn scan_dollar_refs(
-    slice: &str,
-    braced_var: tcl_dialect::BracedVarStyle,
-    out: &mut HashSet<String>,
-) {
-    let bytes = slice.as_bytes();
-    let mut pos = 0;
-    while pos < bytes.len() {
-        if bytes[pos] != b'$' {
-            pos += 1;
-            continue;
-        }
-        pos += 1;
-        if pos >= bytes.len() {
-            break;
-        }
-        if bytes[pos] == b'{' {
-            // ${name} — the name starts just past the `${`.
-            let start = pos + 1;
-            // An unterminated reference has no name to harvest; resume after
-            // the `{` so the rest of the slice is still scanned.
-            let close = match tcl_lexer::braced_var_name_end(bytes, start, braced_var) {
-                tcl_lexer::BracedVarEnd::Closed(end) => end,
-                tcl_lexer::BracedVarEnd::Unterminated => {
-                    pos = start;
-                    continue;
-                }
-            };
-            if start < close
-                && let Ok(name) = std::str::from_utf8(&bytes[start..close])
-            {
-                // Strip any array index.
-                let name = name.split('(').next().unwrap_or(name);
-                if !name.is_empty() {
-                    out.insert(name.to_owned());
-                }
-            }
-            pos = close + 1; // resume past the closing `}`
-            continue;
-        }
-        // $name: identifier chars (letters, digits, underscore, ::).
-        let start = pos;
-        while pos < bytes.len() {
-            let byte = bytes[pos];
-            if byte.is_ascii_alphanumeric() || byte == b'_' {
-                pos += 1;
-            } else if byte == b':' && pos + 1 < bytes.len() && bytes[pos + 1] == b':' {
-                pos += 2;
-            } else {
-                break;
-            }
-        }
-        if start < pos
-            && let Ok(name) = std::str::from_utf8(&bytes[start..pos])
-        {
-            out.insert(name.to_owned());
-        }
-    }
-}
-
-/// Scan a slice for `[set NAME]` (1-arg read form) references.
-fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
-    let bytes = slice.as_bytes();
-    let mut pos = 0;
-    while pos < bytes.len() {
-        if bytes[pos] != b'[' {
-            pos += 1;
-            continue;
-        }
-        let open = pos;
-        let mut cursor = pos + 1;
-        while cursor < bytes.len() && (bytes[cursor] == b' ' || bytes[cursor] == b'\t') {
-            cursor += 1;
-        }
-        if slice[cursor..].starts_with("::") {
-            cursor += 2;
-        }
-        if !slice[cursor..].starts_with("set") {
-            pos = open + 1;
-            continue;
-        }
-        let after_set = cursor + 3;
-        if after_set >= bytes.len() || !(bytes[after_set] == b' ' || bytes[after_set] == b'\t') {
-            pos = open + 1;
-            continue;
-        }
-        let mut name_cursor = after_set;
-        while name_cursor < bytes.len()
-            && (bytes[name_cursor] == b' ' || bytes[name_cursor] == b'\t')
-        {
-            name_cursor += 1;
-        }
-        // The slice can end right here — a half-typed `[set ` is an ordinary
-        // intermediate state while editing, and this scan runs over partial
-        // functions. There is no name word to read, so
-        // the conservative answer is "this bracket contributes nothing":
-        // stop rather than index off the end (nothing follows it either).
-        if name_cursor >= bytes.len() {
-            break;
-        }
-        // A **brace-quoted** name word (`[set {$n}]`, `[set {a b}]`,
-        // `[set {arr($i)}]`) is Tcl's literal spelling for a name the bareword
-        // scan below cannot match: the braces suppress substitution, so the
-        // content *is* the name.  Without this arm the read goes unseen and
-        // its `set {$n} 1` is reported unused (W211) / dead (W220) where the
-        // identical plain-named script is not.
-        if bytes[name_cursor] == b'{' {
-            let inner_start = name_cursor + 1;
-            let mut depth = 1usize;
-            let mut scan = inner_start;
-            while scan < bytes.len() && depth > 0 {
-                match bytes[scan] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                if depth > 0 {
-                    scan += 1;
-                }
-            }
-            if depth == 0 {
-                let mut tail = scan + 1;
-                while tail < bytes.len() && (bytes[tail] == b' ' || bytes[tail] == b'\t') {
-                    tail += 1;
-                }
-                if tail < bytes.len()
-                    && bytes[tail] == b']'
-                    && let Ok(name) = std::str::from_utf8(&bytes[inner_start..scan])
-                    && !name.is_empty()
-                {
-                    // Both the element-qualified spelling and its array base,
-                    // matching the two naming modes the consumers use.
-                    out.insert(name.to_owned());
-                    let base = crate::naming::normalise_var_name_braced(name, true);
-                    if !base.is_empty() {
-                        out.insert(base.to_owned());
-                    }
-                }
-                pos = scan + 1;
-                continue;
-            }
-            pos = open + 1;
-            continue;
-        }
-        let name_start = name_cursor;
-        while name_cursor < bytes.len() {
-            let byte = bytes[name_cursor];
-            if byte.is_ascii_alphanumeric() || byte == b'_' {
-                name_cursor += 1;
-            } else if byte == b':'
-                && name_cursor + 1 < bytes.len()
-                && bytes[name_cursor + 1] == b':'
-            {
-                name_cursor += 2;
-            } else {
-                break;
-            }
-        }
-        if name_cursor == name_start {
-            pos = open + 1;
-            continue;
-        }
-        let mut tail = name_cursor;
-        while tail < bytes.len() && (bytes[tail] == b' ' || bytes[tail] == b'\t') {
-            tail += 1;
-        }
-        if tail < bytes.len()
-            && bytes[tail] == b']'
-            && let Ok(name) = std::str::from_utf8(&bytes[name_start..name_cursor])
-            && !name.is_empty()
-        {
-            out.insert(name.to_owned());
-        }
-        pos = name_cursor;
-    }
-}
-
+/// Possible source reads using actual function grammar and original targets.
 pub(crate) fn collect_textual_var_references(
     source: &str,
-    cfg: &CfgFunction,
-    base_offset: i64,
-    braced_var: tcl_dialect::BracedVarStyle,
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
 ) -> HashSet<String> {
-    // CFG spans are relative to `base_offset` (0 for a real-position build, the
-    // body offset for a memoised offset-0 unit); shift to absolute before
-    // slicing `source` (the whole-file text).
-    let span_iter = cfg.blocks.values().flat_map(|b| {
-        let stmts = b.statements.iter().map(crate::ir::Statement::span);
-        let term = b.terminator.as_ref().and_then(crate::cfg::Terminator::span);
-        stmts.chain(term)
-    });
-    let Some((lo, hi)) = span_iter.fold(None, |acc: Option<(u32, u32)>, span| {
-        let s = span.start();
-        let e = span.end();
-        match acc {
-            None => Some((s, e)),
-            Some((l, h)) => Some((l.min(s), h.max(e))),
-        }
-    }) else {
-        return HashSet::new();
-    };
-    let abs =
-        |v: u32| -> usize { usize::try_from((i64::from(v) + base_offset).max(0)).unwrap_or(0) };
-    let mut start = abs(lo);
-    let mut end = abs(hi).min(source.len());
-    if start >= end {
-        return HashSet::new();
-    }
-    // The envelope is a union of statement spans, and a statement span can land
-    // inside a multi-byte sequence.  This scan only harvests
-    // variable *names* and is suppress-only, so widen to the enclosing `char`
-    // boundaries — a superset region — rather than dropping the scan.
-    while !source.is_char_boundary(start) {
-        start -= 1;
-    }
-    while !source.is_char_boundary(end) {
-        end += 1;
-    }
-    let slice = &source[start..end];
-    let mut out: HashSet<String> = HashSet::new();
-    scan_dollar_refs(slice, braced_var, &mut out);
-    scan_set_read_refs(slice, &mut out);
-    out
+    source_reads::original_textual_reads(source, function, registry)
 }
 
-/// Variable names read *inside command substitutions* that the shallow word
-/// scan misses and the SSA does not record where the word runs — a
-/// read-modify-write target or a `VarRead`-role argument buried where the
-/// lowering records no use, and every `$var` inside a substitution's braced
-/// `expr` body or script. Name-level only and **suppress-only**: it keeps a
-/// feeding `set i 0` from being reported as a dead store or an unused
-/// variable.
-///
-/// Computed as the deep RMW scan minus the shallow scan, less every name the
-/// SSA records where the word runs: a nested cell
-/// update (`lappend r [incr i $j]` reads `i`), a `VarRead` role and an
-/// existence read — `[info exists x]`, `[array exists x]`, a nested `[unset
-/// x]` — are uses of the version they read, which keep exactly that store
-/// live, so only what the SSA cannot see is left to suppress at name level.
-/// A statement's words are checked against the uses recorded under its span
-/// — its own, and those of its word effects, the definition point the
-/// lowering pairs with it ([`crate::ssa::word_effects_host`]) — and a
-/// `return` word against those of the word effects of the block's dispatch.
+/// By-name/expression reads hidden in genuine nested source invocations.
+/// Missing owners retain unknown reads rather than donating catalogue roles.
 pub(crate) fn collect_rmw_hidden_reads(
-    fu: &FunctionUnit,
+    function: &FunctionUnit,
     registry: &CommandRegistry,
 ) -> HashSet<String> {
-    use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-    // The document's grammar, from the dialect-selected registry's own
-    // profile — the same route `dynamic_names::lexer_config_for` takes.
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let mut deep = VarReferenceScanner::with_config(
-        VarScanOptions {
-            include_var_read_roles: true,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: true,
-            element_qualified: false,
-        },
-        config,
-    );
-    let mut shallow = VarReferenceScanner::with_config(VarScanOptions::default(), config);
-    let mut out: HashSet<String> = HashSet::new();
-    let mut found: HashSet<String> = HashSet::new();
-    let mut scan = |word: &str, found: &mut HashSet<String>| {
-        if !word.contains('[') {
-            return;
-        }
-        let d = deep.scan_word(word, registry);
-        let s = shallow.scan_word(word, registry);
-        found.extend(d.difference(&s).cloned());
-        // Reads buried inside a `[expr {…}]` (or any `[…]`) command substitution
-        // whose `{…}` braces suppress `$`-substitution to the generic scanner,
-        // but which the inner command re-evaluates as an expression — e.g.
-        // `incr i [expr {$w}]` reads `w` (FP-DS-02). Collect every `$var` that
-        // appears inside a command substitution. Over-approximating reads is
-        // safe for the dead-store / unused suppression: it only ever silences a
-        // warning, matching the analyser's correctness-first (err-toward-silence)
-        // bias.
-        found.extend(dollar_reads_in_cmd_subs(word, registry, config));
-    };
-    let mut terminator_values: Vec<(String, HashSet<&str>)> = Vec::new();
-    for (block_id, block) in &fu.cfg.blocks {
-        // Per span, the names the SSA records as read there: a statement's
-        // own uses, and those of the word effects the lowering pairs with
-        // it; and the uses of the word effects of the block's dispatch, which
-        // a `return` word's are.
-        let mut recorded: HashMap<tcl_lexer::Span, HashSet<&str>> = HashMap::new();
-        let mut dispatch: HashSet<&str> = HashSet::new();
-        if let Some(ssa_block) = fu.ssa.blocks.get(block_id) {
-            for (index, (stmt, statement)) in block
-                .statements
-                .iter()
-                .zip(&ssa_block.statements)
-                .enumerate()
-            {
-                let names = statement.uses.keys().map(|&symbol| fu.ssa.var_name(symbol));
-                match stmt.word_effects_host() {
-                    Some(crate::ir::WordEffectsHost::Dispatch) => dispatch.extend(names),
-                    Some(crate::ir::WordEffectsHost::Statement) => {
-                        if let Some(host) =
-                            crate::ssa::word_effects_host(&ssa_block.statements, index)
-                        {
-                            recorded
-                                .entry(block.statements[host].span())
-                                .or_default()
-                                .extend(names);
-                        }
-                    }
-                    None => recorded.entry(stmt.span()).or_default().extend(names),
-                }
-            }
-        }
-        for stmt in &block.statements {
-            found.clear();
-            match stmt {
-                Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
-                    for arg in args {
-                        scan(arg, &mut found);
-                    }
-                }
-                Statement::AssignValue { value, .. } => scan(value, &mut found),
-                // `incr i [expr {$w}]`: the amount word is not a Call/AssignValue
-                // arg, so scan it explicitly for the same buried-read reason.
-                Statement::Incr {
-                    amount: Some(amount),
-                    ..
-                } => scan(amount, &mut found),
-                _ => {}
-            }
-            let recorded = recorded.get(&stmt.span());
-            out.extend(
-                found
-                    .drain()
-                    .filter(|name| !recorded.is_some_and(|names| names.contains(name.as_str()))),
-            );
-        }
-        // A `return`'s value word is a terminator, not a statement, so the
-        // loop above never saw it — yet `return [set x]` / `return [incr i]`
-        // read exactly as the same word would in an argument position.
-        // Missing it reported the feeding `set x 2` as a dead store on code
-        // that reads it (tclsh 9.0.4 / 8.6.14: `proc f {} {set n 1; set n 2;
-        // return [set n]}; f` → 2).
-        //
-        // Deliberately the *precise* deep-minus-shallow scan only, without the
-        // `dollar_reads_in_cmd_subs` over-approximation the argument scan adds:
-        // that one credits every `$x` inside any `[…]`, which on a terminator
-        // (`return [subst {$a$b}]`) would silence a genuine dead store of `b`
-        // earlier in the proc (FP-DS-12's TN control).  A terminator read is
-        // recoverable exactly, so approximating it buys nothing.
-        if let Some(crate::cfg::Terminator::Return {
-            value: Some(v),
-            span,
-            ..
-        }) = &block.terminator
-            && v.contains('[')
-        {
-            let mut recorded = span
-                .and_then(|span| recorded.remove(&span))
-                .unwrap_or_default();
-            recorded.extend(dispatch);
-            terminator_values.push((v.clone(), recorded));
-        }
-    }
-    // Collected above rather than scanned in place: `scan` holds `deep` /
-    // `shallow` / `out` mutably borrowed for the duration of the walk.
-    for (v, recorded) in &terminator_values {
-        let d = deep.scan_word(v, registry);
-        let sh = shallow.scan_word(v, registry);
-        out.extend(
-            d.difference(&sh)
-                .filter(|name| !recorded.contains(name.as_str()))
-                .cloned(),
-        );
-    }
-    out
+    source_reads::original_hidden_reads(
+        function,
+        registry,
+        function.invocation_metadata_context(registry),
+    )
+    .possible_names(function)
 }
 
-/// Collect every `$name` / `${name}` / `$arr(idx)` variable reference that
-/// appears inside a `[…]` command substitution within `word`. Reads inside an
-/// `[expr {…}]` are invisible to the brace-aware generic scanner (the `{…}`
-/// suppresses `$`-substitution), yet `expr` (and `if`/`while`/…) re-evaluate
-/// that text as an expression where the `$var` is a genuine read. Returns the
-/// bare variable names (no `$`).
-///
-/// Deliberately over-approximating — crediting a read only ever *silences* a
-/// dead-store / unused-variable warning — with **one** exception, which is
-/// where the over-approximation was not conservative but simply wrong: a
-/// brace-quoted word the registry puts in a variable-**name** role
-/// ([`tcl_registry::ArgRole::names_variable`]).  `[set {$n}]` reads the cell
-/// whose name is the two characters `$n`; it never reads `n`, so crediting
-/// `n` masked a W220 real tclsh confirms (`proc f {} {set n 1; puts [set
-/// {$n}]}` — `n` is assigned and never read; 9.0.4 / 8.6.16 alike report
-/// `can't read "$n": no such variable`, proving the read went to the other
-/// cell).
-///
-/// Everything else keeps abstaining toward silence: an `[expr {…}]` brace, a
-/// word that merely *contains* a substitution, an unresolvable head.
-fn dollar_reads_in_cmd_subs(
-    word: &str,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    push_substituted_script_reads(word, registry, &mut out, 0, config);
-    out
-}
-
-/// Recursion cap for the descent through nested `[…]` substitutions.
-const MAX_SUBST_DEPTH: u32 = 32;
-
-/// Find each `[…]` substitution in an already-extracted **value word** and
-/// hand its inner script to [`push_script_dollar_reads`].
-fn push_substituted_script_reads(
-    text: &str,
-    registry: &CommandRegistry,
-    out: &mut Vec<String>,
-    depth: u32,
-    config: tcl_lexer::LexerConfig,
-) {
-    if depth >= MAX_SUBST_DEPTH || !text.contains('[') {
-        return;
-    }
-    for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
-        push_script_dollar_reads(&inner, registry, out, depth + 1, config);
-    }
-}
-
-/// Every `$name` appearing in one command substitution's script, minus the
-/// words the registry proves are *literal* variable names.
-fn push_script_dollar_reads(
-    script: &str,
-    registry: &CommandRegistry,
-    out: &mut Vec<String>,
-    depth: u32,
-    config: tcl_lexer::LexerConfig,
-) {
-    for cmd in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
-        let literal_names: HashSet<usize> =
-            crate::var_refs::variable_name_role_words(&cmd, registry)
-                .into_iter()
-                .filter(|w| w.braced_literal)
-                .map(|w| w.word_index)
-                .collect();
-        for (i, text) in cmd.texts.iter().enumerate() {
-            if literal_names.contains(&i) {
-                continue;
-            }
-            let is_substitution = cmd.argv.get(i).is_some_and(|t| t.kind == TokenType::Cmd)
-                && cmd.single_token_word.get(i) == Some(&true);
-            if is_substitution {
-                // A nested substitution is a fresh script — descend so its own
-                // name words are recognised rather than byte-scanned.
-                let inner = text
-                    .strip_prefix('[')
-                    .and_then(|t| t.strip_suffix(']'))
-                    .unwrap_or(text);
-                push_script_dollar_reads(inner, registry, out, depth + 1, config);
-            } else {
-                scan_dollar_names(text, out);
-                push_substituted_script_reads(text, registry, out, depth, config);
-            }
-        }
-    }
-}
-
-/// Push every `$name` / `${name}` / `$arr(idx)` spelled in `text`, whatever
-/// quoting surrounds it — the deliberate over-approximation.
-///
-/// The `${…}` form follows C Tcl 9's `Tcl_ParseVarName` exactly
-/// (`generic/tclParse.c`): the name runs to the **matching** close brace, with
-/// inner `{`/`}` counted as a nesting pair and a backslash consuming the byte
-/// after it, so `${a{b}c}` names `a{b}c` and `${a\}b}` names `a\}b`. Scanning
-/// to the *first* `}` truncated both. An unterminated `${…}` is a parse error
-/// in C (`missing close-brace for variable name`), never a read; the trailing
-/// text is still credited so a mid-edit buffer cannot turn a suppression into
-/// a spurious warning.
-fn scan_dollar_names(text: &str, out: &mut Vec<String>) {
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'$' {
-            i += 1;
-            continue;
-        }
-        let mut j = i + 1;
-        if bytes.get(j) == Some(&b'{') {
-            j += 1;
-            let start = j;
-            let mut brace_depth: u32 = 0;
-            while j < bytes.len() && (brace_depth > 0 || bytes[j] != b'}') {
-                match bytes[j] {
-                    b'{' => brace_depth += 1,
-                    b'}' => brace_depth = brace_depth.saturating_sub(1),
-                    b'\\' if j + 1 < bytes.len() => j += 1,
-                    _ => {}
-                }
-                j += 1;
-            }
-            if j > start {
-                out.push(text[start..j].to_string());
-            }
-            i = j.saturating_add(1);
-            continue;
-        }
-        // $name / $ns::name / $arr(idx)
-        let start = j;
-        while j < bytes.len()
-            && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-        {
-            j += 1;
-        }
-        if j > start {
-            // Bare scalar / namespaced name (the array-base name is the
-            // tracked dead-store key; the `(idx)` suffix is dropped).
-            out.push(text[start..j].to_string());
-        }
-        i = j.max(i + 1);
-    }
-}
-
-/// Scan every CFG block for scope-alias commands (`global`, `variable`,
-/// `upvar`, `namespace upvar`, `my variable`) and variable-trace
-/// establishers, collecting the variable names they bind or trace.  Those
-/// must not be flagged as dead stores / unused — alias writes go to a
-/// different scope, and a write trace fires its callback on every `set`.
-///
-/// Entirely registry-driven: alias recognition comes from
-/// `Traits::CREATES_SCOPE_ALIAS` / the per-subcommand flag via
-/// [`crate::var_scoping::scope_alias_local_indices`], and trace targets
-/// from `Traits::ESTABLISHES_VARIABLE_TRACE` via
-/// [`crate::lowering::variable_trace_write_indices`] — no hardcoded
-/// command-name grammar here.
-pub(crate) fn scan_scope_aliases(
+/// Supplied availability refines original alias and write-trace declarations.
+/// Missing or foreign metadata contributes no declarations; callers must not
+/// interpret this absence as completed lookup or an unobserved physical cell.
+pub(crate) fn scan_scope_aliases_with_metadata_context(
     cfg: &CfgFunction,
-    registry: &tcl_registry::CommandRegistry,
-) -> HashSet<String> {
-    let mut aliases: HashSet<String> = HashSet::new();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Call { command, args, .. } = stmt {
-                for i in crate::var_scoping::scope_alias_local_indices(registry, command, args) {
-                    if let Some(a) = args.get(i) {
-                        aliases.insert(a.clone());
-                    }
-                }
-                // A dynamic `$`-target names no static local and is skipped;
-                // a `trace remove`/`vdelete` target counts too — a variable
-                // whose trace is being removed had one established, so its
-                // stores were observable.
-                for i in crate::lowering::variable_trace_write_indices(registry, command, args) {
-                    if let Some(t) = args.get(i)
-                        && crate::lowering::is_literal_trace_target(t)
-                    {
-                        aliases.insert(t.clone());
-                    }
-                }
-            }
-        }
-    }
-    aliases
-}
-
-/// Scan one CFG for registry-declared aliases that target the interpreter's
-/// global namespace.  This is intentionally narrower than
-/// [`scan_scope_aliases`]: a `variable` or `upvar` alias may name a same-named
-/// local or caller variable, whereas a global alias can inherit an
-/// interpreter startup binding.
-pub(crate) fn scan_global_scope_aliases(
-    cfg: &CfgFunction,
-    registry: &tcl_registry::CommandRegistry,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> HashSet<String> {
     let mut aliases = HashSet::new();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Call { command, args, .. } = stmt {
-                for i in
-                    crate::var_scoping::global_scope_alias_local_indices(registry, command, args)
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return aliases;
+    };
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        let Some(invocation) =
+            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                registry,
+                Some(context),
+                statement,
+            )
+        else {
+            continue;
+        };
+        if let Some(transitions) = invocation.facts.state_transitions.declared() {
+            for fact in transitions.facts() {
+                if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition
+                    && let Some(local) = alias.local.literal()
                 {
-                    if let Some(alias) = args.get(i) {
-                        aliases.insert(alias.clone());
-                    }
+                    aliases.insert(local.to_owned());
                 }
+            }
+        }
+        aliases.extend(statement_write_trace_targets(
+            statement,
+            registry,
+            Some(context),
+        ));
+    }
+    aliases
+}
+
+fn statement_write_trace_targets(
+    statement: &Statement,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Vec<String> {
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return Vec::new();
+    };
+    let Some(invocation) =
+        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+            registry,
+            Some(context),
+            statement,
+        )
+    else {
+        return Vec::new();
+    };
+    let Some(transitions) = invocation.facts.state_transitions.declared() else {
+        return Vec::new();
+    };
+    transitions.facts().iter().filter_map(|fact| {
+        let tcl_registry::StateTransition::Trace(trace) = &fact.transition else { return None; };
+        let (target, operations) = match trace { tcl_registry::TraceTransition::Add { target, operations, .. } | tcl_registry::TraceTransition::Remove { target, operations, .. } => (target, operations) };
+        let tcl_registry::TraceTarget::Variable(target) = target else { return None; };
+        if matches!(operations, tcl_registry::TraceOperationSet::Known(operations) if !operations.contains(&tcl_registry::TraceOperation::Write)) { return None; }
+        target.literal().map(str::to_owned)
+    }).collect()
+}
+
+/// Literal source aliases that name the interpreter's root startup variable.
+/// A qualified target in another namespace does not inherit a root binding.
+/// These are analytical source names; Native storage identity remains separate.
+pub(crate) fn scan_global_scope_aliases_with_metadata_context(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> HashSet<String> {
+    let mut aliases = HashSet::new();
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return aliases;
+    };
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        let Some(invocation) = statement.tokens().and_then(|tokens| {
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry,
+                Some(context),
+                tokens,
+            )
+        }) else {
+            continue;
+        };
+        for alias in invocation.variable_alias_transitions() {
+            let tcl_registry::VariableAliasTarget::Global { variable } = &alias.target else {
+                continue;
+            };
+            let (Some(local), Some(target)) = (alias.local.literal(), variable.literal()) else {
+                continue;
+            };
+            let qualified = tcl_syntax::naming::qualify("::", target);
+            let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(&qualified);
+            if holder == "::" && tail == local {
+                aliases.insert(local.to_owned());
             }
         }
     }
     aliases
 }
 
-/// Module-wide set of namespace-qualified (`::`) globals that carry a variable
-/// **write trace** anywhere in the compilation unit.
-///
-/// A traced global is observable across scopes — a write trace fires its
-/// callback on every `set`, so a `set ::w 1` in one proc is neither a dead
-/// store (W220) nor unused (W211) even when the `trace add variable ::w …`
-/// lives in a *different* proc or at the top level. The per-function
-/// [`scan_scope_aliases`] only sees a function's own traces; this closes the
-/// cross-scope gap (FP-DS-04). Restricted to `::`-qualified names because those
-/// are the only ones that denote the same variable across scopes.
-pub(crate) fn scan_module_traced_globals(
+/// Namespace-qualified write-trace hazards under supplied source availability.
+/// Missing metadata does not certify an empty physical trace table.
+pub(crate) fn scan_module_traced_globals_with_metadata_context(
     cu: &crate::compilation_unit::CompilationUnit,
-    registry: &tcl_registry::CommandRegistry,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> HashSet<String> {
-    // Trace-target positions come from the registry
-    // (`Traits::ESTABLISHES_VARIABLE_TRACE` + `ArgRole::VarWrite`), the same
-    // query the lowering's whole-module trace facts use — this scan adds only
-    // the `::`-qualified + literal filters.
-    fn scan_cfg(
-        cfg: &CfgFunction,
-        registry: &tcl_registry::CommandRegistry,
-        out: &mut HashSet<String>,
-    ) {
-        for block in cfg.blocks.values() {
-            for stmt in &block.statements {
-                if let Statement::Call { command, args, .. } = stmt {
-                    for i in crate::lowering::variable_trace_write_indices(registry, command, args)
-                    {
-                        if let Some(t) = args.get(i)
-                            && t.contains("::")
-                            && crate::lowering::is_literal_trace_target(t)
-                        {
-                            out.insert(t.clone());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    let mut out: HashSet<String> = HashSet::new();
-    scan_cfg(&cu.top_level.cfg, registry, &mut out);
-    for fu in cu.procedures.values() {
-        scan_cfg(&fu.cfg, registry, &mut out);
-    }
-    out
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return HashSet::new();
+    };
+    cu.all_body_function_units()
+        .flat_map(|unit| unit.cfg.blocks.values().flat_map(|block| &block.statements))
+        .flat_map(|statement| statement_write_trace_targets(statement, registry, Some(context)))
+        .filter(|target| target.contains("::"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -2176,6 +1736,91 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn original_global_alias_scan_retains_literal_target_and_command_identity() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source startup names are independent of Native cell identity.
+        let registry = std::sync::Arc::new(CommandRegistry::build_default());
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
+            .with_command_store(std::sync::Arc::clone(&registry));
+        for (source, expected) in [
+            (
+                "proc p {} {global argc {$argv} {scalar(open} ::other::argc}",
+                vec!["argc", "$argv", "scalar(open"],
+            ),
+            ("proc global args {}; proc p {} {global argc}", vec![]),
+            ("rename global moved; proc p {} {moved argc}", vec!["argc"]),
+            (
+                "interp alias {} link {} global argc; proc p {} {link}",
+                vec!["argc"],
+            ),
+            (
+                "rename global moved; proc global args {}; proc p {} {global argc}",
+                vec![],
+            ),
+        ] {
+            let compilation = CompilationUnit::build_for(source, &registry, false);
+            let function = compilation.function("::p").unwrap();
+            let names = scan_global_scope_aliases_with_metadata_context(
+                &function.cfg,
+                &registry,
+                Some((&context).into()),
+            );
+            assert_eq!(
+                names,
+                expected.into_iter().map(str::to_owned).collect(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_alias_scans_refuse_unavailable_and_foreign_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gated-global",
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("global").unwrap().clone()
+        });
+        let registry = std::sync::Arc::new(registry);
+        let compilation =
+            CompilationUnit::build_for("proc p {} {gated-global argc}", &registry, false);
+        let function = compilation.function("::p").unwrap();
+        for (environment, available) in [("tcl8.4", false), ("tcl9.0", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(std::sync::Arc::clone(&registry));
+            let metadata = Some((&context).into());
+            assert_eq!(
+                scan_scope_aliases_with_metadata_context(&function.cfg, &registry, metadata)
+                    .contains("argc"),
+                available,
+                "{environment}"
+            );
+            assert_eq!(
+                scan_global_scope_aliases_with_metadata_context(&function.cfg, &registry, metadata)
+                    .contains("argc"),
+                available,
+                "{environment}"
+            );
+        }
+        assert!(
+            scan_global_scope_aliases_with_metadata_context(&function.cfg, &registry, None)
+                .is_empty()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        assert!(
+            scan_scope_aliases_with_metadata_context(
+                &function.cfg,
+                &registry,
+                Some(foreign.into())
+            )
+            .is_empty()
+        );
     }
 
     /// The hidden-read scan keeps only what the SSA does not record:
@@ -2223,43 +1868,28 @@ mod tests {
 
     // internal helper tests
 
-    /// `expr_has_observable_side_effect`
-    /// recurses once per `ExprNode` level (Tier 1A) and
-    /// `word_has_observable_side_effect` once per nested `[cmd …]`
-    /// substitution inside a single word's raw text (Tier 1B) — both
-    /// genuinely unbounded before this fix. Empirically each overflowed the
-    /// native stack (SIGABRT) in the low thousands of levels on a 2 MiB
-    /// thread (`cargo test`'s default). 3000 is comfortably past that crash
-    /// range and past both caps (256); the assertion is that each returns at
-    /// all.
+    /// Deep analytical expressions remain stack-safe; source substitutions
+    /// without original receipts remain uncertain even under a pure name label.
     #[test]
     fn deeply_nested_side_effect_walks_survive() {
         let reg = registry();
-        // `a` is treated as an interprocedurally-pure command so
-        // `word_has_observable_side_effect` recurses through the nested
-        // substitutions rather than early-returning at the first command.
-        let interproc_pure: HashSet<String> = ["a".to_owned()].into_iter().collect();
-        let pure_methods: HashSet<String> = HashSet::new();
+        let interproc_pure = ["a".to_owned()].into_iter().collect();
         let purity = PurityCtx {
             registry: Some(&reg),
             interproc_pure: &interproc_pure,
-            pure_methods: &pure_methods,
-            enclosing_class: None,
             config: tcl_lexer::LexerConfig::default(),
+            metadata: None,
+            module: None,
         };
         let effect = EffectCtx {
             purity,
-            execution_namespace: None,
+            source_tokens: None,
         };
-
-        // Tier 1B: `[a [a [a … [a x] … ]]]` nested substitutions.
         let mut deep = "x".to_owned();
         for _ in 0..3000 {
             deep = format!("[a {deep}]");
         }
-        let _ = word_has_observable_side_effect(&deep, effect, 0);
-
-        // Tier 1A: a 3000-deep `ExprNode` tree (nested unary `!`).
+        assert!(word_has_observable_side_effect(&deep, effect));
         let mut node = ExprNode::Literal {
             text: "1".into(),
             start: 0,
@@ -2271,22 +1901,145 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let _ = expr_has_observable_side_effect(&node, effect, 0);
+        assert!(expr_has_observable_side_effect(&node, effect, 0));
+    }
+
+    #[test]
+    fn original_completion_deletion_consumer_uses_same_module_and_header() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // The call no-error consumer only. SCCP existence, observers, purity
+        // and source edit permission are independently required for deletion.
+        let source = "proc leaf {x} {return $x}; set unused [leaf VALUE]";
+        let (context, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let profile = unit.ir_module.dialect_profile;
+        let unit = unit.with_interprocedural(context.commands(), profile);
+        let interproc = unit.interproc.as_ref().unwrap();
+        assert!(interproc.procedures["::leaf"].pure);
+        assert!(interproc.procedures["::leaf"].completes);
+        let statement = unit
+            .top_level
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find(|statement| {
+                matches!(statement,
+                Statement::AssignValue { name, .. } if name == "unused")
+            })
+            .unwrap();
+        let mut ctx = PassContext::new(source, interproc.clone());
+        ctx.registry = Some(context.commands());
+        ctx.command_mutations = unit.command_mutations.clone();
+        ctx.ir_module = Some(&unit.ir_module);
+        assert!(RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        let mut changed = unit.ir_module.clone();
+        changed.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into();
+        ctx.ir_module = Some(&changed);
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        ctx.ir_module = None;
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        ctx.ir_module = Some(&unit.ir_module);
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        ctx.registry = Some(foreign.commands());
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+    }
+
+    #[test]
+    fn resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This is the store-observer suppression gate, not a current Native
+        // trace, reaching cell, SSA use or deletion proof.
+        let mut context = PassContext::new("", InterproceduralAnalysis::default());
+        let traced = ["counter".to_owned(), "café".to_owned()]
+            .into_iter()
+            .collect();
+        assert!(dead_store_name_observed(
+            &context,
+            "counter",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        assert!(!dead_store_name_observed(
+            &context,
+            "$counter",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        assert!(!dead_store_name_observed(
+            &context,
+            "café(open",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        assert!(dead_store_name_observed(
+            &context,
+            "café(key)",
+            Some(&traced),
+            true,
+            &[]
+        ));
+        context.cross_event_vars.insert("$counter".into());
+        assert!(dead_store_name_observed(
+            &context,
+            "$counter(key)",
+            None,
+            true,
+            &[]
+        ));
+        assert!(!dead_store_name_observed(
+            &context,
+            "counter",
+            None,
+            true,
+            &[]
+        ));
     }
 
     #[test]
     fn unreachable_blocks_empty_when_all_executable() {
         let cu = CompilationUnit::build_for("set x 1", &registry(), false);
         let unreach = unreachable_blocks(&cu.top_level.cfg, &cu.top_level.sccp);
-        assert!(unreach.is_empty());
+        assert_eq!(unreach.len(), 0);
     }
 
     // end-to-end tests
 
     #[test]
+    fn opaque_native_reads_keep_named_stores_live_without_synthetic_uses() {
+        let registry = registry();
+        let mut unit = CompilationUnit::build_for("set retained VALUE", &registry, false);
+        let function = &mut unit.top_level;
+        let native = crate::ir::native_call_for_test(b"opaque \xff");
+        function
+            .cfg
+            .blocks
+            .get_mut(&function.cfg.entry)
+            .unwrap()
+            .statements
+            .push(native);
+        let mut context = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+        context.registry = Some(&registry);
+        assert!(dead_store_observation_unbounded(&context, &unit.top_level));
+        assert!(unit.top_level.dynamic_barrier_blocks_value_motion());
+        run(&mut context, &unit);
+        assert!(!context.optimisations.iter().any(|optimisation| {
+            matches!(
+                optimisation.code,
+                DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+            )
+        }));
+    }
+
+    #[test]
     fn empty_source_produces_nothing() {
         let opts = run_pass("");
-        assert!(opts.is_empty());
+        assert_eq!(opts, [] as [crate::optimiser::Optimisation; 0]);
     }
 
     /// Like [`run_pass`] but with `ctx.ir_module` wired the way the
@@ -2339,7 +2092,7 @@ mod tests {
     #[test]
     fn straight_line_script_is_fully_reachable() {
         let opts = run_pass("set x 1\nset y 2\nputs $x");
-        assert!(opts.is_empty());
+        assert_eq!(opts, [] as [crate::optimiser::Optimisation; 0]);
     }
 
     #[test]
@@ -2366,6 +2119,28 @@ mod tests {
     }
 
     #[test]
+    fn unreachable_for_clause_markers_are_not_source_commands() {
+        for source in [
+            "for {set previous NONEMPTY} {0} {} {}",
+            "for {} {0} {} {puts unreachable}",
+        ] {
+            let opts = run_pass(source);
+            for edit in opts.iter().filter(|edit| edit.code == DiagCode::O107) {
+                let written = &source[edit.span.start() as usize..edit.span.end() as usize];
+                assert_ne!(written, "{}", "synthetic clause must retain argv: {opts:?}");
+            }
+            if source.contains("puts unreachable") {
+                assert!(
+                    opts.iter().any(|edit| edit.code == DiagCode::O107
+                        && source[edit.span.start() as usize..edit.span.end() as usize]
+                            .contains("puts unreachable")),
+                    "actual dead command remains editable: {opts:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn unreachable_statements_emitted_with_empty_replacement() {
         let opts = run_pass("if {0} { set x 1 }");
         let target = opts.iter().find(|o| o.code == DiagCode::O107);
@@ -2376,30 +2151,45 @@ mod tests {
     }
 
     #[test]
-    fn o109_o126_suppressed_for_call_by_name_var() {
-        // A caller-local passed by name to an upvar callee
-        // must not be deleted as a dead store / unused result.
-        // `optimise_raw` builds the interproc summaries the proc-index
-        // needs (the bare `run_pass` path has empty interproc).
-        let count_dead = |src: &str| -> usize {
-            crate::optimiser::optimise_raw(src, &registry(), None)
-                .iter()
-                .filter(|o| o.code == DiagCode::O109 || o.code == DiagCode::O126)
-                .count()
+    fn callee_read_preserves_only_the_contents_that_reach_it() {
+        let source = "proc read_write {name} {upvar 1 $name value; puts $value; set value done}\nproc f {} {set tag init; set tag live; read_write tag}\nf";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let optimisations = crate::optimiser::optimise_raw(source, registry, None);
+        let removes = |text: &str| {
+            let start = u32::try_from(source.find(text).unwrap()).unwrap();
+            optimisations.iter().any(|optimisation| {
+                matches!(optimisation.code, DiagCode::O109 | DiagCode::O126)
+                    && optimisation.span.start() <= start
+                    && optimisation.span.end() > start
+            })
         };
-        // `noup` is a plain proc → `tag` is NOT call-by-name → the
-        // overwritten `set tag init` is a dead store.
-        let no_cbn = count_dead(
-            "proc ::noup {x} { return 1 }\nproc ::f {} { set tag init\nset tag x\nnoup tag }",
-        );
-        // `fill` upvar-writes its param → `tag` is call-by-name → the
-        // dead store on `tag` is suppressed.
-        let with_cbn = count_dead(
-            "proc ::fill {vn} { upvar 1 $vn v\nset v 1 }\nproc ::f {} { set tag init\nset tag x\nfill tag }",
+        assert!(
+            removes("set tag init"),
+            "overwritten contents: {optimisations:?}"
         );
         assert!(
-            with_cbn < no_cbn,
-            "call-by-name should suppress a dead store (no_cbn={no_cbn}, with_cbn={with_cbn})",
+            !removes("set tag live"),
+            "callee observes live contents: {optimisations:?}"
+        );
+    }
+
+    #[test]
+    fn native_getter_in_a_callee_argument_preserves_the_reaching_caller_store() {
+        let source = "proc read_value {name} {upvar 1 $name value; set value}\nproc f {} {set tag init; set tag live; puts [read_value tag]}\nf";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let optimisations = crate::optimiser::optimise_raw(source, registry, None);
+        let removes = |text: &str| {
+            let start = u32::try_from(source.find(text).unwrap()).unwrap();
+            optimisations.iter().any(|optimisation| {
+                matches!(optimisation.code, DiagCode::O109 | DiagCode::O126)
+                    && optimisation.span.start() <= start
+                    && optimisation.span.end() > start
+            })
+        };
+        assert!(removes("set tag init"), "overwritten: {optimisations:?}");
+        assert!(
+            !removes("set tag live"),
+            "nested native getter: {optimisations:?}"
         );
     }
 
@@ -2569,6 +2359,71 @@ mod tests {
     }
 
     #[test]
+    fn original_adce_keeps_actual_remote_stores_after_local_consumers_disappear() {
+        // Implementation contract: naming.variable.transitive-store-observation
+        // docs/design/analysis/name-resolution-proofs/transitive-store-observation.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+            let source = "proc f {} {global exported; set exported OLD; set first $exported; set unused $first; return OK}; f";
+            let unit = CompilationUnit::build_for_dialect(source, registry, false, engine);
+            let function = unit.procedures.get("::f").unwrap();
+            let offset = u32::try_from(source.find("set exported OLD").unwrap()).unwrap();
+            let (&block, index, statement) = function
+                .cfg
+                .blocks
+                .iter()
+                .find_map(|(block, body)| {
+                    body.statements
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, statement)| {
+                            (function.abs_span(statement.span()).start() == offset)
+                                .then_some((block, index, statement))
+                        })
+                })
+                .unwrap();
+            let context = function
+                .ssa
+                .point_contexts
+                .as_ref()
+                .unwrap()
+                .context_before(block, index)
+                .unwrap();
+            let writes = crate::place_bridge::def_places(statement, context, registry);
+            assert!(writes.iter().any(|place| {
+                matches!(crate::var_resolve::cell_key(place).root(), crate::var_resolve::VariableCellKey::Namespace { simple, .. }
+                    if simple.as_bytes() == b"exported")
+            }), "actual remote target retained for {engine}");
+            let mut pass = PassContext::new(&unit.source, InterproceduralAnalysis::default());
+            pass.registry = Some(registry);
+            pass.ir_module = Some(&unit.ir_module);
+            run(&mut pass, &unit);
+            assert!(
+                pass.optimisations.iter().any(|optimisation| {
+                    matches!(
+                        optimisation.code,
+                        DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+                    ) && source
+                        .get(optimisation.span.start() as usize..optimisation.span.end() as usize)
+                        .is_some_and(|text| text.contains("set unused"))
+                }),
+                "the private consumer still qualifies for {engine}"
+            );
+            assert!(
+                pass.optimisations.iter().all(|optimisation| {
+                    !matches!(
+                        optimisation.code,
+                        DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+                    ) || source
+                        .get(optimisation.span.start() as usize..optimisation.span.end() as usize)
+                        .is_none_or(|text| !text.contains("set exported OLD"))
+                }),
+                "remote store survives its dead local chain for {engine}"
+            );
+        }
+    }
+
+    #[test]
     fn adce_preserves_impure_link_in_dead_chain() {
         // `b` is read only by the dead `set c $b`, so the transitive
         // chain `set a [puts hi]` → `set b $a` → `set c $b` is dead by
@@ -2598,42 +2453,6 @@ mod tests {
         );
     }
 
-    /// The textual liveness harvest reads `${…}` through the
-    /// shared owner, so the name it keeps alive is the one the lexer spanned.
-    ///
-    /// This scan is *suppress-only*: a name it fails to see lets O109 delete a
-    /// live store and W211 call a read variable unused. Under the default (9.x)
-    /// rule the reference names `a{b}c`; under 8.x it names `a{b` and `c}` is
-    /// ordinary word text: `set {a{b}c} 7; subst {${a{b}c}}` is `7` on
-    /// tclsh 9.0.4 and `can't read "a{b"` on 8.6.16 (`Tcl_ParseVarName`,
-    /// `tclParse.c:1315` vs `:1398`).
-    #[test]
-    fn scan_dollar_refs_follows_the_release_close_rule() {
-        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
-        let names = |slice: &str, style| {
-            let mut out = HashSet::new();
-            scan_dollar_refs(slice, style, &mut out);
-            let mut v: Vec<String> = out.into_iter().collect();
-            v.sort();
-            v
-        };
-
-        assert_eq!(
-            names("puts ${a{b}c}", Tcl9Nesting),
-            vec!["a{b}c".to_owned()]
-        );
-        assert_eq!(names("puts ${a{b}c}", FirstClose), vec!["a{b".to_owned()]);
-        assert_eq!(
-            names(r"puts ${a\}b}", Tcl9Nesting),
-            vec![r"a\}b".to_owned()]
-        );
-        assert_eq!(names(r"puts ${a\}b}", FirstClose), vec![r"a\".to_owned()]);
-
-        // A `${…}` that never closes yields no name, and must not swallow the
-        // rest of the slice: the following `$tail` is still harvested.
-        assert_eq!(names("${a{b $tail", Tcl9Nesting), vec!["tail".to_owned()]);
-    }
-
     #[test]
     fn collect_textual_var_references_detects_set_one_arg_read() {
         // ``[set varname]`` (1-arg form) is a variable read; without
@@ -2648,66 +2467,11 @@ mod tests {
                 (o.code == DiagCode::O109 || o.code == DiagCode::O126) && o.message.contains('x')
             })
             .collect();
-        assert!(
-            bad.is_empty(),
+        assert_eq!(
+            bad.len(),
+            0,
             "[set x] should count as a read for x; got {opts:?}",
         );
-    }
-
-    /// The `[set …]` name scan must survive a slice that ends inside the
-    /// command.
-    ///
-    /// A half-typed `[set ` is an ordinary intermediate state while editing,
-    /// and this scan runs over *partial* functions, so the whitespace skip can
-    /// walk `name_cursor` to `bytes.len()`. Indexing there would panic, taking
-    /// down whatever optimiser / diagnostic pass was asking, where a
-    /// conservative answer is wanted.
-    #[test]
-    fn scan_set_read_refs_survives_truncated_input() {
-        for slice in [
-            // The slice ends after the separator.
-            "[set ",
-            "[set  ",
-            "[set\t",
-            // Off-by-one neighbours around the same cursor.
-            "[set",
-            "[set ]",
-            // Unclosed brace-quoted name words (the arm the guard precedes).
-            "[set {",
-            "[set {$n",
-            "[set {$n}",
-            "[set {{",
-            "[set {}",
-            // Unclosed bareword names.
-            "[set n",
-            "[set ::",
-        ] {
-            let mut out = HashSet::new();
-            scan_set_read_refs(slice, &mut out);
-            assert!(
-                out.is_empty(),
-                "a truncated `[set …]` names nothing; {slice:?} yielded {out:?}"
-            );
-        }
-    }
-
-    /// TP control for the guard: truncation must not cost the *complete*
-    /// reads earlier in the same slice, and the complete forms still parse.
-    #[test]
-    fn scan_set_read_refs_keeps_complete_reads_before_a_truncation() {
-        let mut out = HashSet::new();
-        scan_set_read_refs("puts [set x]; return [set ", &mut out);
-        assert!(
-            out.contains("x"),
-            "the complete read is still seen: {out:?}"
-        );
-
-        let mut braced = HashSet::new();
-        scan_set_read_refs("[set {$n}]", &mut braced);
-        assert!(braced.contains("$n"), "{braced:?}");
-        let mut spaced = HashSet::new();
-        scan_set_read_refs("[set  {$n} ]", &mut spaced);
-        assert!(spaced.contains("$n"), "{spaced:?}");
     }
 
     /// The same shape through the real entry point: an incomplete command in
@@ -2737,8 +2501,9 @@ mod tests {
                 (o.code == DiagCode::O109 || o.code == DiagCode::O126) && o.message.contains('x')
             })
             .collect();
-        assert!(
-            bad.is_empty(),
+        assert_eq!(
+            bad.len(),
+            0,
             "[::set x] should count as a read for x; got {opts:?}",
         );
     }
@@ -2758,6 +2523,28 @@ mod tests {
             opts.iter().all(|o| o.code != DiagCode::O126),
             "impure cmd-sub RHS must be preserved, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn o126_uses_original_callee_integer_completion_and_preserves_failures() {
+        for (body, actual, erasable) in [
+            ("expr {$a+$b}", "1 2", true),
+            ("expr {$a+$b}", "abc 2", false),
+            ("expr {$a/$b}", "1 0", false),
+            ("expr {$a+$b}", "1", false),
+            ("puts EFFECT; expr {$a+$b}", "1 2", false),
+        ] {
+            let source = format!(
+                "proc add {{a b}} {{{body}}}; proc f {{}} {{set unused [add {actual}]; puts done}}"
+            );
+            let opts = crate::optimiser::optimise(&source, &registry());
+            assert_eq!(
+                opts.iter()
+                    .any(|opt| opt.code == DiagCode::O126 && opt.message.contains("unused")),
+                erasable,
+                "{source}: {opts:?}"
+            );
+        }
     }
 
     #[test]
@@ -2931,19 +2718,20 @@ mod tests {
     /// Measured on the real interpreters. For
     ///
     /// ```tcl
+    /// proc unknown {args} {return -code error absent}
     /// set a old
     /// catch {lassign {new second} a b} m
     /// puts $a
     /// ```
     ///
     /// tclsh 8.4.20 prints `old` — the body raises
-    /// `invalid command name "lassign"` before any write and `catch` swallows
+    /// the explicitly closed error-only fallback before any write and `catch` swallows
     /// it — while 8.6.18 prints `new`. O109 used to delete `set a old` under
     /// both, and the 8.4 program then failed with
     /// `can't read "a": no such variable`.
     #[test]
     fn a_write_by_a_command_the_profile_lacks_does_not_kill_the_store() {
-        let source = "set a old\ncatch {lassign {new second} a b} m\nputs $a\n";
+        let source = "proc unknown {args} {return -code error absent}\nset a old\ncatch {lassign {new second} a b} m\nputs $a\n";
 
         // The registry has to be the dialect's own, as production builds it
         // (`static_context_for_profile`): availability is a property of the
@@ -2961,8 +2749,9 @@ mod tests {
             .collect::<Vec<_>>()
         };
 
-        // Under 8.4 `a` is provably still `old` at the `puts`, because the
-        // `lassign` writes nothing — so the value is forwarded and the store
+        // Under 8.4 the actual error-only fallback preserves `a`; catalogue
+        // absence alone cannot exclude autoload or a mutating unknown handler.
+        // Its value is forwarded and the store
         // that fed it is then genuinely dead. The rewritten program prints
         // `old`, which is what tclsh 8.4.20 prints.
         let early = codes("tcl8.4");
@@ -3007,5 +2796,84 @@ mod tests {
         assert!(dead(
             "proc foo {} { puts hi }\nset x 1\nfoo\nset x 2\nputs $x\n"
         ));
+    }
+    #[test]
+    fn actual_jim_raise_proof_cannot_use_raw_logical_assistance() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        let source = "set value VALUE; set copy $value";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        let mut context_native =
+            PassContext::new(&native.source, InterproceduralAnalysis::default());
+        context_native.registry = Some(registry);
+        context_native.ir_module = Some(&native.ir_module);
+        let proof = RaiseProof::new(&context_native, &native.top_level, None);
+        assert!(proof.metadata_available);
+        assert!(!proof.logical_source_assistance);
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        let mut context_logical =
+            PassContext::new(&logical.source, InterproceduralAnalysis::default());
+        context_logical.registry = Some(registry);
+        context_logical.ir_module = Some(&logical.ir_module);
+        let proof = RaiseProof::new(&context_logical, &logical.top_level, None);
+        assert!(proof.metadata_available);
+        assert!(proof.logical_source_assistance);
+        context_logical.ir_module = None;
+        let proof = RaiseProof::new(&context_logical, &logical.top_level, None);
+        assert!(!proof.logical_source_assistance);
     }
 }

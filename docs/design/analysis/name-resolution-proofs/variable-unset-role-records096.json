@@ -1,0 +1,109 @@
+[
+  {
+    "id": "naming.variable.unset-original-role-layout",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/unset-original-role-layout.md",
+    "problem_statement": "The unset metadata resolver required every argument to have a String value. Genuine counted byte names therefore lost VarWrite roles and were projected as unbounded writes before the independently selected destruction or retained-wrapper operation.",
+    "question": "Can selected unset option grammar retain exact variable operand ordinals for counted bytes without requiring later variable values or granting a successful destruction?",
+    "conclusion": "Unset argument roles use exact argv cardinality and the independently selected shared unset option grammar. Only reached option candidates require known values; a known first non-option preserves every following variable operand ordinal, including unknown name values. Counted byte names retain their VarWrite roles, while an unknown option prefix or expansion withdraws completeness. The bare authored descriptor keeps its counted source grammar separately. Role metadata grants neither a variable cell, binding detachment, observer closure, successful unset nor Normal completion.",
+    "scope": "Rust Registry structured role projection for independently selected C8.4\u20139.1 and current Jim grammars. Runtime option extent delegates to UnsetOptionProtocol rather than a duplicated scanner. Logical authored source grammar remains separate. These selectors do not capture native outcomes or prove retained variable wrapper destruction.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "F5 iRules",
+        "status": "not-tested",
+        "answer": "This is a Rust implementation contract; no native or appliance observation for this question is attached.",
+        "evidence": []
+      }
+    ],
+    "evidence": [],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/unset_.rs",
+        "selector": "commands::tcl::unset_::tests::unset_roles_keep_counted_names_and_selected_option_prefixes",
+        "assertion": "Retains counted first name and later unknown name VarWrite ordinals, uses the selected raw-zero option prefix extent, and withdraws for an unknown first option candidate.",
+        "status": "linked"
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/unset_.rs",
+        "symbol": "unset_layout_roles",
+        "purpose": "Project exact variable operand ordinals from selected shared option grammar and cardinality, independently of executable variable receiver authority."
+      },
+      {
+        "path": "rust/tcl-registry/src/native_unset_options.rs",
+        "symbol": "UnsetOptionProtocol",
+        "purpose": "Keep native runtime and counted known-source option selection in their existing sole purpose owner."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "The fixed Rust selector is linked without an attached execution receipt. Native unset, variable storage and retained-wrapper observations remain independent questions."
+    }
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "ordinal": 363,
+  "selector": "interp::tests::command_trace_stales_the_string_intrinsic_guard",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::command_trace_stales_the_string_intrinsic_guard",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.8624966079951264,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.84s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/363.log",
+  "log_sha256": "3c2d60b60b5afe7ac27207838f08a9fc59cb32579c35b61acd75afb50d7e098e"
+}

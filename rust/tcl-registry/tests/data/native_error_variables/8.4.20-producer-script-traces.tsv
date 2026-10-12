@@ -1,0 +1,8 @@
+default-code	privateinfo=null	privatecode=null	info_same=1	code_same=1	info_refs=-1	code_refs=-1	global0=null	global0_same=1	global1=list	global1_same=0
+trace-::errorInfo	legacy=-1
+trace-::errorCode	legacy=-1
+trace-::errorInfo	legacy=-1
+trace-errorCode	legacy=-1
+error_code=1
+explicit-error	privateinfo=null	privatecode=null	info_same=0	code_same=0	info_refs=1	code_refs=2	global0=string	global0_same=0	global1=bytearray	global1_same=1
+after-reset	privateinfo=null	privatecode=null	info_same=0	code_same=0	info_refs=1	code_refs=2	global0=string	global0_same=0	global1=bytearray	global1_same=1

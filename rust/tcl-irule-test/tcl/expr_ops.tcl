@@ -349,7 +349,7 @@ this harness refuses to guess one. Parenthesise the intended grouping."
                 return [uplevel 1 ::tmm::expr_ops::_orig_expr $args]
             }
             set _in_rewrite 1
-            set code [catch {
+            set code [::tmm::_host_catch {
                 if {[llength $args] == 1} {
                     set rewritten [::tmm::expr_ops::rewrite_expr [lindex $args 0]]
                     set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]

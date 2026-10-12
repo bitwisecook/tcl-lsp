@@ -18,8 +18,6 @@
 
 //! List builtins, reusing `tcl_syntax::list` for split/merge semantics.
 
-use std::rc::Rc;
-
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
@@ -28,36 +26,42 @@ use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 /// Map a portable `tcl-cmd-core` result onto the VM's `Completion`.
-fn adapt(result: Result<Value, tcl_cmd_core::CmdError>) -> Completion<Value> {
-    match result {
+fn adapt(
+    vm: &mut Vm,
+    command: impl FnOnce(&mut Vm) -> Result<Value, tcl_cmd_core::CmdError>,
+) -> Completion<Value> {
+    match command(vm) {
         Ok(v) => ok(v),
-        Err(e) => completion_from_cmd_error(e),
+        Err(e) => completion_from_cmd_error(vm, e),
     }
 }
 
+use tcl_cmd_core::regex::OriginalRegexConsumerError;
+
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("list", cmd_list);
-    vm.register("llength", cmd_llength);
-    vm.register("lindex", cmd_lindex);
-    vm.register("lrange", cmd_lrange);
-    vm.register("lappend", cmd_lappend);
-    vm.register("lassign", cmd_lassign);
-    vm.register("lreverse", cmd_lreverse);
-    vm.register("lrepeat", cmd_lrepeat);
-    vm.register("linsert", cmd_linsert);
-    vm.register("lreplace", cmd_lreplace);
-    vm.register("ledit", cmd_ledit);
-    vm.register("lset", cmd_lset);
-    vm.register("lpop", cmd_lpop);
-    vm.register("lsearch", cmd_lsearch);
-    vm.register("lsort", cmd_lsort);
-    vm.register("concat", cmd_concat);
-    vm.register("join", cmd_join);
-    vm.register("split", cmd_split);
+    vm.register_stock_builtin("list", cmd_list);
+    vm.register_stock_builtin("llength", cmd_llength);
+    vm.register_stock_builtin("lindex", cmd_lindex);
+    vm.register_stock_builtin("lrange", cmd_lrange);
+    vm.register_stock_builtin("lappend", cmd_lappend);
+    vm.register_stock_builtin("lassign", cmd_lassign);
+    vm.register_stock_builtin("lreverse", cmd_lreverse);
+    vm.register_stock_builtin("lrepeat", cmd_lrepeat);
+    vm.register_stock_builtin("linsert", cmd_linsert);
+    vm.register_stock_builtin("lreplace", cmd_lreplace);
+    vm.register_stock_builtin("ledit", cmd_ledit);
+    vm.register_stock_builtin("lset", cmd_lset);
+    vm.register_stock_builtin("lpop", cmd_lpop);
+    vm.register_stock_builtin("lsearch", cmd_lsearch);
+    vm.register_stock_builtin("lsort", cmd_lsort);
+    vm.register_stock_builtin("concat", cmd_concat);
+    vm.register_stock_builtin("join", cmd_join);
+    vm.register_stock_builtin("split", cmd_split);
 }
 
-fn as_list(v: &Value) -> Result<Rc<Vec<Value>>, Completion<Value>> {
-    v.as_list().map_err(|e| err(e.message))
+fn as_list(vm: &mut Vm, v: &Value) -> Result<crate::NativeListItems, Completion<Value>> {
+    v.as_list()
+        .map_err(|error| crate::command::completion_from_tcl_error(vm, error))
 }
 
 fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -66,69 +70,100 @@ fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_llength(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => adapt(list_core::llength(vm, l)),
-        _ => err_wrong_args("llength list"),
+        [l] => adapt(vm, |vm| list_core::llength(vm, l)),
+        _ => err_wrong_args(vm, "llength list"),
     }
 }
 
 fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, idxs)) = args.split_first() else {
-        return err_wrong_args("lindex list ?index ...?");
+        return err_wrong_args(
+            vm,
+            vm.native_invocation_dialect()
+                .list_index_usage()
+                .unwrap_or("lindex list ?index ...?"),
+        );
     };
-    adapt(list_core::lindex(vm, list, idxs))
+    adapt(vm, |vm| vm.original_list_index(list, idxs, true))
 }
 
 fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to] = args else {
-        return err_wrong_args("lrange list first last");
+        return err_wrong_args(vm, "lrange list first last");
     };
-    adapt(list_core::lrange(vm, list, from, to))
+    adapt(vm, |vm| vm.original_list_range(list, from, to))
 }
 
 fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((name, vals)) = args.split_first() else {
-        return err_wrong_args("lappend varName ?value ...?");
+    let Some((name, values)) = args.split_first() else {
+        return err_wrong_args(vm, "lappend varName ?value ...?");
     };
-    let n = name.to_str();
-    // The dispatched `lappend` is C's `Tcl_LappendObjCmd`, which fetches
-    // through `TclPtrGetVarIdx` in both its forms (`tclVar.c` 9.0.4:2895 and
-    // :2944), so the read trace fires before the store.
-    let cur = vm.read_for_update(&n);
-    if vals.is_empty() {
-        // `lappend var` with no values returns the variable's current value
-        // *unchanged*: Tcl shimmer-validates it as a list (so a malformed value
-        // errors) but never re-renders the string representation — re-rendering
-        // would canonically requote elements (a leading `#` → `{#}`), diverging
-        // from C Tcl. An unset variable is created as the empty string.
-        return match cur {
-            Some(v) => match as_list(&v) {
-                Ok(_) => ok(v),
-                Err(c) => c,
-            },
-            None => match vm.store_var_result(&n, Value::empty()) {
-                Ok(stored) => ok(stored),
-                Err(e) => e,
-            },
+    let name = match vm.native_name_operand_bytes_checked(name) {
+        Ok(name) => name,
+        Err(error) => {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+    };
+    if !values.is_empty() {
+        return match vm.lappend_list_update_bytes(&name, None, values) {
+            Ok(updated) => {
+                Completion::new(tcl_runtime_api::Code::Ok, updated.value, updated.options)
+            }
+            Err(completion) => completion,
         };
     }
-    // The COW-aware list append (rebuild on the VM; in place on the WASM runtime)
-    // is shared via `tcl_cmd_core::var::lappend_value`; the single store fires the
-    // write trace once.
-    let result = match tcl_cmd_core::var::lappend_value(vm, cur, vals) {
-        Ok(v) => v,
-        Err(e) => return err(e.message()),
+    let read = vm.read_variable_result_bytes(&name, None);
+    let (current, read_options) = match read {
+        Ok(value) => (Some(value), Value::empty()),
+        Err(completion) => {
+            if vm.refused_completion().is_some() {
+                return completion;
+            }
+            vm.publish_swallowed_trace_error();
+            (None, completion.options)
+        }
     };
-    match vm.store_var_result(&n, result) {
-        Ok(stored) => ok(stored),
-        Err(e) => e,
+    if let Err(failure) = vm.retain_variable_read_error_code(&read_options) {
+        return failure;
     }
+    let value = match current {
+        Some(value) => match tcl_registry::native_compilation::NativeAppendKind::List
+            .validates_empty_result(vm.native_invocation_dialect())
+        {
+            Some(false) => value,
+            Some(true) => match as_list(vm, &value) {
+                Ok(_) => value,
+                Err(error) => return error,
+            },
+            None => {
+                return vm.refuse_host_command(
+                    "empty list-append validation policy is not selected".into(),
+                );
+            }
+        },
+        None => match vm.store_var_result_bytes(&name, Value::empty()) {
+            Ok(value) => value,
+            Err(completion) => return completion,
+        },
+    };
+    let updated = match vm.variable_update_result(value, &read_options) {
+        Ok(updated) => updated,
+        Err(failure) => return failure,
+    };
+    Completion::new(tcl_runtime_api::Code::Ok, updated.value, updated.options)
 }
 
 fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((list, names)) = args.split_first() else {
-        return err_wrong_args("lassign list ?varName ...?");
+    let Some(grammar) = vm.native_invocation_dialect().list_assignment_invocation() else {
+        return vm.refuse_host_command("list-assignment invocation grammar is not selected".into());
     };
-    let items = match as_list(list) {
+    if !grammar.accepts(args.len()) {
+        return err_wrong_args(vm, grammar.usage());
+    }
+    let Some((list, names)) = args.split_first() else {
+        return err_wrong_args(vm, grammar.usage());
+    };
+    let items = match as_list(vm, list) {
         Ok(i) => i,
         Err(c) => return c,
     };
@@ -149,30 +184,30 @@ fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => adapt(list_core::lreverse(vm, l)),
-        _ => err_wrong_args("lreverse list"),
+        [l] => adapt(vm, |vm| list_core::lreverse(vm, l)),
+        _ => err_wrong_args(vm, "lreverse list"),
     }
 }
 
 fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((count, elems)) = args.split_first() else {
-        return err_wrong_args("lrepeat count ?value ...?");
+        return err_wrong_args(vm, "lrepeat count ?value ...?");
     };
-    adapt(list_core::lrepeat(vm, count, elems))
+    adapt(vm, |vm| list_core::lrepeat(vm, count, elems))
 }
 
 fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, index, elems @ ..] = args else {
-        return err_wrong_args("linsert list index ?element ...?");
+        return err_wrong_args(vm, "linsert list index ?element ...?");
     };
-    adapt(list_core::linsert(vm, list, index, elems))
+    adapt(vm, |vm| list_core::linsert(vm, list, index, elems))
 }
 
 fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to, rest @ ..] = args else {
-        return err_wrong_args("lreplace list first last ?element ...?");
+        return err_wrong_args(vm, "lreplace list first last ?element ...?");
     };
-    adapt(list_core::lreplace(vm, list, from, to, rest))
+    adapt(vm, |vm| list_core::lreplace(vm, list, from, to, rest))
 }
 
 /// `ledit listVar first last ?element ...?` — the in-place `lreplace` (Tcl 9)
@@ -182,7 +217,7 @@ fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// fires the variable's write traces.
 fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name, from, to, rest @ ..] = args else {
-        return err_wrong_args("ledit listVar first last ?element ...?");
+        return err_wrong_args(vm, "ledit listVar first last ?element ...?");
     };
     let n = name.to_str();
     let Some(cur) = vm.var_get(&n) else {
@@ -191,7 +226,7 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let result = match list_core::ledit(vm, &cur, from, to, rest, release) {
         Ok(v) => v,
-        Err(e) => return completion_from_cmd_error(e),
+        Err(e) => return completion_from_cmd_error(vm, e),
     };
     match vm.store_var_result(&n, result) {
         Ok(stored) => ok(stored),
@@ -207,7 +242,7 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `x` still reports `can't read`).
 fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.len() < 2 {
-        return err_wrong_args("lset listVar ?index? ?index ...? value");
+        return err_wrong_args(vm, "lset listVar ?index? ?index ...? value");
     }
     let n = args[0].to_str();
     let value = args.last().expect("args.len() >= 2");
@@ -218,7 +253,7 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let new = match list_core::lset(vm, &cur, indices, value.clone(), release) {
         Ok(r) => r,
-        Err(e) => return completion_from_cmd_error(e),
+        Err(e) => return completion_from_cmd_error(vm, e),
     };
     match vm.store_var_result(&n, new) {
         Ok(stored) => ok(stored),
@@ -233,7 +268,7 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// traces).
 fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, indices)) = args.split_first() else {
-        return err_wrong_args("lpop listvar ?index?");
+        return err_wrong_args(vm, "lpop listvar ?index?");
     };
     let n = name.to_str();
     let Some(cur) = vm.var_get(&n) else {
@@ -242,7 +277,7 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let (removed, rest) = match list_core::lpop(vm, &cur, indices, release) {
         Ok(r) => r,
-        Err(e) => return completion_from_cmd_error(e),
+        Err(e) => return completion_from_cmd_error(vm, e),
     };
     if let Err(e) = vm.var_set(&n, rest) {
         return e;
@@ -252,13 +287,176 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
 /// [`tcl_cmd_core::lsearch`] core, driven by the VM's `regex`-crate engine for
-/// `-regexp`, with the full option set (the Tcl errorCodes the core carries
-/// are dropped — the VM has no errorCode surface).
+/// `-regexp`, retaining selected guest error metadata and host refusals.
 fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if vm
+        .actual_native_invocation_dialect()
+        .native_jim_regex_protocol()
+        .is_some()
+    {
+        use tcl_cmd_core::native_jim_lsearch::JimLsearchError;
+        return match tcl_cmd_core::native_jim_lsearch::lsearch(
+            vm,
+            args,
+            crate::cmd_regexp::invoke_jim_match_command,
+        ) {
+            Ok(value) => ok(value),
+            Err(JimLsearchError::Command(error)) => {
+                crate::command::completion_from_cmd_error(vm, error)
+            }
+            Err(JimLsearchError::Callback(mut completion)) => {
+                completion.code = tcl_runtime_api::Code::Error;
+                completion
+            }
+            Err(JimLsearchError::NegativeMatch) => match vm
+                .with_native_interp_result(|value| value.native_lifetime_lease().into_value())
+            {
+                Ok(value) => Completion::new(tcl_runtime_api::Code::Error, value, Value::empty()),
+                Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+            },
+            Err(JimLsearchError::Usage) => err_wrong_args(vm, "lsearch ?options? list pattern"),
+        };
+    }
     let version = vm.runtime_version();
-    match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args, version) {
-        Ok(v) => ok(v),
-        Err(e) => err(String::from_utf8_lossy(&e.message).into_owned()),
+    match tcl_cmd_core::lsearch::lsearch_original_with_jim::<
+        Vm,
+        crate::cmd_regexp::CrateEngine,
+        Completion<Value>,
+    >(vm, args, version, crate::cmd_regexp::invoke_jim_regexp)
+    {
+        Ok(value) => ok(value),
+        Err(OriginalRegexConsumerError::Callback(completion)) => completion,
+        Err(OriginalRegexConsumerError::Command(error)) if error.command_error.is_some() => {
+            crate::command::completion_from_cmd_error(vm, error.command_error.unwrap())
+        }
+        Err(OriginalRegexConsumerError::Command(error)) => match error.native_access_refusal {
+            Some(error) => vm.refuse_host_command(error.to_string()),
+            None => Completion::new(
+                tcl_runtime_api::Code::Error,
+                Value::from_string_bytes(error.message),
+                Value::empty(),
+            ),
+        },
+    }
+}
+
+impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Vm {
+    type Hold = Value;
+    type Accumulator = Value;
+    fn jim_search_bytes(
+        &mut self,
+        value: &Value,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_syntax::value::ValueError> {
+        value.bind_native_jim_context(&self.native_jim_object_context()?)?;
+        value
+            .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+            .map_err(|error| {
+                tcl_syntax::value::ValueError::NativeStringAccess(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                )
+            })
+    }
+    fn jim_search_character_count(
+        &mut self,
+        value: &Value,
+    ) -> Result<usize, tcl_syntax::value::ValueError> {
+        value.native_character_count_with_protocol(
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString,
+        )
+    }
+    fn jim_search_option(&mut self, original: &Value) -> Result<usize, tcl_cmd_core::CmdError> {
+        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+            &tcl_cmd_core::native_jim_lsearch::OPTIONS,
+        );
+        match self.native_jim_enum_from_original_checked(
+            original,
+            &table,
+            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+            None,
+        )? {
+            Ok(index) => Ok(index),
+            Err(message) => Err(
+                tcl_cmd_core::CmdError::new_bytes(message.unwrap_or_default())
+                    .with_native_string_result(
+                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                    ),
+            ),
+        }
+    }
+    fn jim_search_hold(&mut self, value: &Value) -> Result<Value, tcl_syntax::value::ValueError> {
+        value.check_native_header()?;
+        Ok(value.clone().into_native_reference())
+    }
+    fn jim_search_borrow(&self, value: &Value) -> Value {
+        value.native_lifetime_lease().into_value()
+    }
+    fn jim_search_elements(
+        &mut self,
+        value: &Value,
+    ) -> Result<Vec<Value>, tcl_syntax::value::ValueError> {
+        Ok(self
+            .native_object_list_elements_in(
+                value,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            )?
+            .iter()
+            .map(|value| value.native_lifetime_lease().into_value())
+            .collect())
+    }
+    fn jim_search_current_elements(
+        &self,
+        value: &Value,
+    ) -> Result<Vec<Value>, tcl_syntax::value::ValueError> {
+        let backing = value
+            .native_list_backing_in(tcl_syntax::native_string::NativeStringProtocol::Jim084)?
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim lsearch callback changed selected List primary",
+            ))?;
+        Ok(backing
+            .iter()
+            .map(|value| value.native_lifetime_lease().into_value())
+            .collect())
+    }
+    fn jim_search_regexp_command(&mut self) -> Value {
+        Value::new_native_string_bytes(b"regexp".as_slice()).into_native_unowned_lifetime()
+    }
+    fn jim_search_group(&mut self, values: Vec<Value>) -> Value {
+        Value::native_list_constructor(
+            values,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )
+        .into_native_unowned_lifetime()
+    }
+    fn jim_search_begin(&mut self) -> Value {
+        Value::native_list_constructor(
+            Vec::new(),
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )
+    }
+    fn jim_search_append(
+        &mut self,
+        list: &mut Value,
+        values: &[Value],
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        list.native_list_append_prepared_elements(
+            values,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )
+    }
+    fn jim_search_finish(&mut self, result: Value) -> Result<Value, tcl_syntax::value::ValueError> {
+        Ok(self.adopt_native_interp_result(result)?.into_value())
+    }
+    fn jim_search_publish(
+        &mut self,
+        value: &Value,
+    ) -> Result<Value, tcl_syntax::value::ValueError> {
+        Ok(self
+            .adopt_native_interp_result(value.native_lifetime_lease().into_value())?
+            .into_value())
+    }
+    fn jim_search_current_result(&self) -> Result<Value, tcl_syntax::value::ValueError> {
+        self.with_native_interp_result(|value| value.native_lifetime_lease().into_value())
     }
 }
 
@@ -267,22 +465,159 @@ fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `-command` (the comparator evaluates Tcl through `vm.dispatch`) alongside
 /// the comparison modes.
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use tcl_cmd_core::index::NativeIndexOps;
+    if vm.index_c_version().is_some() || vm.index_jim_sort_selected() {
+        return match tcl_cmd_core::lsort::run_original(
+            vm, args, vm_compare_original, crate::command::completion_from_cmd_error,
+        ) {
+            Ok(value) => ok(value),
+            Err(completion) => completion,
+        };
+    }
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let mut job = match prepare(vm, args) {
         Ok(Lsort::Done(v)) => return ok(v),
+        Ok(Lsort::Original(result)) => {
+            let (tcl_cmd_core::index::IndexResult::Borrowed(value)
+            | tcl_cmd_core::index::IndexResult::Created(value)
+            | tcl_cmd_core::index::IndexResult::Detached(value)
+            | tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(value)) = result;
+            return ok(value);
+        }
         Ok(Lsort::Command(job)) => job,
-        Err(e) => return err(String::from_utf8_lossy(&e.message).into_owned()),
+        Err(error) => {
+            if let Some(command_error) = error.command_error {
+                return crate::command::completion_from_cmd_error(vm, command_error);
+            }
+
+            return match error.native_access_refusal {
+                Some(error) => vm.refuse_host_command(error.to_string()),
+                None => Completion::new(
+                    tcl_runtime_api::Code::Error,
+                    Value::from_string_bytes(error.message),
+                    Value::empty(),
+                ),
+            };
+        }
     };
     // `-command`: split the comparison prefix into words, run the reentrant merge
     // sort over the VM comparator (no `ValueOps` borrow during the eval), build.
     let prefix = match job.cmd_prefix.as_list() {
         Ok(w) => w,
-        Err(e) => return err(e.message),
+        Err(e) => return crate::command::completion_from_tcl_error(vm, e),
     };
-    if let Err(c) = sort_command(&mut job, |a, b| vm_compare(vm, &prefix, a, b)) {
+    if let Err(c) = sort_command(&mut job, |a, b| {
+        vm_compare(
+            vm,
+            &prefix,
+            tcl_cmd_core::index::key_value::<Vm>(a),
+            tcl_cmd_core::index::key_value::<Vm>(b),
+        )
+    }) {
         return c;
     }
     ok(build_command(vm, &job))
+}
+
+/// Evaluate the actual command List and convert its returned original under
+/// Registry's independent comparison-result purpose, retaining the outer scope.
+fn vm_compare_original(
+    vm: &mut Vm,
+    original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    command: &Value,
+) -> Result<core::cmp::Ordering, Completion<Value>> {
+    use tcl_cmd_core::index::NativeIndexOps;
+    let mut completion = if vm.index_jim_sort_selected() {
+        vm.eval_original_script_value(command,
+            tcl_registry::native_eval_object::EvalObjectPurpose::Eval, None)
+            .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?
+    } else {
+        let words = vm.index_list_elements(command)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let Some((name, arguments)) = words.split_first() else {
+            return Err(err("invalid command name \"\""));
+        };
+        vm.invoke_command_value_at(vm.current_ns_id(), name, arguments, &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary)
+    };
+    vm.check_index_operation(original)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    if !completion.code.is_ok() {
+        if vm.index_c_version().is_some() {
+            let restored = vm.restore_completion_error_state(&completion);
+            vm.check_index_operation(original)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            restored.map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
+            if vm.error_info_value().is_none() {
+                let message = original_comparison_string(vm, original, &completion.result)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                vm.seed_error_info_original(&completion.result, &message);
+            }
+            vm.seed_error_info_frame(b"", b"\n    (-compare command)");
+            vm.check_index_operation(original)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if completion.code == tcl_runtime_api::Code::Error {
+                let options = vm.completion_options_snapshot(&completion);
+                vm.check_index_operation(original)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                completion.options = options
+                    .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
+            }
+        }
+        return Err(completion);
+    }
+    original_comparison_result(vm, original, &completion.result)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+}
+
+fn original_comparison_string(
+    vm: &mut Vm,
+    original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    result: &Value,
+) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+    use crate::interp::native_numeric_ops::OriginalNumericOps;
+    let selected = vm.object_materialization().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("original comparison diagnostic String"),
+    )?;
+    let numeric = OriginalNumericOps::in_original_scope(vm, original.original_scope())?;
+    let reached = numeric.string(result, selected.protocol());
+    if let Err(first) = &reached { numeric.retain_failure(first); }
+    numeric.current_for_value(result)?;
+    reached
+}
+
+fn original_comparison_result(
+    vm: &mut Vm,
+    original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    result: &Value,
+) -> Result<core::cmp::Ordering, tcl_cmd_core::CmdError> {
+    use crate::expr::{OriginalNumericCommandContext, original_numeric_command_ops};
+    use tcl_cmd_core::CmdError;
+    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
+    let context = OriginalNumericCommandContext {
+        original: Some(original.original_scope()),
+        authored: vm.authored_numeric_context(),
+    };
+    original_numeric_command_ops(vm, context,
+        NativeNumericCommandPurpose::ListSortComparisonResult, |numeric, selected| {
+        let reached = numeric.getter(result, selected.getter_kind());
+        if let Err(first) = &reached { numeric.retain_failure(first); }
+        numeric.current_for_value(result)?;
+        let reached = reached.map_err(|error| {
+            if error.native_execution_refusal().is_some()
+                || error.clone().into_byte_details().primitive_getter.is_none() {
+                return error;
+            }
+            selected.comparison_result_error().map_or(error, |wrapper| {
+                CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code)
+            })
+        })?;
+        let NativeScalarGetterValue::Wide(integer) = reached else {
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
+        };
+        Ok(integer.cmp(&0))
+    })
 }
 
 /// The `lsort -command` comparator: invoke `<prefix words...> a b` and read its
@@ -301,7 +636,12 @@ fn vm_compare(
     let mut argv: Vec<Value> = pre_args.to_vec();
     argv.push(a.clone());
     argv.push(b.clone());
-    let comp = vm.dispatch(&name.to_str(), &argv);
+    let comp = match vm.dispatch(&name.to_str(), &argv) {
+        Ok(completion) => completion,
+        Err(first) => {
+            return Err(vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first)));
+        }
+    };
     if !comp.code.is_ok() {
         return Err(comp);
     }
@@ -315,22 +655,22 @@ fn vm_compare(
 }
 
 fn cmd_concat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    ok(list_core::concat(vm, args))
+    adapt(vm, |vm| list_core::concat_selected(vm, args))
 }
 
 fn cmd_join(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => adapt(list_core::join(vm, l, None)),
-        [l, s] => adapt(list_core::join(vm, l, Some(s))),
-        _ => err_wrong_args("join list ?joinString?"),
+        [l] => adapt(vm, |vm| list_core::join(vm, l, None)),
+        [l, s] => adapt(vm, |vm| list_core::join(vm, l, Some(s))),
+        _ => err_wrong_args(vm, "join list ?joinString?"),
     }
 }
 
 fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [s] => ok(list_core::split(vm, s, None)),
-        [s, c] => ok(list_core::split(vm, s, Some(c))),
-        _ => err_wrong_args("split string ?splitChars?"),
+        [s] => adapt(vm, |vm| list_core::split(vm, s, None)),
+        [s, c] => adapt(vm, |vm| list_core::split(vm, s, Some(c))),
+        _ => err_wrong_args(vm, "split string ?splitChars?"),
     }
 }
 
@@ -339,30 +679,308 @@ mod tests {
     use super::*;
     use tcl_dialect::TclVersion;
 
+    type CallbackObservations = std::rc::Rc<std::cell::RefCell<Vec<Vec<(String, usize)>>>>;
+
+    struct ObserveTwice(CallbackObservations);
+
+    impl crate::command::NativeCommand for ObserveTwice {
+        fn invoke(&self, _vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            self.0.borrow_mut().push(
+                args.iter()
+                    .map(|value| {
+                        (
+                            value.native_object_type_name().to_owned(),
+                            value.native_object_reference_count(),
+                        )
+                    })
+                    .collect(),
+            );
+            ok(Value::int(2))
+        }
+    }
+
+    fn lsearch_fixture_bytes(text: &str) -> Vec<u8> {
+        text.as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect::<Vec<_>>()
+    }
+
+    fn assert_lsearch_result_header(
+        case: usize,
+        lines: &[&str],
+        vm: &Vm,
+        result: &Completion<Value>,
+    ) {
+        let expected_code: i32 = lines
+            .iter()
+            .find_map(|line| line.strip_prefix("code\t"))
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(
+            result.code.as_int(),
+            i64::from(expected_code),
+            "case {case}"
+        );
+        assert!(vm.refused_completion().is_none(), "case {case}");
+        let expected: Vec<_> = lines
+            .iter()
+            .find_map(|line| line.strip_prefix("result\t"))
+            .unwrap()
+            .split('\t')
+            .collect();
+        assert_eq!(
+            result.result.native_object_type_name(),
+            expected[0],
+            "case {case}"
+        );
+        assert_eq!(
+            result.result.resident_string_bytes().is_some(),
+            expected[1] == "1",
+            "case {case}"
+        );
+        assert_eq!(
+            result.result.native_object_reference_count(),
+            expected[2].parse::<usize>().unwrap(),
+            "case {case} original result refs"
+        );
+    }
+
+    fn assert_lsearch_arguments_and_callbacks(
+        case: usize,
+        lines: &[&str],
+        originals: &[Value],
+        callbacks: &CallbackObservations,
+    ) {
+        for line in lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("argument\t"))
+        {
+            let fields: Vec<_> = line.split('\t').collect();
+            let value = &originals[fields[0].parse::<usize>().unwrap() - 1];
+            assert_eq!(
+                value.native_object_type_name(),
+                fields[1],
+                "case {case} argument {}",
+                fields[0]
+            );
+            assert_eq!(
+                value.resident_string_bytes().is_some(),
+                fields[2] == "1",
+                "case {case} argument {}",
+                fields[0]
+            );
+            assert_eq!(
+                value.native_object_reference_count(),
+                fields[3].parse::<usize>().unwrap(),
+                "case {case} argument {}",
+                fields[0]
+            );
+        }
+        let native_callbacks: Vec<_> = lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("callback\t"))
+            .map(|line| {
+                line.split('\t')
+                    .skip(2)
+                    .map(|field| {
+                        let (kind, refs) = field.split_once(':').unwrap();
+                        (kind.to_owned(), refs.parse::<usize>().unwrap())
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(
+            *callbacks.borrow(),
+            native_callbacks,
+            "case {case} callback original children"
+        );
+    }
+
+    #[test]
+    fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
+        use tcl_runtime_api::Code;
+        let rows = include_str!("../../tcl-cmd-core/tests/data/native_jim_lsearch/rows.txt");
+
+        let mut count = 0;
+        for record in rows.split("case\t").skip(1) {
+            let lines: Vec<_> = record.lines().collect();
+            let case: usize = lines[0].parse().unwrap();
+            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+            let mut vm = Vm::with_native_core(
+                Box::new(std::io::sink()),
+                std::rc::Rc::new(crate::host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .expect("authentic Jim core constructor before bootstrap");
+            let callbacks = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            vm.register_written_command(
+                "two",
+                crate::command::Command::Native(std::rc::Rc::new(ObserveTwice(
+                    std::rc::Rc::clone(&callbacks),
+                ))),
+            )
+            .unwrap();
+            vm.register("returns", |_, _| {
+                Completion::new(
+                    Code::Return,
+                    Value::new_native_string_bytes(b"ORIGINAL_RETURN".as_slice()),
+                    Value::empty(),
+                )
+            });
+            if case == 8 {
+                vm.register_written_command(
+                    "regexp",
+                    crate::command::Command::Native(std::rc::Rc::new(ObserveTwice(
+                        std::rc::Rc::clone(&callbacks),
+                    ))),
+                )
+                .unwrap();
+            }
+            let originals: Vec<_> = lines[1]
+                .split('\t')
+                .skip(1)
+                .map(|word| Value::new_native_string_bytes(lsearch_fixture_bytes(word)))
+                .collect();
+            let args: Vec<_> = originals
+                .iter()
+                .map(|value| value.native_lifetime_lease().into_value())
+                .collect();
+            let head = Value::new_native_string_bytes(b"lsearch".as_slice());
+            let result = vm.invoke_host_original_object_vector(&head, &args);
+            assert_lsearch_result_header(case, &lines, &vm, &result);
+            assert_lsearch_arguments_and_callbacks(case, &lines, &originals, &callbacks);
+            let expected_bytes = lsearch_fixture_bytes(
+                lines
+                    .iter()
+                    .find_map(|line| line.strip_prefix("bytes\t"))
+                    .unwrap(),
+            );
+            assert_eq!(
+                result.result.string_bytes().as_ref(),
+                expected_bytes,
+                "case {case}"
+            );
+            count += 1;
+        }
+        assert_eq!(count, 24);
+    }
+
+    fn engine_profiles() -> Vec<&'static tcl_dialect::DialectProfile> {
+        tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(|version| {
+                tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                    .unit_profile()
+            })
+            .chain(std::iter::once(
+                tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+            ))
+            .collect()
+    }
+
+    #[test]
+    fn concat_uses_the_selected_engine_and_live_list_representation() {
+        let jim = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        for profile in engine_profiles() {
+            let mut vm = crate::native_fixture::core(profile);
+            let is_jim = profile == jim;
+            let trailing = cmd_concat(&mut vm, &[Value::string("word"), Value::string("")]);
+            assert!(trailing.code.is_ok());
+            assert_eq!(
+                trailing.result.to_str().as_ref(),
+                if is_jim { "word " } else { "word" }
+            );
+
+            let first = Value::string("A  B");
+            let second = Value::string("C");
+            let before = cmd_concat(&mut vm, &[first.clone(), second.clone()]);
+            assert_eq!(before.result.to_str().as_ref(), "A  B C");
+            assert!(!first.has_list_representation());
+            first.as_list().expect("valid first list");
+            second.as_list().expect("valid second list");
+            let after = cmd_concat(&mut vm, &[first, second]);
+            assert_eq!(
+                after.result.to_str().as_ref(),
+                if is_jim { "A B C" } else { "A  B C" }
+            );
+            assert_eq!(after.result.has_list_representation(), is_jim);
+        }
+    }
+
+    #[test]
+    fn list_indices_and_set_bounds_follow_the_selected_engine() {
+        use tcl_dialect::{ListSetBounds, TclVersion};
+        for profile in engine_profiles() {
+            let mut vm = crate::native_fixture::core(profile);
+            let dialect = vm.native_invocation_dialect();
+            let is_jim = dialect
+                .core_point
+                .is_some_and(|point| point.family() == tcl_dialect::model::Family::Jim);
+            let old_indices = dialect.tcl_version == Some(TclVersion::V8_4);
+            let end_abbreviation = dialect
+                .tcl_version
+                .is_some_and(|version| version < TclVersion::V9_0);
+            for (index, wanted) in [
+                ("1+1", (!old_indices).then_some("c")),
+                ("end+0", (!old_indices).then_some("d")),
+                ("2*1", is_jim.then_some("c")),
+                ("abs(-1)", is_jim.then_some("b")),
+                ("e", end_abbreviation.then_some("d")),
+                ("en", end_abbreviation.then_some("d")),
+                ("$n", None),
+                ("[set n]", None),
+            ] {
+                let completion =
+                    cmd_lindex(&mut vm, &[Value::string("a b c d"), Value::string(index)]);
+                assert_eq!(
+                    completion.code.is_ok(),
+                    wanted.is_some(),
+                    "{}: {index}: {}",
+                    profile.name,
+                    completion.result.to_str()
+                );
+                if let Some(wanted) = wanted {
+                    assert_eq!(
+                        completion.result.to_str().as_ref(),
+                        wanted,
+                        "{}: {index}",
+                        profile.name
+                    );
+                }
+            }
+            let release = vm.runtime_version();
+            let appended = list_core::lset(
+                &mut vm,
+                &Value::string("a"),
+                &[Value::string("1")],
+                Value::string("z"),
+                release,
+            );
+            let may_append = dialect.list_set_bounds() == Some(ListSetBounds::AppendAtEnd);
+            assert_eq!(appended.is_ok(), may_append, "{}", profile.name);
+            if let Ok(value) = appended {
+                assert_eq!(value.to_str().as_ref(), "a z");
+            }
+        }
+    }
+
     /// The shared `lpop` core under the VM's default release.
     fn lpop(list: &Value, indices: &[Value]) -> Result<(Value, Value), tcl_cmd_core::CmdError> {
         let mut vm = Vm::new();
         list_core::lpop(&mut vm, list, indices, TclVersion::V9_0)
     }
 
-    /// `lpop` recursing once per index in its (possibly nested) index path
-    /// natively has no depth cap: an unguarded `lpop v {*}[lrepeat 100000 0]`
-    /// empirically overflows the native stack (SIGABRT) between depth 1600
-    /// and 1800 on a 2 MiB thread (`cargo test`'s per-test default). The
-    /// shared core walks the path iteratively; this test checks the result
-    /// for exact correctness at depth 2000, comfortably past that crash range
-    /// — the right leaf comes back out, and the trimmed list has the same
-    /// shape as the input, not merely survival.
-    ///
-    /// Deliberately NOT 50,000+: constructing (and, at the end of this
-    /// test, dropping) a `Value::list` chain nested that deep is its own,
-    /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
-    /// the compiler-generated recursive drop glue walks the same chain a
-    /// naive `to_str` would (empirically, SIGABRT between depth 3500 and 4000
-    /// on a 2 MiB thread for construction+drop alone, independent of any
-    /// operation performed on the value). That is a separate, genuinely
-    /// unbounded-depth concern in `Value`'s representation itself, not in
-    /// the core's iterative logic, and this test does not cover it.
+    /// A fixed deep index path exercises iterative descent, reconstruction
+    /// and original native header retirement on the ordinary test thread.
+    /// The leaf and rebuilt outer shape must retain their exact values.
     #[test]
     fn deeply_nested_lpop_survives_and_is_correct() {
         const DEPTH: usize = 2_000;
@@ -404,3 +1022,17 @@ mod tests {
         assert!(lpop(&flat, &[Value::string("10")]).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_list/native_original_option_index_controls.rs"]
+mod native_original_option_index_controls;
+
+#[cfg(test)]
+mod native_original_stride_controls;
+
+#[cfg(test)]
+mod native_original_numeric_controls;
+
+#[cfg(test)]
+#[path = "cmd_list/native_original_group_command_controls.rs"]
+mod native_original_group_command_controls;

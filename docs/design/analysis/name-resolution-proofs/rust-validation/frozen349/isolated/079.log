@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_info::tests::info_level_reports_call_words ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.67s
+

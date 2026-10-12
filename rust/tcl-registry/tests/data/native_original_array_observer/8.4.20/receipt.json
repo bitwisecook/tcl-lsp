@@ -1,0 +1,30 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/.proofs/current-native-original-array-observer157/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.00522805999207776,
+  "reported_version": "8.4.20",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+  "source_sha256": "798ba687127cd5eb8e2e462e4befbeb30265b81c2e92b07311f8077f1d880b11",
+  "runner_sha256": "75af813dd5322d4a3e2abc9789d4478da643eb1309620d5607cd4f15bc1b41eb",
+  "stdout_sha256": "508e763cee2ca0ca0983777ca5bab57e1bd6d5a7dc9bc6cf3104e39ea03000d7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+  },
+  "rows": [
+    "VERSION|8.4.20",
+    "{builtin {k OLD}} {renamed {k OLD}} {alias_setup 0 array_alias} {alias 0 {k OLD}}"
+  ],
+  "input_channel": "ASCII LF source-file CLI; version prefix followed by sequential builtin, renamed and conditionally aliased original array-read controls",
+  "boundary": "Question: shared original array read across builtin, moved slot and supported interpreter alias. Original question source is retained separately; executed source adds the independently hashed version prefix. Source order is sequential. Jim alias setup errors are caught and do not attest an alias read. Tcl list output only, no physical cell/header/cache, compiler admission or SSA coverage inference."
+}

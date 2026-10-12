@@ -1,0 +1,18 @@
+	     * double-free might occur depending on what the eval does.
+	     */
+
+	    if ((flags & TCL_TRACE_DESTROYED)
+		    && !(tvarPtr->flags & TCL_TRACE_DESTROYED)) {
+		destroy = 1;
+		tvarPtr->flags |= TCL_TRACE_DESTROYED;
+	    }
+	    code = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),
+		    Tcl_DStringLength(&cmd), 0);
+	    if (code != TCL_OK) {		/* copy error msg to result */
+		Tcl_Obj *errMsgObj = Tcl_GetObjResult(interp);
+		Tcl_IncrRefCount(errMsgObj);
+		result = (char *) errMsgObj;
+	    }
+	    Tcl_DStringFree(&cmd);
+	}
+    }

@@ -54,22 +54,78 @@ pub struct EnsembleToken<C, N> {
     config: RefCell<C>,
     name: RefCell<N>,
     dead: Cell<bool>,
+    configuration_retired: Cell<bool>,
+    compiler_hook: Cell<tcl_runtime_api::native_compilation::NativeCompilerHookPresence>,
+    retire_configuration: Option<fn(&C, Option<&C>)>,
 }
 
 impl<C, N> EnsembleToken<C, N> {
     /// Create a live token with its initial configuration and fully-qualified
     /// command name.
     pub fn new(config: C, name: N) -> Self {
+        Self::with_compiler_hook(
+            config,
+            name,
+            tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+        )
+    }
+
+    /// Publish the compiler attachment selected by the native token owner.
+    /// The attachment is independent of the mutable dispatch configuration.
+    pub fn with_compiler_hook(
+        config: C,
+        name: N,
+        compiler_hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence,
+    ) -> Self {
         Self {
             config: RefCell::new(config),
             name: RefCell::new(name),
             dead: Cell::new(false),
+            configuration_retired: Cell::new(false),
+            compiler_hook: Cell::new(compiler_hook),
+            retire_configuration: None,
         }
     }
 
+    /// Attach an actual object-owner retirement operation. Configuration
+    /// snapshots remain metadata; replacement and deletion retire native roles
+    /// outside the token's configuration borrow.
+    pub fn with_configuration_retirement(
+        config: C,
+        name: N,
+        compiler_hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence,
+        retire: fn(&C, Option<&C>),
+    ) -> Self {
+        let mut token = Self::with_compiler_hook(config, name, compiler_hook);
+        token.retire_configuration = Some(retire);
+        token
+    }
+
+    /// The command token's raw compiler attachment.
+    #[must_use]
+    pub fn compiler_hook(&self) -> tcl_runtime_api::native_compilation::NativeCompilerHookPresence {
+        self.compiler_hook.get()
+    }
+
+    /// Change the attachment at the native configuration owner. Callers retain
+    /// responsibility for publishing the corresponding native compiler epoch.
+    pub fn set_compiler_hook(
+        &self,
+        hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence,
+    ) {
+        self.compiler_hook.set(hook);
+    }
+
     /// Replace the live configuration in place, preserving command identity.
-    pub fn configure(&self, config: C) {
-        *self.config.borrow_mut() = config;
+    pub fn configure(&self, config: C)
+    where
+        C: Clone,
+    {
+        let previous = self.config.replace(config);
+        if let Some(retire) = self.retire_configuration {
+            let current = self.config();
+            retire(&previous, Some(&current));
+        }
     }
 
     /// Move the command token to its new fully-qualified name.
@@ -79,7 +135,22 @@ impl<C, N> EnsembleToken<C, N> {
 
     /// Mark the command token deleted. This is deliberately irreversible: a
     /// new ensemble created at the same name receives a different token.
-    pub fn mark_deleted(&self) {
+    pub fn mark_deleted(&self)
+    where
+        C: Clone,
+    {
+        self.dead.set(true);
+        if !self.configuration_retired.replace(true)
+            && let Some(retire) = self.retire_configuration
+        {
+            retire(&self.config(), None);
+        }
+    }
+
+    /// Withdraw dispatch identity while the namespace table is mutably borrowed.
+    /// The enclosing native operation must call `mark_deleted` after releasing
+    /// that borrow to retire actual object roles before returning to Tcl.
+    pub fn mark_deleted_deferred(&self) {
         self.dead.set(true);
     }
 
@@ -87,6 +158,53 @@ impl<C, N> EnsembleToken<C, N> {
     #[must_use]
     pub fn is_deleted(&self) -> bool {
         self.dead.get()
+    }
+}
+
+impl<C, N> Drop for EnsembleToken<C, N> {
+    fn drop(&mut self) {
+        if !self.configuration_retired.get()
+            && let Some(retire) = self.retire_configuration
+        {
+            retire(self.config.get_mut(), None);
+        }
+    }
+}
+
+/// One genuine native object role, independent of its metadata query handles.
+/// Cloning this handle does not clone the native object or add a native reference.
+#[derive(Debug)]
+pub struct EnsembleObjectRole<T>(std::rc::Rc<RefCell<Option<T>>>);
+
+impl<T> Clone for EnsembleObjectRole<T> {
+    fn clone(&self) -> Self {
+        Self(std::rc::Rc::clone(&self.0))
+    }
+}
+
+impl<T> EnsembleObjectRole<T> {
+    /// Install the actual owning role supplied by the runtime object producer.
+    pub fn new(original: T) -> Self {
+        Self(std::rc::Rc::new(RefCell::new(Some(original))))
+    }
+
+    /// Inspect an installed original without adding native ownership. The
+    /// callback must not dispatch or mutate this role.
+    pub fn inspect<R>(&self, query: impl FnOnce(&T) -> R) -> Option<R> {
+        self.0.borrow().as_ref().map(query)
+    }
+
+    /// Whether two metadata handles describe the same actual owning role.
+    #[must_use]
+    pub fn same_role(&self, other: &Self) -> bool {
+        std::rc::Rc::ptr_eq(&self.0, &other.0)
+    }
+
+    /// Retire the actual role even if metadata handles remain. Native object
+    /// cleanup runs after releasing the role's mutable borrow.
+    pub fn retire(&self) {
+        let retired = self.0.borrow_mut().take();
+        drop(retired);
     }
 }
 
@@ -188,6 +306,24 @@ pub const CONFIG_OPTIONS: OptionTable<'static> = OptionTable::abbreviating(
     ],
 );
 
+/// Tcl 8.5's create table, before ensemble parameters were introduced.
+pub const CREATE_OPTIONS_85: OptionTable<'static> = OptionTable::abbreviating(
+    "option",
+    &["-command", "-map", "-prefixes", "-subcommands", "-unknown"],
+);
+
+/// Tcl 8.5's configure table, preserving native index-cache geometry.
+pub const CONFIG_OPTIONS_85: OptionTable<'static> = OptionTable::abbreviating(
+    "option",
+    &[
+        "-map",
+        "-namespace",
+        "-prefixes",
+        "-subcommands",
+        "-unknown",
+    ],
+);
+
 /// The options `namespace ensemble create` and `configure` have in common —
 /// everything that lands in the ensemble's stored configuration. `-command`
 /// (create-only, it names the command rather than configuring it) and
@@ -249,14 +385,20 @@ impl CreateOption {
     /// # Errors
     /// `Tcl_GetIndexFromObj`'s bad/ambiguous option message.
     pub fn resolve(word: &[u8]) -> Result<Self, Vec<u8>> {
-        Ok(match CREATE_OPTIONS.index_of(word)? {
+        Ok(Self::from_index(CREATE_OPTIONS.index_of(word)?))
+    }
+
+    /// Map an index reached by the original-object getter over this declaration.
+    #[must_use]
+    pub const fn from_index(index: usize) -> Self {
+        match index {
             0 => Self::Command,
             1 => Self::Map,
             2 => Self::Parameters,
             3 => Self::Prefixes,
             4 => Self::Subcommands,
             _ => Self::Unknown,
-        })
+        }
     }
 
     /// The shared configuration option this is, or `None` for `-command`,
@@ -299,14 +441,20 @@ impl ConfigOption {
     /// # Errors
     /// `Tcl_GetIndexFromObj`'s bad/ambiguous option message.
     pub fn resolve(word: &[u8]) -> Result<Self, Vec<u8>> {
-        Ok(match CONFIG_OPTIONS.index_of(word)? {
+        Ok(Self::from_index(CONFIG_OPTIONS.index_of(word)?))
+    }
+
+    /// Map an index reached by the original-object getter over this declaration.
+    #[must_use]
+    pub const fn from_index(index: usize) -> Self {
+        match index {
             0 => Self::Map,
             1 => Self::Namespace,
             2 => Self::Parameters,
             3 => Self::Prefixes,
             4 => Self::Subcommands,
             _ => Self::Unknown,
-        })
+        }
     }
 
     /// The shared configuration option this is, or `None` for `-namespace`,
@@ -549,5 +697,55 @@ mod tests {
             unknown_subcommand_message::<Vec<u8>>(&[], b"zz", true, b"::e8"),
             b"unknown subcommand \"zz\": namespace ::e8 does not export any commands".to_vec()
         );
+    }
+}
+
+/// Actual argument-prefix rewrite retained by an ensemble or alias invocation.
+/// It is independent of implementation spelling and does not confer semantics.
+/// The word type preserves the runtime's actual values: UTF-8 strings in the
+/// VM, byte vectors in the byte-valued Runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgumentUsageRewrite<W = String> {
+    /// Original invocation words replaced by the mapped implementation prefix.
+    pub original_prefix: Vec<W>,
+    /// Number of implementation words removed from an actual usage header.
+    pub removed_words: usize,
+}
+
+/// Reconstruct a native usage header through retained outer-to-inner rewrites.
+/// A usage that omits a removed implementation parameter cannot be rewritten.
+#[must_use]
+pub fn rewrite_argument_usage<W: Clone>(
+    header: &[W],
+    rewrites: &[ArgumentUsageRewrite<W>],
+) -> Vec<W> {
+    let mut words = header.to_vec();
+    for rewrite in rewrites.iter().rev() {
+        if words.len() < rewrite.removed_words {
+            break;
+        }
+        let mut next = rewrite.original_prefix.clone();
+        next.extend_from_slice(&words[rewrite.removed_words..]);
+        words = next;
+    }
+    words
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::{ArgumentUsageRewrite, rewrite_argument_usage};
+
+    #[test]
+    fn retained_rewrites_preserve_non_unicode_argument_values() {
+        let header = vec![b"private".to_vec(), b"worker".to_vec(), vec![0xff, b' ']];
+        let rewrites = [ArgumentUsageRewrite {
+            original_prefix: vec![vec![0xfe, b' '], b"selected".to_vec()],
+            removed_words: 2,
+        }];
+        assert_eq!(
+            rewrite_argument_usage(&header, &rewrites),
+            vec![vec![0xfe, b' '], b"selected".to_vec(), vec![0xff, b' ']]
+        );
+        assert_eq!(rewrite_argument_usage(&header[..1], &rewrites), header[..1]);
     }
 }

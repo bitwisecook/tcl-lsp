@@ -71,7 +71,9 @@ use tcl_compiler::optimiser::optimise_unit;
 use tcl_core_types::DiagCode;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
-use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_diagnostics};
+use tcl_lsp_core::source_style::{
+    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_facts_from_analysis,
+};
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 
 /// Directory names skipped by the corpus walk. Keep this aligned with the
@@ -471,7 +473,7 @@ fn shape_key(message: &str) -> String {
 ///    build. `tcl diag` only runs (1); an FP sweep needs the O-series
 ///    firings it deliberately drops, so this reproduces the fuller build
 ///    rather than diag.rs's simplified (non-interprocedural) one.
-/// 3. [`style_diagnostics`] — the pure-text W111/W112/W115/W118 checks,
+/// 3. [`style_facts_from_analysis`] — the pure-text W111/W112/W115/W118 checks,
 ///    which read raw source and are not part of either compiler pass.
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
     // The override is a dialect *name*, so it resolves through the one
@@ -516,7 +518,23 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         doc_path.as_deref(),
         dialect,
     );
-    let analysis_cu = Arc::new(CompilationUnit::build_with_options(
+    let context = tcl_lsp_core::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        Arc::new(context),
+        tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_registry::model::resolve_environment(dialect).grammar(),
+        ),
+    );
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        &input,
+        input.lexer_config(),
+        Some(profile),
+    );
+    let analysis_cu = Arc::new(CompilationUnit::build_with_analysis_input(
         &doc.input.source,
         UnitBuildOptions {
             registry,
@@ -528,8 +546,12 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
+        Some(&entry),
+        &input,
     ));
-    let mut analyser = Analyser::new().with_file_path(doc_path.clone());
+    let mut analyser = Analyser::new()
+        .with_file_path(doc_path.clone())
+        .with_resolved_input(input.clone());
     analyser.set_cu_override(Arc::clone(&analysis_cu));
     let result = analyser.analyse(&doc.input.source, dialect);
     for d in &result.diagnostics {
@@ -538,7 +560,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
 
     // (2) Compiler-checks + optimiser, over one interprocedural-summarised,
     // dialect-configured unit.
-    let checks_cu = CompilationUnit::build_with_options(
+    let checks_cu = CompilationUnit::build_with_analysis_input(
         &doc.input.source,
         UnitBuildOptions {
             registry,
@@ -550,6 +572,8 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
+        Some(&entry),
+        &input,
     )
     .with_interprocedural(registry, dialect_opt);
     for d in run_all_checks(&checks_cu, registry, dialect_opt) {
@@ -567,12 +591,12 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // report and therefore produce encoding findings at full precision.
     // Extracted RST blocks use a faithful empty report because their offsets no
     // longer refer to the containing file's byte stream.
-    for d in style_diagnostics(
+    for d in style_facts_from_analysis(
         &doc.input.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
         Some(&doc.input.decode),
-        tcl_lsp_core::profile_for_dialect(dialect),
+        &result,
     ) {
         let code = d.code;
         if !wanted.contains(&code) {

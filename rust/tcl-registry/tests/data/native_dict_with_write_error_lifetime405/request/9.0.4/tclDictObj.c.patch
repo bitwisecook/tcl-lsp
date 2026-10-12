@@ -1,0 +1,31 @@
+--- original/tclDictObj.c
++++ observed/tclDictObj.c
+@@ -11,6 +11,10 @@
+  */
+ 
+ #include "tclInt.h"
++Tcl_Obj *tclLspWithWatch = NULL;
++int tclLspWithEntered=0, tclLspWithBeforeRefcount=-1, tclLspWithAllocated=-1;
++int tclLspWithFailed=0, tclLspWithSameCell=-1, tclLspWithDefinedScalar=-1, tclLspWithFinalFree=0;
++
+ #include "tclTomMath.h"
+ 
+ /*
+@@ -4002,8 +4006,17 @@
+      * Write back the outermost dictionary to the variable.
+      */
+ 
++    tclLspWithEntered++;
++    tclLspWithBeforeRefcount = dictPtr->refCount;
++    tclLspWithAllocated = allocdict;
++    tclLspWithWatch = dictPtr;
++    fprintf(stderr,"WITH_BEFORE_SET|refcount=%d|allocated=%d\n",tclLspWithBeforeRefcount,tclLspWithAllocated);
+     if (TclPtrSetVarIdx(interp, varPtr, arrayPtr, part1Ptr, part2Ptr,
+ 	    dictPtr, TCL_LEAVE_ERR_MSG, index) == NULL) {
++        tclLspWithFailed++;
++        tclLspWithSameCell = varPtr->value.objPtr == dictPtr;
++        tclLspWithDefinedScalar = TclIsVarScalar(varPtr) && !TclIsVarUndefined(varPtr);
++        fprintf(stderr,"WITH_SET_ERROR|same_cell=%d|defined_scalar=%d|final_free=%d\n",tclLspWithSameCell,tclLspWithDefinedScalar,tclLspWithFinalFree);
+ 	if (allocdict) {
+ 	    TclDecrRefCount(dictPtr);
+ 	}

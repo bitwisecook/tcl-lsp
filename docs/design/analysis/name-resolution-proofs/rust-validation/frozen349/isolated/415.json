@@ -1,0 +1,19 @@
+{
+  "ordinal": 415,
+  "selector": "interp::tests::safe_interp_hidden_set_matches_the_measured_tclsh_sets",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::safe_interp_hidden_set_matches_the_measured_tclsh_sets",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 25.935482255998068,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 25.89s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/415.log",
+  "log_sha256": "a8e3323add1a369e05cfbe9499a95331e760ea3e1b8883d0adf87046518b7d4c"
+}

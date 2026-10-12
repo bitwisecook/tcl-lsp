@@ -1,0 +1,275 @@
+{
+  "scope": "Actual verify-only checks of the original configured provider input hashes, flags and retained streams. No compiler, native executable or Rust assertion is launched.",
+  "captured_utc": "2026-10-08T20:15:14.306004+00:00",
+  "python_version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "replay_path": "rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+  "replay_sha256": "eeb3f46580593b6dd98e15019d89ce3688a1f03c6c331e9dc0ec61d35ad37fb6",
+  "checks": [
+    {
+      "variant": "v1",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+        "--source-root",
+        "/workspace/tcl-lsp/tmp",
+        "--output",
+        "/workspace/.proofs/current-substitution-proof-review/verify-v1",
+        "--variant",
+        "v1",
+        "--verify-only"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "comparisons": [
+        {
+          "provider": "8.4.20",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.5.19",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.6.18",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.0.4",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.1.0",
+          "inputs_verified": true,
+          "executed": false
+        }
+      ]
+    },
+    {
+      "variant": "v2",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+        "--source-root",
+        "/workspace/tcl-lsp/tmp",
+        "--output",
+        "/workspace/.proofs/current-substitution-proof-review/verify-v2",
+        "--variant",
+        "v2",
+        "--verify-only"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "comparisons": [
+        {
+          "provider": "8.4.20",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.5.19",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.6.18",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.0.4",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.1.0",
+          "inputs_verified": true,
+          "executed": false
+        }
+      ]
+    },
+    {
+      "variant": "v3",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+        "--source-root",
+        "/workspace/tcl-lsp/tmp",
+        "--output",
+        "/workspace/.proofs/current-substitution-proof-review/verify-v3",
+        "--variant",
+        "v3",
+        "--verify-only"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "comparisons": [
+        {
+          "provider": "8.4.20",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.5.19",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.6.18",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.0.4",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.1.0",
+          "inputs_verified": true,
+          "executed": false
+        }
+      ]
+    },
+    {
+      "variant": "v4",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+        "--source-root",
+        "/workspace/tcl-lsp/tmp",
+        "--output",
+        "/workspace/.proofs/current-substitution-proof-review/verify-v4",
+        "--variant",
+        "v4",
+        "--verify-only"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "comparisons": [
+        {
+          "provider": "8.4.20",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.5.19",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.6.18",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.0.4",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.1.0",
+          "inputs_verified": true,
+          "executed": false
+        }
+      ]
+    },
+    {
+      "variant": "v5",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+        "--source-root",
+        "/workspace/tcl-lsp/tmp",
+        "--output",
+        "/workspace/.proofs/current-substitution-proof-review/verify-v5",
+        "--variant",
+        "v5",
+        "--verify-only"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "comparisons": [
+        {
+          "provider": "8.4.20",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.5.19",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.6.18",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.0.4",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.1.0",
+          "inputs_verified": true,
+          "executed": false
+        }
+      ]
+    },
+    {
+      "variant": "v6",
+      "command": [
+        "python3",
+        "rust/tcl-registry/tests/data/native_substitution_owner/replay.py",
+        "--source-root",
+        "tmp",
+        "--output",
+        "/workspace/.proofs/current-substitution-proof-review/verify-v6",
+        "--variant",
+        "v6",
+        "--verify-only"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "comparisons": [
+        {
+          "provider": "8.4.20",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.5.19",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "8.6.18",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.0.4",
+          "inputs_verified": true,
+          "executed": false
+        },
+        {
+          "provider": "9.1.0",
+          "inputs_verified": true,
+          "executed": false
+        }
+      ]
+    }
+  ],
+  "native_launches": 0,
+  "rust_suite_runs": 0
+}

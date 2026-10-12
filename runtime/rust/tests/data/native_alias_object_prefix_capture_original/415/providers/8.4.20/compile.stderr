@@ -1,0 +1,4 @@
+/workspace/.proofs/consumer-native-alias-objects415/probe.c: In function 'original':
+/workspace/.proofs/consumer-native-alias-objects415/probe.c:79:15: warning: assignment discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+   79 |     o->typePtr=&original_type;INC(o);s->held[role]=s->identity[role]=o;return o;
+      |               ^

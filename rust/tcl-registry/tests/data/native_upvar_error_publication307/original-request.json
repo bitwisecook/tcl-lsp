@@ -1,0 +1,20 @@
+{
+  "question": "What exact result and errorCode does each original upvar rejection publish in the selected engine, and does C84 permit the simple alias-local key alias(k)?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "source_sha256": "d574e783b4b3ef91d9c13ed8e4a867a356072434f95bdce425b5447b7466d55d",
+  "channel": "Same original counted C API fullInit capture driver as Native202/296; supplied source bytes are independent ASCII input in a fresh interpreter per provider. Source uses no raw NUL or Unicode.",
+  "observation": "Final counted result bytes only: five nested list rows of question, guest catch code, caught result, errorCode. No physical variable/object/header identity, no compiled-opcode or error-trace claim.",
+  "notes": [
+    "Do not substitute CLI/observer source or omit failed/unavailable rows. Pin actual full patchlevel, exact headers/library/build executable and source/channel.",
+    "Jim legacy trace may be unavailable; keep exact caught trace result independently from upvar rejection.",
+    "The traced body runs trace registration inside p; a missing trace command is its actual row, not evidence for an alias-traced rejection.",
+    "Each row starts with errorCode SENTINEL; a successful operation may leave it unchanged, independently from the caught failure publication."
+  ]
+}

@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
 const DOMAIN_COUNT: usize = 7;
 
@@ -27,12 +27,7 @@ const DOMAIN_COUNT: usize = 7;
 static NEXT_GUARD_TOKEN: AtomicU64 = AtomicU64::new(1);
 
 fn allocate_guard_token(counter: &AtomicU64) -> Option<GuardToken> {
-    counter
-        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-            current.checked_add(1)
-        })
-        .ok()
-        .map(GuardToken)
+    crate::checked_counter::allocate(counter).map(GuardToken)
 }
 
 /// Identity vocabulary allocated to the registry's intrinsic IDs. The identity
@@ -47,6 +42,8 @@ pub const REGISTRY_INTRINSIC_IDENTITY_NAMESPACE: u32 = 1;
 /// import, hide or expose: a guard reads its own command's attestation at
 /// validation, so mutating that command invalidates that command's guards and
 /// no other's.
+/// A domain mask grants neither a current command inventory nor an entered
+/// activation. Operations also require their actual world and frame proofs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum GuardDomain {
@@ -72,9 +69,10 @@ pub enum GuardDomain {
     /// and binding, renaming or deleting the `unknown` command moves it in
     /// neither.
     UnknownHandling = 2,
-    /// Variable trace registration. The domain of every Family-B intrinsic,
-    /// whose operations reach a runtime's variable store: a guard over it is
-    /// issued only while no variable trace exists and stales when one is added.
+    /// Variable trace registration. Variable-store intrinsics request this
+    /// domain: a guard over it is issued only while no variable trace exists
+    /// and stales when one is added. Other Family-B operations request their
+    /// own declared domain sets.
     VariableTrace = 3,
     /// Command and execution trace registration.
     CommandTrace = 4,
@@ -320,6 +318,15 @@ impl Default for GuardManager {
 }
 
 impl GuardManager {
+    /// Observe this actual manager's mutation epoch without issuing a guard.
+    /// Poisoned state is unavailable. Equality grants no implementation,
+    /// activation, frame, operation, or native object authority.
+    #[must_use]
+    pub fn domain_epoch(&self, domain: GuardDomain) -> Option<u64> {
+        let state = self.domains[domain.index()];
+        (!self.poisoned && !state.poisoned).then_some(state.epoch)
+    }
+
     /// Verify a live identity and issue a token over the selected domains.
     ///
     /// `observed` must come from live runtime resolution. `None` means the
@@ -436,6 +443,83 @@ impl GuardManager {
     }
 }
 
+/// Guard snapshots bound to the exact live allocation selected at issuance.
+/// Equal semantic identities on replacement allocations cannot revive a token.
+#[derive(Debug)]
+pub struct OwnedGuardManager<Owner> {
+    epochs: GuardManager,
+    owners: BTreeMap<GuardToken, Owner>,
+}
+
+impl<Owner: PartialEq> OwnedGuardManager<Owner> {
+    /// Observe the current unpoisoned domain epoch without issuing a guard.
+    /// This delegates currency to the same kernel used by owned guard checks.
+    #[must_use]
+    pub fn domain_epoch(&self, domain: GuardDomain) -> Option<u64> {
+        self.epochs.domain_epoch(domain)
+    }
+
+    /// Retain the supplied epoch kernel and start with no issued owners.
+    #[must_use]
+    pub fn new(epochs: GuardManager) -> Self {
+        Self {
+            epochs,
+            owners: BTreeMap::new(),
+        }
+    }
+
+    /// Verify semantic identity and capture its independently resolved owner.
+    ///
+    /// # Errors
+    /// Returns the epoch kernel's identity, domain, or exhaustion failure.
+    pub fn prepare(
+        &mut self,
+        expected: GuardIdentity,
+        observed: Option<GuardIdentity>,
+        domains: GuardDomains,
+        owner: Owner,
+    ) -> Result<GuardToken, GuardError> {
+        let token = self.epochs.prepare(expected, observed, domains)?;
+        self.owners.insert(token, owner);
+        Ok(token)
+    }
+
+    /// Verify the original owner, semantic identity, and selected epochs.
+    #[must_use]
+    pub fn check(&self, token: GuardToken, observed: Option<GuardIdentity>, owner: &Owner) -> bool {
+        self.owners.get(&token) == Some(owner) && self.epochs.check(token, observed)
+    }
+
+    /// Verify one expected semantic form on the exact original allocation.
+    #[must_use]
+    pub fn check_expected(
+        &self,
+        token: GuardToken,
+        expected: GuardIdentity,
+        observed: Option<GuardIdentity>,
+        owner: &Owner,
+    ) -> bool {
+        self.owners.get(&token) == Some(owner)
+            && self.epochs.check_expected(token, expected, observed)
+    }
+
+    /// Release the allocation receipt and epoch snapshot together.
+    pub fn release(&mut self, token: GuardToken) -> bool {
+        self.owners.remove(&token);
+        self.epochs.release(token)
+    }
+
+    /// Permanently refuse snapshots and issuance in an exhausted owner domain.
+    pub fn poison(&mut self, domain: GuardDomain) {
+        self.epochs.poison(domain);
+    }
+
+    /// Invalidate every snapshot that depends on the selected domain.
+    pub fn invalidate(&mut self, domain: GuardDomain) {
+        self.epochs.invalidate(domain);
+    }
+}
+
 impl GuardDomain {
     const ALL: [Self; DOMAIN_COUNT] = [
         Self::CommandEnvironment,
@@ -455,6 +539,46 @@ mod tests {
     const EXPECTED: GuardIdentity = GuardIdentity::new(1, 17);
     const OTHER: GuardIdentity = GuardIdentity::new(1, 18);
     const COMMAND: GuardDomains = GuardDomains::one(GuardDomain::CommandEnvironment);
+
+    #[test]
+    fn descriptive_domain_epoch_tracks_mutation_and_rejects_poison() {
+        // Software currency: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        let mut kernel = GuardManager::default();
+        let domain = GuardDomain::Interpreter;
+        let before = kernel.domain_epoch(domain).unwrap();
+        kernel.invalidate(domain);
+        assert_ne!(kernel.domain_epoch(domain).unwrap(), before);
+        kernel.poison(domain);
+        assert_eq!(kernel.domain_epoch(domain), None);
+        let mut owned = OwnedGuardManager::<u64>::new(GuardManager::default());
+        let before = owned.domain_epoch(domain).unwrap();
+        owned.invalidate(domain);
+        assert_ne!(owned.domain_epoch(domain).unwrap(), before);
+        assert_eq!(owned.epochs.active_token_count(), 0);
+    }
+
+    #[test]
+    fn owned_guards_cannot_rebind_equal_semantics_to_another_allocation() {
+        let mut manager = OwnedGuardManager::new(GuardManager::default());
+        let domains = GuardDomains::one(GuardDomain::Interpreter);
+        let token = manager
+            .prepare(EXPECTED, Some(EXPECTED), domains, 7_u64)
+            .unwrap();
+        assert!(manager.check(token, Some(EXPECTED), &7));
+        assert!(!manager.check(token, Some(EXPECTED), &8));
+        let replacement = manager
+            .prepare(EXPECTED, Some(EXPECTED), domains, 8)
+            .unwrap();
+        assert!(manager.check_expected(replacement, EXPECTED, Some(EXPECTED), &8));
+        assert!(!manager.check_expected(token, EXPECTED, Some(EXPECTED), &8));
+        assert!(!manager.check_expected(token, OTHER, Some(EXPECTED), &7));
+        manager.invalidate(GuardDomain::Interpreter);
+        assert!(!manager.check(token, Some(EXPECTED), &7));
+        assert!(!manager.check(replacement, Some(EXPECTED), &8));
+        assert!(manager.release(token));
+        assert!(!manager.release(token));
+    }
 
     #[test]
     fn smoke_identity_is_checked_at_issue_and_validation() {

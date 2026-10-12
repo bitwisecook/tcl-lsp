@@ -1,0 +1,12 @@
+{
+  "variants": [
+    "v1",
+    "v2"
+  ],
+  "questions": [
+    "naming.substitution.original-options-and-flag-families",
+    "naming.variable.catch-original-output-name"
+  ],
+  "channel": "Original counted string objects in public Tcl_EvalObjv/Jim_EvalObjVector; ASCII NUL-terminated setup and version source.",
+  "limits": "Version queried on actual linked interpreter. Result code and GetString hex observed after each command. No before-getter object/header/refcount/cache or errorCode observation."
+}

@@ -56,6 +56,7 @@ pub struct GreenToken {
 pub struct GreenTrivia {
     pub kind: TriviaKind,      // Whitespace | Eol | Comment
     pub text: String,
+    lexical_token: Option<Token>, // original position-independent trivia recipe
 }
 ```
 
@@ -72,8 +73,26 @@ Two text fields are kept on a token because neither is derivable from the other
 without re-encoding the lexer's delimiter conventions: `text` is what
 `Token.text` carries downstream (inner), `raw` is what makes the tree lossless
 (full span). `end_rel` is the position-independent shape that lets the red layer
-reconstruct `Token.end` — which, by the #527 convention, sits on the last inner
+reconstruct `Token.end` — which, by the lexer’s inner-end convention, sits on the last inner
 character for a non-empty `{…}` but *on the closer* for an empty `{}`.
+
+## Token projections
+
+`SyntaxNode::tokens()` returns semantic word fragments and expansion markers.
+Use `SyntaxNode::lexer_tokens()` when a consumer needs the original token stream,
+including separators, comments and terminators attached as trivia. The builder
+retains each original trivia token's kind, local span length, content offset and
+quote flag; the red overlay restores its actual anchored span. Literal trivia
+width and token span length are separate, so empty terminators and ghost
+separators remain empty. A skipped file prefix and explicitly authored trivia
+have no original lexer record.
+
+`SegmentedCommand::all_tokens` retains the lexical records between its first
+and last semantic fragments, including inter-word separators. Its reporting
+span still comes from semantic fragments; leading comments and its EOL stay
+attached CST trivia. Word grouping and written-word validation consume this
+shared stream. Neither projection re-lexes source, reconstructs a separator
+from text, nor grants command, frame or execution authority.
 
 ## Losslessness
 

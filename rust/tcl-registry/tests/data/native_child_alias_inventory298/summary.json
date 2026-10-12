@@ -1,0 +1,290 @@
+[
+  {
+    "provider": "8.4.20",
+    "case": "original-rooted-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.4.20",
+    "case": "original-extra-root-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.4.20",
+    "case": "original-nul-before-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.4.20",
+    "case": "original-nul-after-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.4.20",
+    "case": "original-unicode-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.4.20",
+    "case": "original-ff-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.5.19",
+    "case": "original-rooted-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.5.19",
+    "case": "original-extra-root-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.5.19",
+    "case": "original-nul-before-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.5.19",
+    "case": "original-nul-after-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.5.19",
+    "case": "original-unicode-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.5.19",
+    "case": "original-ff-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.6.18",
+    "case": "original-rooted-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.6.18",
+    "case": "original-extra-root-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.6.18",
+    "case": "original-nul-before-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.6.18",
+    "case": "original-nul-after-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.6.18",
+    "case": "original-unicode-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "8.6.18",
+    "case": "original-ff-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.0.4",
+    "case": "original-rooted-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.0.4",
+    "case": "original-extra-root-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.0.4",
+    "case": "original-nul-before-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.0.4",
+    "case": "original-nul-after-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.0.4",
+    "case": "original-unicode-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.0.4",
+    "case": "original-ff-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.1.0",
+    "case": "original-rooted-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.1.0",
+    "case": "original-extra-root-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.1.0",
+    "case": "original-nul-before-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.1.0",
+    "case": "original-nul-after-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.1.0",
+    "case": "original-unicode-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "9.1.0",
+    "case": "original-ff-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "jim",
+    "case": "original-rooted-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "jim",
+    "case": "original-extra-root-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "jim",
+    "case": "original-nul-before-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "jim",
+    "case": "original-nul-after-suffix-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "jim",
+    "case": "original-unicode-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  },
+  {
+    "provider": "jim",
+    "case": "original-ff-child-alias",
+    "exit": 0,
+    "original_code": 0,
+    "stderr_bytes": 0,
+    "rows": 2
+  }
+]

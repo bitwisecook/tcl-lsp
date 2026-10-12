@@ -1,0 +1,26 @@
+{
+  "question_id": "naming.variable.original-array-unset-trace-refill",
+  "question": "Does array unset, for an individual selected member and for a whole root, preserve callback refill and fresh unset registrations until the next operation?",
+  "providers": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "jim"
+  ],
+  "channel": "Two independent exact ASCII source originals; fresh fullInit counted CAPI process per case using unchanged original driver. No fallback or provider-specific source rewrite.",
+  "observation": "Whole original completion/result, public refill value, trace info list and later callback log. Preserve Jim unavailable trace as actual guest error. No private frame/root/member identity, C API equivalence or original object-header claim.",
+  "cases": [
+    {
+      "id": "array-member-refill",
+      "source_file": "array-member-refill.tcl",
+      "source_sha256": "142721a5179cf0e3b52f9533dab8d078245f62635aeba37c615b73dbbe06c777"
+    },
+    {
+      "id": "array-root-refill",
+      "source_file": "array-root-refill.tcl",
+      "source_sha256": "637cc9c94cafbc33ef6500a52e24c36dbea26b37401557a5657996a2938ee237"
+    }
+  ]
+}

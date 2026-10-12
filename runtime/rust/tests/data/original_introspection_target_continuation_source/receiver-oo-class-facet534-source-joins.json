@@ -1,0 +1,46 @@
+[
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+    "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+    "start": 1890,
+    "end": 1932,
+    "line_basis": "physical newline bytes",
+    "excerpt": "/tmp/receiver-oo-class-facet534/source-C91-tclOO-1890-1932.c",
+    "excerpt_sha256": "084cea8ed42b57dc695c80c5d016866897608fd58ecf7ce6284daed12ffd5b68",
+    "purpose": "Actual AllocClass issues a distinct Class allocation and connects the original object/class facet; source inspection only",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 994,
+    "end": 1034,
+    "line_basis": "physical newline bytes",
+    "excerpt": "/tmp/receiver-oo-class-facet534/source-C91-tclOODefineCmds-994-1034.c",
+    "excerpt_sha256": "08828e2ee6fffc89d9013e0d991edce3dfd5c9a86334ee6ae07883a1dfca21e3",
+    "purpose": "Original definition-context object versus class selection, separate from later operand getters",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 1704,
+    "end": 1803,
+    "line_basis": "physical newline bytes",
+    "excerpt": "/tmp/receiver-oo-class-facet534/source-C91-tclOODefineCmds-1704-1803.c",
+    "excerpt_sha256": "c0929678d493c07d6937005a40661af7669a0fb7b12d9d2ad9c141b6d6b70c70",
+    "purpose": "Original Class worker selected object, class operand and demotion/promotion facet effects; does not prove safe callback pointer lifetime",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 1152,
+    "end": 1188,
+    "line_basis": "physical newline bytes",
+    "excerpt": "/tmp/receiver-oo-class-facet534/source-C91-tclOOInfo-1152-1188.c",
+    "excerpt_sha256": "f42e00dad422f753fc78450a795d2474510cc0d3245885b44a56be583611c3ca",
+    "purpose": "InfoClassDefnNs selects original Class before the reached kind getter and later Class storage access",
+    "evidence": "inspected source/API only; external execution NT"
+  }
+]
